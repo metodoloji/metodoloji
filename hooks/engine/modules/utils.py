@@ -19,6 +19,55 @@ from .config import (
 )
 
 
+def _coerce_json_scalar(v) -> str:
+    """Str-coerce one hook payload value, defensively.
+
+    Hook input is a wire format from another process: a schema like
+    ``{"command": ["cat", "f.txt"]}`` or ``{"path": 123}`` is malformed but
+    arrives through the same JSON channel as good input, and the engine must
+    never crash on it. Strings pass through untouched; the rest get
+    deterministic, shell-parseable string forms (list -> joined words,
+    mapping -> k=v words, scalars -> str()). None normalizes to "".
+    """
+    if v is None:
+        return ""
+    if isinstance(v, str):
+        return v
+    if isinstance(v, (list, tuple)):
+        return " ".join(_coerce_json_scalar(x) for x in v)
+    if isinstance(v, dict):
+        return " ".join(f"{k}={_coerce_json_scalar(x)}" for k, x in sorted(v.items()))
+    return str(v)
+
+
+_COERCE_TOOL_KEYS = ("command", "cmd", "path", "file_path", "content")
+
+
+def _coerce_tool_input(raw) -> dict:
+    """Normalize the tool_input surface to a dict with stringified routing keys.
+
+    A non-object tool_input kept no {path,command,content} contract for any
+    caller — but it is still one opaque "stdin word/user typed a thing" value,
+    so it is carried as the command of a synthetic terminal payload instead of
+    crashing on dict() coercion (E-003) or being dropped silently. None/empty
+    normalizes to {}; malformed values inside a real object never crash —
+    every crash-susceptible value (path/file_path/command/cmd/content) is
+    coerced, keys the engine only reads for metadata stay native.
+    """
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        rendered = _coerce_json_scalar(raw)
+        return {"command": rendered} if rendered else {}
+    out = {}
+    for k, x in raw.items():
+        if k in _COERCE_TOOL_KEYS:
+            out[k] = _coerce_json_scalar(x)
+        else:
+            out[k] = x
+    return out
+
+
 def normalize_hook_input(json_in: dict) -> dict:
     """Normalize hook input from either Claude Code or OpenHands to a common schema.
 
@@ -42,7 +91,7 @@ def normalize_hook_input(json_in: dict) -> dict:
     """
     runtime = os.environ.get("METODOLOJI_RUNTIME", "")
     tool_name = json_in.get("tool_name", "")
-    tool_input = dict(json_in.get("tool_input", {}))
+    tool_input = _coerce_tool_input(json_in.get("tool_input", {}))
 
     raw_name = tool_name
 

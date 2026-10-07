@@ -564,8 +564,18 @@ def uncertainty_note(x: int | None, n: int | None, value: float, threshold: floa
     return (f"n={n} (small sample: 95% Wilson lower bound {lower:.2f} < threshold {threshold:g})")
 
 
-def run_and_measure(cmd: str) -> tuple[float, int | None, int | None, str | None]:
-    """Run the measurement script; return (value, x, y, metric_stem) from its stdout."""
+def run_and_measure(cmd: str, claim_metric: str | None = None
+                    ) -> tuple[float, int | None, int | None, str | None]:
+    """Run the measurement script; return (value, x, y, metric_stem) from its stdout.
+
+    When claim_metric is given (the metric name the hypothesis claims), the
+    matching ``metric_*`` line is chosen — a bench that prints several metrics
+    must not have its decision bind to whichever line happened to come first
+    (E-004). No line carries the claimed metric: the FIRST parsed line is
+    used and the normal metric-MISMATCH advisory handles the redefinition
+    (backward compatible). Two lines with the same stem but conflicting values
+    are self-contradicting output and fail closed.
+    """
     try:
         proc = subprocess.run(cmd, shell=True, capture_output=True, text=True,
                               encoding="utf-8", errors="replace", timeout=600)
@@ -574,10 +584,33 @@ def run_and_measure(cmd: str) -> tuple[float, int | None, int | None, str | None
     if proc.returncode != 0:
         raise ValueError(
             f"measurement run exited {proc.returncode}: {cmd}\n{proc.stdout}\n{proc.stderr}")
-    m = MEASURED_RE.search(proc.stdout)
-    if not m:
+    matches = list(MEASURED_RE.finditer(proc.stdout))
+    if not matches:
         raise ValueError(
             f"could not parse a measured value from the run output: {cmd}\n{proc.stdout}")
+    # Self-contradicting output fails closed: the SAME metric printed twice
+    # must agree (banner/summary repetition is fine — same values). Different
+    # metric stems may legitimately differ.
+    by_stem: dict[str, list] = {}
+    for mm in matches:
+        by_stem.setdefault(metric_stem(mm.group(1)), []).append(mm)
+    for stem, group in by_stem.items():
+        first = group[0]
+        for other in group[1:]:
+            if (abs(float(other.group(2)) - float(first.group(2))) > 1e-12
+                    or int(other.group(3) or 0) != int(first.group(3) or 0)
+                    or int(other.group(4) or 0) != int(first.group(4) or 0)):
+                raise ValueError(
+                    f"conflicting repeated metric lines for '{stem}' "
+                    f"({first.group(1)}={first.group(2)} vs "
+                    f"{other.group(1)}={other.group(2)}): {cmd}")
+    if claim_metric and claim_metric in by_stem:
+        m = by_stem[claim_metric][0]
+    else:
+        # Claim absent from the output: first line binds and the normal
+        # metric-MISMATCH advisory handles the redefinition downstream.
+        m = matches[0]
+    val = float(m.group(2))
     x = int(m.group(3)) if m.group(3) else None
     y = int(m.group(4)) if m.group(4) else None
     # --run mode requires the sample-size denominator: without (x/y) the gate cannot
@@ -585,7 +618,7 @@ def run_and_measure(cmd: str) -> tuple[float, int | None, int | None, str | None
     if y is None:
         raise ValueError(
             f"no sample-size denominator '(x/y)' in the run output: {cmd}\n{proc.stdout}")
-    return float(m.group(2)), x, y, metric_stem(m.group(1))
+    return val, x, y, metric_stem(m.group(1))
 
 
 # --- Rule: measurement script cannot live in a free zone ---
@@ -984,8 +1017,11 @@ def main() -> int:
 
     # Measurement: the gate runs the command ITSELF and parses the value from output.
     # Operator declares no numbers — reality is mechanical (manifesto: --run is canonical).
+    # The claimed metric name steers which metric_* line binds the decision
+    # (E-004): a multi-metric bench must not have its first line decide.
+    claim_metric = claim_metric_name(claim)
     try:
-        val, x, y, run_metric = run_and_measure(args.run)
+        val, x, y, run_metric = run_and_measure(args.run, claim_metric=claim_metric)
     except ValueError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
@@ -999,7 +1035,6 @@ def main() -> int:
 
     # Metric-name cross-check (Rule 1): the measured metric name (parsed from output)
     # is compared against the metric name in the hypothesis claim.
-    claim_metric = claim_metric_name(claim)
     measured_metric = run_metric
     metric_mismatch = measured_metric is not None and measured_metric != claim_metric
     if metric_mismatch:

@@ -345,3 +345,61 @@ def test_extract_story_key_space():
 
 def test_extract_story_key_no_match():
     assert extract_story_key_from_content("## Title\nbody") == ""
+
+
+# --- tool_input shape hardening (E-003) --------------------------------------
+# Hook input is a wire format from another process; malformed shapes must
+# never crash the engine (traceback = no decision = fail-open risk).
+
+
+def test_normalize_tool_input_non_object_becomes_command():
+    """A scalar tool_input no longer satisfies any {path,command,content}
+    contract, but it still carries one opaque 'stdin word/user typed a thing'
+    value — carried as a synthetic terminal command instead of crashing on
+    dict() coercion (E-003) or being dropped silently."""
+    from modules.utils import normalize_hook_input
+    norm = normalize_hook_input({"tool_name": "terminal", "tool_input": "ls"})
+    assert norm["tool_input"] == {"command": "ls"}
+    # Non-code-looking values never crash either.
+    norm2 = normalize_hook_input({"tool_name": "terminal", "tool_input": ["ls"]})
+    assert norm2["tool_input"] == {"command": "ls"}
+    assert normalize_hook_input({"tool_name": "terminal", "tool_input": None})[
+        "tool_input"] == {}
+
+
+def test_normalize_malformed_values_coerced_not_crashing():
+    """Crash-susceptible routing coefficients are stringified defensively."""
+    from modules.utils import normalize_hook_input
+    norm = normalize_hook_input({"tool_name": "terminal",
+                                 "tool_input": {"command": ["cat", "README.md"]}})
+    assert norm["tool_input"]["command"] == "cat README.md"
+    # PowerShell `cmd` alias coerces the same way.
+    norm2 = normalize_hook_input({"tool_name": "PowerShell",
+                                  "tool_input": {"cmd": ["Out-File", "x"]}})
+    assert norm2["tool_input"]["command"] == "Out-File x"
+    norm3 = normalize_hook_input({"tool_name": "file_editor",
+                                  "tool_input": {"path": 123}})
+    assert norm3["tool_input"]["path"] == "123"
+    norm4 = normalize_hook_input({"tool_name": "file_editor",
+                                  "tool_input": {"path": True}})
+    assert norm4["tool_input"]["path"] == "True"  # scalars coerce via str()
+    # None routing key normalizes to empty ("" -> guard early-allows).
+    norm5 = normalize_hook_input({"tool_name": "terminal", "tool_input": {"command": None}})
+    assert norm5["tool_input"]["command"] == ""
+
+
+def test_normalize_mapping_value_coerces_to_words():
+    """A dict-typed routing key renders as deterministic k=v words."""
+    from modules.utils import normalize_hook_input
+    norm = normalize_hook_input({"tool_name": "terminal",
+                                 "tool_input": {"command": {"cmd": "ls"}}})
+    assert norm["tool_input"]["command"] == "cmd=ls"
+
+
+def test_normalize_metadata_keys_stay_native():
+    """Only keys the engine routes on are coerced; the rest pass through."""
+    from modules.utils import normalize_hook_input
+    norm = normalize_hook_input({"tool_name": "terminal",
+                                 "tool_input": {"command": "ls",
+                                                "timeout": 30}})
+    assert norm["tool_input"]["timeout"] == 30

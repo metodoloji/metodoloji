@@ -644,3 +644,59 @@ def test_main_non_object_stdin_open_hook_allows(tmp_path):
     assert r.returncode == 0, r.stderr
     out = json.loads(r.stdout)
     assert out["hookSpecificOutput"]["permissionDecision"] == "allow"
+
+
+def test_main_malformed_shapes_never_crash_decide_instead(tmp_path):
+    """E-003: dict payloads with anti-shape routing values must return a
+    decision on every hook mode — never a traceback/exit≠0.
+
+    The deny on the malformed path is the CONTRACT here (the value "123"
+    resolves outside the sandbox project), deny-over-allow is guaranteed by
+    utils._coerce_tool_input; the pinned half is the no-crash/always-decide
+    half. Free-zone shape (scratch/) still allows.
+    """
+    cases = {
+        "guard": [
+            {"tool_name": "terminal", "tool_input": "ls"},
+            {"tool_name": "terminal", "tool_input": ["ls"]},
+            {"tool_name": "terminal", "tool_input": {"command": ["ls"]}},
+            {"tool_name": "file_editor", "tool_input": {"path": 123}},
+        ],
+        "stop": [{"cwd": str(tmp_path), "tool_input": "weird"}],
+        "pre": [{"tool_name": "terminal", "tool_input": "ls"}],
+        "audit": [{"tool_input": ["x"]}],
+    }
+    for mode, payloads in cases.items():
+        for payload in payloads:
+            r = _main_with_stdin(mode, json.dumps(payload), tmp_path)
+            assert r.returncode == 0, (mode, payload, r.stderr)
+            out = json.loads(r.stdout)
+            assert "hookEventName" in out.get("hookSpecificOutput", {}), (mode, payload)
+
+
+def test_main_malformed_path_still_fail_closed_not_crash(tmp_path):
+    """The deny-decision half: a malformed numeric path must DENY (not crash,
+    not allow) — the fail-closed contract survives the coercion."""
+    r = _main_with_stdin(
+        "guard",
+        json.dumps({"tool_name": "file_editor", "tool_input": {"path": 123}}),
+        tmp_path,
+    )
+    assert r.returncode == 0, r.stderr
+    out = json.loads(r.stdout)
+    assert out["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+def test_main_malformed_free_zone_command_still_allows(tmp_path):
+    """Coercion must not over-block: a real command string in a free-zone
+    write still allows (guard behavior unchanged on well-formed shapes)."""
+    r = _main_with_stdin(
+        "guard",
+        json.dumps({"tool_name": "file_editor",
+                    "tool_input": {"path": str(tmp_path / "scratch" / "a.py"),
+                                   "content": "x=1"}}),
+        tmp_path,
+    )
+    assert r.returncode == 0, r.stderr
+    out = json.loads(r.stdout)
+    assert out["hookSpecificOutput"]["permissionDecision"] == "allow"

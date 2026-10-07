@@ -147,6 +147,68 @@ def test_measured_re_negative():
     assert gate.MEASURED_RE.search("nothing here") is None
 
 
+def _fake_run(monkeypatch, stdout):
+    """Pin run_and_measure's stdout without spawning a process."""
+    class _P:
+        returncode = 0
+        stderr = ""
+    _P.stdout = stdout  # assigned here so the closure sees the parameter
+    monkeypatch.setattr(gate.subprocess, "run",
+                        lambda *a, **k: _P())
+
+
+def test_run_and_measure_selects_claimed_metric(monkeypatch):
+    """E-004: a multi-metric bench must bind the decision to the CLAIMED
+    metric's line, not whichever metric_* line happened to print first."""
+    _fake_run(monkeypatch,
+              "metric_validity=0.00 (0/53)\n"
+              "consistency_accuracy=1.00 (53/53)\n")
+    val, x, y, stem = gate.run_and_measure("ignored", claim_metric="consistency")
+    assert (val, x, y, stem) == (1.0, 53, 53, "consistency")
+
+
+def test_run_and_measure_falls_back_to_first_line(monkeypatch):
+    """Claim never printed: first line binds and the MISMATCH advisory fires
+    downstream (backward-compatible behavior preserved)."""
+    _fake_run(monkeypatch, "metric_validity=0.50 (1/2)\n")
+    val, x, y, stem = gate.run_and_measure("ignored", claim_metric="consistency")
+    # group(1) is 'metric_validity' -> stem strips _validity -> 'metric'
+    assert (val, x, y, stem) == (0.5, 1, 2, "metric")
+
+
+def test_run_and_measure_distinct_stems_may_differ(monkeypatch):
+    """Different metrics printing different values is normal bench output —
+    only the SAME stem with conflicting values fails closed."""
+    _fake_run(monkeypatch,
+              "other_validity=0.00 (0/53)\n"
+              "consistency_accuracy=1.00 (53/53)\n")
+    val, x, y, stem = gate.run_and_measure("ignored", claim_metric="consistency")
+    assert (val, x, y, stem) == (1.0, 53, 53, "consistency")
+
+
+def test_run_and_measure_rejects_conflicting_same_stem(monkeypatch):
+    """Two lines, same stem, different values: self-contradicting output ->
+    fail closed (ValueError), never silently pick one."""
+    _fake_run(monkeypatch,
+              "metric_accuracy=1.00 (53/53)\n"
+              "metric_accuracy=0.00 (0/53)\n")
+    try:
+        gate.run_and_measure("ignored", claim_metric=None)
+    except ValueError as exc:
+        assert "conflicting" in str(exc)
+    else:
+        raise AssertionError("conflicting same-stem lines must raise")
+
+
+def test_run_and_measure_identical_repeats_ok(monkeypatch):
+    """The same metric line printed twice with identical values is not a
+    conflict (banner + summary repetition)."""
+    line = "consistency_accuracy=1.00 (53/53)\n"
+    _fake_run(monkeypatch, line + line)
+    val, x, y, stem = gate.run_and_measure("ignored", claim_metric="consistency")
+    assert (val, x, y, stem) == (1.0, 53, 53, "consistency")
+
+
 # --- gate_token -------------------------------------------------------------
 
 def test_gate_token_deterministic():
