@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>metodoloji Social Preview</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      width: 1280px;
+      height: 640px;
+      background: #080c14;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Ambient Background Glows */
+    .bg-grid {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image: 
+        linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+      background-size: 48px 48px;
+      opacity: 0.6;
+    }
+
+    .glow-cyan {
+      position: absolute;
+      top: 140px;
+      left: 120px;
+      width: 380px;
+      height: 380px;
+      background: radial-gradient(circle, rgba(0, 229, 255, 0.14) 0%, rgba(0, 229, 255, 0) 70%);
+      filter: blur(40px);
+      pointer-events: none;
+    }
+
+    .glow-blue {
+      position: absolute;
+      bottom: 80px;
+      right: 140px;
+      width: 440px;
+      height: 440px;
+      background: radial-gradient(circle, rgba(56, 189, 248, 0.08) 0%, rgba(56, 189, 248, 0) 70%);
+      filter: blur(50px);
+      pointer-events: none;
+    }
+
+    .card-border {
+      position: absolute;
+      top: 24px;
+      left: 24px;
+      right: 24px;
+      bottom: 24px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 28px;
+      pointer-events: none;
+    }
+
+    .container {
+      position: relative;
+      z-index: 10;
+      width: 1160px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 60px;
+      padding: 0 40px;
+    }
+
+    /* Logo Container */
+    .logo-box {
+      flex-shrink: 0;
+      width: 280px;
+      height: 280px;
+      background: rgba(13, 19, 32, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6), 0 0 40px rgba(0, 229, 255, 0.12);
+    }
+
+    .logo-box svg {
+      width: 200px;
+      height: 200px;
+    }
+
+    /* Content Area */
+    .content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .brand-header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    h1 {
+      font-size: 72px;
+      font-weight: 800;
+      letter-spacing: -2px;
+      color: #ffffff;
+      line-height: 1;
+    }
+
+    .version-tag {
+      font-size: 18px;
+      font-weight: 600;
+      padding: 6px 16px;
+      border-radius: 24px;
+      background: rgba(0, 229, 255, 0.12);
+      color: #00e5ff;
+      border: 1px solid rgba(0, 229, 255, 0.3);
+      letter-spacing: 0.5px;
+    }
+
+    .tagline {
+      font-size: 26px;
+      font-weight: 400;
+      color: #94a3b8;
+      line-height: 1.45;
+      max-width: 720px;
+    }
+
+    .tagline strong {
+      color: #f1f5f9;
+      font-weight: 600;
+    }
+
+    .tagline em {
+      color: #00e5ff;
+      font-style: normal;
+      font-weight: 600;
+    }
+
+    /* Badge Pills */
+    .badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 10px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 18px;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 500;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #cbd5e1;
+    }
+
+    .pill.accent {
+      background: rgba(0, 229, 255, 0.08);
+      border-color: rgba(0, 229, 255, 0.25);
+      color: #38bdf8;
+    }
+
+    .pill.green {
+      background: rgba(16, 185, 129, 0.08);
+      border-color: rgba(16, 185, 129, 0.25);
+      color: #34d399;
+    }
+
+    .pill svg {
+      width: 14px;
+      height: 14px;
+      fill: currentColor;
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <div class="glow-cyan"></div>
+  <div class="glow-blue"></div>
+  <div class="card-border"></div>
+
+  <div class="container">
+    <!-- Stepped Gate Logo -->
+    <div class="logo-box">
+      <svg viewBox="0 0 240 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Stage 1: Giriş / Analiz (White) -->
+        <rect x="10" y="150" width="56" height="56" rx="14" fill="#FFFFFF" />
+
+        <!-- Stage 2: Doğrulama Kapısı (Cyan Gate) -->
+        <rect x="92" y="80" width="56" height="126" rx="14" fill="#00E5FF" />
+
+        <!-- Stage 3: Dağıtım (White) -->
+        <rect x="174" y="10" width="56" height="196" rx="14" fill="#FFFFFF" />
+
+        <!-- Onay & Kilit Noktası -->
+        <circle cx="120" cy="32" r="14" fill="#00E5FF" />
+      </svg>
+    </div>
+
+    <!-- Content Details -->
+    <div class="content">
+      <div class="brand-header">
+        <h1>metodoloji</h1>
+        <span class="version-tag">v0.1.0</span>
+      </div>
+
+      <p class="tagline">
+        A methodology plugin that makes your coding agent ask permission — <em>mechanically</em>.
+      </p>
+
+      <div class="badges">
+        <div class="pill accent">
+          <span>E &rarr; IR &rarr; SP &rarr; S &rarr; QR &rarr; PR</span>
+        </div>
+        <div class="pill">
+          <span>Claude Code & OpenHands</span>
+        </div>
+        <div class="pill">
+          <span>Fail-Closed Hooks</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

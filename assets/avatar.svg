@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- Solid Full-Bleed Dark Background (Fills entire avatar area) -->
+  <rect width="512" height="512" fill="#090d16" />
+
+  <!-- BOLD, High-Contrast Centered Stepped Gate Emblem (Optimized for GitHub Avatar & Favicon) -->
+  <!-- Bounding box: X ~70 to ~442, Y ~70 to ~442 -> perfectly centered in 512x512 safe circle -->
+  <g transform="translate(256, 268)">
+    <!-- Stage 1: Giriş / Analiz (Left Bar - White) -->
+    <!-- Center x: -128, w: 84, h: 104, rx: 26 -->
+    <rect x="-170" y="52" width="84" height="104" rx="26" fill="#FFFFFF" />
+
+    <!-- Stage 2: Doğrulama Kapısı (Center Gate Bar - Electric Cyan) -->
+    <!-- Center x: 0, w: 92, h: 228, rx: 28 -->
+    <rect x="-46" y="-72" width="92" height="228" rx="28" fill="#00E5FF" />
+
+    <!-- Stage 2 Approval Token / Dot (Electric Cyan) -->
+    <circle cx="0" cy="-136" r="28" fill="#00E5FF" />
+
+    <!-- Stage 3: Üretim / Dağıtım (Right Bar - White) -->
+    <!-- Center x: 128, w: 84, h: 328, rx: 26 -->
+    <rect x="86" y="-172" width="84" height="328" rx="26" fill="#FFFFFF" />
+  </g>
+</svg>
