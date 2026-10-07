@@ -568,6 +568,56 @@ def test_store_read_state_returns_empty_for_corrupt(tmp_path):
     assert store_mod.read_state(str(tmp_path), "corrupt") == {}
 
 
+# --- corrupt-state honesty (E-005) -------------------------------------------
+# read_state's fail-open {} is the storage contract; the ENGINE layer must not
+# let that {} masquerade as "no such workflow" — an operator re-creating over
+# a corrupt file would silently destroy a possibly-recoverable run.
+
+def test_state_is_corrupt_distinguishes_corrupt_from_missing(tmp_path):
+    root = str(tmp_path)
+    assert engine.state_is_corrupt(root, "ghost") is False  # missing file
+    store_mod.write_state(root, "healthy", {"slug": "healthy", "status": "active"})
+    assert engine.state_is_corrupt(root, "healthy") is False
+    p = store_mod.paths(root)
+    os.makedirs(p["base"], exist_ok=True)
+    Path(os.path.join(p["base"], "broken.state.json")).write_text(
+        "{{{not json", encoding="utf-8")
+    assert engine.state_is_corrupt(root, "broken") is True
+
+
+def test_list_runs_marks_corrupt_instead_of_ghost_row(tmp_path):
+    root = str(tmp_path)
+    engine.create(root, _spec(), slug="demo")
+    p = store_mod.paths(root)
+    os.makedirs(p["base"], exist_ok=True)
+    Path(os.path.join(p["base"], "broken.state.json")).write_text(
+        "{{{corrupt", encoding="utf-8")
+    runs = {r["slug"]: r for r in engine.list_runs(root)["runs"]}
+    assert runs["demo"]["status"] == "active"  # healthy rows unchanged
+    assert runs["broken"].get("corrupt") is True
+    assert "error" in runs["broken"]
+
+
+def test_status_on_corrupt_run_names_the_file_not_no_workflow(tmp_path):
+    root = str(tmp_path)
+    engine.create(root, _spec(), slug="demo")
+    p = store_mod.paths(root)
+    os.makedirs(p["base"], exist_ok=True)
+    Path(os.path.join(p["base"], "demo.state.json")).write_text(
+        "{{{corrupt", encoding="utf-8")
+    out = engine.status(root, "demo")
+    assert out["ok"] is False
+    assert "corrupt" in out["error"]
+    assert "demo.state.json" in out["error"]
+    assert "no workflow" not in out["error"]
+
+
+def test_missing_run_still_says_no_workflow(tmp_path):
+    out = engine.status(str(tmp_path), "ghost")
+    assert out["ok"] is False
+    assert "no workflow 'ghost'" in out["error"]
+
+
 def test_store_write_state_creates_files(tmp_path):
     root = str(tmp_path)
     slug = "demo"

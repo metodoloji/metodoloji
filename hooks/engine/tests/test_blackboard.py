@@ -458,6 +458,47 @@ def test_cli_hot_requires_key_or_clear(tmp_path):
     assert json.loads(r.stdout)["ok"] is False
 
 
+# --- CLI root resolution honors hook env (E-005) ------------------------------
+
+def test_cli_root_resolves_env_over_cwd(tmp_path):
+    """blackboard.py must resolve the project root like engine repo_root():
+    CLAUDE_PROJECT_DIR beats cwd. The old cwd-first fallback made a CLI run
+    from the plugin tree read the PLUGIN's board under a hook context."""
+    import os
+    import subprocess
+    env = dict(os.environ)
+    env.pop("OPENHANDS_PROJECT_DIR", None)
+    env["CLAUDE_PROJECT_DIR"] = str(tmp_path)
+    r = subprocess.run(
+        [sys.executable, str(CLI), "read"],
+        capture_output=True, text=True, timeout=60,
+        input="", env=env,
+        cwd=str(CLI.parents[3]),  # plugin tree as cwd — the ambiguous spot
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    assert r.returncode == 0, r.stderr
+    board = json.loads(r.stdout)
+    # Board content is empty (fresh tmp root), NOT the plugin repo's keys.
+    assert board["keys"] == {}, board["keys"]
+
+
+def test_cli_explicit_project_root_still_wins(tmp_path):
+    import os
+    import subprocess
+    other = tmp_path / "other"
+    other.mkdir()
+    env = dict(os.environ)
+    env["CLAUDE_PROJECT_DIR"] = str(tmp_path)
+    r = subprocess.run(
+        [sys.executable, str(CLI), "read", "--project-root", str(other)],
+        capture_output=True, text=True, timeout=60,
+        input="", env=env,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    assert r.returncode == 0, r.stderr
+    assert json.loads(r.stdout)["keys"] == {}
+
+
 # --- engine integration ---------------------------------------------------------
 def _engine(tmp_monkeypatch, root):
     """Import engine modules with the project root pinned."""
