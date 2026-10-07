@@ -1,0 +1,20 @@
+# DO NOT EDIT -- overwritten on every update.
+#
+# Workflow customization surface for wds-5-agentic-development. Mirrors the
+# agent customization shape under the [workflow] namespace.
+#
+# The team layer (custom/wds-5-agentic-development.toml) injects the BRIDGE
+# steps that link this surface's native output to methodology records
+# (S-<sira>.md, QR-<sira>.md). This root file exists so resolve_customization's
+# deep_merge can load that override at runtime.
+
+[workflow]
+
+activation_steps_prepend = []
+
+activation_steps_append = []
+
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+]

@@ -1,0 +1,147 @@
+{
+  "id": "methodology-chain",
+  "version": 1,
+  "title": "Methodology Governance Record Chain (E → IR → SP → S → QR → PR)",
+  "intent": "Drives software development through the 6-stage mechanical governance chain from experiment research to production readiness.",
+  "artifact": "docs/development/README.md",
+  "start": "experiment",
+  "stages": [
+    {
+      "id": "experiment",
+      "title": "E: Research Experiment",
+      "goal": "Formulate hypothesis, run mechanical gate, and obtain approved gate token.",
+      "actions": [
+        "Create docs/experiments/E-*.md",
+        "Run experiment measurement gate",
+        "Verify APPROVED status and GATE-OK token"
+      ],
+      "evidence": {
+        "kind": "artifact",
+        "path": "docs/experiments/E-*.md",
+        "contains": ["approved"],
+        "min": 1
+      },
+      "bridge": "E-",
+      "next": [
+        {
+          "to": "implementation-readiness"
+        }
+      ]
+    },
+    {
+      "id": "implementation-readiness",
+      "title": "IR: Implementation Readiness",
+      "requires": ["experiment"],
+      "goal": "Validate PRD, Architecture, and UX readiness before code development.",
+      "actions": [
+        "Create docs/development/IR-*.md",
+        "Verify architecture and dependencies"
+      ],
+      "evidence": {
+        "kind": "artifact",
+        "path": "docs/development/IR-*.md",
+        "contains": ["IR-"],
+        "min": 1
+      },
+      "bridge": "IR-",
+      "next": [
+        {
+          "to": "sprint-planning"
+        }
+      ]
+    },
+    {
+      "id": "sprint-planning",
+      "title": "SP: Sprint Planning",
+      "requires": ["implementation-readiness"],
+      "goal": "Structure epics and user stories into a tracked sprint plan.",
+      "actions": [
+        "Create docs/development/SP-*.md",
+        "Plan story breakdown and estimates"
+      ],
+      "evidence": {
+        "kind": "artifact",
+        "path": "docs/development/SP-*.md",
+        "contains": ["SP-"],
+        "min": 1
+      },
+      "bridge": "SP-",
+      "next": [
+        {
+          "to": "story"
+        }
+      ]
+    },
+    {
+      "id": "story",
+      "title": "S: Story Execution & Dev",
+      "requires": ["sprint-planning"],
+      "goal": "Implement story code within verified experiment scope.",
+      "actions": [
+        "Create story record docs/development/stories/S-*.md",
+        "Implement verified changes and tests"
+      ],
+      "evidence": {
+        "kind": "artifact",
+        "path": "docs/development/stories/S-*.md",
+        "contains": ["S-"],
+        "min": 1
+      },
+      "bridge": "S-",
+      "next": [
+        {
+          "to": "quality-review"
+        }
+      ]
+    },
+    {
+      "id": "quality-review",
+      "title": "QR: Quality Review",
+      "requires": ["story"],
+      "goal": "Audit Definition of Done, run tests, and record quality signoff.",
+      "actions": [
+        "Create QR record in docs/quality/QR-*.md or docs/development/QR-*.md",
+        "Verify DoD checklist and test pass"
+      ],
+      "evidence": {
+        "kind": "artifact",
+        "path": "docs/**/QR-*.md",
+        "contains": ["QR-"],
+        "min": 1
+      },
+      "bridge": "QR-",
+      "next": [
+        {
+          "to": "production-readiness"
+        }
+      ]
+    },
+    {
+      "id": "production-readiness",
+      "title": "PR: Production Readiness",
+      "requires": ["quality-review"],
+      "goal": "Verify deployment readiness and rollback plans before release.",
+      "actions": [
+        "Create PR record docs/development/PR-*.md",
+        "Confirm rollback strategy"
+      ],
+      "evidence": {
+        "kind": "artifact",
+        "path": "docs/development/PR-*.md",
+        "contains": ["PR-"],
+        "min": 1
+      },
+      "bridge": "PR-",
+      "next": [
+        {
+          "to": "done"
+        }
+      ]
+    },
+    {
+      "id": "done",
+      "title": "Complete",
+      "terminal": true
+    }
+  ]
+}

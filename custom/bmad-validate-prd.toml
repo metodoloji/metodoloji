@@ -1,0 +1,15 @@
+# Team overrides for bmad-validate-prd — Research methodology (Mod C: PRD validation).
+# PRD validation must check that claims are hypotheses awaiting experiment, not asserted facts.
+# This workflow is directly invocable (/bmad-validate-prd), independent of the analyst agent.
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+]
+activation_steps_prepend = [
+  "Confirm the methodology manifesto is loaded: read {metodoloji-root}/docs/bmad/research-methodology.md if present. If it is missing, stop and tell the user this workflow requires it.",
+]
+activation_steps_append = [
+  "During validation, flag any requirement presented as measured fact without an experiment record: it must be marked as a hypothesis awaiting experiment. Validation should confirm the PRD's expected outcomes can later be validated by a bmad-research-experiment record.",
+]

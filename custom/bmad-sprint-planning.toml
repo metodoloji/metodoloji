@@ -1,0 +1,17 @@
+# Team overrides for bmad-sprint-planning -- Research methodology (Mod D: sprint management).
+# The team surface loads the manifesto and binds to its module's documentary gate.
+# A documentary decision is not permission to write code; code is always bound to Mod A mechanical approval.
+# Team layer, committed.
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+  "file:{metodoloji-root}/docs/bmad/development-methodology.md",
+]
+activation_steps_append = [
+  "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
+  "Before finishing the work, verify that the record is complete: English field labels, decision rationale, uncertainty acknowledgment. A documentary decision is not permission to write code.",
+  "BRIDGE: After producing the native sprint-status.yaml output (docs/development/native/sprint-status.yaml), create the methodology record docs/development/SP-<sira>.md according to rule §2.5b in {metodoloji-root}/docs/bmad/dev-skill-to-methodology-bridge.md. Copy the templates/_template_SP.md template, fill the fields from the YAML with English labels (Date, Status: planned|in progress|completed|cancelled, Sprint goal: one sentence, Stories S-id list + priority + story points, Capacity: estimated points / team velocity, Blockers: known blockers + resolution plan, Dependencies: external team/system dependencies, Technical debt). Add the '# Methodology record: docs/development/SP-<sira>.md' comment reference to the native YAML as ONE LINE PER SPRINT RECORD, oldest first — add this sprint's line and keep the earlier ones (a single pointer stops naming sprint 1 the moment sprint 2 is planned). The Status field must be from the allowed values and the Date field must be present (scripts/check-methodology.sh §6 checks this). VERIFY: run 'grep -c \"# Methodology record:\" docs/development/native/sprint-status.yaml' — it must equal the number of docs/development/SP-*.md records, because CHECK 6 fails on a dangling, repeated or incomplete pointer list. This does not break the BMED native flow; it adds the methodology record alongside it and establishes the record chain (IR → SP → S). VERIFY: After creating the record, run 'ls -la docs/development/SP-<sira>.md' in the terminal. If the file is missing, error and recreate the record.",
+  "BRIDGE (tech-debt cap): In the SP record, the 'Technical debt' section cannot be left empty. Read the '### Critical Priority (P0)' table in docs/development/tech-debt.md (with python3 -c or by opening the file); every TD-XXX ID in the table must be referenced in the 'Technical debt' section in the format 'TD-NNN: <short description> - outside this sprint's scope', even if it is not being addressed this sprint. If the P0 table is empty, write 'Technical debt: (no P0, the tech-debt rule does not apply this sprint)'. This makes the 'technical debt cannot be hidden' rule mechanical. VERIFICATION: After creating the SP record, run the 'grep -E \"TD-[0-9]+|no P0\" docs/development/SP-<sira>.md' command. If it returns 0 lines, error and recreate the record (the 'no P0' note is required even if there are no P0s in the inventory)."
+]

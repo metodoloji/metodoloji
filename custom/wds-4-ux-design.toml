@@ -1,0 +1,13 @@
+# WDS 4: UX Design - Team overrides
+# UX design: user experience and interface
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+  "file:{project-root}/docs/bmad/design-system.md",
+]
+activation_steps_append = [
+  "Create the wireframes",
+  "Apply the design system",
+  "Run an accessibility check"
+]

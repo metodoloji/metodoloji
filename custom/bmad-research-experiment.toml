@@ -1,0 +1,13 @@
+# Research Experiment - Team overrides
+# Research experiment: scientific experiments
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+]
+activation_steps_append = [
+  "Define the hypothesis",
+  "Create the experiment design",
+  "Analyze the results"
+]

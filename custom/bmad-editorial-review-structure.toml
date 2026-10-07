@@ -1,0 +1,13 @@
+# Editorial Review Structure - Team overrides
+# Structural review: organization and restructuring
+
+[agent]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+]
+principles = [
+  "Structure: improve organization",
+  "Condensation: remove unnecessary parts",
+  "Reorganization: increase clarity",
+]
+role = "Review documents structurally and reorganize them"

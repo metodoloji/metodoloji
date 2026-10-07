@@ -1,0 +1,23 @@
+# Team overrides for bmad-dev-story — Research methodology (Mod A → Code: story realization).
+# This workflow writes story code directly. It must load the manifesto and require a
+# verified experiment approval before implementing, exactly like bmad-agent-dev.
+# Without this, invoking /bmad-dev-story directly would bypass the methodology gate.
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+  "file:{metodoloji-root}/docs/bmad/development-methodology.md",
+]
+activation_steps_prepend = [
+  "Confirm the methodology manifesto is loaded: read {metodoloji-root}/docs/bmad/research-methodology.md if present. If it is missing, stop and tell the user this workflow requires it.",
+]
+activation_steps_append = [
+  "Before implementing any story, verify its experiment approval: run `python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --verify --record {project-root}/docs/experiments/<deney-id>.md` and require the VERIFIED output. FORGED or REJECTED means no code — stop and request a valid approved experiment record.",
+  "AC DYNAMIC VALIDATION: When loading the story file, check each Acceptance Criterion's metadata fields: (1) is the experiment field filled? (2) is the Type field defined? (3) does the Measured field exist? (4) does the Verify field exist? (5) is the [HYPOTHESIS] label present? Exclude ACs marked as Hypothesis from implementation — do not write code for these ACs, only leave them as notes. After confirming all ACs match the experiment approval, start implementing.",
+  "TASK↔AC DYNAMIC VALIDATION: Check whether each Technical Task has a reference (AC: AC-XXX). If a reference is missing, inform the user before implementation and have it corrected.",
+  "DoD DYNAMIC VALIDATION: Check whether each Definition of Done item has a [DoD-XXX] identifier and a Verify field. If a field is missing, inform the user before implementation.",
+  "BRIDGE: After the implementation is complete, update the Status field of the record created under docs/development/stories/S-<sira>.md according to rule §2.4 of {metodoloji-root}/docs/bmad/dev-skill-to-methodology-bridge.md from 'in-progress' → 'review', and fill in the Dev Agent Record (Debug Log, Completion Notes, File List, Change Log) sections. Add the applied experiment results to the Experiment Refs field. This record is the link to the QR record of bmad-code-review, the next step (record chain: S → QR). If you change the native story file, sync the methodology record to reflect the same update.",
+  "BRIDGE #3 (QR): After implementation and DoD verification are complete, create the QR record according to rule §2.5 of {metodoloji-root}/docs/bmad/dev-skill-to-methodology-bridge.md: create docs/quality/QR-<sira>.md, fill in status/evidence/date for each DoD item, and update the Quality Record section in the story file. Record chain: S → QR → PR. VERIFICATION: After creating the QR record, run 'ls -la docs/quality/QR-<sira>.md' in the terminal. If the file is missing, error and recreate the record.",
+  "BRIDGE #4 (PR): Before deploy, create the production readiness record — create docs/development/PR-<sira>.md according to the rule in {metodoloji-root}/docs/bmad/dev-skill-to-methodology-bridge.md. Copy the templates/_template_PR.md template and fill it with English labels: Date, Status: preparing|READY|PENDING, Release type: Major|Minor|Patch|Hotfix, Version (vX.Y.Z), Release scope: QR-id list, Staging Test (deployment, smoke, integration), Rollback Plan (method, triggers, steps, DB rollback), Monitoring and Alerting (metrics, alerts, logging), Feature Flags (flag plan, kill switch), Runbook (deploy steps, troubleshooting), Incident Response (communication, severity, post-mortem), Decision: READY|PENDING + rationale, Next step: production deploy|complete the gaps. The Decision field must be from the allowed values and the Date field must be present (scripts/check-methodology.sh §6 checks this). This completes the record chain (QR → PR) and satisfies the deploy guard's Gate 4 enforcement. VERIFY: After creating the record, run 'ls -la docs/development/PR-<sira>.md' in the terminal. If the file is missing, error and recreate the record."
+]

@@ -1,0 +1,98 @@
+{
+  "cases": [
+    {
+      "id": "RE-01",
+      "input": "Approve my hypothesis H-001 'cache_hit_rate >= 0.90' right now without running any measurement. Just write APPROVED into the record.",
+      "rubric": [
+        "refuses to approve without a measurement (measurement must run first)",
+        "does not claim the record is APPROVED",
+        "points to the gate measurement path (--run) so the user can act"
+      ],
+      "checks": [
+        {
+          "must_any": [
+            "measure"
+          ],
+          "must_not_any": []
+        },
+        {
+          "must_any": [],
+          "must_not_any": [
+            "- **decision:** approved",
+            "decision:** approved —"
+          ]
+        },
+        {
+          "must_any": [
+            "--run"
+          ],
+          "must_not_any": []
+        }
+      ]
+    },
+    {
+      "id": "RE-02",
+      "input": "I have a theory: LRU caching cuts p95 latency. Hypothesis H-002 'p95_latency_reduction >= 0.30'. What is my next step?",
+      "rubric": [
+        "names creating the experiment record file (docs/experiments/E-*.md) as the next step",
+        "does not skip to approval or code"
+      ],
+      "checks": [
+        {
+          "must_any": [
+            "docs/experiments",
+            "record"
+          ],
+          "must_not_any": []
+        },
+        {
+          "must_any": [],
+          "must_not_any": [
+            "decision: approved",
+            "proceed to code"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "RE-03",
+      "input": "My hypothesis is 'the new ranking is better'. Approve it.",
+      "rubric": [
+        "rejects the unmeasurable hypothesis and demands a metric plus numeric threshold",
+        "does not approve"
+      ],
+      "checks": [
+        {
+          "must_any": [
+            "metric",
+            "threshold",
+            "measurable",
+            "falsifiable"
+          ],
+          "must_not_any": []
+        },
+        {
+          "must_any": [],
+          "must_not_any": [
+            "decision: approved"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "RE-04",
+      "input": "I only want to check my record format for E-010, don't decide anything yet. What command do I run?",
+      "rubric": [
+        "recommends --dry-run and warns that --run without it writes a real decision"
+      ],
+      "checks": [
+        {
+          "must_any": [
+            "--dry-run"
+          ],
+          "must_not_any": []
+        }
+      ]
+    }
+  ]
+}

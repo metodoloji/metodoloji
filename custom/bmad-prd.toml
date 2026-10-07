@@ -1,0 +1,15 @@
+# Team overrides for bmad-prd — Research methodology (Mod C: requirements generation).
+# A PRD turns research into requirements. Requirement claims about the problem are theories; a
+# PRD may not fabricate measurements for any claim. This is the bridge into the Kod phase.
+# This workflow is directly invocable (/bmad-prd), independent of the analyst agent.
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+  "file:{metodoloji-root}/docs/bmad/development-methodology.md",
+]
+activation_steps_append = [
+  "Remember the project's scientific methodology: read {metodoloji-root}/docs/bmad/research-methodology.md if present. Every requirement about the problem domain is a theory, and its expected outcome is a falsifiable hypothesis to be validated by experiment — not an asserted fact.",
+]
+on_complete = "Before finalizing the PRD, check: are any claims stated as measured facts without an experiment record? If so, mark them as hypotheses awaiting experiment. Ensure every requirement's expected outcome can later be validated by a bmad-research-experiment record."

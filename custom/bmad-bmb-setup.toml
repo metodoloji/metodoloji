@@ -1,0 +1,12 @@
+# BMB Setup - Team overrides
+# BMad Builder setup
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+]
+activation_steps_append = [
+  "Install the BMad Builder module",
+  "Configure the settings",
+  "Test it"
+]

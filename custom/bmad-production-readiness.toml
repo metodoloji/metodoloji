@@ -1,0 +1,17 @@
+# Team overrides for bmad-production-readiness — Research methodology (Mod C: PR record, Gate 4).
+# A PR record gates production deployment: it may only certify approved, measured quality
+# records — not asserted facts. This workflow is directly invocable (/bmad-production-readiness),
+# independent of the analyst agent.
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+  "file:{metodoloji-root}/docs/bmad/development-methodology.md",
+]
+activation_steps_prepend = [
+  "Confirm the methodology manifesto is loaded: read {metodoloji-root}/docs/bmad/research-methodology.md if present. If it is missing, stop and tell the user this workflow requires it.",
+]
+activation_steps_append = [
+  "Link every PR item to its quality record (QR-XXX) under docs/quality-records/ whose status is APPROVED. Quality claims without an approved, measured QR are marked as unverified — do not certify them as production-ready.",
+]

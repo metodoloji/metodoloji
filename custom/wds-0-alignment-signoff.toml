@@ -1,0 +1,13 @@
+# WDS 0: Alignment Signoff - Team overrides
+# Approval process: verify project goals and scope with the customer
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+]
+activation_steps_append = [
+  "Verify the project goals and scope with the customer",
+  "Document the points on which agreement was reached",
+  "Obtain signature/approval"
+]

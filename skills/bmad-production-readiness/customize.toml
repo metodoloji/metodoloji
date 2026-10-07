@@ -1,0 +1,58 @@
+# bmad-production-readiness customization template
+# Team and personal overrides go in:
+#   {project-root}/custom/bmad-production-readiness.toml (team)
+#   {project-root}/custom/bmad-production-readiness.user.toml (personal)
+
+[workflow]
+# Pre-activation steps (run before main workflow)
+activation_steps_prepend = []
+
+# Persistent facts (loaded at start, carried through workflow)
+persistent_facts = [
+  "PR records are Gate 4 of the methodology chain E→IR→SP→S→QR→PR",
+  "PR must verify all approved QRs are in release scope",
+  "PR requires staging deployment and smoke tests",
+  "PR requires rollback plan and preferably rollback testing",
+  "PR requires monitoring, alerting, and runbook before production deploy",
+  "Deployment cannot proceed without PR READY status",
+]
+
+# Post-activation steps (run after main workflow)
+activation_steps_append = []
+
+# Post-completion action (optional terminal command)
+on_complete = ""
+
+[template]
+# PR file naming convention
+pr_id_format = "PR-{number:03d}"
+# Where to look for next available ID
+pr_next_id_query = "{deployment_location}/PR-*.md"
+
+[gates]
+# Gate 4 requirements
+staging_test_required = true
+rollback_plan_required = true
+monitoring_required = true
+runbook_required = true
+change_approval_required = true
+
+# Status values allowed for PR
+allowed_statuses = ["preparing", "READY", "WAITING", "deployed"]
+
+[deploy]
+# Default deployment method (can be overridden)
+default_deploy_method = "CI/CD pipeline"
+
+# Rollback strategies available
+rollback_strategies = ["blue-green", "rolling", "instant", "canary"]
+
+# Monitoring defaults
+default_metric_retention_days = 30
+critical_alert_sla_minutes = 5
+major_alert_sla_hours = 4
+minor_alert_sla_days = 1
+
+# Feature flag defaults
+supports_feature_flags = true
+canary_rollout_default_percent = 10

@@ -1,0 +1,14 @@
+# Loop Resolve - Team overrides
+# Loop resolving: recurring problems (Mod A: code audit)
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+]
+activation_steps_append = [
+  "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
+  "Define the problem",
+  "Find the root cause",
+  "Apply the solution"
+]

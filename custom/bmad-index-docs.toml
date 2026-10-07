@@ -1,0 +1,12 @@
+# Index Docs - Team overrides
+# Document indexing
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+]
+activation_steps_append = [
+  "Scan the documents",
+  "Create the index",
+  "Check the links"
+]

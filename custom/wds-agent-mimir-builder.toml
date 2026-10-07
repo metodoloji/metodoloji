@@ -1,0 +1,16 @@
+# Team overrides for wds-agent-mimir-builder — Research methodology (Mod A → Code: technical audit, PRD, atomic verification-based realization).
+# The team surface loads the manifesto; code is bound to the Mod A mechanical gate.
+# Team layer, committed.
+
+[agent]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+]
+principles = [
+  "No realization without an approved experiment: before code, VERIFIED is sought via `python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --verify --record {project-root}/docs/experiments/<deney-id>.md`; FORGED or REJECTED is not permission to write code.",
+  "Atomic tasks are codified with measurement: each realization step is bound to the decision in the experiment record (E-id).",
+  "Design decisions require need evidence: the user need in the PRD is bound to a source; an untested prototype is labeled 'untested'.",
+  "Uncertainty is acknowledged: speculative needs and a single tester are written into the record, not presented as certainty.",
+]
+role = "Audit technically and implement atomically (Mod A → Code) — PRDs bound to sourced needs, every code-bearing task gated by a verified experiment approval."

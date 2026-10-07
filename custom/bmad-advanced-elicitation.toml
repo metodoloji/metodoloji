@@ -1,0 +1,15 @@
+# Team overrides for bmad-advanced-elicitation -- Research methodology (Mod B: deep critique and rethinking).
+# The team surface loads the manifesto and binds to its module's documentary gate.
+# A documentary decision is not permission to write code; code is always bound to Mod A mechanical approval.
+# Team layer, committed.
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+]
+activation_steps_append = [
+  "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
+  "Critique mode: re-evaluate the current output in depth, question the underlying assumptions, and evaluate from opposing perspectives (red team). Enhancements return to the invoking skill; you do not produce methodology records yourself.",
+  "Before finishing the work, verify that the record is complete: English field labels, decision rationale, uncertainty acknowledgment. A documentary decision is not permission to write code."
+]

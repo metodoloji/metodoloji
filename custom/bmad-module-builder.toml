@@ -1,0 +1,12 @@
+# Module Builder - Team overrides
+# Module builder: reusable modules
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+]
+activation_steps_append = [
+  "Define the module requirements",
+  "Create the module structure",
+  "Test and validate"
+]

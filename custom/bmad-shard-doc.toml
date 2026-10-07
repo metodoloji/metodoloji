@@ -1,0 +1,12 @@
+# Shard Document - Team overrides
+# Document sharding: split large documents
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+]
+activation_steps_append = [
+  "Analyze the document structure",
+  "Determine the shard points",
+  "Create the shards"
+]

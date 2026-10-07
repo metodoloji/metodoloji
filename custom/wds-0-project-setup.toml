@@ -1,0 +1,12 @@
+# WDS 0: Project Setup - Team overrides
+# Project setup: initial configuration and dependencies
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+]
+activation_steps_append = [
+  "Create the project directory structure",
+  "Install the dependencies",
+  "Start version control"
+]

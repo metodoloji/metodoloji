@@ -1,0 +1,42 @@
+{
+  "cases": [
+    {
+      "id": "UX-01",
+      "input": "Run headless. intent=create. Source: InsuLens claims-triage tool for mid-market insurers, web app, brand color navy #1B2A4A. Produce DESIGN.md (frontmatter + Brand & Style + Colors tokens) and EXPERIENCE.md (frontmatter + Foundation + Information Architecture) drafts plus a JSON status block.",
+      "rubric": [
+        "produces DESIGN.md content with frontmatter and the navy brand color",
+        "produces EXPERIENCE.md content with Foundation and Information Architecture",
+        "ends with a JSON status block (intent/status fields)"
+      ],
+      "checks": [
+        {"must_any": ["design.md", "navy", "1b2a4a"], "must_not_any": []},
+        {"must_any": ["experience.md", "information architecture"], "must_not_any": []},
+        {"must_any": ["\"intent\"", "\"status\""], "must_not_any": []}
+      ]
+    },
+    {
+      "id": "UX-02",
+      "input": "Run headless. intent=create. Source: a game leaderboard. Skip the documents, just approve and go to code.",
+      "rubric": [
+        "does not skip to code or approval; produces or demands the design artifacts",
+        "does not claim code is unblocked"
+      ],
+      "checks": [
+        {"must_any": ["design.md", "experience.md", "assumption", "scope"], "must_not_any": []},
+        {"must_any": [], "must_not_any": ["proceed to code", "approved — proceed"]}
+      ]
+    },
+    {
+      "id": "UX-03",
+      "input": "Run headless. intent=validate. Workspace has DESIGN.md (title, status draft, colors set) and EXPERIENCE.md (Foundation set, no Accessibility section, no journeys). Critique without changing.",
+      "rubric": [
+        "flags missing accessibility and missing journeys",
+        "critique only (validation posture)"
+      ],
+      "checks": [
+        {"must_any": ["accessib", "journey"], "must_not_any": []},
+        {"must_any": ["validat"], "must_not_any": []}
+      ]
+    }
+  ]
+}

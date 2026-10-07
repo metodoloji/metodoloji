@@ -1,0 +1,16 @@
+# WDS 5: Agentic Development - Team overrides
+# Agentic development: automated code generation
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+  "file:{project-root}/docs/bmad/architecture.md",
+  "file:{metodoloji-root}/docs/bmad/development-methodology.md",
+]
+activation_steps_append = [
+  "Prepare the development environment",
+  "Create the test scenarios",
+  "Run a code review",
+  "BRIDGE: After the implementation is complete, update the Status field of the record created under docs/development/stories/S-<sira>.md according to rule §2.4 of {metodoloji-root}/docs/bmad/dev-skill-to-methodology-bridge.md from in-progress -> review, and fill in the Dev Agent Record sections. Record chain: S -> QR. VERIFICATION: After updating the story record, run ls -la docs/development/stories/S-<sira>.md in the terminal. If the file is missing, raise an ERROR and recreate the record.",
+  "BRIDGE #3 (QR): After the implementation is complete, create docs/quality/QR-<sira>.md and fill in status/evidence/date for each DoD item. Record chain: S -> QR -> PR. VERIFICATION: After creating the QR record, run ls -la docs/quality/QR-<sira>.md in the terminal. If the file is missing, raise an ERROR and recreate the record."
+]

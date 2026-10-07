@@ -1,0 +1,20 @@
+# Workflow customization surface for bmad-workflow. Mirrors the agent/keeps the
+# [workflow] namespace. Team overrides live in custom/bmad-workflow.toml.
+
+[workflow]
+
+# Steps to run before the standard activation (config load, greet).
+activation_steps_prepend = []
+
+# Steps to run after greet but before the workflow begins.
+activation_steps_append = [
+  "The kernel is the scheduler: after every stage, ask it for the next one instead of deciding yourself. A refusal from `workflow.py complete` is the expected outcome of a missing step — produce the missing evidence, do not force past it.",
+  "Before the run closes, tell the user which run was driven, which stages were completed in order, and what the computed next stage is (or that the run finished).",
+]
+
+# Persistent facts the workflow keeps in mind for the whole run.
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+  "file:{metodoloji-root}/docs/bmad/development-methodology.md",
+]

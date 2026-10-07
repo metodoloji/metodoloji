@@ -1,0 +1,34 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.metodoloji/logs/
+.metodoloji/blackboard.json
+.metodoloji/blackboard.json.lock
+.metodoloji/relay-note.state
+.metodoloji/blackboard.json.*.tmp
+# Methodology state anywhere in the tree (e.g. test residue under hooks/):
+# only root-level state files above are tracked-adjacent; nested trees are
+# always local-only.
+**/.metodoloji/logs/
+**/.metodoloji/blackboard.json
+**/.metodoloji/blackboard.json.lock
+**/.metodoloji/relay-note.state
+**/.metodoloji/blackboard.json.*.tmp
+**/.metodoloji/canvas.json
+# Runtime lock sidecar files created while verifying experiment records
+# (fail-open advisory locks); never track them.
+docs/experiments/*.lock
+_generated_splits/
+.env
+
+# SkillOpt training outputs
+outputs/
+
+# Personal config layer in the output-local project layer (never commit)
+docs/config.user.toml
+# Pre-migration legacy (kept one release for fallback reads; never written)
+bmad-output/config.user.toml
+
+# Local Node install (skills may shell out to npx tooling); never committed.
+node_modules/
+package-lock.json

@@ -1,0 +1,13 @@
+# Editorial Review Prose - Team overrides
+# Text review: language and communication quality
+
+[agent]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+]
+principles = [
+  "Clarity: detect communication issues",
+  "Simplicity: remove unnecessary complexity",
+  "Consistency: ensure language and tone alignment",
+]
+role = "Review and improve texts from a communication quality perspective"

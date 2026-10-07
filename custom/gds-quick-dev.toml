@@ -1,0 +1,20 @@
+# Team overrides for gds-quick-dev -- Research methodology (Mod A -> Code: game quick implementation).
+# This workflow writes code directly. It must load the manifesto and require a
+# verified experiment approval before implementing, exactly like bmad-quick-dev.
+# Without this, invoking /gds-quick-dev directly would bypass the methodology gate.
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+  "file:{metodoloji-root}/docs/bmad/development-methodology.md",
+]
+activation_steps_append = [
+  "Before implementing any feature, verify its experiment approval: run `python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --verify --record {project-root}/docs/experiments/<deney-id>.md` and require the VERIFIED output. FORGED or REJECTED means no code — stop and request a valid approved experiment record.",
+  "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
+  "Before finishing the work, verify that the record is complete: English field labels, decision rationale, uncertainty acknowledgment. A documentary decision is not permission to write code.",
+  "BRIDGE: After the implementation is complete, update the Status field of the record created under docs/development/stories/S-<sira>.md according to rule §2.4 of {metodoloji-root}/docs/bmad/dev-skill-to-methodology-bridge.md from 'in-progress' → 'review', and fill in the Dev Agent Record sections. Even with quick code, you must preserve the methodology record chain (S → QR → PR) — no leaving things off the record. If you change the native story file, sync the methodology record too. VERIFICATION: After updating the story record, run 'ls -la docs/development/stories/S-<sira>.md' in the terminal. If the file is missing, raise an ERROR and recreate the record.",
+  "BRIDGE (QR): After DoD verification is complete, create the docs/quality/QR-<sira>.md record (bridge §2.5): status/evidence/date for each DoD item, update the Quality Record section in the story. VERIFICATION: run 'ls -la docs/quality/QR-<sira>.md'; if missing, raise an ERROR.",
+  "BRIDGE (PR): Before deploy, create the production readiness record docs/development/PR-<sira>.md (bridge §2.6): copy the templates/_template_PR.md template, fill it with English labels (Date, Status: preparing|READY|PENDING, Release type, Version, Release scope: QR-id list, Staging Test, Rollback Plan, Monitoring, Feature Flags, Runbook, Incident Response, Decision: READY|PENDING + rationale, Next step: production deploy|complete the gaps). Decision from allowed values, Date required (check-methodology §6). The record chain QR → PR is completed, satisfying the deploy guard's Gate 4 enforcement. VERIFICATION: run 'ls -la docs/development/PR-<sira>.md'; if missing, raise an ERROR."
+]
+on_complete = "Chain close-out (single call): `python3 {metodoloji-root}/bmad/scripts/blackboard.py mirror --key gds.quickdev.<slug> --value \"quick implementation complete\" --to gds-code-review --note \"quick implementation ready — the downstream session opens knowing this landed\" --project-root {project-root}`. The run key is this run's heartbeat; repeating the same mirror never duplicates the waiting signal."

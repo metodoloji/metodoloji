@@ -1,0 +1,15 @@
+# Team overrides for gds-investigate -- Research methodology (Mod B+D: game domain investigation).
+# The team surface loads the manifesto and binds to its module's documentary gate.
+# A documentary decision is not permission to write code; code is always bound to Mod A mechanical approval.
+# Team layer, committed.
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+]
+activation_steps_append = [
+  "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
+  "Before finishing the work, verify that the record is complete: English field labels, decision rationale, uncertainty acknowledgment. A documentary decision is not permission to write code."
+]
+on_complete = "Chain close-out (single call): `python3 {metodoloji-root}/bmad/scripts/blackboard.py mirror --key gds.investigate.<slug> --value \"investigation findings complete\" --to gds-correct-course --note \"investigation findings ready — the downstream session opens knowing this landed\" --project-root {project-root}`. The run key is this run's heartbeat; repeating the same mirror never duplicates the waiting signal."

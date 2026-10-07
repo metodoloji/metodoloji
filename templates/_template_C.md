@@ -1,0 +1,45 @@
+# Mode C — Design Records
+
+This template covers Mode C (design) records: PRDs, UX designs, and architecture spines.
+For Mode A (quantitative/empirical) → `docs/experiments/_template.md`
+For Mode B/D (qualitative/contextual) → `docs/research/_template.md`
+Manifesto: `{metodoloji-root}/docs/bmad/research-methodology.md` (plugin-canonical — read from the plugin installation root, not the project).
+
+## Output Locations
+
+Mode C outputs land in `docs/design/`:
+
+| Skill | Output Path | Run Folder Pattern |
+|-------|-------------|-------------------|
+| `bmad-prd` | `docs/design/prds/` | `prd-{project_name}-{date}` |
+| `bmad-ux` | `docs/design/ux-designs/` | `ux-{project_name}-{date}` |
+| `bmad-architecture` | `docs/design/architecture/` | `architecture-{project_name}-{date}` |
+
+Each skill creates its own run folder inside the corresponding subdirectory.
+
+## Relay Order (planning wing)
+
+These are a **sequence**, each stage consuming the previous one's artifact:
+
+```
+product-brief → prd → ux → architecture → epics-and-stories
+```
+
+A stage may be skipped only when the product genuinely does not need it (record
+why), never reordered. `bmad-check-implementation-readiness` (Gate 1) judges the
+resulting set — PRD, UX, architecture, epics — so a missing link is an
+INCOMPLETE verdict, not a shortcut.
+
+## What Goes Where
+
+- **PRD** (`docs/design/prds/`): Product requirements document, optional addendum, validation report
+- **UX Design** (`docs/design/ux-designs/`): DESIGN.md, EXPERIENCE.md, wireframes, mockups, validation report
+- **Architecture** (`docs/design/architecture/`): ARCHITECTURE-SPINE.md, decision records, diagrams
+
+## Running Mode C Skills
+
+```
+/bmad-prd          → creates docs/design/prds/prd-{project}-{date}/
+/bmad-ux           → creates docs/design/ux-designs/ux-{project}-{date}/
+/bmad-architecture → creates docs/design/architecture/architecture-{project}-{date}/
+```

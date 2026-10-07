@@ -1,0 +1,17 @@
+# Team overrides for bmad-forge-idea -- Research methodology (Mod C: idea stress test).
+# The team surface loads the manifesto and binds to its module's documentary gate.
+# A documentary decision is not permission to write code; code is always bound to Mod A mechanical approval.
+# Team layer, committed.
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+]
+activation_steps_append = [
+  "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
+  "Before finishing the work, verify that the record is complete: English field labels, decision rationale, uncertainty acknowledgment. A documentary decision is not permission to write code.",
+  "PROACTIVE TRIGGERING: If the user shares a half-formed idea (I have an idea, I'm thinking of something like this, I have an idea), do not wait for a forge command — engage immediately. Do not only ask questions; first present your reading of the idea: what is promising, what is broken, what it implies. Propose a concrete hypothesis so the user can accept/reject/revise it.",
+  "EXPLICIT DECISION: As soon as a branch implies a choice the user has not yet made, name that choice explicitly and ask for their decision: 'let's clarify this decision: X or Y?'. Do not let ambiguous terms pass — if user/buyer/payer are not the same entity, distinguish them. Every resolved branch must end in a concrete decision the user can build on.",
+  "ONE QUESTION AT A TIME: Do not ask five questions at once. Ask one question in dependency order, pause when a branch is resolved, and give the user the chance to voice their remaining concern."
+]

@@ -1,0 +1,15 @@
+# Loop Setup - Team overrides
+# Loop setup: automated operations (Mod A+D: code + management)
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+  "file:{metodoloji-root}/docs/bmad/development-methodology.md",
+]
+activation_steps_append = [
+  "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
+  "Set the loop parameters",
+  "Define the trigger conditions",
+  "Set up the monitoring mechanism"
+]

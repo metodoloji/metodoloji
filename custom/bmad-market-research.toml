@@ -1,0 +1,15 @@
+# Team overrides for bmad-market-research — Research methodology (Mod D: market and competitor analysis).
+# A market research report is a theory document: it must separate theory from hypotheses from
+# measurement, and never present unmeasured market claims as established fact.
+# This workflow is directly invocable (/bmad-market-research), independent of bmad-agent-analyst.
+# Terminal checks are wired as activation_steps_append (executed by this skill).
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+]
+activation_steps_append = [
+  "Before starting the research, state which of these the report will produce: (a) a theory/framework the report builds on, (b) falsifiable hypotheses (H-id) that future experiments will test, or (c) measured results with the experiment record. Label every claim accordingly.",
+  "Before declaring the research complete, check: did any claim get presented as measured fact without an experiment record or citation? If yes, relabel it as a hypothesis and note it needs an experiment. Save the research report under docs/research/ and add a pointer to the methodology manifesto.",
+]

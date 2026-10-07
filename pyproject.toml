@@ -1,0 +1,25 @@
+[project]
+name = "metodoloji"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+]
+
+[tool.pytest.ini_options]
+testpaths = [
+    "hooks/engine/tests",
+    "bmad/tests",
+    "scripts/tests",
+    "skills/bmad-architecture/scripts/tests",
+    "skills/bmad-brainstorming/scripts/tests",
+    "skills/bmad-customize/scripts/tests",
+    "skills/bmad-eval-runner/scripts/tests",
+    "skills/bmad-forge-idea/scripts/tests",
+    "skills/bmad-module-builder/scripts/tests",
+    "skills/bmad-party-mode/scripts/tests",
+    "skills/bmad-research-experiment/scripts/tests",
+    "skills/bmad-workflow-builder/scripts/tests",
+]
+python_files = "test_*.py"
+python_functions = "test_*"
+addopts = "-q"

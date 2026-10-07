@@ -1,0 +1,18 @@
+# Team overrides for bmad-qa-generate-e2e-tests — Research methodology (Mod A: E2E test generation).
+# E2E tests are experiment instrumentation: they measure system behavior. They must be tied to
+# an experiment record (a hypothesis being verified) and must not fabricate results.
+# This workflow is directly invocable, independent of the dev agent.
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+  "file:{metodoloji-root}/docs/bmad/development-methodology.md",
+]
+activation_steps_prepend = [
+  "Confirm the methodology manifesto is loaded: read {metodoloji-root}/docs/bmad/research-methodology.md if present. If it is missing, stop and tell the user this workflow requires it.",
+]
+activation_steps_append = [
+  "Tie every E2E test to an experiment record under docs/experiments/: the test asserts a falsifiable hypothesis (H-id) with a threshold. Do not fabricate expected values to make a test pass — a test that cannot fail is not a measurement.",
+  "BRIDGE: This skill does not produce an independent methodology record; it adds the E2E test results to the 'Mechanical checks' section of the docs/quality/QR-<sira>.md record produced by bmad-code-review ({metodoloji-root}/docs/bmad/dev-skill-to-methodology-bridge.md §1 and §3.1). If there is no linked QR record (bmad-code-review has not run yet), tell the user to run it first; feed the findings into the QR, do not open a separate record. If there are findings, update the relevant QR record and add the reference 'Methodology record: docs/quality/QR-<sira>.md' to the native test output."
+]

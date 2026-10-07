@@ -1,0 +1,12 @@
+# WDS 6: Asset Generation - Team overrides
+# Asset generation: visual and media assets
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+]
+activation_steps_append = [
+  "List the asset requirements",
+  "Create the design templates",
+  "Run quality control"
+]

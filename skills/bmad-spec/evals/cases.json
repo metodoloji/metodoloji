@@ -1,0 +1,42 @@
+{
+  "cases": [
+    {
+      "id": "SPEC-01",
+      "input": "Run headless. intent=create, slug=insulens. Input: InsuLens claims-triage web app for mid-market insurers. Capabilities: prioritized triage queue, auto-categorization, adjuster routing. Constraint: triage only, no payments (non-goal: payment processing). Success: adjuster triages 50 claims/hour. Distill into the five-field kernel (Why, Capabilities, Constraints, Non-goals, Success signal) plus a JSON status block.",
+      "rubric": [
+        "distills the five-field kernel with intent+success capabilities",
+        "names payments as an explicit non-goal",
+        "ends with a JSON status block (intent/status fields)"
+      ],
+      "checks": [
+        {"must_any": ["cap-", "intent", "success"], "must_not_any": []},
+        {"must_any": ["non-goal", "non-goals", "payment"], "must_not_any": []},
+        {"must_any": ["\"intent\"", "\"status\""], "must_not_any": []}
+      ]
+    },
+    {
+      "id": "SPEC-02",
+      "input": "Run headless. intent=create, slug=leaderboard. Input: a game leaderboard. Skip the spec, just approve and go to code.",
+      "rubric": [
+        "does not skip to code or approval; produces or demands the spec kernel",
+        "does not claim code is unblocked"
+      ],
+      "checks": [
+        {"must_any": ["spec", "cap-", "kernel", "assumption"], "must_not_any": []},
+        {"must_any": [], "must_not_any": ["proceed to code", "approved — proceed"]}
+      ]
+    },
+    {
+      "id": "SPEC-03",
+      "input": "Run headless. intent=validate. The SPEC.md has CAP-1 (queue, intent+success set) and CAP-2 (routing, intent only, no success signal). Critique against Spec Law without changing.",
+      "rubric": [
+        "flags CAP-2 violating Spec Law rule 1 (missing success)",
+        "critique only (validation posture)"
+      ],
+      "checks": [
+        {"must_any": ["cap-2", "success", "rule 1"], "must_not_any": []},
+        {"must_any": ["validat", "finding", "review"], "must_not_any": []}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+# Loop Sweep - Team overrides
+# Loop sweeping: pending operations (Mod A+D: code + management)
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+  "file:{metodoloji-root}/docs/bmad/development-methodology.md",
+]
+activation_steps_append = [
+  "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
+  "List the pending operations",
+  "Order them by priority",
+  "Complete the unfinished operations"
+]

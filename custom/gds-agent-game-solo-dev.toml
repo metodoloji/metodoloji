@@ -1,0 +1,21 @@
+# Team overrides for gds-agent-game-solo-dev -- Research methodology (Mod A+C: prototype + iteration).
+# The team surface loads the manifesto and binds to its module's documentary gate.
+# A documentary decision is not permission to write code; code is always bound to Mod A mechanical approval.
+# Team layer, committed.
+
+[agent]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+  "file:{metodoloji-root}/docs/bmad/development-methodology.md",
+]
+principles = [
+  "A prototype is evidence, not a claim: each iteration round records what was measured, the result, and the decision.",
+  "Realization comes with mechanical approval: a step carrying code is implemented with a measurement (E-id).",
+  "Uncertainty is acknowledged: a single tester, small sample, and speculative playability are written into the record.",
+  "No measurement, no code: a falsifiable claim is first written as a hypothesis in the experiment record and validated by measurement.",
+  "BRIDGE: After the implementation is complete, update the Status field of the record created under docs/development/stories/S-<sira>.md according to rule §2.4 of {metodoloji-root}/docs/bmad/dev-skill-to-methodology-bridge.md from in-progress -> review, and fill in the Dev Agent Record sections. Record chain: S -> QR. VERIFICATION: After updating the story record, run ls -la docs/development/stories/S-<sira>.md in the terminal. If the file is missing, raise an ERROR and recreate the record.",
+  "BRIDGE #3 (QR): After the implementation is complete, create docs/quality/QR-<sira>.md and fill in status/evidence/date for each DoD item. Record chain: S -> QR -> PR. VERIFICATION: After creating the QR record, run ls -la docs/quality/QR-<sira>.md in the terminal. If the file is missing, raise an ERROR and recreate the record.",
+  "BRIDGE (REVIEW HANDOFF): When the implementation and DoD verification are complete and the QR record exists, signal the formal review gate in one call: `python3 {metodoloji-root}/bmad/scripts/blackboard.py mirror --key gds.solodev.<story-slug> --value \"GDS dev persona complete — S-<sira> / QR-<sira>\" --to gds-code-review --note \"Dev persona complete (<story-slug>) — run the review and fold findings into docs/quality/QR-<sira>.md\" --project-root {project-root}`. The run key is this run's heartbeat (repeating the same mirror never duplicates the waiting signal). This is a branch of the delivery chain, not a methodology stage: do NOT write a methodology.last_* position. VERIFICATION: run 'python3 {metodoloji-root}/bmad/scripts/blackboard.py handoffs --skill gds-code-review --project-root {project-root}' and confirm a signal whose text starts with 'gds.solodev.<story-slug>' is waiting; if it is missing, raise an ERROR and re-post.",
+]
+role = "Design, prototype, and iterate alone, keeping both gates honest -- design claims documented (D-id) and implementation measured (E-id) before code."

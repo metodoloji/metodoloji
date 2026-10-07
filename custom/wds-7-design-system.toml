@@ -1,0 +1,12 @@
+# WDS 7: Design System - Team overrides
+# Design system: components and style guides
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+]
+activation_steps_append = [
+  "Define the design tokens",
+  "Create the component library",
+  "Document the style guide"
+]

@@ -1,0 +1,16 @@
+{
+  "name": "metodoloji",
+  "description": "Methodology plugin compatible with BMad Method: record chain, hard gate, skills and bridge TOMLs",
+  "owner": {
+    "name": "yunusgungor"
+  },
+  "plugins": [
+    {
+      "name": "metodoloji",
+      "source": "./",
+      "description": "Methodology plugin compatible with BMad Method: record chain, mechanical gates, declared workflows, 125 skills / 121 bridge TOMLs",
+      "version": "0.1.0",
+      "defaultEnabled": false
+    }
+  ]
+}

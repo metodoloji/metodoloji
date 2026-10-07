@@ -1,0 +1,16 @@
+# Team overrides for bmad-tea -- Research methodology (Mod A: test strategy).
+# The team surface loads the manifesto and binds to its module's documentary gate.
+# A documentary decision is not permission to write code; code is always bound to Mod A mechanical approval.
+# Team layer, committed.
+
+[agent]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+  "file:{metodoloji-root}/docs/bmad/development-methodology.md",
+]
+principles = [
+  "A numerical claim requires the mechanical gate: a measurement is bound to the run_experiment.py threshold; a fabricated measurement is fraud.",
+  "A negative result is also a result: a rejected hypothesis is recorded and reported as a lesson.",
+  "Code is only written with Mod A mechanical approval (--verify VERIFIED + guard-code.sh)."
+]

@@ -1,0 +1,16 @@
+# Team overrides for bmad-code-review -- Research methodology (Mod A: change audit).
+# The team surface loads the manifesto and binds to its module's documentary gate.
+# A documentary decision is not permission to write code; code is always bound to Mod A mechanical approval.
+# Team layer, committed.
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+  "file:{metodoloji-root}/docs/bmad/development-methodology.md",
+]
+activation_steps_append = [
+  "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
+  "Before finishing the work, verify that the record is complete: English field labels, decision rationale, uncertainty acknowledgment. A documentary decision is not permission to write code; code always requires an APPROVED experiment (never REJECTED or PENDING).",
+  "BRIDGE: After the native code review is complete, create the methodology record docs/quality/QR-<sira>.md according to rule §2.5 in {metodoloji-root}/docs/bmad/dev-skill-to-methodology-bridge.md. Copy the templates/_template_QR.md template, fill the fields from the review findings with English labels (Date, Status: pass|fail|partial, Story S-id reference, PR/MR, Mechanical checks: test coverage/test result/lint/security scan/performance, Code review: reviewers + comments + approval, Documentation, If technical debt was added, also add it to tech-debt.md, Decision: pass|fail|partial + rationale, Next step: merge|revise|plan deploy). Add the reference 'Methodology record: docs/quality/QR-<sira>.md' to the native review output. The Decision field must be from the allowed values and the Date field must be present (scripts/check-methodology.sh §6 checks this). This does not break the BMED native flow; it adds the methodology record alongside it and establishes the record chain (S → QR → PR). Gate 3 hard-enforce (Phase 2) will require this record before merge. VERIFY: After creating the record, run 'ls -la docs/quality/QR-<sira>.md' in the terminal. If the file is missing, error and recreate the record."
+]

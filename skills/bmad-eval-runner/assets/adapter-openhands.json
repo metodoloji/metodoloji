@@ -1,0 +1,10 @@
+{
+  "name": "openhands-cli",
+  "invocation": ["openhands", "--headless", "--json", "--override-with-envs",
+                 "--exit-without-confirmation", "-t", "{prompt}"],
+  "auth_env": "LLM_API_KEY",
+  "transcript": { "format": "stdout-jsonl" },
+  "skill_dir": ".agents/skills",
+  "load_signal": { "skill_tool": "invoke_skill", "read_tool": "file_editor" },
+  "env_passthrough": ["LLM_MODEL", "LLM_BASE_URL", "OPENHANDS_SUPPRESS_BANNER"]
+}

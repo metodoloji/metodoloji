@@ -1,0 +1,108 @@
+{
+  "id": "seo-visibility",
+  "version": 1,
+  "title": "SEO görünürlük ve hız/performans iyileştirme",
+  "intent": "Bir web sitesinin SEO görünürlüğünü ve hız/performansını sistematik olarak iyileştir. Süreç sırayla ilerler: siteyi analiz edip sorunları listele, her sorunu kod tabanıyla eşleştir, sorun başına çözüm senaryoları üretip en yüksek skoru seç, uygula, yeterli testle doğrula ve sonucu kaydet. Her adımın çıktısı sorunlar.md'de tek gerçek kaynak olarak tutulur; sıra ve geçişler workflow çekirdeği tarafından deterministik yönetilir.",
+  "artifact": "sorunlar.md",
+  "start": "analyze",
+  "stages": [
+    {
+      "id": "analyze",
+      "title": "Siteyi analiz et ve sorunları listele",
+      "goal": "gbot ve Google Search Console ile siteyi tara; bulunan her sorunu sorunlar.md'ye '- ISSUE-NNN ...' biçiminde bir liste elemanı olarak ekle. Hiçbir sorun atlanmaz ve hiçbiri ölçümsüz uydurulmaz.",
+      "actions": [
+        "gbot ve/veya Google Search Console verisini topla (indeksleme, taranabilirlik, meta, içerik, hız).",
+        "Her sorunu benzersiz bir ISSUE-NNN kimliğiyle sorunlar.md'ye liste elemanı olarak yaz.",
+        "Sorunu kanıtla: hangi sayfa/URL, hangi ölçüm, hangi tarih."
+      ],
+      "evidence": {
+        "kind": "artifact",
+        "path": "sorunlar.md",
+        "contains": ["ISSUE-"],
+        "min": 1
+      },
+      "next": [{ "to": "map" }]
+    },
+    {
+      "id": "map",
+      "title": "Sorunları kod tabanıyla eşleştir",
+      "goal": "Listedeki her ISSUE için kod tabanını analiz et; sorunun kaynağı olan dosya/satırı bul ve ilgili ISSUE elemanının alt elemanı olarak 'MAP:' satırıyla ekle.",
+      "requires": ["analyze"],
+      "actions": [
+        "Her ISSUE-NNN için kod tabanında ilgili kaynağı bul (dosya:satır).",
+        "Eşlemeyi sorunlar.md'de ilgili ISSUE elemanının alt elemanı olarak 'MAP: <dosya:satır> — <kısa açıklama>' biçiminde yaz.",
+        "Eşleşmeyen sorunu 'MAP: N/A — <gerekçe>' olarak işaretle; sessizce atlama."
+      ],
+      "evidence": {
+        "kind": "artifact",
+        "path": "sorunlar.md",
+        "contains": ["MAP:"],
+        "min": 1
+      },
+      "next": [{ "to": "plan" }]
+    },
+    {
+      "id": "plan",
+      "title": "Çözüm senaryoları üret ve en yüksek skoru seç",
+      "goal": "Her eşlenmiş sorun için çözüm senaryoları üret (SEO görünürlüğü ve hız/performans öncelikli), her senaryoyu ölçütlere göre puanla ve en yüksek skoru seç; seçimi 'FIX:' satırıyla ilgili MAP'in altına yaz.",
+      "requires": ["map"],
+      "actions": [
+        "Her MAP için en az iki çözüm senaryosu üret.",
+        "Senaryoları SEO görünürlüğü ve hız/performans etkisine göre puanla; skoru gerekçesiyle yaz.",
+        "Seçilen senaryoyu ve gerekçesini 'FIX: <seçim> (skor: <n>)' biçiminde kaydet."
+      ],
+      "evidence": {
+        "kind": "artifact",
+        "path": "sorunlar.md",
+        "contains": ["FIX:"],
+        "min": 1
+      },
+      "next": [{ "to": "apply" }]
+    },
+    {
+      "id": "apply",
+      "title": "Çözümü uygula",
+      "goal": "Seçilen her FIX'i kod tabanında uygula. Ölçülebilir hız/performans iddiaları için metodolojinin Mod A deney kaydını (E kaydı) kullan — kod yazımı mekanik onay ister.",
+      "requires": ["plan"],
+      "actions": [
+        "Seçilen FIX'leri uygula.",
+        "Ölçülebilir bir iyileştirme iddiası varsa E kaydı aç ve gate ile ölç.",
+        "Uygulanan değişikliği 'APPLIED: <ne yapıldı>' biçiminde ilgili FIX'in altına kaydet."
+      ],
+      "evidence": {
+        "kind": "artifact",
+        "path": "sorunlar.md",
+        "contains": ["APPLIED:"],
+        "min": 1
+      },
+      "next": [{ "to": "test" }]
+    },
+    {
+      "id": "test",
+      "title": "Yeterli testle doğrula ve sonucu kaydet",
+      "goal": "Uygulanan her düzeltmeyi yeterli test/ölçümle doğrula; sonucu 'RESULT:' satırıyla kaydet. Doğrulanamayan bir düzeltme varsa 'regressed=true' bayrağını kaldır ve akışı apply'a geri döndür.",
+      "requires": ["apply"],
+      "actions": [
+        "Her APPLIED düzeltme için test/ölçüm çalıştır (birim, e2e veya hız/SEO ölçümü).",
+        "Sonucu 'RESULT: <ölçüm> — <PASS|FAIL>' biçiminde kaydet.",
+        "Herhangi bir düzeltme FAIL ise 'workflow.py flag --key regressed --value true' ile bayrağı SET et; aksi halde bayrağı boş bırak."
+      ],
+      "evidence": {
+        "kind": "artifact",
+        "path": "sorunlar.md",
+        "contains": ["RESULT:"],
+        "min": 1
+      },
+      "next": [
+        { "to": "apply", "when": { "key": "regressed", "equals": "true" } },
+        { "to": "done" }
+      ]
+    },
+    {
+      "id": "done",
+      "title": "Tamamlandı",
+      "goal": "Tüm sorunlar eşlendi, çözüm seçildi, uygulandı ve doğrulandı. Kapanış raporunu ver.",
+      "terminal": true
+    }
+  ]
+}

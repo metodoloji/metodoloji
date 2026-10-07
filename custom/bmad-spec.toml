@@ -1,0 +1,16 @@
+# Team overrides for bmad-spec — Research methodology (Mod C: specification core).
+# A spec turns requirements into implementation detail. It must keep the theory→hypothesis→
+# measurement distinction and may not invent measurements.
+# This workflow is directly invocable (/bmad-spec), independent of the analyst agent.
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+]
+activation_steps_prepend = [
+  "Confirm the methodology manifesto is loaded: read {metodoloji-root}/docs/bmad/research-methodology.md if present. If it is missing, stop and tell the user this workflow requires it.",
+]
+activation_steps_append = [
+  "Maintain the theory→hypothesis→measurement distinction: every design claim is labeled as (a) theory, (b) falsifiable hypothesis (H-id), or (c) measured result with its experiment record. Do not present unmeasured claims as measured fact.",
+]

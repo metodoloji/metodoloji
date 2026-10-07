@@ -1,0 +1,67 @@
+# Team / enterprise overrides for bmad/config.toml.
+# Committed to the repo — applies to every developer on the project.
+# Tables deep-merge over base config; keyed entries merge by key.
+# Example: override an agent descriptor, or add a new agent.
+#
+# [agents.bmad-agent-pm]
+# description = "Prefers short, bulleted PRDs over narrative drafts."
+
+# --- Artifact paths: point to the target project (NOT the plugin!) ---
+# When the plugin is installed, {metodoloji-root} = plugin dir, {project-root} = target repo.
+# Methodology outputs (story, experiment, planning, test artifacts) must ALWAYS be
+# created in the target repo — never on the plugin.
+# Seçenek A (docs-kanonik): native BMAD outputs live under {project-root}/docs
+# (planning → docs/planning, stories → docs/development/native,
+# sprint-status → docs/development/native, test → docs/quality/...).
+# Legacy {project-root}/bmad-output paths are still READ as fallback
+# (see bmad/scripts/resolve_config.py) but never written.
+[core]
+output_folder = "{project-root}/docs"
+
+[modules.bmm]
+planning_artifacts = "{project-root}/docs/planning"
+implementation_artifacts = "{project-root}/docs/development/native"
+project_knowledge = "{project-root}/docs"
+
+[modules.tea]
+test_artifacts = "{project-root}/docs/quality"
+test_design_output = "{project-root}/docs/quality/test-design"
+test_review_output = "{project-root}/docs/quality/test-reviews"
+trace_output = "{project-root}/docs/quality/traceability"
+
+[modules.gds]
+planning_artifacts = "{project-root}/docs/planning"
+implementation_artifacts = "{project-root}/docs/development/native"
+project_knowledge = "{project-root}/docs"
+
+[modules.wds]
+project_knowledge = "{project-root}/docs"
+design_artifacts = "{project-root}/design-artifacts"
+
+# --- Hook enforcement modu ---
+# GLOBAL SCOPE WARNING: this file is plugin policy shared by EVERY project
+# the plugin serves. Changing a gate here relaxes/hardens all projects at
+# once — including this repo's own hardened dogfood state below. There is no
+# per-project override (by design: a target project must never silently relax
+# the guard that watches it — see hooks/engine/modules/config.py). Soften
+# only temporarily for brownfield adoption, then re-harden.
+# code_guard runs fail-closed at "hard", warn-only at "soft".
+# stop_guard is report-only/backward-compat: stop never blocks session close
+# and no production code reads this key — leave it "soft".
+# quality_gate / deploy_guard control the commit & deploy gates:
+#   "soft" → warn-only (allow + methodology_warnings), never blocks.
+#   "hard" → DENY on missing IR/QR/SP/PR records.
+# (Code fallback defaults when a key is absent: quality/deploy "soft", code
+# "hard" — but the shipped values below are explicit and win.)
+# Brownfield adoption (existing project, no experiment history yet): set
+#   code_guard = "soft"   # unapproved writes warn instead of deny
+# Tighten code_guard back to "hard" once the first VERIFIED experiment scope
+# exists. Never soften quality_gate / deploy_guard below for adoption — they
+# guard commits/deploys, not exploration writes.
+# Read live per-call by the hook engine.
+[hooks]
+quality_gate = "hard"   # "soft" | "hard" (code fallback default when absent: "soft")
+deploy_guard = "hard"   # "soft" | "hard" (code fallback default when absent: "soft")
+code_guard = "hard"     # hardened 2026-09-19 (S-005, TD-013 paid — E-014 40/40 + E-015 36/36 + E-016 44/44 + E-017 54/54 + E-018 59/59 + 4 live rehearsals)
+stop_guard = "soft"     # backward-compat key: stop is report-only and never blocks — leave "soft"
+blackboard = "on"       # dynamic working context (docs/BLACKBOARD.md); "off" disables engine integration

@@ -1,0 +1,40 @@
+# bmad-quality-record customization template
+# Team and personal overrides go in:
+#   {project-root}/custom/bmad-quality-record.toml (team)
+#   {project-root}/custom/bmad-quality-record.user.toml (personal)
+
+[workflow]
+# Pre-activation steps (run before main workflow)
+activation_steps_prepend = []
+
+# Persistent facts (loaded at start, carried through workflow)
+persistent_facts = [
+  "QR records are Gate 3 of the methodology chain E→IR→SP→S→QR→PR",
+  "QR must verify all AC (acceptance criteria) from the story",
+  "QR must verify all DoD (definition of done) from the story",
+  "QR requires code review approval before APPROVED decision",
+  "Mechanical checks (tests, security, linter) are mandatory",
+]
+
+# Post-activation steps (run after main workflow)
+activation_steps_append = []
+
+# Post-completion action (optional terminal command)
+on_complete = ""
+
+[template]
+# QR file naming convention
+qr_id_format = "QR-{number:03d}"
+# Where to look for next available ID
+qr_next_id_query = "{quality_location}/QR-*.md"
+
+[gates]
+# Gate 3 requirements
+test_coverage_threshold = 80
+code_review_required = true
+ac_verification_required = true
+dod_verification_required = true
+documentation_required = true
+
+# Status values allowed for QR
+allowed_statuses = ["in-review", "APPROVED", "REJECTED", "REVISED"]

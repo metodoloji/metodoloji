@@ -1,0 +1,50 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'for d in \"$CLAUDE_PLUGIN_ROOT\" \"$METODOLOJI_PLUGIN_ROOT\" \".\" \"$PWD\" \"/workspace\" \"/workspace/metodoloji\" \"$HOME/.claude/plugins/marketplaces/metodoloji\" \"$HOME/.claude/plugins/cache/metodoloji/metodoloji/\"* \"$HOME/.claude/plugins/cache/metodoloji/\"*/* \"$HOME/.claude/plugins/cache/yunusgungor/metodoloji/\"* \"$HOME/.openhands/plugins/installed/metodoloji\"; do [ -f \"$d/hooks/scripts/run-hook.sh\" ] && exec sh \"$d/hooks/scripts/run-hook.sh\" bootstrap; done; exit 0'",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|Bash|PowerShell|file_editor|terminal",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'for d in \"$CLAUDE_PLUGIN_ROOT\" \"$METODOLOJI_PLUGIN_ROOT\" \".\" \"$PWD\" \"/workspace\" \"/workspace/metodoloji\" \"$HOME/.claude/plugins/marketplaces/metodoloji\" \"$HOME/.claude/plugins/cache/metodoloji/metodoloji/\"* \"$HOME/.claude/plugins/cache/metodoloji/\"*/* \"$HOME/.claude/plugins/cache/yunusgungor/metodoloji/\"* \"$HOME/.openhands/plugins/installed/metodoloji\"; do [ -f \"$d/hooks/scripts/run-hook.sh\" ] && exec sh \"$d/hooks/scripts/run-hook.sh\" pre \"$1\"; done; exit 0'",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|Bash|PowerShell|file_editor|terminal",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'for d in \"$CLAUDE_PLUGIN_ROOT\" \"$METODOLOJI_PLUGIN_ROOT\" \".\" \"$PWD\" \"/workspace\" \"/workspace/metodoloji\" \"$HOME/.claude/plugins/marketplaces/metodoloji\" \"$HOME/.claude/plugins/cache/metodoloji/metodoloji/\"* \"$HOME/.claude/plugins/cache/metodoloji/\"*/* \"$HOME/.claude/plugins/cache/yunusgungor/metodoloji/\"* \"$HOME/.openhands/plugins/installed/metodoloji\"; do [ -f \"$d/hooks/scripts/run-hook.sh\" ] && exec sh \"$d/hooks/scripts/run-hook.sh\" audit \"$1\"; done; exit 0'",
+            "timeout": 2
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'for d in \"$CLAUDE_PLUGIN_ROOT\" \"$METODOLOJI_PLUGIN_ROOT\" \".\" \"$PWD\" \"/workspace\" \"/workspace/metodoloji\" \"$HOME/.claude/plugins/marketplaces/metodoloji\" \"$HOME/.claude/plugins/cache/metodoloji/metodoloji/\"* \"$HOME/.claude/plugins/cache/metodoloji/\"*/* \"$HOME/.claude/plugins/cache/yunusgungor/metodoloji/\"* \"$HOME/.openhands/plugins/installed/metodoloji\"; do [ -f \"$d/hooks/scripts/run-hook.sh\" ] && exec sh \"$d/hooks/scripts/run-hook.sh\" stop \"$1\"; done; exit 0'",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,16 @@
+# Team overrides for bmad-workflow-builder — Research methodology (meta: new capability generation).
+# Any workflow skill this builder produces must carry the methodology manifest, so a future
+# workflow never silently drops the theory→hypothesis→measurement discipline.
+# This workflow is directly invocable (/bmad-workflow-builder).
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+]
+activation_steps_prepend = [
+  "Confirm the methodology manifesto is loaded: read {metodoloji-root}/docs/bmad/research-methodology.md if present. If it is missing, stop and tell the user this workflow requires it.",
+]
+activation_steps_append = [
+  "Generated workflow skills must inherit the project's methodology: include the manifesto as a persistent fact, and for any generated workflow that writes code, include the run_experiment.py --verify gate before implementation.",
+]

@@ -1,0 +1,14 @@
+# Team overrides for bmad-workflow -- the dynamic, intent-driven process layer.
+# The kernel declares and enforces the order; this surface only adds context.
+# Team layer, committed.
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+  "file:{metodoloji-root}/docs/bmad/development-methodology.md",
+]
+activation_steps_append = [
+  "Load the intent first: a workflow is authored from what the user is trying to achieve, and the spec is the written form of that intent. If the intent is unclear, ask for it before authoring stages — an unclear process is worse than no process.",
+  "When a stage's result is a measurable improvement claim, the methodology's experiment gate still owns it: the workflow stage may require the E record as its evidence, but it never replaces the gate.",
+]

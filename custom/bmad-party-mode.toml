@@ -1,0 +1,14 @@
+# Team overrides for bmad-party-mode -- Research methodology (meta: surface steering).
+# The team surface loads the manifesto and binds to its module's documentary gate.
+# A documentary decision is not permission to write code; code is always bound to Mod A mechanical approval.
+# Team layer, committed.
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+]
+activation_steps_append = [
+  "Meta surface: the agents/capabilities you invoke are bound to the methodology; you do not produce records yourself; the conversation and steering must not produce a surface outside the methodology scope.",
+  "If a participant needs to write code, Mod A mechanical approval is required; a documentary conversation decision is not permission to write code."
+]

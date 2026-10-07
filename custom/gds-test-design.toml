@@ -1,0 +1,18 @@
+# Team overrides for gds-test-design -- Research methodology (Mod A: game test design).
+# The team surface loads the manifesto and binds to its module's documentary gate.
+# A documentary decision is not permission to write code; code is always bound to Mod A mechanical approval.
+# Team layer, committed.
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+  "file:{metodoloji-root}/docs/bmad/development-methodology.md",
+]
+
+activation_steps_append = [
+  "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
+  "Before finishing the work, verify that the record is complete: English field labels, decision rationale, uncertainty acknowledgment. A documentary decision is not permission to write code.",
+  "BRIDGE: This skill does not produce an independent methodology record; it adds the test infrastructure/results to the Mechanical checks section of the docs/quality/QR-<sira>.md record produced by the code review ({metodoloji-root}/docs/bmad/dev-skill-to-methodology-bridge.md §1 and §3.1). If there is no linked QR record (the code review has not run yet), tell the user to run it first; feed the findings into the QR, do not open a separate record. If there are findings, update the relevant QR record and add the reference Methodology record: docs/quality/QR-<sira>.md to the native test output.",
+]
+on_complete = "Chain close-out (single call): `python3 {metodoloji-root}/bmad/scripts/blackboard.py mirror --key gds.test.design.<slug> --value \"test design complete\" --to gds-code-review --note \"test design ready — the downstream session opens knowing this landed\" --project-root {project-root}`. The run key is this run's heartbeat; repeating the same mirror never duplicates the waiting signal."

@@ -1,0 +1,16 @@
+# Team overrides for gds-create-story -- Research methodology (Mod C: game story generation).
+# A story is the unit handed to the Code phase. It must trace to an approved experiment and may
+# not invent measurements for its acceptance criteria.
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+  "file:{metodoloji-root}/docs/bmad/development-methodology.md",
+]
+activation_steps_append = [
+  "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
+  "Before finishing the work, verify that the record is complete: English field labels, decision rationale, uncertainty acknowledgment. A documentary decision is not permission to write code.",
+  "BRIDGE: After producing the native story file, create the methodology record docs/development/stories/S-<sira>.md according to rule §2.3 of {metodoloji-root}/docs/bmad/dev-skill-to-methodology-bridge.md. Copy the template from {metodoloji-root}/templates/_template_S.md, fill the fields from the native story with English labels (Date, Status: backlog|sprint|in-progress|review|done|blocked, Story title, Epic, Acceptance criteria, Experiment Refs, File list, Sprint reference). Add the reference 'Methodology record: docs/development/stories/S-<sira>.md' to the native story file. Check the experiment link for each AC: is experiment_refs defined in the frontmatter? Is the status APPROVED? Mark ACs that are PENDING or REJECTED as [HYPOTHESIS] in the story file. This does not break the native flow; it adds the methodology record alongside it and establishes the record chain (SP → S → implementation). VERIFY: After creating the record, run 'ls -la docs/development/stories/S-<sira>.md' in the terminal. If the file is missing, error and recreate the record."
+]
+on_complete = "Chain close-out (single call): `python3 {metodoloji-root}/bmad/scripts/blackboard.py mirror --key gds.story.<story-slug> --value \"story file complete\" --to gds-dev-story --note \"story file ready — the downstream session opens knowing this landed\" --project-root {project-root}`. The run key is this run's heartbeat; repeating the same mirror never duplicates the waiting signal."

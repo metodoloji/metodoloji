@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "metodoloji",
+  "displayName": "Metodoloji — Compatible with BMad Method",
+  "version": "0.1.0",
+  "description": "Methodology plugin compatible with BMad Method: record chain (E→IR→SP→S→QR→PR), mechanical gates, declared workflows and 125 skills / 121 bridge TOMLs",
+  "author": {
+    "name": "yunusgungor"
+  },
+  "repository": "https://github.com/metodoloji/metodoloji",
+  "license": "MIT",
+  "keywords": ["bmad", "methodology", "hooks", "research"],
+  "defaultEnabled": false
+}

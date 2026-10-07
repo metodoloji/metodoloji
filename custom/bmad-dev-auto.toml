@@ -1,0 +1,19 @@
+# Team overrides for bmad-dev-auto — Research methodology (Mod A → Code: autonomous realization).
+# This workflow writes code directly (autonomous dev). It must load the manifesto and require a
+# verified experiment approval before implementing, exactly like bmad-agent-dev.
+# Without this, invoking /bmad-dev-auto directly would bypass the methodology gate.
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+  "file:{metodoloji-root}/docs/bmad/development-methodology.md",
+]
+activation_steps_prepend = [
+  "Confirm the methodology manifesto is loaded: read {metodoloji-root}/docs/bmad/research-methodology.md if present. If it is missing, stop and tell the user this workflow requires it.",
+]
+activation_steps_append = [
+  "Before implementing any feature, verify its experiment approval: run `python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --verify --record {project-root}/docs/experiments/<deney-id>.md` and require the VERIFIED output. FORGED or REJECTED means no code — stop and request a valid approved experiment record.",
+  "TASK↔AC DYNAMIC VALIDATION: Check whether each Technical Task has a reference (AC: AC-XXX). If a reference is missing, inform the user before implementation and have it corrected.",
+  "BRIDGE: After the autonomous implementation is complete, update the Status field of the record created under docs/development/stories/S-<sira>.md according to rule §2.4 of {metodoloji-root}/docs/bmad/dev-skill-to-methodology-bridge.md from 'in-progress' → 'review', and fill in the Dev Agent Record (Debug Log, Completion Notes, File List, Change Log) sections. Autonomous mode does not skip the record chain (S → QR); the next bmad-code-review step depends on this record. If you change the native story file, sync the methodology record too. VERIFICATION: After updating the story record, run 'ls -la docs/development/stories/S-<sira>.md' in the terminal. If the file is missing, raise an ERROR and recreate the record."
+]

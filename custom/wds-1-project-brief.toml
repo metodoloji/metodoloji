@@ -1,0 +1,13 @@
+# WDS 1: Project Brief - Team overrides
+# Project brief: requirements and goals
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+]
+activation_steps_append = [
+  "Collect the project requirements",
+  "Define the target audience",
+  "Determine the success criteria"
+]

@@ -1,0 +1,12 @@
+# WDS 3: Scenarios - Team overrides
+# Scenarios: use cases and flows
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+]
+activation_steps_append = [
+  "Define the core use cases",
+  "Create the flow diagrams",
+  "Document the edge cases"
+]

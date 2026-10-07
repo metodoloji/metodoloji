@@ -1,0 +1,12 @@
+# WDS 2: Trigger Mapping - Team overrides
+# Trigger mapping: user actions and responses
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+]
+activation_steps_append = [
+  "List the user actions",
+  "Define the trigger conditions",
+  "Map the system responses"
+]

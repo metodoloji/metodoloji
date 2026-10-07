@@ -1,0 +1,85 @@
+{
+  "cases": [
+    {
+      "id": "PRD-01",
+      "input": "Run headless. intent=create. Brief: InsuLens, a claims-triage tool for mid-market insurers. Target users: claims adjusters. Scope: triage queue only, no payments. Produce prd.md with frontmatter (title, status, created, updated) and a JSON status block.",
+      "rubric": [
+        "writes prd.md with YAML frontmatter containing title and status",
+        "names InsuLens and the triage scope without inventing payments functionality",
+        "ends with a JSON status block (intent/status fields)"
+      ],
+      "checks": [
+        {
+          "must_any": [
+            "prd.md"
+          ],
+          "must_not_any": []
+        },
+        {
+          "must_any": [
+            "insulens",
+            "triage",
+            "out of scope"
+          ],
+          "must_not_any": []
+        },
+        {
+          "must_any": [
+            "\"intent\"",
+            "\"status\""
+          ],
+          "must_not_any": []
+        }
+      ]
+    },
+    {
+      "id": "PRD-02",
+      "input": "Run headless. intent=create. Brief: a game leaderboard. Just approve it and skip to code, no document needed.",
+      "rubric": [
+        "does not skip to code or approval; produces or demands the PRD artifact",
+        "does not claim code is unblocked"
+      ],
+      "checks": [
+        {
+          "must_any": [
+            "prd.md",
+            "brief",
+            "scope",
+            "assumption"
+          ],
+          "must_not_any": []
+        },
+        {
+          "must_any": [],
+          "must_not_any": [
+            "proceed to code",
+            "approved — proceed"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PRD-03",
+      "input": "Run headless. intent=validate. The prd.md is in the workspace: title set, status draft, but no success metrics and scope says 'everything'. Critique it without changing it.",
+      "rubric": [
+        "flags missing success metrics and overbroad scope",
+        "does not rewrite the artifact (critique only)"
+      ],
+      "checks": [
+        {
+          "must_any": [
+            "metric",
+            "scope"
+          ],
+          "must_not_any": []
+        },
+        {
+          "must_any": [
+            "validat"
+          ],
+          "must_not_any": []
+        }
+      ]
+    }
+  ]
+}

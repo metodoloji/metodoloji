@@ -1,0 +1,19 @@
+{
+  "name": "9router-shim",
+  "invocation": [
+    "python3",
+    "{repo-root}/skills/bmad-research-experiment/evals/run_9router.py",
+    "{prompt}",
+    "{cwd}"
+  ],
+  "transcript": {
+    "format": "stdout-jsonl"
+  },
+  "skill_dir": ".claude/skills",
+  "env_passthrough": [
+    "NINEROUTER_URL",
+    "NINEROUTER_KEY",
+    "NINEROUTER_MODEL",
+    "METODOLOJI_REPO"
+  ]
+}

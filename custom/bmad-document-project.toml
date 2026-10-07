@@ -1,0 +1,14 @@
+# Team overrides for bmad-document-project — Research methodology (Documentation: documentation).
+# Documentation is the terminal stage of the methodology: it must bind experiment → measurement
+# → decision → code, and report negative results honestly.
+# This workflow is directly invocable (/bmad-document-project), independent of bmad-agent-tech-writer.
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+  "file:{metodoloji-root}/docs/bmad/development-methodology.md",
+]
+activation_steps_append = [
+  "Remember the project's scientific methodology: read {metodoloji-root}/docs/bmad/research-methodology.md if present. Every documented claim must be bound to its experiment record, measurement, and decision. Never report an unmeasured claim as measured fact.",
+]

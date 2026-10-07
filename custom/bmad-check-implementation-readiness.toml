@@ -1,0 +1,16 @@
+# Team overrides for bmad-check-implementation-readiness -- Research methodology (Mod C: PRD/UX/architecture completeness verification).
+# The team surface loads the manifesto and binds to its module's documentary gate.
+# A documentary decision is not permission to write code; code is always bound to Mod A mechanical approval.
+# Team layer, committed.
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+  "file:{metodoloji-root}/docs/bmad/development-methodology.md",
+]
+activation_steps_append = [
+  "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
+  "Before finishing the work, verify that the record is complete: English field labels, decision rationale, uncertainty acknowledgment. A documentary decision is not permission to write code.",
+  "BRIDGE: After producing the native implementation-readiness report (docs/planning/implementation-readiness-report-*.md), create the methodology record docs/development/IR-<sira>.md according to rule §2.5a in {metodoloji-root}/docs/bmad/dev-skill-to-methodology-bridge.md. Copy the templates/_template_IR.md template, fill the fields from the native report with English labels (Date, Status: preparing|READY|INCOMPLETE, Research inputs, Design documents, Success criteria, Technical dependencies, Risk assessment, Gaps, Decision: READY|INCOMPLETE + rationale, Next step: proceed to sprint planning|return to research). Add the reference 'Methodology record: docs/development/IR-<sira>.md' to the native report. The Decision field must be READY or INCOMPLETE and the Date field must be present (scripts/check-methodology.sh §6 checks this). This does not break the BMAD native flow; it adds the methodology record alongside it and establishes the record chain (E → IR → SP). VERIFY: After creating the record, run 'ls -la docs/development/IR-<sira>.md' in the terminal. If the file is missing, error and recreate the record."
+]
