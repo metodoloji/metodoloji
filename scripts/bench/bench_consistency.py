@@ -33,13 +33,24 @@ import tomllib
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 # Live prose docs (historical records excluded on purpose — see module docstring).
+# Every entry MUST exist, or it contributes only FileNotFoundError noise (five
+# "failures" per missing file) that hides the real signal — the exact shape of
+# the E-001 audit. docs/BLACKBOARD.md was pruned (the code is canonical —
+# KILAVUZ.md §14) and docs/USAGE-GUIDE.md is not in the tree; the live
+# reader-facing set is the README documentation table plus the engine summary.
+# scripts/tests/test_selfcheck_scripts.py pins this list against the tree.
 DOC_FILES = (
     "README.md",
     "CONTRIBUTING.md",
-    "docs/USAGE-GUIDE.md",
     "docs/CLAUDE.md",
-    "docs/BLACKBOARD.md",
+    "AGENT-GUIDE.md",
+    "GUIDE.md",
+    "KILAVUZ.md",
 )
+# The stop-semantics and canvas-feed claims live in the runbooks/guides, not
+# only in README.md; docs/BLACKBOARD.md (the old canvas home) is pruned.
+STOP_DOCS = ("README.md", "docs/CLAUDE.md", "AGENT-GUIDE.md")
+CANVAS_DOCS = ("KILAVUZ.md", "GUIDE.md")
 # Machine-readable manifests that repeat the same public counts.
 MANIFESTS = (
     ".plugin/plugin.json",
@@ -47,6 +58,10 @@ MANIFESTS = (
     ".claude-plugin/plugin.json",
     ".claude-plugin/marketplace.json",
 )
+# Every engine module gets the duplicate-top-level-def scan — the guard is
+# only as wide as this tuple, and an unscanned module can silently hide a
+# shadowed def (a later definition wins). scripts/tests/test_selfcheck_scripts.py
+# pins the tuple against the tree so a new module cannot be added unscanned.
 ENGINE_MODULES = (
     "hooks/engine/modules/archive.py",
     "hooks/engine/modules/audit.py",
@@ -54,6 +69,9 @@ ENGINE_MODULES = (
     "hooks/engine/modules/blackboard.py",
     "hooks/engine/modules/config.py",
     "hooks/engine/modules/guard.py",
+    "hooks/engine/modules/mirror.py",
+    "hooks/engine/modules/plan.py",
+    "hooks/engine/modules/state.py",
     "hooks/engine/modules/stop.py",
     "hooks/engine/modules/utils.py",
     "hooks/engine/main.py",
@@ -66,10 +84,13 @@ _DOC_CMD_RE = re.compile(r"(?:^|\s)(?:sh|bash|python3?)\s+(\S*/\S+\.(?:sh|py))")
 _PLACEHOLDER_CHARS = ("{", "<", "*", "...")
 
 # Public counts the docs repeat; every occurrence must match the filesystem.
-_SKILLS_CLAIM_RE = re.compile(r"(\d+)\s+(?:\*\*)?(?:BMAD\s+)?skills?\b", re.IGNORECASE)
-_BRIDGE_TOML_CLAIM_RE = re.compile(r"(\d+)\s+(?:\*\*)?(?:bridge|customization)\s+TOMLs",
+# `(?<![\d.])` keeps a numbered section heading from reading as a count claim
+# ("13.1 Skill kataloğu", "### 4.16 Skill aileleri" -> the "1 Skill"/"16 Skill"
+# false positives in E-001); a real claim is never glued to a dotted number.
+_SKILLS_CLAIM_RE = re.compile(r"(?<![\d.])(\d+)\s+(?:\*\*)?(?:BMAD\s+)?skills?\b", re.IGNORECASE)
+_BRIDGE_TOML_CLAIM_RE = re.compile(r"(?<![\d.])(\d+)\s+(?:\*\*)?(?:bridge|customization)\s+TOMLs",
                                    re.IGNORECASE)
-_BARE_TOML_CLAIM_RE = re.compile(r"(\d+)\s+TOMLs", re.IGNORECASE)
+_BARE_TOML_CLAIM_RE = re.compile(r"(?<![\d.])(\d+)\s+TOMLs", re.IGNORECASE)
 
 # Paths/references that were removed from the repo: a LIVE doc must not tell a
 # reader to run or read them (docs/experiments/** keeps its own history).
@@ -491,7 +512,7 @@ def build_checks() -> list[tuple[str, object]]:
     checks.append(("help catalog shape and code ownership intact", _check_help_menu_code_uniqueness))
     for rel in DOC_FILES:
         checks.append((f"no removed-artifact references: {rel}", _check_no_removed_refs(rel)))
-    for rel in ("README.md", "docs/CLAUDE.md", "docs/USAGE-GUIDE.md"):
+    for rel in STOP_DOCS:
         checks.append((f"Stop described as report-only: {rel}", _check_stop_report_only(rel)))
     checks.append(("stop.py has no deny path", _check_stop_engine_never_denies))
     checks.append(("docs/CLAUDE.md toml matches custom/config.toml", _check_claude_toml_matches_config))
@@ -499,7 +520,7 @@ def build_checks() -> list[tuple[str, object]]:
     checks.append(("custom/config.toml comments truthful about stop", _check_config_file_comments_truthful))
     checks.append(("stop_guard has no reader", _check_no_stop_guard_reader))
     checks.append(("canvas feed wired (engine + CLI)", _check_canvas_feed_wired))
-    for rel in ("docs/BLACKBOARD.md", "docs/USAGE-GUIDE.md"):
+    for rel in CANVAS_DOCS:
         checks.append((f"canvas feed documented: {rel}", _check_canvas_feed_documented(rel)))
     checks.append(("audit hot path stays blackboard-free", _check_engine_hot_path_blackboard_free))
     checks.append(("canvas feed covered by tests", _check_canvas_feed_tested))

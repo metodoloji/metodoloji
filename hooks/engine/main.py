@@ -89,9 +89,18 @@ def main():
     # Read JSON input from stdin. Empty stdin is only fail-open for
     # non-blocking hooks; guard/stop stay fail-closed (their _fail path in
     # hook-entry.sh already denies, this keeps direct-engine calls safe).
+    # The fail-closed contract covers BOTH bad-input classes: unparseable JSON
+    # AND valid JSON that is not an object (array/string/number/null). The
+    # second class used to reach the handler and raise inside
+    # normalize_hook_input ("'list' object has no attribute 'get'") — a
+    # traceback is neither allow nor deny, and a crashed PreToolUse hook can be
+    # read by the runner as an allow (fail-open), the exact leak the guard
+    # exists to prevent.
     try:
         json_in = json.load(sys.stdin)
     except (json.JSONDecodeError, ValueError, EOFError):
+        json_in = None
+    if not isinstance(json_in, dict):
         if hook_type in ("stop", "guard", "pre"):
             _deny_no_input(hook_type)
             return

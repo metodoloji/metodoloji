@@ -600,3 +600,47 @@ def test_main_dispatch_stop_allows_with_report(tmp_path):
     assert out["hookSpecificOutput"]["hookEventName"] == "Stop"
     assert out["hookSpecificOutput"].get("additionalContext") is None or isinstance(
         out["hookSpecificOutput"].get("additionalContext"), str)
+
+
+# --- main() input trust boundary (E-002) ------------------------------------
+# The fail-closed contract covers BOTH bad-input classes: unparseable JSON
+# (covered above) and VALID JSON that is not an object. The second class used
+# to reach the handler and raise inside normalize_hook_input
+# ("'list' object has no attribute 'get'"), printing a traceback and NO
+# decision — a crashed PreToolUse hook the runner may read as an allow.
+
+_NON_OBJECT_STDIN = ("[]", '"x"', "null", "5")
+
+
+def _main_with_stdin(mode, payload, project_root):
+    import subprocess
+    env = dict(os.environ)
+    env["CLAUDE_PROJECT_DIR"] = str(project_root)
+    return subprocess.run(
+        [sys.executable, str(MAIN_PY), mode],
+        input=payload, capture_output=True, text=True, encoding="utf-8",
+        timeout=30, env=env, cwd=str(_HOOKS.parent),
+    )
+
+
+def test_main_non_object_stdin_fail_closed(tmp_path):
+    """Non-object JSON must deny/block on every fail-closed hook, never crash."""
+    checkers = {
+        "stop": lambda o: o["decision"] == "block",
+        "guard": lambda o: o["hookSpecificOutput"]["permissionDecision"] == "deny",
+        "pre": lambda o: o["hookSpecificOutput"]["permissionDecision"] == "deny",
+    }
+    for payload in _NON_OBJECT_STDIN:
+        for mode, ok in checkers.items():
+            r = _main_with_stdin(mode, payload, tmp_path)
+            assert r.returncode == 0, (mode, payload, r.stderr)
+            out = json.loads(r.stdout)
+            assert ok(out), (mode, payload, out)
+
+
+def test_main_non_object_stdin_open_hook_allows(tmp_path):
+    """A non-blocking hook keeps its fail-open policy on non-object JSON."""
+    r = _main_with_stdin("audit", "[]", tmp_path)
+    assert r.returncode == 0, r.stderr
+    out = json.loads(r.stdout)
+    assert out["hookSpecificOutput"]["permissionDecision"] == "allow"
