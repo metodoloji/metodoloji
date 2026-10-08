@@ -434,6 +434,58 @@ def _check_msys_tested() -> str | None:
     return f"missing MSYS tests: {missing}" if missing else None
 
 
+def _check_repo_root_malformed_cwd() -> str | None:
+    """E-006: repo_root must skip a non-string payload cwd, never raise on it.
+
+    The top-level `cwd` key is the last untyped wire seam: 123 / 4.5 / true /
+    ["x"] / {"a": 1} used to reach _msys_to_native() and raise inside the
+    handler, leaving guard/quality/audit/stop/session_start with NO decision
+    (a no-decision turn the runner may read as an allow). The claim: every
+    non-string shape falls back to the process root, and a string cwd is still
+    honored verbatim (the type guard must not widen).
+    """
+    import os  # noqa: PLC0415
+
+    sys.path.insert(0, str(ROOT / "hooks" / "engine"))
+    from modules.utils import repo_root  # noqa: PLC0415
+
+    saved = {k: os.environ.pop(k, None)
+             for k in ("CLAUDE_PROJECT_DIR", "OPENHANDS_PROJECT_DIR")}
+    try:
+        try:
+            fallback = repo_root({})
+            for bad in (123, 4.5, True, ["x"], {"a": 1}):
+                got = repo_root({"cwd": bad})
+                if got != fallback:
+                    return (f"non-string cwd {bad!r} produced root {got!r}, "
+                            f"want fallback {fallback!r}")
+            probe = str(ROOT)
+            if repo_root({"cwd": probe}) != os.path.abspath(probe):
+                return "string cwd no longer honored verbatim (guard widened)"
+        except Exception as exc:  # a crashing check is a failing check
+            return f"repo_root raised on a non-string cwd: {type(exc).__name__}: {exc}"
+    finally:
+        for key, value in saved.items():
+            if value is not None:
+                os.environ[key] = value
+    return None
+
+
+def _check_repo_root_malformed_cwd_tested() -> str | None:
+    """The E-006 seam must stay covered by unit AND end-to-end tests."""
+    problems = []
+    unit = _read("hooks/engine/tests/test_utils.py")
+    for name in ("test_repo_root_non_string_cwd_falls_back",
+                 "test_repo_root_env_wins_over_malformed_cwd",
+                 "test_repo_root_string_cwd_still_honored"):
+        if name not in unit:
+            problems.append(f"test_utils.py: no {name}")
+    e2e = _read("hooks/engine/tests/test_stop_main.py")
+    if "test_main_malformed_cwd_decides_not_crash" not in e2e:
+        problems.append("test_stop_main.py: no test_main_malformed_cwd_decides_not_crash")
+    return "; ".join(problems) if problems else None
+
+
 def _check_free_surface_parity() -> str | None:
     """The gate's bench refusal must mirror the guard's free surfaces.
 
@@ -530,6 +582,10 @@ def build_checks() -> list[tuple[str, object]]:
     checks.append(("check-plugin.sh stop wording", _check_check_plugin_wording))
     checks.append(("MSYS path form normalized on Windows", _check_msys_paths))
     checks.append(("MSYS path form covered by tests", _check_msys_tested))
+    checks.append(("repo_root skips a non-string payload cwd (E-006)",
+                   _check_repo_root_malformed_cwd))
+    checks.append(("malformed-cwd seam covered by tests (E-006)",
+                   _check_repo_root_malformed_cwd_tested))
     checks.append(("gate bench refusal mirrors guard free surfaces",
                    _check_free_surface_parity))
     checks.append(("pytest suite green (falsifier)", _run_pytest))

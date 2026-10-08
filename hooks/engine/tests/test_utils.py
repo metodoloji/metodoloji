@@ -335,6 +335,39 @@ def test_repo_root_json_cwd_fallback(tmp_path):
             os.environ["OPENHANDS_PROJECT_DIR"] = old_o
 
 
+# --- top-level payload seam (E-006) ------------------------------------------
+# `cwd` arrives on the same wire channel as tool_input: a mistyped one (123,
+# ["x"], {"a": 1}) must be SKIPPED, never crash repo_root — a traceback inside
+# the handler is a no-decision turn the runner may read as an allow.
+
+_NON_STRING_CWD = (123, 4.5, True, ["x"], {"a": 1}, None)
+
+
+@pytest.mark.parametrize("bad_cwd", _NON_STRING_CWD)
+def test_repo_root_non_string_cwd_falls_back(monkeypatch, bad_cwd):
+    """A mistyped payload cwd is not a root signal: skip to process cwd (E-006)."""
+    monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+    monkeypatch.delenv("OPENHANDS_PROJECT_DIR", raising=False)
+    # Before E-006 every shape but None raised inside _msys_to_native()
+    # (AttributeError / TypeError) — no decision on guard/audit/stop.
+    assert repo_root({"cwd": bad_cwd}) == repo_root({})
+
+
+def test_repo_root_env_wins_over_malformed_cwd(monkeypatch, tmp_path):
+    """The type guard preserves the documented priority: env root still wins."""
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+    monkeypatch.delenv("OPENHANDS_PROJECT_DIR", raising=False)
+    assert repo_root({"cwd": 123}) == os.path.abspath(str(tmp_path))
+
+
+def test_repo_root_string_cwd_still_honored(monkeypatch, tmp_path):
+    """The guard must not widen: a string cwd keeps its exact behavior."""
+    monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+    monkeypatch.delenv("OPENHANDS_PROJECT_DIR", raising=False)
+    cwd = str(tmp_path / "from-json")
+    assert repo_root({"cwd": cwd}) == os.path.abspath(cwd)
+
+
 def test_extract_story_key_colon():
     assert extract_story_key_from_content("# Story: S-001\n") == "S-001"
 

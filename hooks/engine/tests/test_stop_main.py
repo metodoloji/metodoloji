@@ -700,3 +700,40 @@ def test_main_malformed_free_zone_command_still_allows(tmp_path):
     assert r.returncode == 0, r.stderr
     out = json.loads(r.stdout)
     assert out["hookSpecificOutput"]["permissionDecision"] == "allow"
+
+
+# --- top-level payload shape (E-006) -----------------------------------------
+# `cwd` is read by utils.repo_root() straight off the wire. A mistyped one
+# (123 / ["x"] / {"a": 1}) used to raise inside _msys_to_native(): exit 1,
+# empty stdout, NO decision — a no-decision turn the runner may read as an
+# allow. hook-entry.sh only `_fail`s when python/engine is missing, so the
+# engine itself must always decide.
+
+_MALFORMED_CWD_MODES = ("guard", "pre", "quality", "deploy", "audit", "stop",
+                        "session_start")
+
+
+def test_main_malformed_cwd_decides_not_crash(tmp_path):
+    """E-006: with both project-dir env vars absent, `cwd` is the only root
+    signal, so this payload probes the seam on every hook mode: each must
+    return rc=0 with a parseable decision envelope — never a traceback.
+
+    The subprocess cwd is tmp_path so the fallback root (process cwd) lands in
+    the sandbox, not in the plugin tree.
+    """
+    import subprocess
+    env = dict(os.environ)
+    env.pop("CLAUDE_PROJECT_DIR", None)
+    env.pop("OPENHANDS_PROJECT_DIR", None)
+    payload = json.dumps({"tool_name": "terminal",
+                          "tool_input": {"command": "ls"}, "cwd": 123})
+    for mode in _MALFORMED_CWD_MODES:
+        r = subprocess.run(
+            [sys.executable, str(MAIN_PY), mode],
+            input=payload, capture_output=True, text=True, encoding="utf-8",
+            errors="replace", timeout=30, env=env, cwd=str(tmp_path),
+        )
+        assert r.returncode == 0, (mode, r.stderr)
+        assert "Traceback" not in r.stderr, (mode, r.stderr)
+        out = json.loads(r.stdout)  # a decision envelope, not empty stdout
+        assert "hookEventName" in out.get("hookSpecificOutput", {}), (mode, out)

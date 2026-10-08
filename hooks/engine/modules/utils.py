@@ -291,13 +291,24 @@ def repo_root(json_in: dict) -> str:
     Priority:
     1. CLAUDE_PROJECT_DIR (Claude Code standard)
     2. OPENHANDS_PROJECT_DIR (OpenHands standard)
-    3. json_in["cwd"] (hook input fallback)
+    3. json_in["cwd"] (hook input fallback) — STRING values only (E-006)
     4. os.getcwd() (last resort)
+
+    Step 3 honors the payload cwd only when it is a string (E-006): the
+    payload is a wire format from another process, and a mistyped cwd (123,
+    4.5, ["x"], {"a": 1}) used to reach _msys_to_native() and raise — guard,
+    quality, audit, stop and session_start then exited with a traceback and NO
+    decision, the fail-open turn the engine exists to prevent (E-002's known
+    shape gap, at the top-level keys). A non-string cwd is not a root signal:
+    skip it and fall through to the documented next priority instead of
+    crashing, and never coerce one into a root (a fabricated "123" root under
+    the process cwd would be a silently wrong tree — worse than no signal).
     """
+    cwd = json_in.get("cwd")
     root = (
         os.environ.get("CLAUDE_PROJECT_DIR")
         or os.environ.get("OPENHANDS_PROJECT_DIR")
-        or json_in.get("cwd")
+        or (cwd if isinstance(cwd, str) else None)
         or os.getcwd()
     )
     # Normalize an MSYS drive path before abspath, so the root and the targets
