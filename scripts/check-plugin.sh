@@ -26,9 +26,10 @@
 # Usage:  sh scripts/check-plugin.sh   (from the plugin root or anywhere;
 #            target project root is cwd or $OPENHANDS_PROJECT_DIR)
 #            sh scripts/check-plugin.sh --negtest
-#            (negative tests: §6a .env inventory, §2b BRIDGE visibility,
-#             §1b dispatch locator drift, §6c template copy drift,
-#             §6d init marker integrity, §6e help catalog integrity —
+#            (negative tests, 8 stages: §6a .env inventory, §2b BRIDGE
+#             visibility ×2 (skill + agent principles), §1b dispatch locator
+#             drift, §6c template copy drift, §6d init marker integrity,
+#             §6e help catalog integrity, §6g priming-token scan —
 #             break → catch MISS → restore)
 # Output:    [OK] / [WARNING] / [ERROR] at the start of each line; overall status at the end.
 
@@ -59,7 +60,7 @@ total_stages = 8
 # takes ~65s on Windows CI-class disks, so the 60s budget it used to carry made
 # stage 1 fail as a timeout rather than as a fixable defect.
 
-# Stage 1/5: .env line removed from .gitignore → §6a.2 should catch an ERROR
+# Stage 1/8: .env line removed from .gitignore → §6a.2 should catch an ERROR
 print(f"[1/{total_stages}] does §6a emit an ERROR when .env is removed from .gitignore")
 gitignore = PLUGIN / ".gitignore"
 orig_gitignore_bytes = gitignore.read_bytes()
@@ -80,7 +81,7 @@ try:
 finally:
     gitignore.write_bytes(orig_gitignore_bytes)  # byte-exact: no CRLF/LF churn
 
-# Stage 2/5: BRIDGE removed from custom/bmad-dev-story.toml → §2b should catch a MISS
+# Stage 2/8: BRIDGE removed from custom/bmad-dev-story.toml → §2b should catch a MISS
 print(f"[2/{total_stages}] does §2b emit a MISS when BRIDGE is removed from custom/bmad-dev-story.toml")
 toml = PLUGIN / "custom" / "bmad-dev-story.toml"
 resolver = PLUGIN / "hooks" / "engine" / "resolve_customization.py"
@@ -116,7 +117,7 @@ try:
 finally:
     toml.write_bytes(orig_bytes)
 
-# Stage 3/5: BRIDGE removed from an agent-principles surface → §2b should catch a MISS
+# Stage 3/8: BRIDGE removed from an agent-principles surface → §2b should catch a MISS
 print(f"[3/{total_stages}] does §2b emit a MISS when BRIDGE is removed from custom/bmad-agent-dev.toml (agent.principles)")
 atoml = PLUGIN / "custom" / "bmad-agent-dev.toml"
 askill = PLUGIN / "skills" / "bmad-agent-dev"
@@ -148,7 +149,7 @@ try:
 finally:
     atoml.write_bytes(aorig_bytes)
 
-# Stage 4/5: hooks.json locator desynced in ONE hook → §1b should catch drift
+# Stage 4/8: hooks.json locator desynced in ONE hook → §1b should catch drift
 print(f"[4/{total_stages}] does §1b catch a desynced hooks.json dispatch locator")
 hj = PLUGIN / "hooks" / "hooks.json"
 hj_bytes = hj.read_bytes()
@@ -173,7 +174,7 @@ try:
 finally:
     hj.write_bytes(hj_bytes)  # byte-exact: no CRLF/LF churn
 
-# Stage 5/5: docs template copy desynced from templates/ → §6c should catch DRIFT
+# Stage 5/8: docs template copy desynced from templates/ → §6c should catch DRIFT
 print(f"[5/{total_stages}] does §6c catch template copy drift")
 tmpl = PLUGIN / "templates" / "_template_IR.md"
 cp = PLUGIN / "docs" / "development" / "_template_IR.md"
@@ -198,7 +199,7 @@ finally:
     cp.write_bytes(cp_orig)
     tmpl.write_bytes(tmpl_orig)
 
-# Stage 6/6: init marker removed while the skeleton is present → §6d should ERROR
+# Stage 6/8: init marker removed while the skeleton is present → §6d should ERROR
 print(f"[6/{total_stages}] does §6d catch a missing init marker with the skeleton present")
 marker = PLUGIN / ".metodoloji" / "initialized"
 if not (PLUGIN / "docs" / "experiments" / "_template.md").is_file():
@@ -223,7 +224,7 @@ try:
 finally:
     marker.write_bytes(marker_orig)  # byte-exact restore
 
-# Stage 7/7: a second skill inside one module wears an existing menu code →
+# Stage 7/8: a second skill inside one module wears an existing menu code →
 # §6e should catch the intra-module duplicate (the ambiguity class that made
 # "[SP]" mean two different skills).
 print(f"[7/{total_stages}] does §6e catch a duplicate menu code inside one module")
@@ -1271,14 +1272,18 @@ fi
 PROBLEMS=$((PROBLEMS + ENVPROBLEMS))
 
 echo "== 6b) Tech-debt inventory integrity (drift/ID/P0/orphan) =="
-if [ -x "$SELF/check-techdebt.sh" ]; then
+# Presence, not the executable bit: the sibling self-check scripts ship in git
+# as mode 100644 (non-executable) and are invoked through `sh`, so a `-x` test
+# is always false on a clean checkout — §6b skipped itself and forced exit 1 on
+# an otherwise healthy tree (E-001).
+if [ -f "$SELF/check-techdebt.sh" ]; then
     sh "$SELF/check-techdebt.sh"
     TDEXIT=$?
     if [ "$TDEXIT" -ne 0 ]; then
         PROBLEMS=$((PROBLEMS + 1))
     fi
 else
-    echo "[WARNING] $SELF/check-techdebt.sh not found or not executable — §6b skipped"
+    echo "[WARNING] $SELF/check-techdebt.sh not found — §6b skipped"
     PROBLEMS=$((PROBLEMS + 1))
 fi
 
@@ -1538,10 +1543,19 @@ fi
 echo "== 6f) Trigger/description collisions (routing determinism, F4.1) =="
 # scripts/check-triggers.py: identical descriptions or shared bare triggers
 # across skills make routing non-deterministic (bmad vs gds vertical).
-if python3 "$SELF/check-triggers.py" --project-root "$PROJECT_ROOT"; then
-    echo "[OK]   no trigger/description collisions"
+# Presence, not a bare call: an unguarded `python3` on a missing sibling emits
+# an interpreter error that this stage then counts as a collision — a false
+# ERROR on an otherwise healthy tree (same stale-tool class as the §6b `-x`
+# guard, E-001/E-002).
+if [ -f "$SELF/check-triggers.py" ]; then
+    if python3 "$SELF/check-triggers.py" --project-root "$PROJECT_ROOT"; then
+        echo "[OK]   no trigger/description collisions"
+    else
+        echo "[WARNING] trigger/description collision (see above)"
+        PROBLEMS=$((PROBLEMS + 1))
+    fi
 else
-    echo "[WARNING] trigger/description collision (see above)"
+    echo "[WARNING] $SELF/check-triggers.py not found — §6f skipped"
     PROBLEMS=$((PROBLEMS + 1))
 fi
 

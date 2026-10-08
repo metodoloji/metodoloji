@@ -40,7 +40,9 @@ Usage:
     python3 blackboard.py hot --key K | --clear
     python3 blackboard.py stats
 
-All commands accept --project-root R (default: cwd). Writes print a one-line
+All commands accept --project-root R (default: CLAUDE_PROJECT_DIR /
+OPENHANDS_PROJECT_DIR env, then cwd — the engine's repo_root() priority).
+Writes print a one-line
 JSON ack ({"ok": true, ...}). Reads print JSON; `read --context` prints the
 compact bounded-context summary hooks inject. Fail-open: missing/corrupt
 state yields an empty result and exit 0.
@@ -59,7 +61,22 @@ from modules import blackboard as bb  # noqa: E402
 
 
 def _root(args) -> str:
-    return getattr(args, "project_root", None) or os.getcwd()
+    """Resolve the project root with the engine's own priority (E-005).
+
+    Hook payloads carry CLAUDE_PROJECT_DIR / OPENHANDS_PROJECT_DIR and the
+    engine's repo_root() honors them ahead of cwd. A CLI that fell back to
+    cwd first would silently read/write the PLUGIN repo's board whenever it
+    ran from the plugin tree under a hook context (hook cwd is the plugin),
+    instead of the project's. Explicit --project-root still wins.
+    """
+    explicit = getattr(args, "project_root", None)
+    if explicit:
+        return explicit
+    for env in ("CLAUDE_PROJECT_DIR", "OPENHANDS_PROJECT_DIR"):
+        val = os.environ.get(env)
+        if val:
+            return val
+    return os.getcwd()
 
 
 def _emit(obj) -> None:

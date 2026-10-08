@@ -99,12 +99,47 @@ def load(project_root: str, slug: str) -> tuple[dict, dict]:
     return state, spec
 
 
+def state_is_corrupt(project_root: str, slug: str) -> bool:
+    """True when the run has a state file but it fails to parse (E-005).
+
+    store.read_state() degrades a corrupt file to {} by design (fail-open);
+    this predicate recovers the distinction so callers can tell a missing run
+    from one whose state cannot be read.
+    """
+    import json as _json
+    import os as _os
+    path = _os.path.join(store.paths(project_root)["base"], f"{slug}.state.json")
+    if not _os.path.exists(path):
+        return False
+    try:
+        with open(path, encoding="utf-8") as fh:
+            _json.load(fh)
+    except (OSError, _json.JSONDecodeError):
+        return True
+    return False
+
+
+def _missing_or_corrupt(project_root: str, slug: str) -> dict:
+    """The honest refusal for an unreadable run (E-005).
+
+    A corrupt state file used to masquerade as "no workflow 'slug'" — the
+    operator's next move (re-create with --force) would silently overwrite
+    the broken-but-possibly-recoverable file and its event trail.
+    """
+    if state_is_corrupt(project_root, slug):
+        rel = f".metodoloji/workflow/{slug}.state.json"
+        return {"ok": False,
+                "error": (f"workflow '{slug}' state file is corrupt (unreadable JSON): "
+                          f"{rel} — repair or remove it; do NOT re-create over it")}
+    return _fail(f"no workflow '{slug}'")
+
+
 # --- inspection ---------------------------------------------------------------
 
 def status(project_root: str, slug: str) -> dict:
     state, spec = load(project_root, slug)
     if not state:
-        return _fail(f"no workflow '{slug}'")
+        return _missing_or_corrupt(project_root, slug)
     current = state.get("current")
     stage = spec_mod.stage_by_id(spec, current) if (spec and current) else None
     return {
@@ -125,7 +160,7 @@ def next_stage(project_root: str, slug: str) -> dict:
     """What to do now, and (deterministically) where the run goes after it."""
     state, spec = load(project_root, slug)
     if not state:
-        return _fail(f"no workflow '{slug}'")
+        return _missing_or_corrupt(project_root, slug)
     current = state.get("current")
     stage = spec_mod.stage_by_id(spec, current) if current else None
     decision = spec_mod.compute_next(
@@ -140,6 +175,12 @@ def next_stage(project_root: str, slug: str) -> dict:
 def list_runs(project_root: str) -> dict:
     runs = []
     for slug in store.list_slugs(project_root):
+        if state_is_corrupt(project_root, slug):
+            # A corrupt state file used to appear as a ghost row of nulls,
+            # indistinguishable from a real run (E-005). Name it.
+            runs.append({"slug": slug, "corrupt": True,
+                         "error": "state file unreadable — repair or remove it, do not re-create over it"})
+            continue
         state = store.read_state(project_root, slug)
         runs.append({
             "slug": slug,
@@ -154,7 +195,7 @@ def list_runs(project_root: str) -> dict:
 def history(project_root: str, slug: str, limit: int = 50) -> dict:
     state = store.read_state(project_root, slug)
     if not state:
-        return _fail(f"no workflow '{slug}'")
+        return _missing_or_corrupt(project_root, slug)
     return {"ok": True, "slug": slug, "history": state.get("history", [])[-limit:]}
 
 
@@ -164,7 +205,7 @@ def flag(project_root: str, slug: str, key: str, value: str) -> dict:
     """Set a branch flag a conditional edge reads (e.g. regressed=true)."""
     state, _ = load(project_root, slug)
     if not state:
-        return _fail(f"no workflow '{slug}'")
+        return _missing_or_corrupt(project_root, slug)
     flags = dict(state.get("flags", {}))
     flags[key] = str(value)
     state["flags"] = flags
@@ -177,7 +218,7 @@ def complete(project_root: str, slug: str, stage_id: str, *,
     """Validate the current stage's evidence, record it, and advance."""
     state, spec = load(project_root, slug)
     if not state:
-        return _fail(f"no workflow '{slug}'")
+        return _missing_or_corrupt(project_root, slug)
     if not spec:
         return _fail(f"spec for '{slug}' is missing — cannot advance")
     if state.get("status") != "active":
@@ -267,7 +308,7 @@ def complete(project_root: str, slug: str, stage_id: str, *,
 def block(project_root: str, slug: str, reason: str) -> dict:
     state, _ = load(project_root, slug)
     if not state:
-        return _fail(f"no workflow '{slug}'")
+        return _missing_or_corrupt(project_root, slug)
     state["status"] = "blocked"
     state["blocked"] = {"stage": state.get("current"), "reason": reason, "ts": _now()}
     state.setdefault("history", []).append(
@@ -280,7 +321,7 @@ def block(project_root: str, slug: str, reason: str) -> dict:
 def resume(project_root: str, slug: str) -> dict:
     state, _ = load(project_root, slug)
     if not state:
-        return _fail(f"no workflow '{slug}'")
+        return _missing_or_corrupt(project_root, slug)
     state["status"] = "active"
     state["blocked"] = None
     state.setdefault("history", []).append(

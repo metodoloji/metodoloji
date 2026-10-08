@@ -63,6 +63,18 @@ Write src/auth/jwt.py
 
 `Stop` is **report-only** — it summarises the session (in-progress stories, this window's writes, a pending handoff) and never blocks.
 
+### Cross-session memory and baton handoffs
+
+The blackboard carries focus, run lists, and pending handoffs across skills and windows so context is preserved when you restart your terminal:
+
+![Session-Persistent Blackboard and Baton Handoff](docs/assets/launch/card3-blackboard-handoff-en.jpg)
+
+### Declared workflow engine
+
+Multi-stage processes (`analyze → map → plan → apply → test → done`) run as a deterministic state machine that refuses transitions without verifiable evidence (`command exit 0` or artifact tokens):
+
+![Declared Workflow Engine](docs/assets/launch/card4-workflow-engine-en.jpg)
+
 ## Requirements
 
 | Requirement | Minimum | Note |
