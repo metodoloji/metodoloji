@@ -68,6 +68,14 @@ def create(project_root: str, spec: dict, *, slug: str | None = None,
     if problems:
         return _fail("spec is invalid", problems=problems)
     slug = (slug or spec_mod.spec_id(spec)).strip()
+    if state_is_corrupt(project_root, slug):
+        # E-008: read_state degrades a corrupt file to {} (the documented
+        # fail-open storage contract), so `existing` alone read "no run here"
+        # and create OVERWROTE the broken-but-possibly-recoverable state with
+        # ok:true — without --force. The corrupt predicate gates creation the
+        # same way every read path refuses; --force does not override it
+        # (the refusal names repair-or-remove as the only remedy).
+        return _missing_or_corrupt(project_root, slug)
     existing = store.read_state(project_root, slug)
     if existing and not force:
         return _fail(f"workflow '{slug}' already exists (use --force to reset)",
@@ -108,7 +116,10 @@ def state_is_corrupt(project_root: str, slug: str) -> bool:
     """
     import json as _json
     import os as _os
-    path = _os.path.join(store.paths(project_root)["base"], f"{slug}.state.json")
+    # E-008: probe THE storage path (slug sanitized), never a raw-slug join —
+    # "my run" lives at my_run.state.json, and a raw probe would miss it,
+    # report the corrupt run as missing, and lose its event trail.
+    path = store.state_path(project_root, slug)
     if not _os.path.exists(path):
         return False
     try:
@@ -127,7 +138,10 @@ def _missing_or_corrupt(project_root: str, slug: str) -> dict:
     the broken-but-possibly-recoverable file and its event trail.
     """
     if state_is_corrupt(project_root, slug):
-        rel = f".metodoloji/workflow/{slug}.state.json"
+        # E-008: name the file storage actually wrote ("my run" ->
+        # my_run.state.json), not a raw-slug path that does not exist.
+        fname = store.state_path(project_root, slug).replace("\\", "/").rsplit("/", 1)[-1]
+        rel = f".metodoloji/workflow/{fname}"
         return {"ok": False,
                 "error": (f"workflow '{slug}' state file is corrupt (unreadable JSON): "
                           f"{rel} — repair or remove it; do NOT re-create over it")}

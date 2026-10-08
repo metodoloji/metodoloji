@@ -737,3 +737,106 @@ def test_main_malformed_cwd_decides_not_crash(tmp_path):
         assert "Traceback" not in r.stderr, (mode, r.stderr)
         out = json.loads(r.stdout)  # a decision envelope, not empty stdout
         assert "hookEventName" in out.get("hookSpecificOutput", {}), (mode, out)
+
+
+# --- recursion-class input (E-007) -------------------------------------------
+# Three sites, one policy: a deep or crashing turn must END in a decision.
+#  1) json.load raised RecursionError past the parser limit (~20k) — uncaught
+#     by (JSONDecodeError, ValueError, EOFError) -> ALL SEVEN modes rc=1.
+#  2) a routing value nested >=500 deep recursed without bound in
+#     _coerce_json_scalar -> guard/pre/quality/deploy/audit rc=1 (fail-open).
+#  3) any other handler exception escaped main()'s unguarded handler call.
+
+_ALL_HOOK_MODES = ("guard", "pre", "quality", "deploy", "audit", "stop",
+                   "session_start")
+
+
+def _deep_command_raw(depth):
+    """A raw stdin payload whose command is `depth` nested lists."""
+    inner = '"ls"'
+    for _ in range(depth):
+        inner = "[" + inner + "]"
+    return '{"tool_name": "terminal", "tool_input": {' + \
+           '"command": ' + inner + '}}'
+
+
+def _run_mode_raw(mode, raw, project_root):
+    env = dict(os.environ)
+    env.pop("CLAUDE_PROJECT_DIR", None)
+    env.pop("OPENHANDS_PROJECT_DIR", None)
+    env["HOOK_TYPE"] = mode
+    return subprocess.run(
+        [sys.executable, str(MAIN_PY), mode],
+        input=raw, capture_output=True, text=True, encoding="utf-8",
+        errors="replace", timeout=60, env=env, cwd=str(project_root),
+    )
+
+
+def _assert_decides(mode, r):
+    assert r.returncode == 0, (mode, r.stderr[-400:])
+    assert "Traceback" not in r.stderr, (mode, r.stderr[-400:])
+    out = json.loads(r.stdout)  # a decision envelope, not empty stdout
+    assert "hookEventName" in out.get("hookSpecificOutput", {}), (mode, out)
+
+
+def test_main_deep_coercion_payload_decides_not_crash(tmp_path):
+    """Depth-1000 command parses, then hits the coerce seam: every mode must
+    still decide (pre-E-007 the five coercing modes exited 1 with no output)."""
+    raw = _deep_command_raw(1000)
+    for mode in _ALL_HOOK_MODES:
+        _assert_decides(mode, _run_mode_raw(mode, raw, tmp_path))
+
+
+def test_main_parser_overflow_payload_decides_not_crash(tmp_path):
+    """Depth-20000: json.load itself raises RecursionError — uncaught on every
+    mode before E-007. The input boundary must absorb it as bad input."""
+    raw = _deep_command_raw(20000)
+    for mode in _ALL_HOOK_MODES:
+        _assert_decides(mode, _run_mode_raw(mode, raw, tmp_path))
+
+
+def test_main_fail_closed_hooks_deny_on_parser_overflow(tmp_path):
+    """The deny half of the parser contract: the recursion class behaves like
+    bad input — stop blocks, guard/pre deny (never allow, never crash)."""
+    raw = _deep_command_raw(20000)
+    for mode, want in (("stop", "block"), ("guard", "deny"), ("pre", "deny")):
+        r = _run_mode_raw(mode, raw, tmp_path)
+        assert r.returncode == 0, (mode, r.stderr[-400:])
+        out = json.loads(r.stdout)
+        if want == "block":
+            assert out.get("decision") == "block", (mode, out)
+        else:
+            assert out["hookSpecificOutput"]["permissionDecision"] == "deny", (mode, out)
+
+
+def test_main_handler_crash_still_decides(monkeypatch, capsys):
+    """E-007 boundary: an escaped handler exception mirrors the input policy —
+    stop/guard/pre fail-closed, the report-only hooks allow — never a
+    traceback/no-decision turn (main.py's handler call used to be unguarded)."""
+    import io
+    import main as engine_main
+
+    def _boom(payload):
+        raise RuntimeError("handler exploded")
+
+    payload = json.dumps({"tool_name": "terminal",
+                          "tool_input": {"command": "ls"}})
+    for mode, check in (
+        ("guard", lambda o: o["hookSpecificOutput"]["permissionDecision"] == "deny"),
+        ("pre", lambda o: o["hookSpecificOutput"]["permissionDecision"] == "deny"),
+        ("stop", lambda o: o.get("decision") == "block"),
+        ("quality", lambda o: o["hookSpecificOutput"]["permissionDecision"] == "allow"),
+        ("deploy", lambda o: o["hookSpecificOutput"]["permissionDecision"] == "allow"),
+        ("audit", lambda o: o["hookSpecificOutput"]["hookEventName"] == "PostToolUse"),
+    ):
+        monkeypatch.setattr(engine_main, "_load_handler", lambda ht: _boom)
+        monkeypatch.setenv("HOOK_TYPE", mode)
+        # pytest's own argv carries positional args _resolve_hook_type would
+        # read as a mode — pin argv to a bare engine invocation.
+        monkeypatch.setattr(sys, "argv", ["main.py"])
+        monkeypatch.setattr(sys, "stdin", io.StringIO(payload))
+        capsys.readouterr()  # drain
+        engine_main.main()
+        out = json.loads(capsys.readouterr().out)
+        assert check(out), (mode, out)
+        assert "hookEventName" in out.get("hookSpecificOutput", {}), (mode, out)

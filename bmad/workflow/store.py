@@ -34,9 +34,21 @@ def paths(project_root: str) -> dict:
     }
 
 
-def _state_path(project_root: str, slug: str) -> str:
+def state_path(project_root: str, slug: str) -> str:
+    """The run's state file — THE one path every reader must agree on (E-008).
+
+    The slug is sanitized to [alnum._-] (everything else becomes `_`) so a
+    slug with a space or slash cannot escape the base dir. The corrupt-state
+    detector must build its probe path with THIS function: a raw-slug probe
+    checks a file that never exists, so a corrupt run is reported as missing
+    (`no workflow ...`) while `list` names it corrupt.
+    """
     safe = "".join(ch if (ch.isalnum() or ch in "._-") else "_" for ch in slug)
     return os.path.join(paths(project_root)["base"], f"{safe}.state.json")
+
+
+# Internal name kept: read_state/write_state and any existing readers use it.
+_state_path = state_path
 
 
 # --- locking (best-effort, cross-platform, fail-open) -------------------------

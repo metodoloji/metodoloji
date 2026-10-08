@@ -19,7 +19,7 @@ from .config import (
 )
 
 
-def _coerce_json_scalar(v) -> str:
+def _coerce_json_scalar(v, _depth: int = 0) -> str:
     """Str-coerce one hook payload value, defensively.
 
     Hook input is a wire format from another process: a schema like
@@ -28,16 +28,35 @@ def _coerce_json_scalar(v) -> str:
     never crash on it. Strings pass through untouched; the rest get
     deterministic, shell-parseable string forms (list -> joined words,
     mapping -> k=v words, scalars -> str()). None normalizes to "".
+
+    Recursion is BOUNDED at ``_COERCE_MAX_DEPTH`` (E-007): a depth-500 nested
+    list on a routing key used to recurse with two frames per level (function
+    + genexpr) and raise RecursionError at main.py's handler call — guard, pre,
+    quality, deploy and audit then exited with NO decision (fail-open). Past
+    the bound the subtree renders as a deterministic truncation marker: the
+    value is preserved as a string (deny direction for a bogus path — it
+    resolves outside the root), never a crash.
     """
     if v is None:
         return ""
     if isinstance(v, str):
         return v
     if isinstance(v, (list, tuple)):
-        return " ".join(_coerce_json_scalar(x) for x in v)
+        if _depth >= _COERCE_MAX_DEPTH:
+            return f"<list truncated at depth {_COERCE_MAX_DEPTH}>"
+        return " ".join(_coerce_json_scalar(x, _depth + 1) for x in v)
     if isinstance(v, dict):
-        return " ".join(f"{k}={_coerce_json_scalar(x)}" for k, x in sorted(v.items()))
+        if _depth >= _COERCE_MAX_DEPTH:
+            return f"<dict truncated at depth {_COERCE_MAX_DEPTH}>"
+        return " ".join(f"{k}={_coerce_json_scalar(x, _depth + 1)}"
+                        for k, x in sorted(v.items()))
     return str(v)
+
+
+# Wire values deeper than this render as a truncation marker instead of
+# recursing (E-007). Legitimate tool payloads are a handful of levels deep;
+# 32 leaves every real shape byte-identical while bounding the stack.
+_COERCE_MAX_DEPTH = 32
 
 
 _COERCE_TOOL_KEYS = ("command", "cmd", "path", "file_path", "content")

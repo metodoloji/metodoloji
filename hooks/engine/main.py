@@ -95,10 +95,14 @@ def main():
     # normalize_hook_input ("'list' object has no attribute 'get'") — a
     # traceback is neither allow nor deny, and a crashed PreToolUse hook can be
     # read by the runner as an allow (fail-open), the exact leak the guard
-    # exists to prevent.
+    # exists to prevent. RecursionError joins the tuple (E-007): a wire payload
+    # nested past the parser's limit (CPython 3.14 raises "Stack overflow …
+    # while decoding") is a RecursionError, NOT a JSONDecodeError/ValueError —
+    # it used to escape json.load uncaught, so at depth ~20k EVERY mode exited
+    # 1 with empty stdout (no decision on stop/guard/pre either).
     try:
         json_in = json.load(sys.stdin)
-    except (json.JSONDecodeError, ValueError, EOFError):
+    except (json.JSONDecodeError, ValueError, EOFError, RecursionError):
         json_in = None
     if not isinstance(json_in, dict):
         if hook_type in ("stop", "guard", "pre"):
@@ -120,7 +124,23 @@ def main():
             return
         result = {"decision": "allow"}
     elif hook_type:
-        result = handler(json_in)
+        # E-007: a handler exception must still END in a decision — the same
+        # policy as bad/no input (stop/guard/pre fail-closed; the rest allow).
+        # The probe made the class concrete: a deep routing value raised
+        # RecursionError inside _coerce_json_scalar and escaped HERE, so guard,
+        # pre, quality, deploy and audit exited 1 with empty stdout — a
+        # no-decision turn the runner may read as an allow. Any future handler
+        # bug now lands on the same wall: decide, never traceback.
+        try:
+            result = handler(json_in)
+        except Exception as exc:
+            sys.stderr.write(
+                f"metodoloji-hooks: handler crashed ({hook_type}) — "
+                f"{type(exc).__name__}: {exc}\n")
+            if hook_type in ("stop", "guard", "pre"):
+                _deny_no_input(hook_type)
+                return
+            result = {"decision": "allow"}
     else:
         # Unknown hook type - allow
         result = {"decision": "allow"}

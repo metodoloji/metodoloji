@@ -618,6 +618,72 @@ def test_missing_run_still_says_no_workflow(tmp_path):
     assert "no workflow 'ghost'" in out["error"]
 
 
+# --- corrupt-state honesty: sanitizer agreement + create gate (E-008) --------
+# state_is_corrupt probed the RAW slug while store sanitizes it ("my run" ->
+# my_run.state.json), so seven commands reported "no workflow" for a run that
+# list() honestly marked corrupt; create() never consulted the predicate and
+# clobbered the corrupt file with ok:true — WITHOUT --force (the exact silent
+# data loss E-005's refusal text warns about).
+
+def _seed_corrupt(root: str, slug: str) -> Path:
+    """Write a corrupt state file at the SANITIZED path storage actually uses."""
+    path = Path(store_mod.state_path(root, slug))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("{{{corrupt", encoding="utf-8")
+    return path
+
+
+def test_state_is_corrupt_agrees_with_storage_path_for_sanitized_slug(tmp_path):
+    root = str(tmp_path)
+    _seed_corrupt(root, "my run")
+    assert store_mod.state_path(root, "my run").endswith("my_run.state.json")
+    assert engine.state_is_corrupt(root, "my run") is True
+
+
+def test_every_read_on_corrupt_special_slug_names_the_file(tmp_path):
+    root = str(tmp_path)
+    _seed_corrupt(root, "my run")
+    calls = (
+        engine.status(root, "my run"),
+        engine.next_stage(root, "my run"),
+        engine.history(root, "my run"),
+        engine.flag(root, "my run", "k", "v"),
+        engine.block(root, "my run", "why"),
+        engine.resume(root, "my run"),
+        engine.complete(root, "my run", "a"),
+    )
+    for out in calls:
+        assert out["ok"] is False, out
+        assert "corrupt" in out["error"], out
+        assert "my_run.state.json" in out["error"], out  # sanitized name
+        assert "no workflow" not in out["error"], out
+    # list agrees (it iterates file stems, which are already sanitized)
+    runs = {r["slug"]: r for r in engine.list_runs(root)["runs"]}
+    assert runs["my_run"].get("corrupt") is True
+
+
+def test_create_refuses_to_clobber_corrupt_state(tmp_path):
+    root = str(tmp_path)
+    seed = _seed_corrupt(root, "alpha")
+    for force in (False, True):
+        out = engine.create(root, _spec(), slug="alpha", force=force)
+        assert out["ok"] is False, out
+        assert "corrupt" in out["error"], out
+        assert "alpha.state.json" in out["error"], out
+        # the broken-but-possibly-recoverable bytes stay untouched
+        assert seed.read_text(encoding="utf-8") == "{{{corrupt"
+
+
+def test_cli_status_on_corrupt_special_slug_exits_one(tmp_path, capsys):
+    root = str(tmp_path)
+    _seed_corrupt(root, "my run")
+    rc = wf_cli.main(["--project-root", root, "status", "--slug", "my run"])
+    out = json.loads(capsys.readouterr().out)
+    assert rc == 1
+    assert "corrupt" in out["error"]
+    assert "no workflow" not in out["error"]
+
+
 def test_store_write_state_creates_files(tmp_path):
     root = str(tmp_path)
     slug = "demo"

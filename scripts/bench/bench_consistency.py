@@ -486,6 +486,102 @@ def _check_repo_root_malformed_cwd_tested() -> str | None:
     return "; ".join(problems) if problems else None
 
 
+def _check_coerce_depth_bounded() -> str | None:
+    """E-007: a routing value nested past the limit coerces to a bounded
+    string, never raises — an unbounded _coerce_json_scalar used to blow the
+    stack inside the handler call (guard/pre/quality/deploy/audit exited with
+    NO decision at depth >= 500). Shallow renderings must stay byte-identical:
+    the bound may not widen what the coercion changes."""
+    sys.path.insert(0, str(ROOT / "hooks" / "engine"))
+    from modules.utils import _coerce_json_scalar  # noqa: PLC0415
+
+    try:
+        deep = "x"
+        for _ in range(4000):
+            deep = [deep]
+        out = _coerce_json_scalar(deep)
+        if not isinstance(out, str) or "truncated" not in out:
+            return f"deep list did not render a truncation marker: {out[:60]!r}"
+        for value, want in ((["a", "b"], "a b"),
+                            ({"b": 1, "a": 2}, "a=2 b=1"),
+                            ("s", "s"), (None, ""), (5, "5")):
+            got = _coerce_json_scalar(value)
+            if got != want:
+                return f"shallow rendering drifted: {value!r} -> {got!r}, want {want!r}"
+    except Exception as exc:  # a crashing check is a failing check
+        return f"_coerce_json_scalar raised: {type(exc).__name__}: {exc}"
+    return None
+
+
+def _check_recursion_seam_tests_covered() -> str | None:
+    """The three E-007 sites (coerce, parse, handler boundary) stay tested."""
+    problems = []
+    unit = _read("hooks/engine/tests/test_utils.py")
+    for name in ("test_coerce_json_scalar_depth_bounded_list",
+                 "test_coerce_json_scalar_depth_bounded_dict",
+                 "test_normalize_deep_routing_value_decides_not_crash"):
+        if name not in unit:
+            problems.append(f"test_utils.py: no {name}")
+    e2e = _read("hooks/engine/tests/test_stop_main.py")
+    for name in ("test_main_deep_coercion_payload_decides_not_crash",
+                 "test_main_parser_overflow_payload_decides_not_crash",
+                 "test_main_fail_closed_hooks_deny_on_parser_overflow",
+                 "test_main_handler_crash_still_decides"):
+        if name not in e2e:
+            problems.append(f"test_stop_main.py: no {name}")
+    return "; ".join(problems) if problems else None
+
+
+def _check_workflow_corrupt_honesty() -> str | None:
+    """E-008: the corrupt detector reads storage's sanitized path, and create
+    refuses over a corrupt state (bytes untouched, --force included).
+
+    A raw-slug probe missed `my_run.state.json` for slug "my run", so seven
+    commands reported `no workflow` while list() named the run corrupt; create
+    never consulted the predicate and clobbered the file with ok:true.
+    """
+    import json as _json  # noqa: PLC0415
+    import tempfile  # noqa: PLC0415
+
+    sys.path.insert(0, str(ROOT))
+    from bmad.workflow import engine, store  # noqa: PLC0415
+
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            seed = pathlib.Path(store.state_path(td, "my run"))
+            seed.parent.mkdir(parents=True, exist_ok=True)
+            seed.write_text("{{{corrupt", encoding="utf-8")
+            if not engine.state_is_corrupt(td, "my run"):
+                return "state_is_corrupt misses the sanitized file (raw-slug probe)"
+            out = engine.status(td, "my run")
+            if out.get("ok") or "corrupt" not in str(out.get("error", "")):
+                return f"status swallows the corrupt run: {out.get('error')!r}"
+            spec = _json.loads(
+                (ROOT / "bmad" / "workflow" / "builtin" / "seo-visibility.json")
+                .read_text(encoding="utf-8"))
+            for force in (False, True):
+                created = engine.create(td, spec, slug="my run", force=force)
+                if created.get("ok"):
+                    return f"create clobbered a corrupt state (force={force})"
+            if seed.read_text(encoding="utf-8") != "{{{corrupt":
+                return "corrupt state bytes were modified"
+    except Exception as exc:  # a crashing check is a failing check
+        return f"honesty probe raised {type(exc).__name__}: {exc}"
+    return None
+
+
+def _check_workflow_corrupt_tests_covered() -> str | None:
+    """The E-008 seam stays covered: sanitizer agreement + create gate."""
+    src = _read("bmad/tests/test_workflow.py")
+    missing = [name for name in (
+        "test_state_is_corrupt_agrees_with_storage_path_for_sanitized_slug",
+        "test_every_read_on_corrupt_special_slug_names_the_file",
+        "test_create_refuses_to_clobber_corrupt_state",
+        "test_cli_status_on_corrupt_special_slug_exits_one",
+    ) if name not in src]
+    return f"missing E-008 tests: {missing}" if missing else None
+
+
 def _check_free_surface_parity() -> str | None:
     """The gate's bench refusal must mirror the guard's free surfaces.
 
@@ -586,6 +682,14 @@ def build_checks() -> list[tuple[str, object]]:
                    _check_repo_root_malformed_cwd))
     checks.append(("malformed-cwd seam covered by tests (E-006)",
                    _check_repo_root_malformed_cwd_tested))
+    checks.append(("recursion-class input coerces within a bounded stack (E-007)",
+                   _check_coerce_depth_bounded))
+    checks.append(("recursion seams covered by tests (E-007)",
+                   _check_recursion_seam_tests_covered))
+    checks.append(("workflow corrupt-state honesty spans storage path and create (E-008)",
+                   _check_workflow_corrupt_honesty))
+    checks.append(("corrupt-state seam covered by tests (E-008)",
+                   _check_workflow_corrupt_tests_covered))
     checks.append(("gate bench refusal mirrors guard free surfaces",
                    _check_free_surface_parity))
     checks.append(("pytest suite green (falsifier)", _run_pytest))

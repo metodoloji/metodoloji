@@ -436,3 +436,56 @@ def test_normalize_metadata_keys_stay_native():
                                  "tool_input": {"command": "ls",
                                                 "timeout": 30}})
     assert norm["tool_input"]["timeout"] == 30
+
+
+# --- bounded coercion (E-007) ------------------------------------------------
+# A routing value nested past the recursion limit used to raise RecursionError
+# inside _coerce_json_scalar (two frames per level: function + genexpr), which
+# escaped main()'s handler call with NO decision — guard/pre/quality/deploy/
+# audit all failed open at depth >= 500. Past _COERCE_MAX_DEPTH the subtree
+# renders as a deterministic truncation marker instead of recursing.
+
+def _deep_list(depth, leaf="x"):
+    v = leaf
+    for _ in range(depth):
+        v = [v]
+    return v
+
+
+def test_coerce_json_scalar_depth_bounded_list():
+    from modules.utils import _coerce_json_scalar
+    out = _coerce_json_scalar(_deep_list(5000))
+    assert isinstance(out, str)
+    assert "truncated" in out
+
+
+def test_coerce_json_scalar_depth_bounded_dict():
+    from modules.utils import _coerce_json_scalar
+    root: dict = {}
+    cur = root
+    for _ in range(5000):
+        nxt: dict = {}
+        cur["k"] = nxt
+        cur = nxt
+    out = _coerce_json_scalar(root)
+    assert isinstance(out, str)
+    assert "truncated" in out
+
+
+def test_coerce_json_scalar_shallow_renderings_unchanged():
+    """The bound must not widen: shallow shapes render byte-identically."""
+    from modules.utils import _coerce_json_scalar
+    assert _coerce_json_scalar(["a", "b"]) == "a b"
+    assert _coerce_json_scalar({"b": 1, "a": 2}) == "a=2 b=1"
+    assert _coerce_json_scalar("s") == "s"
+    assert _coerce_json_scalar(None) == ""
+    assert _coerce_json_scalar(5) == "5"
+
+
+def test_normalize_deep_routing_value_decides_not_crash():
+    """Through normalize (the live caller): a depth-500 path coerces, not raises."""
+    from modules.utils import normalize_hook_input
+    norm = normalize_hook_input({"tool_name": "file_editor",
+                                 "tool_input": {"path": _deep_list(500, "docs/a.md")}})
+    assert isinstance(norm["tool_input"]["path"], str)
+    assert "truncated" in norm["tool_input"]["path"]
