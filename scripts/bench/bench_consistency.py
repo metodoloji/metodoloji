@@ -582,6 +582,103 @@ def _check_workflow_corrupt_tests_covered() -> str | None:
     return f"missing E-008 tests: {missing}" if missing else None
 
 
+def _check_file_decode_honesty() -> str | None:
+    """E-009: a BINARY external file yields an honest refusal on every
+    production reader — never a UnicodeDecodeError traceback.
+
+    UnicodeDecodeError is a ValueError but neither a JSONDecodeError nor a
+    TOMLDecodeError, so it used to escape every `except (…DecodeError, OSError)`
+    tuple: workflow state, both config loaders, and the init marker.
+    """
+    import contextlib as _contextlib  # noqa: PLC0415
+    import importlib.util as _importlib_util  # noqa: PLC0415
+    import io as _io  # noqa: PLC0415
+    import tempfile  # noqa: PLC0415
+
+    binary = b"\xff\xfe\x00 binary \x80 junk"
+    sys.path.insert(0, str(ROOT))
+    from bmad.workflow import engine, store  # noqa: PLC0415
+
+    def _load(rel, name):
+        spec = _importlib_util.spec_from_file_location(name, ROOT / rel)
+        mod = _importlib_util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            # workflow: binary state -> corrupt refusal, detector agrees
+            state_file = pathlib.Path(store.state_path(td, "bin"))
+            state_file.parent.mkdir(parents=True, exist_ok=True)
+            state_file.write_bytes(binary)
+            if store.read_state(td, "bin") != {}:
+                return "read_state returned data for a binary state file"
+            if not engine.state_is_corrupt(td, "bin"):
+                return "state_is_corrupt misses a binary (undecodable) state file"
+            out = engine.status(td, "bin")
+            if out.get("ok") or "corrupt" not in str(out.get("error", "")):
+                return f"status swallows a binary state: {out.get('error')!r}"
+            # config loaders: warn/exit-policy, never raise
+            rc_cfg = _load("bmad/scripts/resolve_config.py", "_bench_resolve_config")
+            rc_cus = _load("bmad/scripts/resolve_customization.py",
+                           "_bench_resolve_customization")
+            sink = _io.StringIO()
+            with _contextlib.redirect_stderr(sink):
+                f = pathlib.Path(td) / "c.toml"
+                f.write_bytes(binary)
+                if rc_cfg.load_toml(f) != {} or rc_cus.load_toml(f) != {}:
+                    return "load_toml parsed a binary layer"
+                pathlib.Path(td, "c.yaml").write_bytes(binary)
+                if rc_cfg.load_legacy_yaml(pathlib.Path(td) / "c.yaml") != {}:
+                    return "load_legacy_yaml parsed a binary layer"
+            # skeleton: binary marker -> unreadable problem, not missing
+            sk = _load("bmad/scripts/skeleton.py", "_bench_skeleton")
+            marker = pathlib.Path(td) / ".metodoloji" / "initialized"
+            marker.parent.mkdir(parents=True, exist_ok=True)
+            marker.write_bytes(binary)
+            if sk.read_marker(pathlib.Path(td)) != {}:
+                return "read_marker parsed a binary marker"
+            if not sk.marker_unreadable(pathlib.Path(td)):
+                return "marker_unreadable misses a binary marker"
+            state = sk.status(pathlib.Path(td))
+            if not any("unreadable" in p for p in state["problems"]):
+                return f"status hides the unreadable marker: {state['problems']}"
+            if any("is missing" in p for p in state["problems"]):
+                return "unreadable marker reported as missing"
+    except Exception as exc:  # a crashing check is a failing check
+        return f"decode probe raised {type(exc).__name__}: {exc}"
+    return None
+
+
+def _check_file_decode_tests_covered() -> str | None:
+    """The E-009 seam stays tested across all five surfaces."""
+    missing = []
+    groups = {
+        "bmad/tests/test_workflow.py": (
+            "test_read_state_binary_file_is_corrupt_not_crash",
+            "test_status_on_binary_state_names_the_file",
+            "test_cli_list_marks_binary_state_corrupt",
+            "test_load_spec_binary_file_falls_back_to_empty",
+            "test_read_events_binary_log_returns_empty",
+        ),
+        "bmad/tests/test_resolve_config.py": (
+            "test_load_toml_binary_layer_warns_not_crash",
+            "test_load_legacy_yaml_binary_layer_warns_not_crash",
+        ),
+        "bmad/tests/test_resolve_customization.py": (
+            "test_binary_team_toml_warns_and_keeps_base",
+        ),
+        "bmad/tests/test_skeleton.py": (
+            "test_binary_marker_is_unreadable_not_missing",
+            "test_cli_status_binary_marker_reports_unreadable_not_crash",
+        ),
+    }
+    for rel, names in groups.items():
+        src = _read(rel)
+        missing += [f"{rel}: {n}" for n in names if n not in src]
+    return f"missing E-009 tests: {missing}" if missing else None
+
+
 def _check_free_surface_parity() -> str | None:
     """The gate's bench refusal must mirror the guard's free surfaces.
 
@@ -690,6 +787,10 @@ def build_checks() -> list[tuple[str, object]]:
                    _check_workflow_corrupt_honesty))
     checks.append(("corrupt-state seam covered by tests (E-008)",
                    _check_workflow_corrupt_tests_covered))
+    checks.append(("binary files yield honest refusals on every reader (E-009)",
+                   _check_file_decode_honesty))
+    checks.append(("file-decode seam covered by tests (E-009)",
+                   _check_file_decode_tests_covered))
     checks.append(("gate bench refusal mirrors guard free surfaces",
                    _check_free_surface_parity))
     checks.append(("pytest suite green (falsifier)", _run_pytest))

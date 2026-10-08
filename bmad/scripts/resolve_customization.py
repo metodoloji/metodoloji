@@ -93,7 +93,10 @@ def load_toml(file_path: Path, required: bool = False) -> dict:
                 sys.exit(1)
             return {}
         return parsed
-    except tomllib.TOMLDecodeError as error:
+    except (tomllib.TOMLDecodeError, UnicodeDecodeError) as error:
+        # UnicodeDecodeError (E-009) is a ValueError but NOT a TOMLDecodeError:
+        # a binary customize.toml used to escape this handler and traceback.
+        # Same policy, message carries the codec detail.
         level = "error" if required else "warning"
         sys.stderr.write(f"{level}: failed to parse {file_path}: {error}\n")
         if required:

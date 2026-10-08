@@ -143,7 +143,7 @@ And one clarification: methodology **output** (records, artifacts) is written to
 Every check runs offline, with no credentials:
 
 ```bash
-python -m pytest -q                # 1,277 tests: hook engine, bridges, skills
+python -m pytest -q                # 1,291 tests: hook engine, bridges, skills
 sh scripts/check-plugin.sh         # plugin structure audit (#0–#6f)
 sh scripts/check-custom.sh         # bridge TOML static audit
 sh scripts/check-methodology.sh    # record format audit

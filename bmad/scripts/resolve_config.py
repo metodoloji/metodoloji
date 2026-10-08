@@ -117,7 +117,10 @@ def load_toml(file_path: Path, required: bool = False) -> dict:
         if not isinstance(parsed, dict):
             return {}
         return parsed
-    except tomllib.TOMLDecodeError as error:
+    except (tomllib.TOMLDecodeError, UnicodeDecodeError) as error:
+        # UnicodeDecodeError (E-009) is a ValueError but NOT a TOMLDecodeError:
+        # a binary layer used to escape this handler and traceback. Same
+        # policy, message carries the codec detail.
         level = "error" if required else "warning"
         sys.stderr.write(f"{level}: failed to parse {file_path}: {error}\n")
         if required:
@@ -174,6 +177,11 @@ def load_legacy_yaml(file_path: Path) -> dict:
         return {}
     try:
         text = file_path.read_text(encoding="utf-8-sig")  # -sig strips a BOM
+    except UnicodeDecodeError as error:
+        # A BINARY legacy layer is corrupt, not absent (E-009) — announce the
+        # skip (the TOML layers warn the same way) instead of tracebacking.
+        sys.stderr.write(f"warning: failed to decode {file_path}: {error}\n")
+        return {}
     except OSError:
         return {}
     data: dict = {}

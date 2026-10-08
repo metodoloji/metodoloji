@@ -435,3 +435,31 @@ def test_keyed_array_merge_by_code():
 def test_modules_from_key_paths():
     assert rc._modules_from_key_paths(["modules.tea.risk_threshold", "core"]) == ["tea"]
     assert rc._modules_from_key_paths([]) == []
+
+
+# --- undecodable layer (E-009) ------------------------------------------------
+# UnicodeDecodeError is a ValueError but NOT a TOMLDecodeError: a BINARY layer
+# escaped load_toml's handler and tracebacks. Same policy, codec message.
+
+def test_load_toml_binary_layer_warns_not_crash(tmp_path, capsys):
+    f = tmp_path / "config.toml"
+    f.write_bytes(b"\xff\xfe\x00 broken")
+    assert rc.load_toml(f) == {}
+    err = capsys.readouterr().err
+    assert "failed to parse" in err and str(f) in err
+
+
+def test_load_toml_binary_required_layer_exits_one(tmp_path, capsys):
+    f = tmp_path / "config.toml"
+    f.write_bytes(b"\xff\xfe\x00 broken")
+    with pytest.raises(SystemExit) as exc:
+        rc.load_toml(f, required=True)
+    assert exc.value.code == 1
+    assert "failed to parse" in capsys.readouterr().err
+
+
+def test_load_legacy_yaml_binary_layer_warns_not_crash(tmp_path, capsys):
+    f = tmp_path / "config.yaml"
+    f.write_bytes(b"\xff\xfe\x00 broken")
+    assert rc.load_legacy_yaml(f) == {}
+    assert "failed to decode" in capsys.readouterr().err

@@ -131,11 +131,17 @@ def _append_event(project_root: str, event: dict) -> None:
 # --- public API ---------------------------------------------------------------
 
 def read_state(project_root: str, slug: str) -> dict:
-    """The run's state, or {} when missing/corrupt (fail-open)."""
+    """The run's state, or {} when missing/corrupt (fail-open).
+
+    Undecodable bytes count as corrupt (E-009): UnicodeDecodeError is a
+    ValueError but NOT a JSONDecodeError, so a binary state file used to escape
+    this handler and traceback — `state_is_corrupt` (the honest detector)
+    reports such a file as CORRUPT, never as "no such workflow".
+    """
     try:
         with open(_state_path(project_root, slug), encoding="utf-8") as fh:
             data = json.load(fh)
-    except (OSError, json.JSONDecodeError):
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
         return {}
     return data if isinstance(data, dict) else {}
 
@@ -184,7 +190,7 @@ def load_spec(project_root: str, slug: str) -> dict:
         try:
             with open(candidate, encoding="utf-8") as fh:
                 return json.load(fh)
-        except (OSError, json.JSONDecodeError):
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError):
             continue
     state = read_state(project_root, slug)
     spec_file = state.get("spec_file")
@@ -192,7 +198,7 @@ def load_spec(project_root: str, slug: str) -> dict:
         try:
             with open(spec_file, encoding="utf-8") as fh:
                 return json.load(fh)
-        except (OSError, json.JSONDecodeError):
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError):
             pass
     return {}
 
@@ -201,7 +207,7 @@ def read_events(project_root: str, slug: str | None = None, limit: int = 100) ->
     try:
         with open(paths(project_root)["events"], encoding="utf-8") as fh:
             lines = fh.read().splitlines()
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         return []
     out: list[dict] = []
     for line in lines[-max(1, limit):]:

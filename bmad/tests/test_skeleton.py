@@ -138,3 +138,43 @@ def test_plugin_root_is_derived_not_guessed():
     assert sk.plugin_version() == json.loads(
         (PLUGIN / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
     )["version"]
+
+
+# --- undecodable marker (E-009) -----------------------------------------------
+# UnicodeDecodeError escaped read_marker's `except OSError`: a BINARY marker
+# tracebacks in --status/--install and through orient (which reads it via
+# _skeleton.status). Unreadable must never be conflated with missing.
+
+def _write_binary_marker(tmp_path) -> Path:
+    marker = tmp_path / ".metodoloji" / "initialized"
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_bytes(b"\xff\xfe\x00 binary")
+    return marker
+
+
+def test_binary_marker_is_unreadable_not_missing(tmp_path):
+    _write_binary_marker(tmp_path)
+    assert sk.read_marker(tmp_path) == {}          # no crash
+    assert sk.marker_unreadable(tmp_path) is True
+    state = sk.status(tmp_path)
+    assert state["marker_present"] is False
+    assert any("unreadable" in p for p in state["problems"])
+    # never the wrong diagnosis: present-but-unreadable is not "missing"
+    assert not any("is missing" in p for p in state["problems"])
+
+
+def test_marker_unreadable_false_when_absent_or_valid(tmp_path):
+    assert sk.marker_unreadable(tmp_path) is False  # absent
+    marker = tmp_path / ".metodoloji" / "initialized"
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text("initialized_at: x\n", encoding="utf-8")
+    assert sk.marker_unreadable(tmp_path) is False  # decodes fine
+
+
+def test_cli_status_binary_marker_reports_unreadable_not_crash(tmp_path):
+    _write_binary_marker(tmp_path)
+    r = _run(["--status", "--json", "--project-root", str(tmp_path)])
+    assert "Traceback" not in r.stderr, r.stderr
+    data = json.loads(r.stdout)
+    assert any("unreadable" in p for p in data["problems"])
+    assert r.returncode in (0, 1)  # never an unhandled crash

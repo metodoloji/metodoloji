@@ -1038,3 +1038,58 @@ def test_blocked_transition_writes_bridge_for_completed_stage(tmp_path):
     assert bridge_key is not None, "bridge should be written on successful complete"
     assert board["keys"]["workflow.block-bridge.status"]["value"] == "blocked"
 
+
+# --- undecodable state (E-009) ------------------------------------------------
+# UnicodeDecodeError is a ValueError but NOT a JSONDecodeError: a BINARY state
+# file escaped read_state's / state_is_corrupt's except tuples and tracebacks
+# on five CLI commands instead of reporting the file as corrupt.
+
+_BINARY = b"\xff\xfe\x00 binary \x80 junk"
+
+
+def _seed_binary(path) -> Path:
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_bytes(_BINARY)
+    return p
+
+
+def test_read_state_binary_file_is_corrupt_not_crash(tmp_path):
+    root = str(tmp_path)
+    _seed_binary(store_mod.state_path(root, "bin"))
+    assert store_mod.read_state(root, "bin") == {}
+    assert engine.state_is_corrupt(root, "bin") is True
+
+
+def test_status_on_binary_state_names_the_file(tmp_path):
+    root = str(tmp_path)
+    _seed_binary(store_mod.state_path(root, "bin"))
+    out = engine.status(root, "bin")
+    assert out["ok"] is False
+    assert "corrupt" in out["error"]
+    assert "no workflow" not in out["error"]
+
+
+def test_cli_list_marks_binary_state_corrupt(tmp_path, capsys):
+    root = str(tmp_path)
+    _seed_binary(store_mod.state_path(root, "bin"))
+    rc = wf_cli.main(["--project-root", root, "list"])
+    out = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    runs = {r["slug"]: r for r in out["runs"]}
+    assert runs["bin"].get("corrupt") is True
+
+
+def test_load_spec_binary_file_falls_back_to_empty(tmp_path):
+    root = str(tmp_path)
+    specs = Path(store_mod.paths(root)["specs"])
+    specs.mkdir(parents=True, exist_ok=True)
+    (specs / "x.json").write_bytes(_BINARY)
+    assert store_mod.load_spec(root, "x") == {}
+
+
+def test_read_events_binary_log_returns_empty(tmp_path):
+    root = str(tmp_path)
+    _seed_binary(store_mod.paths(root)["events"])
+    assert store_mod.read_events(root) == []
+

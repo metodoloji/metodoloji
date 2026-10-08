@@ -138,3 +138,41 @@ def test_broken_team_toml_warns_and_keeps_base(tmp_path):
     assert r.returncode == 0
     assert json.loads(r.stdout)["workflow"]["name"] == "base"
     assert "warning" in r.stderr.lower()
+
+
+# --- undecodable layer (E-009) ------------------------------------------------
+# UnicodeDecodeError is a ValueError but NOT a TOMLDecodeError: a BINARY layer
+# escaped load_toml's handler and tracebacks. Same contract as the
+# broken-syntax test above — warn, keep the base, never crash.
+
+def test_load_toml_binary_layer_warns_not_crash(tmp_path, capsys):
+    f = tmp_path / "customize.toml"
+    f.write_bytes(b"\xff\xfe\x00 binary")
+    assert rc.load_toml(f) == {}
+    assert "failed to parse" in capsys.readouterr().err
+
+
+def test_load_toml_binary_required_layer_exits_one(tmp_path, capsys):
+    f = tmp_path / "customize.toml"
+    f.write_bytes(b"\xff\xfe\x00 binary")
+    try:
+        rc.load_toml(f, required=True)
+    except SystemExit as exc:
+        assert exc.code == 1
+    else:
+        raise AssertionError("required binary layer must exit 1")
+    assert "failed to parse" in capsys.readouterr().err
+
+
+def test_binary_team_toml_warns_and_keeps_base(tmp_path):
+    skill = _layer_tree(tmp_path, '[workflow]\nname = "base"\n', None, None)
+    team = tmp_path / "proj" / "custom" / "demo-skill.toml"
+    team.parent.mkdir(parents=True, exist_ok=True)
+    team.write_bytes(b"\xff\xfe\x00 binary")
+    cmd = [sys.executable, str(_SCRIPT), "--skill", str(skill), "--key", "workflow"]
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=30,
+                       stdin=subprocess.DEVNULL)
+    assert r.returncode == 0
+    assert "Traceback" not in r.stderr
+    assert json.loads(r.stdout)["workflow"]["name"] == "base"
+    assert "warning" in r.stderr.lower()

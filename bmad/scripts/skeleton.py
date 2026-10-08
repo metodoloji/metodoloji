@@ -96,10 +96,13 @@ def resolve_project_root(explicit: str | None) -> pathlib.Path:
 
 
 def read_marker(project_root: pathlib.Path) -> dict:
-    """Parse the init marker into a dict (absent → {})."""
+    """Parse the init marker into a dict (absent/unreadable → {})."""
     try:
         text = (project_root / MARKER_REL).read_text(encoding="utf-8")
-    except OSError:
+    except (OSError, UnicodeDecodeError):
+        # UnicodeDecodeError (E-009): a BINARY marker is unreadable, not
+        # absent — status() re-checks with marker_unreadable() so the two
+        # are never conflated.
         return {}
     marker: dict = {}
     for line in text.splitlines():
@@ -107,6 +110,22 @@ def read_marker(project_root: pathlib.Path) -> dict:
             key, _, value = line.partition(":")
             marker[key.strip()] = value.strip()
     return marker
+
+
+def marker_unreadable(project_root: pathlib.Path) -> bool:
+    """True when the marker EXISTS but is not valid UTF-8 (E-009).
+
+    read_marker must not crash and must not silently call a binary marker
+    "missing"; status() reports this as its own problem line so the operator
+    (and orient, through status) sees "repair the marker", not "not installed".
+    """
+    try:
+        (project_root / MARKER_REL).read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return True
+    except OSError:
+        return False
+    return False
 
 
 def status(project_root: pathlib.Path) -> dict:
@@ -122,9 +141,14 @@ def status(project_root: pathlib.Path) -> dict:
     absent_sources = [src for src, _ in TEMPLATE_PAIRS
                       if not (root / "templates" / src).is_file()]
     marker = read_marker(project_root)
+    unreadable = marker_unreadable(project_root)
     skeleton = any((project_root / p).is_file() for p in SKELETON_PROBES)
     problems = []
-    if skeleton and not marker:
+    if unreadable:
+        problems.append(
+            ".metodoloji/initialized is unreadable (not valid UTF-8) — "
+            "re-run skeleton.py --install to repair it")
+    if skeleton and not marker and not unreadable:
         problems.append("skeleton installed but .metodoloji/initialized is missing")
     if marker and not skeleton:
         problems.append("marker present but no skeleton copy found — stale marker")

@@ -125,7 +125,10 @@ def state_is_corrupt(project_root: str, slug: str) -> bool:
     try:
         with open(path, encoding="utf-8") as fh:
             _json.load(fh)
-    except (OSError, _json.JSONDecodeError):
+    except (OSError, _json.JSONDecodeError, UnicodeDecodeError):
+        # UnicodeDecodeError (E-009): a BINARY state file is unreadable JSON
+        # too — without it the detector itself raised and the CLI tracebacks
+        # instead of naming the corrupt file.
         return True
     return False
 
