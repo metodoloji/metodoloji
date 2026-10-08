@@ -9,7 +9,7 @@
       "name": "metodoloji",
       "source": "./",
       "description": "Methodology plugin compatible with BMad Method: record chain, mechanical gates, declared workflows, 125 skills / 121 bridge TOMLs",
-      "version": "0.1.0",
+      "version": "0.1.5",
       "defaultEnabled": false
     }
   ]
