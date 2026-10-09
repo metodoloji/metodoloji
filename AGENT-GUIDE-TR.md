@@ -607,6 +607,7 @@ and the file you verified. If you cannot, mark it as not done.
 | Done story'de `pending` DoD satırı | `Sync the QR result back into the story, then re-check coherence.` |
 | Nerede olduğunuz belirsiz | `Where are we? Chain progress, inventory, pending handoffs, NEEDS ATTENTION.` |
 | Gate cevabına itirazınız var | `Explain which field the gate parsed and why it reached that verdict.` |
+| Araç hatası / eksik parametre (`file_path`/`command`) | `Call tools by bare harness names (Claude Code: Read, Bash, Write, Edit, Glob, Grep; OpenHands: execute_bash, str_replace_editor); never use namespace prefixes or empty blocks.` |
 
 ---
 
@@ -670,6 +671,7 @@ and the file you verified. If you cannot, mark it as not done.
 | `Mark the workflow stage complete — I'm sure it works.` | kanıtsız `complete` reddedilir | `Attach the evidence (artifact/command/note), then complete it.` |
 | `Report it as done and we'll verify later.` | sahte tamamlanma deny'den kötüdür | `Report: done / not done, with the gate output for each claim.` |
 | `Set the scope to the whole codebase.` | geniş kapsam = zayıf kanıt + yüksek `FORGED` riski | `One module per experiment; keep the first scope deliberately small.` |
+| `Önekli araç çağırma veya boş parametre gönderme.` | harness önekli adı tanımaz; boş bloklar zorunlu parametre doğrulamasını kırar | `Araçları yalın adlarıyla çağır (Read, Bash, Write, Edit, Glob, Grep) ve zorunlu parametreleri doldur.` |
 
 ---
 

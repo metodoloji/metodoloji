@@ -613,6 +613,7 @@ A **warning** (`methodology_warnings`, soft mode) means the agent got through wi
 | `pending` DoD row on a done story | `Sync the QR result back into the story, then re-check coherence.` |
 | Not sure where you are | `Where are we? Chain progress, inventory, pending handoffs, NEEDS ATTENTION.` |
 | You disagree with a gate answer | `Explain which field the gate parsed and why it reached that verdict.` |
+| Tool error / missing parameter (`file_path`/`command`) | `Call tools by bare harness names (Claude Code: Read, Bash, Write, Edit, Glob, Grep; OpenHands: execute_bash, str_replace_editor); never use namespace prefixes or empty blocks.` |
 
 ---
 
@@ -676,6 +677,7 @@ A **warning** (`methodology_warnings`, soft mode) means the agent got through wi
 | `Mark the workflow stage complete — I'm sure it works.` | `complete` refuses without evidence | `Attach the evidence (artifact/command/note), then complete it.` |
 | `Report it as done and we'll verify later.` | a false completion is worse than a deny | `Report: done / not done, with the gate output for each claim.` |
 | `Set the scope to the whole codebase.` | wide scope = weak evidence + high `FORGED` risk | `One module per experiment; keep the first scope deliberately small.` |
+| `Call tools with namespace prefix or empty blocks.` | harness rejects prefixed names as unknown; empty blocks fail parameter validation | `Call tools by exact bare names (Read, Bash, Write, Edit, Glob, Grep) with all required parameters.` |
 
 ---
 

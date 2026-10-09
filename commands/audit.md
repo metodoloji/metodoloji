@@ -51,7 +51,8 @@ Call every tool by the exact bare name your harness lists — if a call is
 rejected as unknown, re-issue it with the bare name (prefixed tool names
 do not exist). Never emit a call whose command/path is not yet known (it
 fails validation with `provided as 'unknown'` — resolve the value in text
-first, then call).
+first, then call). Always supply all required parameters (`command`,
+`file_path`, etc.) with concrete values; never emit empty invocation blocks.
 
 **Platform dialects (Windows + macOS).** Write paths with forward slashes on
 every OS: `C:/Users/...` works in Bash, PowerShell and Python, while a

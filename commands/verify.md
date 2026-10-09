@@ -32,7 +32,8 @@ The guard already performs this verification before code is written; this comman
 Call every tool by the exact bare name your harness lists, with complete
 arguments; if a call is rejected as unknown, re-issue it with the bare name
 (never emit a call whose record path is not yet known — resolve it in
-text first). Write paths with forward slashes on every OS (`C:/...` works in
+text first). Always supply all required parameters; never emit empty
+invocation blocks. Write paths with forward slashes on every OS (`C:/...` works in
 Bash, PowerShell and Python, while a `C:\...` path collapses in a POSIX
 shell). Make probes failure-proof in the dialect of the tool you call —
 `Bash`: `|| true`; `PowerShell`: a guarded statement. Never `ls`/`cat` the key

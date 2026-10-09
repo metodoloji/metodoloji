@@ -15,7 +15,7 @@ probe further):
    Claude Code — do not depend on them, do not echo them to "verify".)
 2. Fixed checkout `~/.claude/plugins/marketplaces/metodoloji/`
 3. Versioned cache `~/.claude/plugins/cache/metodoloji/metodoloji/*`
-   (newest first; e.g. `.../0.1.11/` on Claude Code v2.1.x)
+   (newest first; e.g. `.../0.1.12/` on Claude Code v2.1.x)
 4. OpenHands install directory `~/.openhands/plugins/installed/metodoloji/`
 
 (An old `~/.claude/plugins/cache/yunusgungor/metodoloji/*` path appears in
@@ -158,7 +158,8 @@ probes. Call every tool by the exact bare name your harness lists, with complete
 arguments — if a call is rejected as unknown, re-issue it with the bare
 name — and never emit a call whose command/path is not yet known
 (it fails validation with `provided as 'unknown'`; resolve the value in
-text first, then call). **Write paths with forward slashes on every OS**:
+text first, then call). Always supply all required parameters; never emit
+empty invocation blocks. **Write paths with forward slashes on every OS**:
 `C:/Users/...` works in Bash, PowerShell and Python, while a `C:\...` path
 collapses inside a POSIX shell (`ls C:\a\b` reads as `ls C:ab`). Use the
 dialect of the shell tool you call — `Bash` is POSIX `sh` (`2>/dev/null`,

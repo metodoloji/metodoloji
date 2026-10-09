@@ -1571,9 +1571,9 @@ echo "== 6g) No namespaced-tool priming tokens in shipped agent-facing text =="
 # the pattern requires the namespaced tool spelling. Engine tests are excluded:
 # the contract test asserts the token is ABSENT, so it legitimately names it.
 PRIMING_ERRORS=0
-PRIMING_PATTERN='default\.(X|Read|Write|Edit|MultiEdit|Bash|PowerShell|Grep|Glob|Task|Skill|terminal|file_editor)\b|No such tool available: default\.'
+PRIMING_PATTERN='default\.(x|read|write|edit|multiedit|bash|powershell|grep|glob|task|skill|terminal|file_editor)\b|no such tool available: default\.'
 PRIMING_SCAN="$PLUGIN_ROOT/hooks/scripts $PLUGIN_ROOT/hooks/engine $PLUGIN_ROOT/commands $PLUGIN_ROOT/skills"
-PRIMING_HITS=$(grep -rnE "$PRIMING_PATTERN" $PRIMING_SCAN 2>/dev/null \
+PRIMING_HITS=$(grep -rnEi "$PRIMING_PATTERN" $PRIMING_SCAN 2>/dev/null \
     | grep -v "/tests/" | grep -v "__pycache__" || true)
 if [ -n "$PRIMING_HITS" ]; then
     echo "$PRIMING_HITS" | head -10
