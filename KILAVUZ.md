@@ -542,7 +542,7 @@ Gövde 300-karakter önizlemeli — tam içerik bekleme (tasarım). `session_sto
 
 ### P22 — Yerel periyodik denetim
 
-Değişiklikten sonra yerelde koş (repo kökünde CI workflow'u yok — denetim yereldir):
+Değişiklikten sonra yerelde koş (CI yalnızca sürümü doğrular ve `vX.Y.Z` etiketi keser — `.github/workflows/release-numbers.yml` sürümü **yazmaz**, commit **eklemez**; sayı sahibi olan commit'e pre-commit hook'uyla yazılır: `git config core.hooksPath .githooks`; denetimler asla CI'a taşınmaz, yereldir). Numara mutlaktır: patch, ilk commit'ten sonraki commit sayısıdır — bu yüzden bir koşu sapmayı korumak yerine onarır; otomatik satırda **her 100 commit'te bir yeni minor bloğu açılır** (`v0.2.0` = pozisyon 100) ve major satır (1.0.0) yalnızca insanın açık beyanıyla açılır. Kural ve yeniden kurulan etiket zinciri `docs/VERSION-HISTORY.md` içinde:
 
 ```bash
 python -m pytest -q

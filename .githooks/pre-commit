@@ -1,0 +1,144 @@
+#!/bin/sh
+# The release number is written by the commit that owns it (E-014).
+#
+# The number is the commit's position after the first commit, and that position
+# is known right here — before the object exists. So the commit that owns it
+# writes it, and no other commit has to be created for it: the pipeline stops
+# bumping at push time (it verifies and tags instead), and a push can never
+# leave a "chore(release): version bump" commit behind, because there is
+# nothing left for it to do.
+#
+# Install once per clone:   git config core.hooksPath .githooks
+# Bypassable with --no-verify, on purpose: if this hook is skipped, the pushed
+# commit carries the previous number and the pipeline refuses it, naming the
+# number it should be. The failure is loud either way.
+#
+# Two shapes of invocation, each with its own position arithmetic — the same
+# `rev-list --count` ranges the pipeline verifies with:
+#
+#   (no argument)   the commit does not exist yet; HEAD is its parent:
+#     normal commit : count(ROOT..HEAD) + 1
+#     merge commit  : count(ROOT..HEAD ROOT..MERGE_HEAD) + 1   (the union)
+#   --merge-head    HEAD IS the commit. `git merge` creates a merge commit
+#     with the tree it merged and runs no pre-commit for it, so
+#     .githooks/post-merge writes the number here, after it exists, and
+#     amends it in place: count(ROOT..HEAD) — the range already includes
+#     the commit itself.
+#   first commit    : 0  (the baseline itself, v0.1.0)
+set -e
+
+cd "$(git rev-parse --show-toplevel)"
+
+MODE="${1:-}"
+
+# The seven files whose version claims follow the number. Staged edits to them
+# are fine (they are part of this commit); unstaged ones are not — the number
+# must never be written over work that is not in this commit, so refuse and
+# let the author stage it.
+FILES=".claude-plugin/plugin.json .claude-plugin/marketplace.json \
+.plugin/plugin.json .plugin/marketplace.json pyproject.toml \
+README.md commands/init.md"
+
+UNSTAGED=$(git diff --name-only -- $FILES || true)
+if [ -n "$UNSTAGED" ]; then
+    echo "pre-commit: unstaged changes in version-owned files:" >&2
+    printf '  %s\n' $UNSTAGED >&2
+    echo "pre-commit: stage them first (git add $UNSTAGED) — the number is" >&2
+    echo "            written into the files above, not over uncommitted work." >&2
+    exit 1
+fi
+
+ROOT=$(git rev-list --max-parents=0 HEAD 2>/dev/null | tail -1 || true)
+MERGE=$(git rev-parse -q --verify MERGE_HEAD 2>/dev/null || true)
+if [ -z "$ROOT" ]; then
+    POSITION=0                                   # the first commit is position 0
+elif [ "$MODE" = "--merge-head" ]; then
+    POSITION=$(git rev-list --count "$ROOT..HEAD")     # HEAD is the commit itself
+elif [ -n "$MERGE" ]; then
+    COUNT=$(git rev-list --count "$ROOT..HEAD" "$ROOT..$MERGE")
+    POSITION=$((COUNT + 1))
+else
+    COUNT=$(git rev-list --count "$ROOT..HEAD")
+    POSITION=$((COUNT + 1))
+fi
+
+PY=$(command -v python || command -v python3 || true)
+if [ -z "$PY" ]; then
+    echo "pre-commit: python not found on PATH — cannot derive the release number." >&2
+    exit 1
+fi
+
+CURRENT=$("$PY" scripts/bump-version.py --print-version 2>/dev/null || true)
+
+# A declared line (major >= 1): its number is not positional, but the patch
+# inside the line still counts commits since the line's vX.Y.0 opening tag
+# (E-013). The opening itself (X.Y.0, tag not cut yet) is the author's
+# declaration — leave the tree alone; the pipeline verifies the marker and
+# tags it. Every later patch on the line is positional again.
+if [ -n "$CURRENT" ] && ! "$PY" scripts/versioning.py --is-auto "$CURRENT" >/dev/null 2>&1; then
+    # The line's major.minor, e.g. 1.0 — its opening release is $BASE.0.
+    BASE=$("$PY" scripts/versioning.py --opening "$CURRENT")
+    BASE="${BASE%.*}"
+    if ! git rev-parse -q --verify "refs/tags/v$BASE.0" >/dev/null; then
+        if [ "$MODE" = "--merge-head" ]; then
+            # A merge is not a declaration: the line opens with a human's own
+            # commit, tagged by the pipeline before anything merges into it.
+            echo "pre-commit: the tree says $CURRENT but v$BASE.0 is not tagged —" >&2
+            echo "            a merge cannot open a line. Push the declaring commit" >&2
+            echo "            first (the pipeline tags it), then merge." >&2
+            exit 1
+        fi
+        if [ "$CURRENT" = "$BASE.0" ]; then
+            # No opening tag yet and the tree says X.Y.0: this commit IS the
+            # declaration (its marker verified and tagged by the pipeline).
+            # Leave the author's statement untouched.
+            exit 0
+        fi
+        # A PATCH on a line that was never opened: counting it would need the
+        # opening tag, and claiming it would need a declaration. Refuse.
+        echo "pre-commit: $CURRENT is on the line $BASE but v$BASE.0 is not" >&2
+        echo "            tagged — fetch tags (git fetch --tags), or declare" >&2
+        echo "            the line by writing $BASE.0 with a '[line $BASE.0]'" >&2
+        echo "            marker in the commit message." >&2
+        exit 1
+    fi
+    # The line exists: the patch counts commits since its opening — even when
+    # the tree still says X.Y.0, the NEXT commit owns X.Y.1. Same arithmetic
+    # as the automatic line, with vX.Y.0 standing in for the first commit.
+    if [ "$MODE" = "--merge-head" ]; then
+        PATCH=$(git rev-list --count "v$BASE.0..HEAD")
+    elif [ -n "$MERGE" ]; then
+        PATCH=$(( $(git rev-list --count "v$BASE.0..HEAD" "v$BASE.0..$MERGE") + 1 ))
+    else
+        PATCH=$(( $(git rev-list --count "v$BASE.0..HEAD") + 1 ))
+    fi
+    VERSION="$BASE.$PATCH"
+    if [ "$CURRENT" = "$VERSION" ]; then
+        exit 0
+    fi
+    if ! "$PY" scripts/bump-version.py --set-version "$VERSION"; then
+        echo "pre-commit: refused — this commit cannot own $VERSION" >&2
+        exit 1
+    fi
+    git add $FILES
+    echo "pre-commit: this commit owns $VERSION (line $BASE)"
+    exit 0
+fi
+
+VERSION=$("$PY" scripts/versioning.py --position "$POSITION")
+
+# Already ours: nothing to write, nothing to stage — the author's own bump
+# (or an empty commit) must not be second-guessed.
+if [ "$CURRENT" = "$VERSION" ]; then
+    exit 0
+fi
+
+# Refuses on §6d3 skew, an undeclared line, an impossible number or a target
+# that would walk backwards: a red commit is a wrong tree, never a silent one.
+if ! "$PY" scripts/bump-version.py --position "$POSITION"; then
+    echo "pre-commit: refused — this commit cannot own $VERSION" >&2
+    exit 1
+fi
+
+git add $FILES
+echo "pre-commit: this commit owns $VERSION"

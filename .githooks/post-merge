@@ -1,0 +1,42 @@
+#!/bin/sh
+# The merge commit writes its own number — right after it exists (E-014).
+#
+# `git merge` creates the commit with the tree it merged and runs no
+# pre-commit for it, and no hook can change that tree before the commit
+# exists: the tree is written before pre-merge-commit and
+# prepare-commit-msg even run, so a staged write in either is dropped. The
+# only moment a merge commit can carry its number is therefore here, in
+# post-merge: write it with the same hook, then amend it in place, before
+# the commit can be pushed anywhere. That amend is not the rewrite E-014
+# forbids — the commit is seconds old, local, never published, and the only
+# thing that changes is the number its position owns: the same write every
+# other commit gets before it exists, done as soon as it may be done.
+#
+# Install once per clone:   git config core.hooksPath .githooks
+set -e
+
+cd "$(git rev-parse --show-toplevel)"
+
+# --squash makes no commit, and a fast-forward only moves the branch onto a
+# commit that already carries its own number: HEAD with a single parent means
+# there is nothing to write. (`git merge --no-commit` has no post-merge
+# either — the author's own `git commit` runs pre-commit with MERGE_HEAD.)
+set -- $(git rev-list --parents -n1 HEAD)
+[ "$#" -ge 3 ] || exit 0
+
+# The writer: computes HEAD's own position (it IS the commit), refuses on
+# unstaged version-owned work or skew exactly like every other commit, and
+# stages the number. Fails the merge loudly — the tree keeps the old number
+# and the pipeline refuses it, which is still better than a silent lie.
+"$(dirname "$0")/pre-commit" --merge-head
+
+# Nothing staged: the tree already held the number — leave the commit alone.
+git diff-index --cached --quiet HEAD -- && exit 0
+
+# git deletes MERGE_HEAD only after this hook, and `git commit --amend`
+# refuses while it exists ("You are in the middle of a merge"). Remove the
+# flag git itself is about to remove, then amend: --no-verify skips
+# pre-commit, whose no-argument arithmetic (HEAD = parent) does not apply to
+# a commit that already exists — --merge-head did that counting above.
+rm -f "$(git rev-parse --git-path MERGE_HEAD)"
+git commit --amend --no-edit --no-verify

@@ -11,8 +11,9 @@ Two false positives made the self-audit cry wolf on a healthy tree:
    is not in the tree), so five checks per missing file failed as
    ``FileNotFoundError`` noise and buried the real signal.
 
-This repo has no CI workflow, so ``pytest`` is the only automatic gate; these
-tests pin the invariants so the instruments cannot silently go stale again.
+This repo's CI only bumps the version (E-010 — it never runs audits), so
+``pytest`` remains the only automatic quality gate; these tests pin the
+invariants so the instruments cannot silently go stale again.
 """
 
 import importlib.util

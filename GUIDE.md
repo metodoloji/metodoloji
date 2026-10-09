@@ -543,7 +543,7 @@ The body is redacted to a 300-character preview — do not expect the full conte
 
 ### P22 — Local periodic audit
 
-Run locally after a change (there is no CI workflow at the repo root — auditing is local here):
+Run locally after a change (CI is release-numbers only — `.github/workflows/release-numbers.yml` verifies the numbers and cuts the tags; it never writes a version or adds a commit, that is the pre-commit hook's job: `git config core.hooksPath .githooks`; auditing is local here). The number is absolute: the patch equals the commits since the first commit, the commit that owns it writes it, **a new minor block opens every 100 commits** (`v0.2.0` is position 100) and a major line opens only by explicit declaration — the rule and the rebuilt tag chain are in `docs/VERSION-HISTORY.md`:
 
 ```bash
 python -m pytest -q

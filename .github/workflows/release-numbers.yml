@@ -1,0 +1,135 @@
+# The ONLY CI pipeline in this repo (E-010 … E-014): keep the release number
+# true and publish the pointers. It writes NO version and creates NO commit —
+# the number is written into the commit that owns it, by the committed
+# pre-commit hook (.githooks/pre-commit, installed with
+# `git config core.hooksPath .githooks`). What is left for CI is what it can
+# do without lying: read the tree of every commit the push carried, compare it
+# with the number that commit's position owns, and publish tags for the ones
+# that match. A mismatch is a red job naming the number it should be — the
+# fix-up, if any, is a rebase or an amend by the author, never another commit
+# from a bot (that is what E-014 removed: two of the last four commits existed
+# only to hold a version).
+#
+# The numbering rule (E-012/E-013): on the automatic line the number IS the
+# commit's position after the first commit, with a new minor block every 100
+# commits (position 100 = 0.2.0); a major line (1.0.0) opens only by explicit
+# human declaration — the declaring commit is verified, tagged and left alone.
+#
+# Loop safety: there is no loop to break. This workflow pushes tags only, a
+# tag push does not match `branches: [main]`, and GITHUB_TOKEN pushes never
+# re-trigger workflows — so no guard, no bot commit, no [skip-version].
+# The six audits (pytest, check-plugin, check-custom, check-methodology,
+# check-techdebt, check-handoff) intentionally stay local — this workflow
+# never runs them; CI here is release-numbers only.
+name: release-numbers
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write  # push the tags back (never a commit)
+
+# Serialize rapid pushes: each run owns exactly its own commit range.
+concurrency:
+  group: release-numbers
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # rev-list --count from the first commit needs history
+
+      - name: Verify the numbers and tag every commit this push carried
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          ROOT_COMMIT="$(git rev-list --max-parents=0 HEAD | tail -1)"
+          BEFORE="${{ github.event.before }}"
+          # A force-push leaves `before` outside the fetched history — ask the
+          # server for it, so the range stays exactly the commits this push
+          # carried instead of falling back to the whole history (whose early
+          # trees predate the rule and are documented as-is, retro-assigned).
+          if printf '%s' "$BEFORE" | grep -qE '^[0-9a-f]{40}$' \
+              && ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            git fetch -q origin "$BEFORE" 2>/dev/null || true
+          fi
+          if printf '%s' "$BEFORE" | grep -qE '^[0-9a-f]{40}$' \
+              && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            RANGE="$BEFORE..HEAD"
+          else
+            # Unknown range (first push, or a before the server forgot):
+            # publish nothing retroactively — verify from the newest tag (what
+            # the chain already accepted) to HEAD; no tags at all, all history.
+            LAST_TAG="$(git tag --list 'v*' | sort -V | tail -1)"
+            if [ -n "$LAST_TAG" ]; then
+              RANGE="$LAST_TAG..HEAD"
+            else
+              RANGE="HEAD"
+            fi
+          fi
+          PLAN="$(mktemp)"
+          # One pass derives what every commit should carry (from git, never
+          # from a number someone typed), then we verify all of it before a
+          # single pointer is published.
+          for COMMIT in $(git rev-list --reverse "$RANGE"); do
+            TREE_VERSION="$(git show "$COMMIT:.plugin/plugin.json" \
+              | grep -m1 -o '"version": *"[^"]*"' | sed 's/.*"version": *"//;s/"//')"
+            if python scripts/versioning.py --is-auto "$TREE_VERSION" >/dev/null 2>&1; then
+              POSITION="$(git rev-list --count "$ROOT_COMMIT..$COMMIT")"
+              EXPECTED="$(python scripts/versioning.py --position "$POSITION")"
+              MARKER="ok"
+            else
+              BASE="${TREE_VERSION%.*}"
+              OPENING_TAG="v$BASE.0"
+              if git rev-parse -q --verify "refs/tags/$OPENING_TAG" >/dev/null; then
+                OPENING_COMMIT="$(git rev-parse "refs/tags/$OPENING_TAG^{commit}")"
+                EXPECTED="$BASE.$(git rev-list --count "$OPENING_COMMIT..$COMMIT")"
+                MARKER="ok"                # the line was declared before
+              else
+                EXPECTED="$BASE.0"     # this commit would declare the line
+                # A declaration is a statement, not a writing: the commit must
+                # carry its own marker or the number is a claim nobody made
+                # (E-013's contract, kept even though the bump step is gone).
+                # The marker names the line's OPENING ($BASE.0), never a stale
+                # $EXPECTED from the previous loop iteration.
+                if git log -1 --pretty=%B "$COMMIT" | grep -qF "[line $BASE.0]"; then
+                  MARKER="ok"
+                else
+                  MARKER="missing"
+                fi
+              fi
+            fi
+            printf '%s %s %s %s\n' "$COMMIT" "$TREE_VERSION" "$EXPECTED" "$MARKER" >> "$PLAN"
+          done
+          FAIL=0
+          while read -r COMMIT TREE_VERSION EXPECTED MARKER; do
+            if [ "$MARKER" = "missing" ]; then
+              echo "::error::$COMMIT claims the line ${EXPECTED%.*}.0 but carries no '[line ${EXPECTED%.*}.0]' marker and that line was never declared — a major line opens only by an explicit human declaration"
+              FAIL=1
+            elif [ "$TREE_VERSION" != "$EXPECTED" ]; then
+              echo "::error::$COMMIT carries $TREE_VERSION but its position owns $EXPECTED — the number is written by the commit that owns it (git config core.hooksPath .githooks, then re-commit with the hook or amend); no tag is published for a tree that lies"
+              FAIL=1
+            fi
+          done < "$PLAN"
+          if [ "$FAIL" -ne 0 ]; then
+            exit 1
+          fi
+          while read -r COMMIT TREE_VERSION EXPECTED MARKER; do
+            TAG="v$EXPECTED"
+            if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+              # Re-run after a failed push: the pointer already exists —
+              # re-tagging would be a no-op at best, a re-point at worst.
+              echo "::warning::$TAG already exists — not re-tagging $COMMIT"
+              continue
+            fi
+            git tag -a "$TAG" -m "release $TAG" "$COMMIT"
+            # Rejected if the same tag already names a different commit (red
+            # job, loud) — history is append-only here.
+            git push origin "refs/tags/$TAG"
+          done < "$PLAN"
+          echo "verified and tagged: $RANGE"

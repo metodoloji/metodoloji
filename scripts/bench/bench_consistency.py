@@ -679,6 +679,502 @@ def _check_file_decode_tests_covered() -> str | None:
     return f"missing E-009 tests: {missing}" if missing else None
 
 
+def _rule():
+    """The release rule itself — the bench checks tags against it, not a copy."""
+    if not hasattr(_rule, "module"):
+        import importlib.util as _ilu
+
+        spec = _ilu.spec_from_file_location("versioning", ROOT / "scripts" / "versioning.py")
+        module = _ilu.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        _rule.module = module
+    return _rule.module
+
+
+def _check_version_ci_scope() -> str | None:
+    """E-010 … E-014: the CI exists, is VERSION-ONLY, and no live doc still denies it.
+
+    The workflow must derive every number from the rule
+    (scripts/versioning.py) with write permission for tags, must never grow a
+    test/audit step (those stay local by design), and since E-014 may write
+    no version and create no commit — the hook owns the number, the pipeline
+    owns the pointer. The four places that used to claim "no CI workflow"
+    must be telling the truth again.
+    """
+    wf = ROOT / ".github" / "workflows" / "release-numbers.yml"
+    if not wf.is_file():
+        return ".github/workflows/release-numbers.yml missing"
+    text = wf.read_text(encoding="utf-8")
+    problems = []
+    for required in ("scripts/versioning.py", "contents: write",
+                     "--position", "rev-list"):
+        if required not in text:
+            problems.append(f"workflow misses {required!r}")
+    code = "\n".join(line for line in text.splitlines()
+                     if not line.lstrip().startswith("#"))
+    for forbidden in ("pytest", "check-plugin", "check-custom",
+                      "check-methodology", "check-techdebt", "check-handoff"):
+        if forbidden in code:
+            problems.append(f"CI runs an audit: {forbidden}")
+    for forbidden in ("git commit", "bump-version", "--set-version",
+                      "--by", "[skip-version]"):
+        if forbidden in code:
+            problems.append(f"CI writes or commits: {forbidden}")
+    for rel, phrase in (("README.md", "no CI workflow in this repo"),
+                        ("GUIDE.md", "no CI workflow at the repo root"),
+                        ("KILAVUZ.md", "CI workflow'u yok"),
+                        ("scripts/tests/test_selfcheck_scripts.py",
+                         "This repo has no CI workflow")):
+        if phrase in _read(rel):
+            problems.append(f"{rel} still claims CI does not exist")
+    return "; ".join(problems) if problems else None
+
+
+def _check_version_bump_tests_covered() -> str | None:
+    """The E-010 bump script and workflow stay covered by tests."""
+    src = _read("scripts/tests/test_bump_version.py")
+    names = ("test_positional_advance_math",
+             "test_bump_updates_every_manifest_and_claim",
+             "test_bump_preserves_line_endings",
+             "test_check_mode_is_read_only",
+             "test_skew_refuses_before_any_write",
+             "test_missing_version_manifest_refuses",
+             "test_bump_then_check_agree",
+             "test_workflow_is_version_only")
+    missing = [n for n in names if n not in src]
+    return f"missing E-010 tests: {missing}" if missing else None
+
+
+def _check_version_ci_tag() -> str | None:
+    """E-011 … E-014: the run publishes a tag for every number it VERIFIED.
+
+    The first CI bump proved the gap: 0.1.6 landed on main while the last tag
+    was still v0.1.5, cut by hand — a version nobody can point at is not a
+    release. The workflow must name each tag from the rule's own arithmetic
+    (never a number typed in YAML), check every commit's tree against its
+    position BEFORE the first pointer goes out, publish annotated tags, and
+    survive a re-run without re-pointing a name — all of it with no bump
+    commit in sight (E-014: the pipeline creates nothing). The three live
+    docs must say so instead of leaving the pointer a manual act.
+    """
+    wf = ROOT / ".github" / "workflows" / "release-numbers.yml"
+    if not wf.is_file():
+        return ".github/workflows/release-numbers.yml missing"
+    text = wf.read_text(encoding="utf-8")
+    problems = []
+    for required in ("versioning.py --position", "git tag -a",
+                     'git push origin "refs/tags/$TAG"'):
+        if required not in text:
+            problems.append(f"workflow misses {required!r}")
+    verify_at = text.find('if [ "$FAIL" -ne 0 ]')
+    tag_at = text.find("git tag -a")
+    if verify_at < 0 or tag_at < 0:
+        problems.append("workflow lost either the verify gate or the tag step")
+    elif verify_at > tag_at:
+        problems.append("a tag can be published before every number is verified")
+    else:
+        if "already exists" not in text:
+            problems.append("a re-run would re-tag a name that already exists")
+        if "git rev-parse" not in text:
+            problems.append("the tag step cannot resolve what it publishes")
+    for rel, phrase in (("README.md", "publishes `vX.Y.Z`"),
+                        ("GUIDE.md", "cuts the tags"),
+                        ("KILAVUZ.md", "etiketi keser")):
+        if phrase not in _read(rel):
+            problems.append(f"{rel} does not say CI publishes the tags")
+    return "; ".join(problems) if problems else None
+
+
+def _check_version_tag_tests_covered() -> str | None:
+    """The E-011 release-tag seam stays falsifiable."""
+    src = _read("scripts/tests/test_bump_version.py")
+    names = ("test_print_version_is_bare_and_read_only",
+             "test_workflow_tags_the_release")
+    missing = [n for n in names if n not in src]
+    if missing:
+        return f"missing E-011 tests: {missing}"
+    for required in ("--print-version", "git tag -a", "refs/tags/"):
+        if required not in src:
+            return f"the E-011 tag test does not pin {required!r}"
+    return None
+
+
+def _git_stdout(*args: str) -> tuple[int, str]:
+    """(exit code, stdout) for a git call in this repo — never raises."""
+    try:
+        proc = subprocess.run(["git", *args], cwd=ROOT, capture_output=True,
+                              text=True, encoding="utf-8", errors="replace",
+                              timeout=60)
+    except Exception as exc:  # git missing is a failing check, not a crash
+        return 1, f"{type(exc).__name__}: {exc}"
+    return proc.returncode, (proc.stdout or "")
+
+
+def _check_release_numbering_rule() -> str | None:
+    """E-012/E-013: the number is a property of the commit, and the chain proves it.
+
+    Two halves. The workflow must derive the target from git (a relative bump
+    preserves whatever drift the tree had — that is exactly how twelve commits
+    shipped with no number of their own) and re-check the number against the
+    commit's position before publishing a pointer for it. And the tags that
+    actually exist must obey the rule scripts/versioning.py owns — a tag the
+    chain cannot place is the historical bug (v0.1.5 on the tenth commit)
+    coming back.
+    """
+    wf = ROOT / ".github" / "workflows" / "release-numbers.yml"
+    if not wf.is_file():
+        return ".github/workflows/release-numbers.yml missing"
+    text = wf.read_text(encoding="utf-8")
+    problems = []
+    for required in ("--position", "scripts/versioning.py", "rev-list --count",
+                     "max-parents=0", "EXPECTED", "git tag -a", "refs/tags/"):
+        if required not in text:
+            problems.append(f"workflow misses {required!r}")
+    if "--by " in text:
+        problems.append("the relative bump (--by) came back")
+
+    code, first = _git_stdout("rev-list", "--max-parents=0", "HEAD")
+    if code != 0:
+        return f"git cannot read the history: {first.strip()[:120]}"
+    baseline_commit = first.strip().splitlines()[-1]
+    code, order = _git_stdout("rev-list", "--reverse", f"{baseline_commit}..HEAD")
+    if code != 0:
+        return f"git cannot walk the history: {order.strip()[:120]}"
+    position = {baseline_commit: 0}
+    for i, sha in enumerate(order.split(), start=1):
+        position[sha] = i
+    code, tag_names = _git_stdout("tag", "--list", "v*")
+    if code != 0:
+        return f"git cannot list tags: {tag_names.strip()[:120]}"
+    rule = _rule()
+    rule_tags = [t for t in tag_names.split()
+                 if re.fullmatch(r"v\d+\.\d+\.\d+", t)]
+    if not rule_tags:
+        return "no release tags at all — the chain has no baseline to check"
+    if "v" + rule.auto_version(0) not in rule_tags:
+        problems.append(f"the position-0 tag v{rule.auto_version(0)} is gone — "
+                        "the count is anchored to nothing")
+    numbers, newest = [], None
+    for tag in rule_tags:
+        try:
+            wanted = rule.auto_position(tag[1:])
+        except rule.VersionError as exc:
+            problems.append(f"{tag} is not a number the rule can produce: {exc}")
+            continue
+        numbers.append(wanted)
+        code, target = _git_stdout("rev-parse", "-q", "--verify", f"refs/tags/{tag}^{{commit}}")
+        if code != 0 or not target.strip():
+            problems.append(f"{tag} does not resolve to a commit")
+            continue
+        at = position.get(target.strip())
+        if at is None:
+            problems.append(f"{tag} points outside this history")
+        elif at != wanted:
+            problems.append(f"{tag} sits on commit #{at} after the baseline, not #{wanted}")
+        if at is not None and (newest is None or at > newest[0]):
+            newest = (at, tag, target.strip())
+    # A hole means a release point whose number nobody published — the shape of
+    # the bug this experiment repaired (v0.1.1..v0.1.4 never existed). The
+    # chain may stop short of HEAD (tags are pushed separately); it may not
+    # skip a number in between.
+    if numbers:
+        holes = [n for n in range(min(numbers), max(numbers) + 1)
+                 if n not in set(numbers)]
+        if holes:
+            problems.append("the tag chain has holes (positions with no tag): "
+                            + ", ".join("v" + rule.auto_version(n) for n in holes))
+    # The newest release point must be a tree that holds its own number: a
+    # pointer to a tree claiming another version is the E-011 lie. (Older tags
+    # may name a position whose tree still says the previous number — that
+    # convention is documented in docs/VERSION-HISTORY.md.)
+    if newest:
+        code, tree = _git_stdout("show", f"{newest[2]}:.plugin/plugin.json")
+        if code != 0:
+            problems.append(f"cannot read the tree of the newest release {newest[1]}")
+        elif f'"version": "{newest[1][1:]}"' not in tree:
+            problems.append(f"the newest release {newest[1]} points at a tree whose "
+                            f"manifests do not hold {newest[1][1:]}")
+    return "; ".join(problems) if problems else None
+
+
+def _check_release_history_documented() -> str | None:
+    """The repair must be readable by a stranger (E-012).
+
+    A retro-assigned tag chain that nobody wrote down is indistinguishable
+    from a fabricated one: the rule, the mismatch between those tags and the
+    version strings inside the old trees, and the re-pointed v0.1.5 all have
+    to be in docs/VERSION-HISTORY.md — and the live docs must point at it.
+    """
+    problems = []
+    rel = "docs/VERSION-HISTORY.md"
+    path = ROOT / rel
+    if not path.is_file():
+        return f"{rel} missing — the repair is undocumented"
+    text = _read(rel)
+    for phrase in ("commits since the first commit",   # the rule
+                   "retro-assigned",                   # how the tags got there
+                   "re-pointed",                       # the v0.1.5 correction
+                   "v0.1.0"):
+        if phrase not in text:
+            problems.append(f"{rel} does not state {phrase!r}")
+    for doc, phrase in (("README.md", "commits since the first commit"),
+                        ("GUIDE.md", "commits since the first commit"),
+                        ("KILAVUZ.md", "ilk commit'ten sonraki commit")):
+        if phrase not in _read(doc):
+            problems.append(f"{doc} does not state the numbering rule")
+    if rel not in _read("README.md"):
+        problems.append("README.md does not link the version history")
+    return "; ".join(problems) if problems else None
+
+
+def _check_release_repair_tests_covered() -> str | None:
+    """The E-012 repair stays falsifiable (tool + absolute rule)."""
+    missing = []
+    groups = {
+        "scripts/tests/test_release_tags.py": (
+            "test_plan_maps_every_commit_after_the_baseline",
+            "test_plan_writes_nothing",
+            "test_apply_creates_annotated_tags_and_no_commit",
+            "test_misplaced_tag_is_refused_then_moved_on_request",
+            "test_baseline_must_be_the_first_commit",
+            "test_missing_or_malformed_baseline_refuses",
+            "test_unplaceable_tag_blocks_apply",
+            "test_push_publishes_created_and_moved_tags",
+            "test_no_remote_is_a_loud_refusal",
+        ),
+        "scripts/tests/test_bump_version.py": (
+            "test_set_version_names_the_absolute_number",
+            "test_workflow_derives_the_number_absolutely",
+        ),
+    }
+    for rel, names in groups.items():
+        src = _read(rel)
+        missing += [f"{rel}: {n}" for n in names if n not in src]
+    return f"missing E-012 tests: {missing}" if missing else None
+
+
+def _check_release_line_boundaries() -> str | None:
+    """E-013: the 0.2.0 boundary is arithmetic, and only a human opens a major line.
+
+    "When do we move to 0.2.0?" has to have an answer nobody has to decide: on
+    the automatic line the block opens every 100 positions (position 100 IS
+    0.2.0), the rule that says so is scripts/versioning.py, and the tree this
+    repo ships must itself hold a number that rule can produce. Leaving the
+    line (1.0.0) must be an explicit declaration — the workflow checks the
+    `[line $BASE.0]` marker in the committing commit's own message (naming the
+    line's OPENING, derived from the tree, never a stale number), tags the
+    declaring commit and rewrites nothing, and refuses a major line nobody
+    declared. One pass, no declare mode: since E-014 the declaration IS the
+    release.
+    """
+    rule = _rule()
+    problems = []
+    if rule.AUTO_BLOCK != 100:
+        problems.append(f"AUTO_BLOCK is {rule.AUTO_BLOCK} — the docs promise 100")
+    for position, version in ((0, "0.1.0"), (99, "0.1.99"), (100, "0.2.0"),
+                              (199, "0.2.99"), (200, "0.3.0")):
+        got = rule.auto_version(position)
+        if got != version or rule.auto_position(version) != position:
+            problems.append(f"position {position} <-> {version} is broken (got {got})")
+    wf = ROOT / ".github" / "workflows" / "release-numbers.yml"
+    if not wf.is_file():
+        return ".github/workflows/release-numbers.yml missing"
+    text = wf.read_text(encoding="utf-8")
+    for required in ("--is-auto", "[line ", 'grep -qF "[line $BASE.0]"',
+                     'OPENING_TAG="v$BASE.0"', "::error::", "never declared"):
+        if required not in text:
+            problems.append(f"workflow misses {required!r}")
+    bump_src = _read("scripts/bump-version.py")
+    for required in ("versioning.auto_position(old)",   # the tree must be producible
+                     "versioning.auto_position(target)",  # and so must the target
+                     "refusing to open line", "versioning.same_line"):
+        if required not in bump_src:
+            problems.append(f"bump-version.py misses {required!r}")
+    # The live tree must hold a number the rule can produce, and a major line
+    # must have been declared (its v<base>.0 tag exists).
+    m = re.search(r'"version"\s*:\s*"([^"]+)"', _read(".plugin/plugin.json"))
+    if not m:
+        problems.append(".plugin/plugin.json has no version")
+        return "; ".join(problems)
+    current = m.group(1)
+    if rule.is_auto(current):
+        try:
+            rule.auto_position(current)
+        except rule.VersionError as exc:
+            problems.append(f"the shipped version {current} is not producible: {exc}")
+    else:
+        base = "%d.%d" % rule.line(current)
+        code, target = _git_stdout("rev-parse", "-q", "--verify",
+                                   f"refs/tags/v{base}.0^{{commit}}")
+        if code != 0 or not target.strip():
+            problems.append(f"{current} claims the line {base} but v{base}.0 was "
+                            "never declared")
+    return "; ".join(problems) if problems else None
+
+
+def _check_release_boundary_documented() -> str | None:
+    """The boundary rule must be readable without opening the code (E-013)."""
+    problems = []
+    for rel, phrases in (("docs/VERSION-HISTORY.md",
+                          ("position 100", "0.2.0", "[line X.Y.0]", "declared")),
+                         ("README.md", ("a new minor block opens every 100 commits",)),
+                         ("GUIDE.md", ("a new minor block opens every 100 commits",)),
+                         ("KILAVUZ.md", ("her 100 commit'te bir yeni minor blo\u011fu a\u00e7\u0131l\u0131r",))):
+        text = _read(rel)
+        for phrase in phrases:
+            if phrase not in text:
+                problems.append(f"{rel} does not state {phrase!r}")
+    return "; ".join(problems) if problems else None
+
+
+def _check_release_boundary_tests_covered() -> str | None:
+    """The E-013 boundary stays falsifiable (rule, pipeline, setters)."""
+    groups = {
+        "scripts/tests/test_versioning.py": (
+            "test_blocks_open_every_hundred_positions",
+            "test_position_is_the_exact_inverse",
+            "test_impossible_numbers_are_refused",
+            "test_line_helpers",
+            "test_cli_answers_the_pipeline_questions",
+        ),
+        "scripts/tests/test_release_pipeline.py": (
+            "test_ordinary_push_lands_on_the_position_it_owns",
+            "test_block_boundary_is_arithmetic_not_a_decision",
+            "test_declared_line_is_tagged_and_never_rewritten",
+            "test_declared_line_takes_its_next_patch",
+            "test_undeclared_major_line_is_refused_loudly",
+            "test_illegal_auto_number_is_refused_and_never_tagged",
+        ),
+        "scripts/tests/test_bump_version.py": (
+            "test_position_names_the_number_the_commit_owns",
+            "test_declared_line_takes_patches_but_not_new_lines",
+            "test_workflow_requires_an_explicit_line_declaration",
+        ),
+    }
+    missing = []
+    for rel, names in groups.items():
+        src = _read(rel)
+        missing += [f"{rel}: {n}" for n in names if n not in src]
+    return f"missing E-013 tests: {missing}" if missing else None
+
+
+def _check_commit_time_numbering() -> str | None:
+    """E-014: the number is written by the commit that owns it — committed hooks.
+
+    Both hooks must ship with the repository (an uncommitted hook is no hook):
+    LF-clean sh scripts that derive the position from the same `rev-list
+    --count` the pipeline verifies with, wired together through the writer's
+    `--merge-head` mode (a merge commit has no pre-commit of its own, so
+    post-merge writes its number and amends). And this clone must have them
+    INSTALLED — `core.hooksPath = .githooks` — because a fresh clone that
+    never ran the install line produces commits with the previous number;
+    better to see it here than as a red push.
+    """
+    problems = []
+    for rel, needles in ((".githooks/pre-commit",
+                          ("#!/bin/sh", "rev-list --count", "--merge-head",
+                           "bump-version.py", "core.hooksPath")),
+                         (".githooks/post-merge",
+                          ("#!/bin/sh", "--merge-head", "git commit --amend",
+                           "MERGE_HEAD"))):
+        path = ROOT / rel
+        if not path.is_file():
+            problems.append(f"{rel} is missing — a hook that is not committed "
+                            "does not exist for anyone but this clone")
+            continue
+        text = path.read_text(encoding="utf-8")
+        if "\r" in text:
+            problems.append(f"{rel} has CRLF line endings — sh would refuse it")
+        for needle in needles:
+            if needle not in text:
+                problems.append(f"{rel} misses {needle!r}")
+    code, value = _git_stdout("config", "core.hooksPath")
+    if code != 0 or value.strip() != ".githooks":
+        problems.append(f"this clone is not wired: core.hooksPath={value.strip()!r} "
+                        "(git config core.hooksPath .githooks)")
+    return "; ".join(problems) if problems else None
+
+
+def _check_pipeline_verifies_and_tags_only() -> str | None:
+    """E-014: CI writes no version and creates no commit; every name comes from git.
+
+    The pipeline's whole output is tags: each number derived from the rule
+    (never typed in YAML), every commit verified before the first pointer is
+    published, a re-run that never re-points a name — and no `git commit`, no
+    bump script, no guard on the executable lines. Two of the last four
+    commits of the old pipeline existed only to carry a number; this check is
+    what says that out loud. The pipeline's own tests pin the same claim.
+    """
+    wf = ROOT / ".github" / "workflows" / "release-numbers.yml"
+    if not wf.is_file():
+        return ".github/workflows/release-numbers.yml missing"
+    text = wf.read_text(encoding="utf-8")
+    problems = []
+    for required in ("versioning.py --position", "rev-list --count",
+                     "git tag -a", 'git push origin "refs/tags/$TAG"'):
+        if required not in text:
+            problems.append(f"workflow misses {required!r}")
+    code = "\n".join(line for line in text.splitlines()
+                     if not line.lstrip().startswith("#"))
+    for forbidden in ("git commit", "bump-version", "--set-version", "--by",
+                      "[skip-version]"):
+        if forbidden in code:
+            problems.append(f"the pipeline writes or commits: {forbidden}")
+    verify_at = text.find('if [ "$FAIL" -ne 0 ]')
+    tag_at = text.find("git tag -a")
+    if verify_at < 0 or tag_at < 0:
+        problems.append("the verify gate or the tag step is gone")
+    elif verify_at > tag_at:
+        problems.append("a tag can be published before every number is verified")
+    src = _read("scripts/tests/test_release_pipeline.py")
+    for name in ("test_the_pipeline_never_creates_a_commit",
+                 "test_ordinary_push_lands_on_the_position_it_owns",
+                 "test_a_stale_tree_is_refused_naming_the_number_it_owns"):
+        if name not in src:
+            problems.append(f"missing E-014 pipeline test: {name}")
+    return "; ".join(problems) if problems else None
+
+
+def _check_commit_time_flow_documented_and_tested() -> str | None:
+    """E-014: the commit-time flow is readable in the docs and falsifiable.
+
+    The claim must survive without reading the code: VERSION-HISTORY names
+    both hooks and the install line, the experiment record itself names the
+    artifacts it touched (the workflow was renamed, the merge path runs
+    through post-merge), and both test seams exist — the hooks proven against
+    real throwaway repositories (writes, refusals, merges, `--no-verify` left
+    for the pipeline to catch) and the pipeline run against its own shell.
+    """
+    problems = []
+    for phrase in (".githooks/pre-commit", "post-merge", "core.hooksPath"):
+        if phrase not in _read("docs/VERSION-HISTORY.md"):
+            problems.append(f"VERSION-HISTORY misses {phrase!r}")
+    record = _read("docs/experiments/E-014.md")
+    for phrase in (".githooks/post-merge", "release-numbers.yml",
+                   "never creates a commit"):
+        if phrase not in record:
+            problems.append(f"E-014 record misses {phrase!r}")
+    for rel, names in {
+        "scripts/tests/test_git_hooks.py": (
+            "test_the_commit_that_owns_the_number_writes_it",
+            "test_an_already_correct_tree_is_left_alone",
+            "test_unstaged_work_in_a_version_file_is_refused",
+            "test_a_clean_merge_is_written_by_the_merge_commit_itself",
+            "test_a_conflicted_merge_is_written_when_the_author_commits_it",
+            "test_no_verify_is_caught_downstream_not_here",
+        ),
+        "scripts/tests/test_release_pipeline.py": (
+            "test_the_pipeline_never_creates_a_commit",
+            "test_rerun_after_success_is_idempotent",
+        ),
+    }.items():
+        src = _read(rel)
+        missing = [n for n in names if n not in src]
+        if missing:
+            problems.append(f"missing E-014 tests in {rel}: {missing}")
+    return "; ".join(problems) if problems else None
+
+
 def _check_free_surface_parity() -> str | None:
     """The gate's bench refusal must mirror the guard's free surfaces.
 
@@ -791,6 +1287,32 @@ def build_checks() -> list[tuple[str, object]]:
                    _check_file_decode_honesty))
     checks.append(("file-decode seam covered by tests (E-009)",
                    _check_file_decode_tests_covered))
+    checks.append(("version CI exists and is version-only; docs agree (E-010)",
+                   _check_version_ci_scope))
+    checks.append(("version bump seam covered by tests (E-010)",
+                   _check_version_bump_tests_covered))
+    checks.append(("version CI cuts and publishes the release tag (E-011)",
+                   _check_version_ci_tag))
+    checks.append(("release-tag seam covered by tests (E-011)",
+                   _check_version_tag_tests_covered))
+    checks.append(("release numbering is absolute and the tag chain obeys it (E-012)",
+                   _check_release_numbering_rule))
+    checks.append(("release-numbering repair documented (E-012)",
+                   _check_release_history_documented))
+    checks.append(("release-numbering repair covered by tests (E-012)",
+                   _check_release_repair_tests_covered))
+    checks.append(("release-line boundaries are arithmetic and declarable (E-013)",
+                   _check_release_line_boundaries))
+    checks.append(("release-line boundary documented (E-013)",
+                   _check_release_boundary_documented))
+    checks.append(("release-line boundary covered by tests (E-013)",
+                   _check_release_boundary_tests_covered))
+    checks.append(("number written at commit time by committed hooks (E-014)",
+                   _check_commit_time_numbering))
+    checks.append(("pipeline verifies and tags only — never writes, never commits (E-014)",
+                   _check_pipeline_verifies_and_tags_only))
+    checks.append(("commit-time flow documented and covered by tests (E-014)",
+                   _check_commit_time_flow_documented_and_tested))
     checks.append(("gate bench refusal mirrors guard free surfaces",
                    _check_free_surface_parity))
     checks.append(("pytest suite green (falsifier)", _run_pytest))
