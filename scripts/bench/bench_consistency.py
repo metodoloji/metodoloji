@@ -1222,6 +1222,50 @@ def _check_free_surface_parity() -> str | None:
     return None
 
 
+def _check_techdebt_audit_covers_the_tree() -> str | None:
+    """E-015: the debt audit sees the code it governs, and this tree is clean.
+
+    §5 claimed to catch orphan `TODO: [TD-XXX]` comments but scanned only
+    scratch/ and custom/, while the debt standard puts the marker in the code
+    (hooks/, scripts/, bmad/, skills/) — a hidden debt marker, which the
+    manifesto forbids. §6 adds the reference half: every bare `TD-NNN` token
+    must equal an inventory id — an id written without its zero padding is a
+    reference to debt the inventory does not contain. The probe runs the real
+    audit (it must be HEALTHY here) and pins that the widened scope stays
+    falsifiable in scripts/tests/test_check_techdebt.py — a fix without a
+    failing test is not a fix.
+    """
+    script = ROOT / "scripts" / "check-techdebt.sh"
+    if not script.is_file():
+        return "scripts/check-techdebt.sh missing"
+    text = script.read_text(encoding="utf-8")
+    problems = []
+    if '"$PLUGIN_ROOT/scratch/" "$PLUGIN_ROOT/custom/"' in text:
+        problems.append("§5 still scans only scratch/ + custom/")
+    for root in ("hooks", "scripts", "bmad", "skills", "custom", "scratch"):
+        if f"$PLUGIN_ROOT/{root}" not in text:
+            problems.append(f"§5 does not scan {root}/")
+    if "not in the inventory" not in text:
+        problems.append("§6 (malformed TD reference) is missing")
+    tests = ROOT / "scripts" / "tests" / "test_check_techdebt.py"
+    if not tests.is_file():
+        problems.append("test_check_techdebt.py missing — the scope is not falsifiable")
+    else:
+        src = tests.read_text(encoding="utf-8")
+        for name in ("test_orphan_todo_in_code_is_caught",
+                     "test_malformed_td_reference_is_caught",
+                     "test_recorded_todo_passes",
+                     "test_inventory_example_does_not_false_positive"):
+            if name not in src:
+                problems.append(f"test_check_techdebt.py: no {name}")
+    proc = subprocess.run(["sh", str(script)], cwd=ROOT, capture_output=True,
+                          text=True, encoding="utf-8", errors="replace", timeout=60)
+    if proc.returncode != 0 or "STATUS: HEALTHY" not in (proc.stdout or ""):
+        tail = (proc.stdout or "").strip().splitlines()[-4:]
+        problems.append(f"debt audit not healthy: exit {proc.returncode}: {' | '.join(tail)}")
+    return "; ".join(problems) if problems else None
+
+
 def _run_pytest() -> str | None:
     """The falsifier: the whole suite must stay green."""
     proc = subprocess.run([sys.executable, "-m", "pytest", "-q"],
@@ -1315,6 +1359,8 @@ def build_checks() -> list[tuple[str, object]]:
                    _check_commit_time_flow_documented_and_tested))
     checks.append(("gate bench refusal mirrors guard free surfaces",
                    _check_free_surface_parity))
+    checks.append(("tech-debt audit covers the shipped tree and is clean (E-015)",
+                   _check_techdebt_audit_covers_the_tree))
     checks.append(("pytest suite green (falsifier)", _run_pytest))
     checks.append(("hooks.json in sync with generator", _run_hooks_json_sync))
     return checks

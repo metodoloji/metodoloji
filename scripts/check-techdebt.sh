@@ -8,13 +8,16 @@
 #   2. Active debt table: unique + sequential IDs (TD-NNN)
 #   3. Active P0 count <= 5 (manifesto hard limit)
 #   4. No paid/active ID collision
-#   5. Orphan TODO: every TD-XXX in a record is referenced in either the active
-#      table or the paid table; [TD-XXX] in comments always in the inventory
+#   5. Orphan TODO: every [TD-XXX] marker in the shipped tree is referenced in
+#      either the active table or the paid table (the inventory pair and this
+#      auditor are excluded — they carry the standard's own example ids)
+#   6. Malformed reference: every bare TD-NNN token equals an inventory id
+#      (e.g. a lone `TD-14` where the inventory records `TD-014`)
 #
 # Usage:  sh scripts/check-techdebt.sh
 #            sh scripts/check-techdebt.sh --negtest
-#            (negative-test only: inject ID collision + orphan TODO →
-#             catch MISS → restore)
+#            (negative-test only: inject ID collision + P0 overflow + orphan
+#             TODO + malformed TD reference → catch MISS → restore)
 # Output:    [OK] / [WARNING] / [ERROR] at the start of each line; overall status at the end.
 set -u
 
@@ -38,7 +41,7 @@ from pathlib import Path
 PLUGIN = Path(os.environ["PLUGIN_ROOT"])
 td = PLUGIN / "docs" / "development" / "tech-debt.md"
 check_script = PLUGIN / "scripts" / "check-techdebt.sh"
-total_stages = 3
+total_stages = 4
 
 def run_check() -> subprocess.CompletedProcess:
     return subprocess.run(
@@ -109,8 +112,8 @@ try:
 finally:
     td.write_text(orig, encoding="utf-8")
 
-# Stage 3/3: Orphan TODO: inject [TD-999] into scratch/ → does §5 catch it?
-# (the inventory file is outside §5 scope — writing there would be a legitimate reference)
+# Stage 3/4: Orphan TODO: inject [TD-999] into scratch/ → does §5 catch it?
+# (the inverse — writing a recorded id into the inventory — is the healthy case)
 print(f"[3/{total_stages}] does §5 catch an orphan TODO [TD-999] injected into scratch/")
 negtest_artifact = PLUGIN / "scratch" / "_negtest_orphan.py"
 artifact_orig = None
@@ -125,6 +128,31 @@ try:
         print("  [OK] §5 orphan TODO caught, exit=1")
     else:
         print(f"  [ERROR] §5 orphan TODO expected, output end: ...{r.stdout[-400:]!r}")
+        sys.exit(1)
+finally:
+    if artifact_orig is None:
+        negtest_artifact.unlink(missing_ok=True)
+    else:
+        negtest_artifact.write_text(artifact_orig, encoding="utf-8")
+
+# Stage 4/4: Malformed reference: inject a bare `TD-99` into scratch/ → does §6
+# catch it? (a bare token is not an orphan TODO, so §5 must stay silent).
+print(f"[4/{total_stages}] does §6 catch a malformed TD reference TD-99 injected into scratch/")
+negtest_artifact = PLUGIN / "scratch" / "_negtest_dangling.py"
+artifact_orig = None
+if negtest_artifact.exists():
+    artifact_orig = negtest_artifact.read_text(encoding="utf-8")
+try:
+    negtest_artifact.write_text(
+        "# bound by TD-99 (negtest artifact, will be deleted)\n",
+        encoding="utf-8")
+    r = run_check()
+    if ("TD-99" in r.stdout and "not in the inventory" in r.stdout
+            and "orphan TODO (not in inventory)" not in r.stdout
+            and r.returncode == 1):
+        print("  [OK] §6 malformed reference caught, exit=1")
+    else:
+        print(f"  [ERROR] §6 malformed reference expected, output end: ...{r.stdout[-400:]!r}")
         sys.exit(1)
 finally:
     if artifact_orig is None:
@@ -210,19 +238,22 @@ else
     PROBLEMS=$((PROBLEMS + 1))
 fi
 
-echo "== 5) No orphan TODO [TD-XXX] referencing outside the inventory =="
-# TODO comment standard: "# TODO: [TD-XXX]" or "<!-- TODO: [TD-XXX]"
-# All IDs in the inventory
+echo "== 5) No orphan TODO [TD-XXX] in the shipped code or free surfaces =="
+# The debt standard puts the marker in the CODE ("# TODO: [TD-XXX]"), so the
+# scan covers the code trees (hooks/ scripts/ bmad/ skills/) plus the free
+# surfaces (custom/ scratch/) — not docs/ (prose examples like TD-042), not
+# templates/, and not test directories (which embed synthetic ids by design).
+# This auditor is excluded by name (its --negtest injects ids).
 ALL_IDS=$(printf '%s\n%s\n' "$ACTIVE_IDS" "$PAID_IDS" | sort -u | grep -v '^$' || true)
-# IDs referenced in TODOs (build artifacts and scratch dirs excluded)
-TODO_IDS=$(grep -rhoE --binary-files=without-match \
+SCAN_EXCLUDES="--exclude-dir=__pycache__ --exclude-dir=tests --exclude=check-techdebt.sh"
+SCAN_ROOTS="$PLUGIN_ROOT/hooks $PLUGIN_ROOT/scripts $PLUGIN_ROOT/bmad $PLUGIN_ROOT/skills $PLUGIN_ROOT/custom $PLUGIN_ROOT/scratch"
+# IDs referenced in TODO markers (code trees + free surfaces only)
+TODO_IDS=$(grep -rhoE --binary-files=without-match $SCAN_EXCLUDES \
     'TODO:[[:space:]]*\[TD-[0-9]+\]' \
-    --exclude-dir=__pycache__ --exclude='*.pyc' \
-    --exclude-dir=_generated_splits --exclude-dir=.metodoloji \
-    "$PLUGIN_ROOT/scratch/" "$PLUGIN_ROOT/custom/" 2>/dev/null \
+    $SCAN_ROOTS 2>/dev/null \
     | sed -E 's/.*\[(TD-[0-9]+)\].*/\1/' | sort -u)
 if [ -z "$TODO_IDS" ]; then
-    echo "[OK]   no TODO comments in scanned dirs (scratch/, custom/)"
+    echo "[OK]   no TODO comments in the scanned code/free trees"
 else
     TMPC=$(mktemp); TMPD=$(mktemp)
     trap 'rm -f "$TMPC" "$TMPD"' EXIT
@@ -235,6 +266,28 @@ else
     else
         echo "[OK]   all TODO [TD-XXX] are recorded in the inventory"
     fi
+fi
+
+echo "== 6) No malformed TD reference (every TD-NNN must be an inventory id) =="
+# A bare reference that drops the zero padding names debt the inventory does
+# not contain (it records the padded form): a mistyped or dangling id is drift
+# the orphan-TODO scan above cannot see, because that scan matches only the
+# `TODO: [..]` shape. Same scope as §5 (code + free surfaces).
+ALL_IDS_FLAT=$(printf '%s' "$ALL_IDS" | tr '\n' ' ')
+REF_IDS=$(grep -rhoE --binary-files=without-match $SCAN_EXCLUDES \
+    'TD-[0-9]+' $SCAN_ROOTS 2>/dev/null | sort -u)
+DANGLING=
+for id in $REF_IDS; do
+    case " $ALL_IDS_FLAT " in
+        *" $id "*) : ;;
+        *) DANGLING="$DANGLING $id" ;;
+    esac
+done
+if [ -n "$DANGLING" ]; then
+    echo "[ERROR] TD reference not in the inventory:$DANGLING"
+    PROBLEMS=$((PROBLEMS + 1))
+else
+    echo "[OK]   every TD reference matches an inventory id"
 fi
 
 echo

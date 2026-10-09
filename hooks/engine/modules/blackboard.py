@@ -872,7 +872,7 @@ def _mutate(project_root: str, mutator) -> dict:
     mutations forever — the live board accumulated 10 signals aged 2-3 days
     while daily work ran hundreds of mutations. The condition is unchanged
     (kind == "handoff" AND age > TTL); only the placement moved, so fresh
-    signals still survive and the event-sourced consumption contract (TD-14)
+    signals still survive and the event-sourced consumption contract (TD-014)
     is untouched.
     """
     paths = board_paths(project_root)
