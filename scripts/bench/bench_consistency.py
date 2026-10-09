@@ -1334,6 +1334,112 @@ def _check_record_decode_refusals() -> str | None:
     return "; ".join(problems) if problems else None
 
 
+def _check_engine_decode_refusals() -> str | None:
+    """E-017: a non-UTF-8 file never kills the engine or the check scripts.
+
+    The E-009 deferment named "the gate and the check scripts"; the gate was
+    E-016, and this closes the rest. Three seams were proven crashing:
+    `config.py` — the gate-MODE decision path, where a crash leaves the hook
+    with NO decision (a runner may read that as an allow, so it must stay
+    fail-CLOSED at `code_guard = hard`); `_replay_events` — a binary event log
+    raised while being ITERATED, taking `chain_health`/`read_board` with it;
+    and `check-triggers.py`, whose whole job is to report.
+    """
+    import tempfile  # noqa: PLC0415
+
+    problems: list[str] = []
+    binary = b"\xff\xfe\x00 binary \x80 junk"
+
+    # 1. The gate-mode decision path must survive a corrupt config and stay fail-closed.
+    sys.path.insert(0, str(ROOT / "hooks" / "engine"))
+    try:
+        from modules import config as mod  # noqa: PLC0415
+
+        saved_path = mod._HOOKS_CFG
+        saved_cache = (mod._HOOKS_CACHE, mod._HOOKS_CACHE_KEY)
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                bad = pathlib.Path(td) / "config.toml"
+                bad.write_bytes(binary)
+                mod._HOOKS_CFG = bad
+                mod._HOOKS_CACHE, mod._HOOKS_CACHE_KEY = None, None
+                try:
+                    if mod.hook_gate_mode("code_guard") != "hard":
+                        problems.append("corrupt config no longer fails closed "
+                                        "(code_guard != hard)")
+                    if mod.hook_gate_mode("quality_gate") != "soft":
+                        problems.append("corrupt config does not fall back to "
+                                        "the quality default")
+                    if mod._validate_hooks_config() != (True, ""):
+                        problems.append("_validate_hooks_config raised or "
+                                        "misreported on a non-UTF-8 config")
+                except Exception as exc:
+                    problems.append(f"gate-mode path raised on a corrupt config: "
+                                    f"{type(exc).__name__}: {exc}")
+        finally:
+            mod._HOOKS_CFG = saved_path
+            mod._HOOKS_CACHE, mod._HOOKS_CACHE_KEY = saved_cache
+    except Exception as exc:
+        problems.append(f"config module unreadable: {type(exc).__name__}: {exc}")
+
+    # 2. The board's diagnostics path must fold a corrupt log to an empty board.
+    try:
+        from modules import blackboard as _bb  # noqa: PLC0415
+
+        with tempfile.TemporaryDirectory() as td:
+            paths = _bb.board_paths(td)
+            for key in ("snapshot", "events"):
+                pathlib.Path(paths[key]).parent.mkdir(parents=True, exist_ok=True)
+            pathlib.Path(paths["snapshot"]).write_bytes(binary)
+            pathlib.Path(paths["events"]).write_bytes(binary)
+            try:
+                if _bb.read_board(td)["keys"]:
+                    problems.append("a corrupt board did not fold to an empty board")
+                if not _bb.chain_health(td).get("ok"):
+                    problems.append("chain_health fails on a corrupt board")
+            except Exception as exc:
+                problems.append(f"board diagnostics raised: {type(exc).__name__}: {exc}")
+    except Exception as exc:
+        problems.append(f"blackboard module unreadable: {type(exc).__name__}: {exc}")
+
+    # 3. The trigger audit must name an unreadable skill file and exit 1.
+    with tempfile.TemporaryDirectory() as td:
+        skill = pathlib.Path(td) / "skills" / "binary-skill"
+        skill.mkdir(parents=True)
+        (skill / "SKILL.md").write_bytes(binary)
+        proc = subprocess.run([sys.executable,
+                               str(ROOT / "scripts" / "check-triggers.py"),
+                               "--project-root", td],
+                              cwd=ROOT, capture_output=True, text=True,
+                              encoding="utf-8", errors="replace", timeout=60)
+        combined = (proc.stdout or "") + (proc.stderr or "")
+        if "Traceback" in combined:
+            problems.append(f"check-triggers crashed: {combined.strip()[-140:]}")
+        elif proc.returncode != 1:
+            problems.append(f"check-triggers exit {proc.returncode}, want 1")
+        elif "UNREADABLE" not in combined:
+            problems.append("check-triggers does not name the unreadable file")
+
+    groups = {
+        "hooks/engine/tests/test_config.py": (
+            "test_binary_hooks_config_stays_fail_closed",
+        ),
+        "hooks/engine/tests/test_blackboard.py": (
+            "test_undecodable_snapshot_and_event_log_fold_to_empty_board",
+        ),
+        "scripts/tests/test_check_triggers.py": (
+            "test_binary_skill_file_is_reported_not_crashed",
+            "test_clean_skills_still_pass",
+        ),
+    }
+    for rel, names in groups.items():
+        src = _read(rel)
+        missing = [n for n in names if n not in src]
+        if missing:
+            problems.append(f"{rel}: missing E-017 tests {missing}")
+    return "; ".join(problems) if problems else None
+
+
 def _run_pytest() -> str | None:
     """The falsifier: the whole suite must stay green."""
     proc = subprocess.run([sys.executable, "-m", "pytest", "-q"],
@@ -1431,6 +1537,8 @@ def build_checks() -> list[tuple[str, object]]:
                    _check_techdebt_audit_covers_the_tree))
     checks.append(("record tooling refuses a non-UTF-8 file (E-016)",
                    _check_record_decode_refusals))
+    checks.append(("engine and check scripts refuse a non-UTF-8 file (E-017)",
+                   _check_engine_decode_refusals))
     checks.append(("pytest suite green (falsifier)", _run_pytest))
     checks.append(("hooks.json in sync with generator", _run_hooks_json_sync))
     return checks

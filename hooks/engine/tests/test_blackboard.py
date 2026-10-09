@@ -2815,3 +2815,24 @@ def test_retire_legacy_diag_key_clears_all_channels(root):
     assert bb.read_board(root)["keys"]["_diag.last_guard_failure"]["value"] == ""
     d = bb.doctor(root)
     assert d["checks"]["drift"]["in_sync"] is True  # replay agrees
+
+
+def test_undecodable_snapshot_and_event_log_fold_to_empty_board(root):
+    """A non-UTF-8 board is fail-open, never a traceback (E-017).
+
+    `_replay_events` caught only OSError, but the decode error surfaces while
+    ITERATING the log (inside `for line in f`), so a binary log escaped as a
+    crash on the diagnostics path (`chain_health` -> `read_board` -> replay).
+    The malformed-line skip and E-009's corrupt-state policy already say the
+    same thing: an unreadable file folds to empty, and the caller must decide.
+    """
+    paths = bb.board_paths(root)
+    for key in ("snapshot", "events"):
+        pathlib.Path(paths[key]).parent.mkdir(parents=True, exist_ok=True)
+    pathlib.Path(paths["snapshot"]).write_bytes(b"\xff\xfe binary junk")
+    pathlib.Path(paths["events"]).write_bytes(b"\xff\xfe binary junk")
+
+    board = bb.read_board(root)
+    assert board["keys"] == {}
+    health = bb.chain_health(root)
+    assert health["ok"] is True

@@ -49,8 +49,16 @@ def main() -> int:
     descs: dict[str, list[str]] = collections.defaultdict(list)
     trigs: dict[str, list[str]] = collections.defaultdict(list)
     n = 0
+    unreadable: list[str] = []
     for f in glob.glob(os.path.join(args.project_root, "skills", "*", "SKILL.md")):
-        desc, triggers, name = _frontmatter(f)
+        try:
+            desc, triggers, name = _frontmatter(f)
+        except (OSError, UnicodeDecodeError):
+            # A skill file that is not valid UTF-8 cannot be audited: report it
+            # instead of crashing the whole audit (E-017 — the E-009 decode
+            # seam on the check scripts).
+            unreadable.append(os.path.relpath(f, args.project_root))
+            continue
         n += 1
         if desc:
             descs[desc].append(name)
@@ -67,10 +75,13 @@ def main() -> int:
             continue  # skill-name-derived aliases are explicit, not generic
         problems.append(f"shared generic trigger {q!r} in {names}")
     print(f"checked skills: {n}")
+    for f in unreadable:
+        print(f"  UNREADABLE: {f} is not valid UTF-8 (cannot audit)")
     if problems:
         print(f"collisions: {len(problems)}")
         for p in problems:
             print(f"  COLLISION: {p}")
+    if problems or unreadable:
         return 1
     print("no trigger/description collisions")
     return 0

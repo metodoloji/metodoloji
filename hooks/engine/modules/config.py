@@ -132,7 +132,11 @@ def _read_hooks_section() -> dict:
     parsed: dict[str, str] = {}
     try:
         text = _HOOKS_CFG.read_text(encoding="utf-8")
-    except OSError:
+    except (OSError, UnicodeDecodeError):
+        # Missing OR not valid UTF-8: there is no override to apply, so the
+        # defaults win. That keeps the decision path ALIVE and fail-closed
+        # (code_guard stays "hard") — a crash here would leave the hook with NO
+        # decision, which a runner may read as an allow (E-006/E-007 doctrine).
         text = ""
     in_hooks = False
     for line in text.splitlines():
@@ -197,7 +201,9 @@ def _validate_hooks_config() -> tuple[bool, str]:
     """
     try:
         text = _HOOKS_CFG.read_text(encoding="utf-8")
-    except OSError:
+    except (OSError, UnicodeDecodeError):
+        # Missing OR not valid UTF-8: there is no [hooks] block to police and
+        # the gate defaults still govern (fail-closed) — nothing to report.
         return True, ""  # Config file doesn't exist yet
     
     in_hooks = False

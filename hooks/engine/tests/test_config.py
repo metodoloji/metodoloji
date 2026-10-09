@@ -167,6 +167,25 @@ def test_hook_gate_mode_default_soft(tmp_path, monkeypatch):
     assert config.hook_gate_mode("quality_gate") == "soft"
 
 
+def test_binary_hooks_config_stays_fail_closed(tmp_path, monkeypatch):
+    """A non-UTF-8 custom/config.toml must not kill the decision path (E-017).
+
+    UnicodeDecodeError is a ValueError, not OSError, so it used to escape both
+    `_read_hooks_section` and `_validate_hooks_config` — leaving the guard with
+    NO decision, which a runner may read as an allow. The defaults must win so
+    the code gate stays `hard` (fail-closed) and the audit still parses.
+    """
+    from modules import config
+    cfg = tmp_path / "config.toml"
+    cfg.write_bytes(b"\xff\xfe binary junk")
+    monkeypatch.setattr(config, "_HOOKS_CFG", cfg)
+    _clear_hooks_cache()
+    assert config.hook_gate_mode("code_guard") == "hard"
+    assert config.hook_gate_mode("quality_gate") == "soft"
+    assert config._validate_hooks_config() == (True, "")
+    _clear_hooks_cache()
+
+
 def test_hook_gate_values_read_independently(tmp_path, monkeypatch):
     """quality_gate and deploy_guard are independent — hard on one must not
     leak to the other."""

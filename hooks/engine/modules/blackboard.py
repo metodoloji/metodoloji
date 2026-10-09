@@ -355,7 +355,11 @@ def read_board(project_root: str) -> dict:
 def _replay_events(paths: dict) -> dict:
     """Fold the event log into a board (used to rebuild a lost snapshot).
     
-    Skips malformed JSON lines gracefully. (HIGH #1 / ISSUE #45)
+    Skips malformed JSON lines gracefully. (HIGH #1 / ISSUE #45) An
+    undecodable log (not valid UTF-8) folds to an empty board — same policy
+    as the malformed-line skip and as `_read_snapshot`'s fail-open, and the
+    same rule E-009 set for the workflow store: the caller must never see a
+    traceback on a file another tool could have damaged (E-017).
     """
     board = _empty_board()
     skipped_lines = 0
@@ -385,7 +389,9 @@ def _replay_events(paths: dict) -> dict:
                     # (HIGH #1: Corruption recovery - keep as much state as possible)
                     skipped_lines += 1
                     continue
-    except OSError:
+    except (OSError, UnicodeDecodeError):
+        # A missing log is empty (OSError); a log that is not valid UTF-8 is
+        # undecodable, so it too folds to an empty board instead of raising.
         pass
     
     # Store skipped line count for diagnostics (can be exposed in doctor())
