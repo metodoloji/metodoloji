@@ -290,7 +290,9 @@ def record_scope(record_path: str) -> str:
     """Return the 'Code Scope' field of a record ('' when missing)."""
     try:
         text = open(record_path, encoding="utf-8").read()
-    except OSError:
+    except (OSError, UnicodeDecodeError):
+        # Missing OR not valid UTF-8: a record with no readable scope authorizes
+        # nothing, so '' is the fail-safe direction and never a traceback (E-016).
         return ""
     return record_fields(text).get("Code Scope", "").strip()
 
@@ -330,7 +332,7 @@ def validate_doc(path: str) -> int:
     """Validate a Mod B/C/D record for completeness and honesty. 0=OK, 1=issues, 2=not a doc."""
     try:
         text = open(path, encoding="utf-8").read()
-    except OSError as exc:
+    except (OSError, UnicodeDecodeError) as exc:
         print(f"ERROR: cannot read: {path}: {exc}", file=sys.stderr)
         return 2
     fields = record_fields(text)
@@ -867,7 +869,7 @@ def amend_plan_cli(record_path: str, files: list[str], reason: str) -> int:
         return 2
     try:
         text = open(record_path, encoding="utf-8").read()
-    except OSError as exc:
+    except (OSError, UnicodeDecodeError) as exc:
         print(f"ERROR: cannot read record: {record_path}: {exc}", file=sys.stderr)
         return 2
     fields = record_fields(text)
@@ -959,9 +961,10 @@ def main() -> int:
     try:
         with open(args.record, encoding="utf-8") as fh:
             text = fh.read()
-    except OSError as exc:
+    except (OSError, UnicodeDecodeError) as exc:
         # rc 1 collides with REJECTED; an unreadable record is a PRE-MEASUREMENT
-        # config error (bench_gate_lifecycle A1e caught the raw traceback).
+        # config error (bench_gate_lifecycle A1e caught the raw traceback). A
+        # non-UTF-8 record is the same class (E-016): refuse, never crash.
         print(f"ERROR: cannot read record: {args.record}: {exc}", file=sys.stderr)
         return 2
     fields = record_fields(text)
@@ -1150,9 +1153,10 @@ def verify(path: str) -> int:
     try:
         with open(path, encoding="utf-8") as fh:
             text = fh.read()
-    except OSError as exc:
+    except (OSError, UnicodeDecodeError) as exc:
         # rc 1 collides with FORGED/undecided; an unreadable record is a config
-        # error, not a provenance verdict (bench_gate_lifecycle A1e parity).
+        # error, not a provenance verdict (bench_gate_lifecycle A1e parity). A
+        # non-UTF-8 record is the same class (E-016): refuse, never crash.
         print(f"ERROR: cannot read record: {path}: {exc}", file=sys.stderr)
         return 2
     fields = record_fields(text)

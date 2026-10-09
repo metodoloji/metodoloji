@@ -45,6 +45,20 @@ S_STATUS_RE = re.compile(r"^\|\s*Status\s*\|\s*(.+?)\s*\|", re.MULTILINE)
 QR_STATUS_RE = re.compile(r"^\s*-\s*\*\*Status:\*\*\s*(.+?)\s*$", re.MULTILINE)
 
 
+def _read_text(path: Path) -> str | None:
+    """File text, or None when it is missing or not valid UTF-8.
+
+    A record written by another tool (or damaged) can be non-UTF-8; reading it
+    must never crash the linter (E-016: the E-009 decode seam on the record
+    tooling). Callers treat None as CORRUPT and REPORT it — never guess — so a
+    broken record surfaces instead of silently reading as "nothing to sync".
+    """
+    try:
+        return path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+
+
 def _qr_table_rows(text: str) -> list[dict]:
     """Parse a | DoD Item | Status | Evidence | Date | table into rows."""
     rows = []
@@ -91,10 +105,10 @@ def qr_index(project_root: Path) -> dict[str, str]:
     for qr_file in sorted((project_root / "docs" / "quality").glob("QR-*.md")):
         if qr_file.name.startswith("_"):
             continue
-        try:
-            owner = qr_story_owner(qr_file.read_text(encoding="utf-8"))
-        except OSError:
+        text = _read_text(qr_file)
+        if text is None:          # missing OR non-UTF-8 → no owner to index
             continue
+        owner = qr_story_owner(text)
         if owner:
             index.setdefault(owner, qr_file.relative_to(project_root).as_posix())
     return index
@@ -116,7 +130,14 @@ def compute_sync_rows(project_root: Path = ROOT) -> list[dict]:
     for s_file in stories:
         if s_file.name.startswith("_"):
             continue
-        s_text = s_file.read_text(encoding="utf-8")
+        s_text = _read_text(s_file)
+        if s_text is None:
+            # A non-UTF-8 S record is corrupt: report it, do not guess.
+            out.append({"story": s_file.name, "qr": "", "declared": "",
+                        "repair": "", "dangling": "", "s_status": "",
+                        "qr_status": "", "pending": 0, "qr_rows": 0,
+                        "needs_sync": False, "unreadable": True})
+            continue
         m = S_STATUS_RE.search(s_text)
         s_status = m.group(1).strip().lower() if m else ""
         section = _embedded_qr_section(s_text)
@@ -146,16 +167,18 @@ def compute_sync_rows(project_root: Path = ROOT) -> list[dict]:
         qr_file = project_root / qr_rel
         qr_status, qr_rows = "", []
         if qr_file.is_file():
-            qr_text = qr_file.read_text(encoding="utf-8")
-            qm = QR_STATUS_RE.search(qr_text)
-            qr_status = qm.group(1).strip() if qm else ""
-            qr_rows = _qr_table_rows(qr_text)
+            qr_text = _read_text(qr_file)
+            if qr_text is not None:
+                qm = QR_STATUS_RE.search(qr_text)
+                qr_status = qm.group(1).strip() if qm else ""
+                qr_rows = _qr_table_rows(qr_text)
         out.append({"story": s_file.name, "qr": qr_rel, "declared": declared,
                     "repair": repair, "dangling": dangling,
                     "s_status": s_status, "qr_status": qr_status,
                     "pending": len(pending), "qr_rows": len(qr_rows),
                     "needs_sync": bool(pending) and s_status == "done"
-                    and qr_status == "APPROVED" and bool(qr_rows)})
+                    and qr_status == "APPROVED" and bool(qr_rows),
+                    "unreadable": False})
     return out
 
 
@@ -247,6 +270,7 @@ def main() -> int:
     needy = [r for r in rows if r["needs_sync"]]
     repairs = [r for r in rows if r["repair"] and not r["needs_sync"]]
     dangling = [r for r in rows if r["dangling"]]
+    unreadable = [r for r in rows if r.get("unreadable")]
     print(f"stories scanned: {len(rows)}, needing sync: {len(needy)}")
     for r in needy:
         print(f"  {r['story']} <- {r['qr']} "
@@ -257,11 +281,13 @@ def main() -> int:
     for r in dangling:
         print(f"  DANGLING: {r['story']} names {r['dangling']}, which does not "
               f"exist and no QR record declares this story")
+    for r in unreadable:
+        print(f"  UNREADABLE: {r['story']} is not valid UTF-8 (corrupt record)")
     if args.apply:
         changed = apply_sync(root, dry_run=False)
         print(f"rewrote {len(changed)} file(s)")
     if args.check:
-        return 1 if (needy or repairs or dangling) else 0
+        return 1 if (needy or repairs or dangling or unreadable) else 0
     return 0
 
 

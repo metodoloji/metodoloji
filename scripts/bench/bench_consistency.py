@@ -1266,6 +1266,74 @@ def _check_techdebt_audit_covers_the_tree() -> str | None:
     return "; ".join(problems) if problems else None
 
 
+def _check_record_decode_refusals() -> str | None:
+    """E-016: a non-UTF-8 record is an honest refusal on every record tool.
+
+    E-009 closed the decode seam on the workflow/config/marker readers and
+    explicitly left "the gate (run_experiment.py) and the check scripts"
+    unprobed. The seam was real: the gate (--run/--verify/--validate/
+    --amend-plan), both record generators and the S<->QR sync caught only
+    OSError, and UnicodeDecodeError is a ValueError, so a binary external file
+    crashed each with a traceback. The probe drives every tool against a
+    binary file and demands a named refusal (non-zero exit, no traceback).
+    """
+    import tempfile  # noqa: PLC0415
+
+    binary = b"\xff\xfe\x00 binary \x80 junk"
+    problems: list[str] = []
+    with tempfile.TemporaryDirectory() as td:
+        bad = pathlib.Path(td) / "bin.md"
+        bad.write_bytes(binary)
+        stories = pathlib.Path(td) / "docs" / "development" / "stories"
+        quality = pathlib.Path(td) / "docs" / "quality"
+        stories.mkdir(parents=True)
+        quality.mkdir(parents=True)
+        (quality / "QR-001.md").write_bytes(binary)
+        (stories / "S-001.md").write_bytes(binary)
+        cases = (
+            (["skills/bmad-research-experiment/scripts/run_experiment.py",
+              "--record", str(bad), "--run", "python -c pass"],
+             "cannot read record"),
+            (["scripts/create-qr-record.py", "--story", str(bad),
+              "--project-root", td], "not valid UTF-8"),
+            (["scripts/create-methodology-record.py", "--story", str(bad),
+              "--project-root", td], "not valid UTF-8"),
+            (["scripts/sync-story-qr.py", "--check", "--project-root", td],
+             "UNREADABLE"),
+        )
+        for argv, needle in cases:
+            proc = subprocess.run([sys.executable, *argv], cwd=ROOT,
+                                  capture_output=True, text=True,
+                                  encoding="utf-8", errors="replace", timeout=60)
+            combined = (proc.stdout or "") + (proc.stderr or "")
+            if "Traceback" in combined:
+                problems.append(f"{argv[0]} crashed: {combined.strip()[-140:]}")
+            elif proc.returncode == 0:
+                problems.append(f"{argv[0]} accepted a non-UTF-8 file (exit 0)")
+            elif needle not in combined:
+                problems.append(f"{argv[0]} refusal does not name the cause")
+    groups = {
+        "skills/bmad-research-experiment/scripts/tests/test_run_experiment.py": (
+            "test_verify_binary_record_refuses_not_crash",
+            "test_run_on_binary_record_refuses_not_crash",
+            "test_validate_doc_binary_file_refuses_not_crash",
+            "test_record_scope_binary_file_is_empty_not_crash",
+            "test_amend_plan_binary_record_refuses_not_crash",
+        ),
+        "scripts/tests/test_record_generators.py": (
+            "test_qr_generator_refuses_a_non_utf8_story",
+            "test_s_generator_refuses_a_non_utf8_story",
+            "test_sync_story_qr_reports_a_non_utf8_record_and_check_fails",
+        ),
+    }
+    for rel, names in groups.items():
+        src = _read(rel)
+        missing = [n for n in names if n not in src]
+        if missing:
+            problems.append(f"{rel}: missing E-016 tests {missing}")
+    return "; ".join(problems) if problems else None
+
+
 def _run_pytest() -> str | None:
     """The falsifier: the whole suite must stay green."""
     proc = subprocess.run([sys.executable, "-m", "pytest", "-q"],
@@ -1361,6 +1429,8 @@ def build_checks() -> list[tuple[str, object]]:
                    _check_free_surface_parity))
     checks.append(("tech-debt audit covers the shipped tree and is clean (E-015)",
                    _check_techdebt_audit_covers_the_tree))
+    checks.append(("record tooling refuses a non-UTF-8 file (E-016)",
+                   _check_record_decode_refusals))
     checks.append(("pytest suite green (falsifier)", _run_pytest))
     checks.append(("hooks.json in sync with generator", _run_hooks_json_sync))
     return checks

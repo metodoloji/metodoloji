@@ -777,3 +777,46 @@ def test_missing_field_hint_names_similar_heading():
 def test_missing_field_hint_without_candidate_points_to_template():
     hint = gate._missing_field_hint("- **Theory:** t\n", "Code Scope")
     assert "_template.md" in hint and "similar" not in hint
+
+
+# --- E-016: a non-UTF-8 record is an honest refusal, never a traceback ---------
+# E-009 closed the decode seam on the workflow/config/marker readers and
+# explicitly left "the gate (run_experiment.py) and the check scripts" unprobed.
+# The seam was real: every one of these read sites caught only OSError, and
+# UnicodeDecodeError is a ValueError, so a binary record escaped as a crash.
+
+_BINARY = b"\xff\xfe\x00 binary \x80 junk"
+
+
+def _binary_record(tmp_path):
+    p = tmp_path / "E-bin.md"
+    p.write_bytes(_BINARY)
+    return p
+
+
+def test_record_scope_binary_file_is_empty_not_crash(tmp_path):
+    assert gate.record_scope(str(_binary_record(tmp_path))) == ""
+
+
+def test_validate_doc_binary_file_refuses_not_crash(tmp_path):
+    assert gate.validate_doc(str(_binary_record(tmp_path))) == 2
+
+
+def test_amend_plan_binary_record_refuses_not_crash(tmp_path):
+    assert gate.amend_plan_cli(str(_binary_record(tmp_path)), ["x.py"], "reason") == 2
+
+
+def test_verify_binary_record_refuses_not_crash(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("BMAD_GATE_KEY", "test-secret")
+    assert gate.verify(str(_binary_record(tmp_path))) == 2
+    err = capsys.readouterr().err
+    assert "cannot read record" in err and "Traceback" not in err
+
+
+def test_run_on_binary_record_refuses_not_crash(tmp_path, monkeypatch, capsys):
+    p = _binary_record(tmp_path)
+    monkeypatch.setattr(sys, "argv", ["run_experiment.py", "--record", str(p),
+                                      "--run", "python -c pass"])
+    assert gate.main() == 2
+    err = capsys.readouterr().err
+    assert "cannot read record" in err and "Traceback" not in err

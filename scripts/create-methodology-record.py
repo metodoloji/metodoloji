@@ -239,10 +239,12 @@ def create_methodology_record(meta: dict, sira: int, project_root: Path) -> Path
     # Ensure output directory exists
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    if template_path.exists():
+    try:
         template = template_path.read_text(encoding="utf-8")
-    else:
-        # Minimal template if file doesn't exist
+    except (OSError, UnicodeDecodeError):
+        # A missing template (fresh tree) or an unreadable one degrades to the
+        # minimal shape; the record is still written rather than crashing on a
+        # non-UTF-8 file (E-016).
         template = "# Methodology Record: S-{{sira}}\n\n| Field | Value |\n|------|-------|\n| Date | {{tarih}} |\n| Status | {{durum}} |\n"
 
     # Build AC table — the metadata columns come from the story, so the record
@@ -461,8 +463,13 @@ def main():
         print(f"❌ Story file not found: {story_path}", file=sys.stderr)
         sys.exit(1)
 
-    # Read and parse story
-    content = story_path.read_text(encoding="utf-8")
+    # Read and parse story — a non-UTF-8 file is an honest refusal, never a
+    # traceback (E-016: the E-009 decode seam on the record tooling).
+    try:
+        content = story_path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        print(f"❌ Story file is not valid UTF-8: {story_path}", file=sys.stderr)
+        sys.exit(1)
     meta = extract_story_metadata(content)
     meta["native_story_path"] = story_path.relative_to(project_root).as_posix()
 

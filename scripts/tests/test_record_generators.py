@@ -21,6 +21,7 @@ fragments, on the shipped template, and on the shipped story.
 
 import importlib.util
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -335,3 +336,43 @@ def test_mirror_heartbeat_honors_kill_switch(tmp_path, monkeypatch):
         board, "QR-001", "v", to="bmad-production-readiness",
         sender="bmad-quality-record", note="n")
     assert _bb_pending(board, "bmad-production-readiness") == []
+
+
+# --- E-016: a non-UTF-8 record is an honest refusal, never a traceback ---------
+# The record tooling reads a story/record that any editor or tool may corrupt;
+# a UnicodeDecodeError (a ValueError, not OSError) used to escape as a crash.
+
+def _run_script(script: str, *args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [sys.executable, str(PLUGIN / "scripts" / script), *args],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        timeout=60)
+
+
+def test_qr_generator_refuses_a_non_utf8_story(tmp_path):
+    story = tmp_path / "bin.md"
+    story.write_bytes(b"\xff\xfe\x00 binary \x80 junk")
+    r = _run_script("create-qr-record.py", "--story", str(story),
+                    "--project-root", str(tmp_path))
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "not valid UTF-8" in r.stderr and "Traceback" not in r.stderr
+
+
+def test_s_generator_refuses_a_non_utf8_story(tmp_path):
+    story = tmp_path / "bin.md"
+    story.write_bytes(b"\xff\xfe\x00 binary \x80 junk")
+    r = _run_script("create-methodology-record.py", "--story", str(story),
+                    "--project-root", str(tmp_path))
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "not valid UTF-8" in r.stderr and "Traceback" not in r.stderr
+
+
+def test_sync_story_qr_reports_a_non_utf8_record_and_check_fails(tmp_path):
+    (tmp_path / "docs" / "quality").mkdir(parents=True)
+    (tmp_path / "docs" / "development" / "stories").mkdir(parents=True)
+    (tmp_path / "docs" / "quality" / "QR-001.md").write_bytes(b"b \xff\xfe junk")
+    (tmp_path / "docs" / "development" / "stories" / "S-001.md").write_bytes(
+        b"b \xff\xfe junk")
+    r = _run_script("sync-story-qr.py", "--check", "--project-root", str(tmp_path))
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "UNREADABLE" in r.stdout and "Traceback" not in (r.stdout + r.stderr)

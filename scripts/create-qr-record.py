@@ -281,7 +281,7 @@ def _retarget_path_line(path: Path, rel_qr: str) -> bool:
         return False
     try:
         text = path.read_text(encoding="utf-8")
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         return False
     new = QR_PATH_LINE_RE.sub(lambda m: m.group(1) + rel_qr + m.group(3), text)
     if new == text:
@@ -308,7 +308,7 @@ def retarget_qr_references(story_path: Path, qr_path: Path,
         touched.append(story_path.relative_to(project_root).as_posix())
     try:
         text = story_path.read_text(encoding="utf-8")
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         text = ""
     m = METHOD_POINTER_RE.search(text)
     if m:
@@ -375,8 +375,13 @@ def main():
         print(f"❌ Story file not found: {story_path}", file=sys.stderr)
         sys.exit(1)
 
-    # Read and parse story
-    content = story_path.read_text(encoding="utf-8")
+    # Read and parse story — a non-UTF-8 file is an honest refusal, never a
+    # traceback (E-016: the E-009 decode seam on the record tooling).
+    try:
+        content = story_path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        print(f"❌ Story file is not valid UTF-8: {story_path}", file=sys.stderr)
+        sys.exit(1)
     meta = extract_story_metadata(content)
     dod_items = extract_dod_items(content)
 
