@@ -182,3 +182,40 @@ def test_bench_engine_module_scan_covers_every_module():
         f"engine modules missing from bench ENGINE_MODULES: {unlisted}. "
         "Add them so the duplicate-def guard covers them."
     )
+
+
+def test_experiment_lineage_declared_and_enforced():
+    """E-022: the gate must refuse a draft with no Lineage, templates must ship it.
+
+    A new experiment must declare what it carries from the corpus ('none' for a
+    genuinely new line of inquiry, otherwise the prior E-ids) — nothing asked
+    before this, so a draft that opened no sibling passed as one that read all
+    of them. This calls the bench's check, which drives the gate on a
+    Lineage-less draft, pins both E templates, and re-resolves every declared
+    ref under docs/experiments/.
+    """
+    bench = _load_bench()
+    problem = bench._check_experiment_lineage_enforced()
+    assert problem is None, problem
+
+
+def test_negtest_covers_the_provenance_gate():
+    """The negtest must break §3 and its count must match its own headers (E-023).
+
+    ``--negtest`` is the audit's proof that it still catches breakage, yet
+    ``total_stages`` drove the banners AND the closing success line, so a
+    deleted stage would still print "all N successful" — and §3 (the
+    forged-token gate) had no stage while the runbooks advertised 7 for an
+    8-stage script. This calls the bench's check, which pins the declared count
+    to the headers, demands a §3 stage, and pins both runbooks to that count.
+    """
+    bench = _load_bench()
+    problem = bench._check_negtest_stage_wiring()
+    assert problem is None, problem
+
+
+def test_e_templates_carry_the_lineage_field():
+    """Both E template copies must ship the Lineage field (E-022)."""
+    for rel in ("templates/_template_E.md", "docs/experiments/_template.md"):
+        text = (PLUGIN / rel).read_text(encoding="utf-8", errors="replace")
+        assert "**Lineage:**" in text, f"{rel} is missing the Lineage field"

@@ -20,16 +20,18 @@
 #       record-prefix menu code on a non-producing skill)
 #   6f. Trigger/description collisions (routing determinism)
 #   6g. No namespaced-tool priming tokens in shipped agent-facing text
-#   Coverage map (authoritative for docs/wiki — see docs/SELF-CHECK.md)
+#   Coverage map: the numbered sections 1–6g above — each one's invariant is
+#   pinned by scripts/bench/bench_consistency.py (run it via the gate).
 #   docs/images/*.png are illustrative, NOT self-check inputs.
 #
 # Usage:  sh scripts/check-plugin.sh   (from the plugin root or anywhere;
 #            target project root is cwd or $OPENHANDS_PROJECT_DIR)
 #            sh scripts/check-plugin.sh --negtest
-#            (negative tests, 8 stages: §6a .env inventory, §2b BRIDGE
+#            (negative tests, 9 stages: §6a .env inventory, §2b BRIDGE
 #             visibility ×2 (skill + agent principles), §1b dispatch locator
 #             drift, §6c template copy drift, §6d init marker integrity,
-#             §6e help catalog integrity, §6g priming-token scan —
+#             §6e help catalog integrity, §6g priming-token scan,
+#             §3 forged-token detection (hand-edited Gate Evidence) —
 #             break → catch MISS → restore)
 # Output:    [OK] / [WARNING] / [ERROR] at the start of each line; overall status at the end.
 
@@ -55,12 +57,12 @@ from pathlib import Path
 
 PLUGIN = Path(os.environ["PLUGIN_ROOT"])
 check_script = PLUGIN / "scripts" / "check-plugin.sh"
-total_stages = 8
+total_stages = 9
 # The full check runs every section (engine audit, gate, records, catalog) and
 # takes ~65s on Windows CI-class disks, so the 60s budget it used to carry made
 # stage 1 fail as a timeout rather than as a fixable defect.
 
-# Stage 1/8: .env line removed from .gitignore → §6a.2 should catch an ERROR
+# Stage 1/9: .env line removed from .gitignore → §6a.2 should catch an ERROR
 print(f"[1/{total_stages}] does §6a emit an ERROR when .env is removed from .gitignore")
 gitignore = PLUGIN / ".gitignore"
 orig_gitignore_bytes = gitignore.read_bytes()
@@ -81,7 +83,7 @@ try:
 finally:
     gitignore.write_bytes(orig_gitignore_bytes)  # byte-exact: no CRLF/LF churn
 
-# Stage 2/8: BRIDGE removed from custom/bmad-dev-story.toml → §2b should catch a MISS
+# Stage 2/9: BRIDGE removed from custom/bmad-dev-story.toml → §2b should catch a MISS
 print(f"[2/{total_stages}] does §2b emit a MISS when BRIDGE is removed from custom/bmad-dev-story.toml")
 toml = PLUGIN / "custom" / "bmad-dev-story.toml"
 resolver = PLUGIN / "hooks" / "engine" / "resolve_customization.py"
@@ -117,7 +119,7 @@ try:
 finally:
     toml.write_bytes(orig_bytes)
 
-# Stage 3/8: BRIDGE removed from an agent-principles surface → §2b should catch a MISS
+# Stage 3/9: BRIDGE removed from an agent-principles surface → §2b should catch a MISS
 print(f"[3/{total_stages}] does §2b emit a MISS when BRIDGE is removed from custom/bmad-agent-dev.toml (agent.principles)")
 atoml = PLUGIN / "custom" / "bmad-agent-dev.toml"
 askill = PLUGIN / "skills" / "bmad-agent-dev"
@@ -149,7 +151,7 @@ try:
 finally:
     atoml.write_bytes(aorig_bytes)
 
-# Stage 4/8: hooks.json locator desynced in ONE hook → §1b should catch drift
+# Stage 4/9: hooks.json locator desynced in ONE hook → §1b should catch drift
 print(f"[4/{total_stages}] does §1b catch a desynced hooks.json dispatch locator")
 hj = PLUGIN / "hooks" / "hooks.json"
 hj_bytes = hj.read_bytes()
@@ -174,7 +176,7 @@ try:
 finally:
     hj.write_bytes(hj_bytes)  # byte-exact: no CRLF/LF churn
 
-# Stage 5/8: docs template copy desynced from templates/ → §6c should catch DRIFT
+# Stage 5/9: docs template copy desynced from templates/ → §6c should catch DRIFT
 print(f"[5/{total_stages}] does §6c catch template copy drift")
 tmpl = PLUGIN / "templates" / "_template_IR.md"
 cp = PLUGIN / "docs" / "development" / "_template_IR.md"
@@ -199,7 +201,7 @@ finally:
     cp.write_bytes(cp_orig)
     tmpl.write_bytes(tmpl_orig)
 
-# Stage 6/8: init marker removed while the skeleton is present → §6d should ERROR
+# Stage 6/9: init marker removed while the skeleton is present → §6d should ERROR
 print(f"[6/{total_stages}] does §6d catch a missing init marker with the skeleton present")
 marker = PLUGIN / ".metodoloji" / "initialized"
 if not (PLUGIN / "docs" / "experiments" / "_template.md").is_file():
@@ -224,7 +226,7 @@ try:
 finally:
     marker.write_bytes(marker_orig)  # byte-exact restore
 
-# Stage 7/8: a second skill inside one module wears an existing menu code →
+# Stage 7/9: a second skill inside one module wears an existing menu code →
 # §6e should catch the intra-module duplicate (the ambiguity class that made
 # "[SP]" mean two different skills).
 print(f"[7/{total_stages}] does §6e catch a duplicate menu code inside one module")
@@ -252,7 +254,7 @@ try:
 finally:
     catalog.write_bytes(cat_orig)  # byte-exact restore
 
-# Stage 8/8: a namespaced-tool token reintroduced into agent-facing text →
+# Stage 8/9: a namespaced-tool token reintroduced into agent-facing text →
 # §6g should catch the priming class that made a real session emit `default.Bash`
 # (harness: "No such tool available: default.X") after reading its own docs.
 print(f"[8/{total_stages}] does §6g catch a reintroduced `default.Bash` priming token")
@@ -272,6 +274,47 @@ try:
         sys.exit(1)
 finally:
     audit_cmd.write_bytes(audit_orig)  # byte-exact restore
+
+# Stage 9/9: a record's Gate Evidence token is corrupted by hand → §3 must
+# report the forged approval. §3 is the gate that produced the three FORGED
+# errors E-023 repaired, and it was the one section no stage ever broke.
+print(f"[9/{total_stages}] does §3 catch a hand-edited Gate Evidence token")
+victim = PLUGIN / "docs" / "experiments" / "E-022.md"
+verify_cmd = (PLUGIN / "skills" / "bmad-research-experiment" / "scripts"
+              / "run_experiment.py")
+if not victim.is_file():
+    print("  [ERROR] test setup broken: docs/experiments/E-022.md missing")
+    sys.exit(1)
+probe = subprocess.run(
+    [sys.executable, str(verify_cmd), "--verify", "--record", str(victim)],
+    capture_output=True, text=True, encoding="utf-8", errors="replace")
+if probe.returncode != 0:
+    # Precondition, not a skip: on a machine whose ring cannot verify the
+    # victim, §3 would already report FORGED and the stage would "pass" on a
+    # pre-existing problem instead of proving detection of THIS tamper.
+    print("  [ERROR] test setup broken: E-022 does not verify under this "
+          "machine's trust ring — import the approving key first "
+          "(run_experiment.py --import-key)")
+    sys.exit(1)
+orig_rec = victim.read_bytes()
+try:
+    tampered = orig_rec.replace(b"GATE-OK-E-022-", b"GATE-OK-E-02X-", 1)
+    if tampered == orig_rec:
+        print("  [ERROR] test setup broken: no GATE-OK-E-022- token to corrupt")
+        sys.exit(1)
+    victim.write_bytes(tampered)
+    r = subprocess.run(
+        ["sh", str(check_script)],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        timeout=300, cwd=str(PLUGIN),
+    )
+    if "approved but --verify failed" in r.stdout and r.returncode == 1:
+        print("  [OK] §3 forged-token ERROR caught, exit=1")
+    else:
+        print(f"  [ERROR] §3 forged-token ERROR expected, output: ...{r.stdout[-400:]!r}")
+        sys.exit(1)
+finally:
+    victim.write_bytes(orig_rec)  # byte-exact restore
 
 print(f"[OK] all {total_stages} negtest stages successful")
 sys.exit(0)

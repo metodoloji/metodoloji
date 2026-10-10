@@ -22,6 +22,11 @@ lines; the gate writes them.
 - **Sample Size n:** <sample size — the gate parses the denominator (x/y) from the measurement output; this field is informational>
 - **Code Scope:** <glob patterns of files this approval opens, comma/space separated; e.g. src/** , lib/engine/*.py>
   <!-- "none" = experiment that produces no code. Writes to files outside scope are blocked by the guard. -->
+- **Lineage:** <none | E-NNN[, E-NNN ...] — what this carries from the prior experiments>  <!-- prior-experiment carry-forward; the gate REFUSES a draft without this line (E-022) -->
+  <!-- 'none' = a genuinely new line of inquiry — the judgment is made explicitly, never skipped. Otherwise
+       cite every prior experiment this one builds on / supersedes (especially a REJECTED record whose Code
+       Scope it re-treads: P9 — a rejection is a lesson the next record carries), and say what is inherited.
+       Every cited id must resolve to docs/experiments/E-NNN.md; the gate refuses a dangling or self-citing claim. -->
 - **Raw Results:** <measurement — the gate writes this>
 - **Uncertainty:** <gate writes: small sample | none | n unknown>
 - **Metric:** <gate writes: consistent | MISMATCH — from the measured metric of the --run output>

@@ -820,3 +820,100 @@ def test_run_on_binary_record_refuses_not_crash(tmp_path, monkeypatch, capsys):
     assert gate.main() == 2
     err = capsys.readouterr().err
     assert "cannot read record" in err and "Traceback" not in err
+
+
+# --- Lineage (E-022): a new experiment carries the prior ones ----------------
+
+def _draft(tmp_path, name="E-022.md", scope="scripts/bench/bench_consistency.py",
+           lineage=None):
+    lines = [
+        f"## Experiment: {name[:-3]} — probe",
+        "",
+        "- **Date:** 10.10.2026",
+        "- **Status:** planned",
+        "- **Theory:** probe",
+        '- **Hypothesis:** H-022: "consistency_accuracy >= 0.90"',
+        "- **Measurement Metrics:** consistency_accuracy >= 0.90",
+        "- **Experiment Design:** probe",
+        "- **Sample Size n:** 1",
+        f"- **Code Scope:** {scope}",
+    ]
+    if lineage is not None:
+        lines.append(f"- **Lineage:** {lineage}")
+    text = "\n".join(lines) + "\n"
+    p = tmp_path / name
+    p.write_text(text, encoding="utf-8")
+    return p, text
+
+
+def _rejected(tmp_path, name, scope):
+    (tmp_path / name).write_text(
+        f"## Experiment: {name[:-3]}\n- **Code Scope:** {scope}\n"
+        "- **Decision:** REJECTED — H-009: measured=0.1 < threshold=0.9\n",
+        encoding="utf-8")
+
+
+def test_lineage_missing_field_refused(tmp_path):
+    _, text = _draft(tmp_path, lineage=None)
+    issue = gate.lineage_issue(text, tmp_path)
+    assert issue and "Lineage" in issue
+
+
+def test_lineage_none_is_accepted(tmp_path):
+    _, text = _draft(tmp_path, lineage="none — new line of inquiry")
+    assert gate.lineage_issue(text, tmp_path) is None
+
+
+def test_lineage_resolves_existing_records(tmp_path):
+    (tmp_path / "E-018.md").write_text("## Experiment: E-018\n", encoding="utf-8")
+    (tmp_path / "E-021.md").write_text("## Experiment: E-021\n", encoding="utf-8")
+    _, text = _draft(tmp_path, lineage="E-018, E-021 — same audit-widening class")
+    assert gate.lineage_issue(text, tmp_path) is None
+
+
+def test_lineage_dangling_ref_refused(tmp_path):
+    _, text = _draft(tmp_path, lineage="E-777")
+    issue = gate.lineage_issue(text, tmp_path)
+    assert issue and "E-777" in issue
+
+
+def test_lineage_self_reference_refused(tmp_path):
+    _, text = _draft(tmp_path, lineage="E-022, E-018")
+    issue = gate.lineage_issue(text, tmp_path)
+    assert issue and "itself" in issue
+
+
+def test_lineage_malformed_value_refused(tmp_path):
+    _, text = _draft(tmp_path, lineage="see the earlier work")
+    issue = gate.lineage_issue(text, tmp_path)
+    assert issue and "neither" in issue
+
+
+def test_lineage_none_with_ids_is_contradictory(tmp_path):
+    _, text = _draft(tmp_path, lineage="none, E-018")
+    issue = gate.lineage_issue(text, tmp_path)
+    assert issue and "none" in issue
+
+
+def test_lineage_silent_about_rejected_scope_refused(tmp_path):
+    # P9: a REJECTED record whose scope this draft re-treads must be carried.
+    _rejected(tmp_path, "E-009.md", "scripts/bench/bench_consistency.py")
+    (tmp_path / "E-018.md").write_text("## Experiment: E-018\n", encoding="utf-8")
+    _, text = _draft(tmp_path, lineage="E-018")
+    issue = gate.lineage_issue(text, tmp_path)
+    assert issue and "E-009" in issue
+
+
+def test_lineage_carrying_the_rejected_record_is_accepted(tmp_path):
+    _rejected(tmp_path, "E-009.md", "scripts/bench/bench_consistency.py")
+    _, text = _draft(tmp_path, lineage="E-009 — carries the rejection")
+    assert gate.lineage_issue(text, tmp_path) is None
+
+
+def test_lineage_main_refuses_a_command_line_draft(tmp_path, monkeypatch, capsys):
+    p, _ = _draft(tmp_path, lineage=None)
+    monkeypatch.setattr(sys, "argv", ["run_experiment.py", "--record", str(p),
+                                      "--run", "python -c pass"])
+    assert gate.main() == 2
+    err = capsys.readouterr().err
+    assert "Lineage" in err and "Traceback" not in err

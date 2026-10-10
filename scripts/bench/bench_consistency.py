@@ -1625,6 +1625,122 @@ def _check_bridge_record_target_audit_covers_every_producer() -> str | None:
     return "; ".join(problems) if problems else None
 
 
+def _check_experiment_lineage_enforced() -> str | None:
+    """E-022: a new experiment must declare what the prior ones carry.
+
+    The E corpus is the methodology's memory, but nothing asked a new record
+    what the earlier ones already proved: the gate validated Theory/Hypothesis/
+    Metrics/Design/Code Scope and then measured, so a draft that opened none of
+    its siblings passed exactly as one that read all of them (no record in the
+    tree carried a lineage field at all). This check drives the gate on a
+    minimal valid draft with no ``Lineage`` line and demands a refusal naming
+    the field, pins both E templates to ship it, and re-resolves every
+    ``Lineage`` ref declared under ``docs/experiments/`` so a dangling claim
+    cannot sit in the corpus (legacy refs-less records are skipped here: the
+    gate is what covers a NEW record).
+    """
+    import tempfile  # noqa: PLC0415
+
+    problems: list[str] = []
+    draft = ("## Experiment: E-999 — probe\n\n"
+             "- **Date:** 10.10.2026\n"
+             "- **Status:** planned\n"
+             "- **Theory:** probe\n"
+             '- **Hypothesis:** H-999: "consistency_accuracy >= 0.90"\n'
+             "- **Measurement Metrics:** consistency_accuracy >= 0.90\n"
+             "- **Experiment Design:** probe\n"
+             "- **Sample Size n:** 1\n"
+             "- **Code Scope:** none\n")
+    with tempfile.TemporaryDirectory() as td:
+        rec = pathlib.Path(td) / "E-999.md"
+        rec.write_text(draft, encoding="utf-8")
+        proc = subprocess.run(
+            [sys.executable,
+             "skills/bmad-research-experiment/scripts/run_experiment.py",
+             "--record", str(rec), "--run", "python -c pass"],
+            cwd=ROOT, capture_output=True, text=True, encoding="utf-8",
+            errors="replace", timeout=120,
+            # stdin must be an explicit handle: pytest's capture replaces the
+            # std handles, and a spawned child then dies on Windows with
+            # WinError 6/50 (invalid/unsupported handle) instead of running.
+            stdin=subprocess.DEVNULL)
+        combined = (proc.stdout or "") + (proc.stderr or "")
+    if proc.returncode != 2 or "Lineage" not in combined:
+        problems.append(
+            f"gate did not refuse a Lineage-less draft (exit {proc.returncode}): "
+            f"{combined.strip()[-140:]}")
+    for rel in ("templates/_template_E.md", "docs/experiments/_template.md"):
+        if "**Lineage:**" not in _read(rel):
+            problems.append(f"{rel} does not ship the 'Lineage' field")
+    field_re = re.compile(r"^\s*-\s*\*\*Lineage:\*\*\s*(.*)$", re.MULTILINE)
+    exp_dir = ROOT / "docs" / "experiments"
+    for path in sorted(exp_dir.glob("E-*.md")):
+        m = field_re.search(path.read_text(encoding="utf-8", errors="replace"))
+        if not m:
+            continue  # legacy record: predates the field; the gate covers new ones
+        for ref in sorted(set(re.findall(r"\bE-\d+\b", m.group(1)))):
+            if ref == path.stem:
+                problems.append(f"{path.name}: 'Lineage' cites itself")
+            elif not (exp_dir / f"{ref}.md").is_file():
+                problems.append(f"{path.name}: 'Lineage' ref {ref} has no record")
+    return "; ".join(problems) if problems else None
+
+
+def _check_negtest_stage_wiring() -> str | None:
+    """E-023: the negative test's declared count, its headers and the docs must agree.
+
+    ``check-plugin.sh --negtest`` is the proof that the audit still catches
+    breakage, but until now its own count was unfalsified: ``total_stages = 8``
+    drove both the ``[N/total_stages]`` banners and the closing "all N …
+    successful", so deleting a stage header left the run reporting success for
+    a suite that no longer existed — and §3, the forged-token gate that
+    produced three FORGED errors in the audit, had no stage at all, while
+    GUIDE/KILAVUZ still advertised "7 stages" for an 8-stage script. This pins
+    the declared count to the headers that exist (indices 1..N, at least one
+    naming §3) and to both runbooks' advertised count.
+    """
+    problems: list[str] = []
+    script = _read("scripts/check-plugin.sh")
+    m = re.search(r"total_stages = (\d+)", script)
+    if not m:
+        return "check-plugin.sh negtest no longer declares total_stages"
+    declared = int(m.group(1))
+    headers = [int(i) for i in re.findall(
+        r'print\(f"\[(\d+)/\{total_stages\}\]', script)]
+    if headers != list(range(1, declared + 1)):
+        problems.append(
+            f"negtest stages mismatch: total_stages={declared}, headers={headers}")
+    titles = re.findall(r'print\(f"\[\d+/\{total_stages\}\] ([^"]+)"\)', script)
+    if not any("§3" in t for t in titles):
+        problems.append("negtest has no §3 stage — the forged-token gate stays unproven")
+    for rel, word in (("GUIDE.md", "stages"), ("KILAVUZ.md", "aşama")):
+        claim = re.search(
+            rf"check-plugin\.sh --negtest\s+#\s*(\d+)\s+{word}", _read(rel))
+        if not claim:
+            problems.append(f"{rel}: no 'check-plugin.sh --negtest # N {word}' claim")
+        elif int(claim.group(1)) != declared:
+            problems.append(f"{rel} advertises {claim.group(1)} negtest {word}, "
+                            f"the script declares {declared}")
+    # The script's OWN header states the count too — that is where §6g and §3
+    # were added without anyone bumping it (and it pointed at a docs/ file that
+    # is not in the tree at all).
+    hdr = re.search(r"negative tests, (\d+) stages", script)
+    if not hdr:
+        problems.append("check-plugin.sh header no longer states the negtest stage count")
+    elif int(hdr.group(1)) != declared:
+        problems.append(f"check-plugin.sh header advertises {hdr.group(1)} negtest "
+                        f"stages, total_stages={declared}")
+    # Every docs/*.md the script names must be a file that exists (E-019 class:
+    # a live surface must not point at a missing record). Placeholders
+    # (QR-NNN, {token}) are skipped — they are instructions, not references.
+    for ref in sorted(set(re.findall(r"docs/[A-Za-z0-9_./-]+\.md", script))):
+        if any(c in ref for c in "{}<$") or "NNN" in ref:
+            continue
+        if not (ROOT / ref).is_file():
+            problems.append(f"check-plugin.sh references a file not in the tree: {ref}")
+    return "; ".join(problems) if problems else None
+
+
 def _run_pytest() -> str | None:
     """The falsifier: the whole suite must stay green."""
     proc = subprocess.run([sys.executable, "-m", "pytest", "-q"],
@@ -1732,6 +1848,10 @@ def build_checks() -> list[tuple[str, object]]:
                    _check_bridge_feeder_audit_covers_every_feeder))
     checks.append(("producer record targets audited (E-021)",
                    _check_bridge_record_target_audit_covers_every_producer))
+    checks.append(("experiment lineage declared and enforced (E-022)",
+                   _check_experiment_lineage_enforced))
+    checks.append(("negtest counts and check-plugin doc pointers pinned (E-023)",
+                   _check_negtest_stage_wiring))
     checks.append(("pytest suite green (falsifier)", _run_pytest))
     checks.append(("hooks.json in sync with generator", _run_hooks_json_sync))
     return checks

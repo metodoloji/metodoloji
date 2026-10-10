@@ -561,7 +561,7 @@ Suggested order: pytest first (engine behaviour), then check-plugin (the widest 
 Negative tests (proof the gates actually work):
 
 ```bash
-sh scripts/check-plugin.sh --negtest   # 7 stages: .env/.gitignore, 2 BRIDGE removals (#2b), #1b hooks.json, #6c template, #6d marker, #6e help catalog → all caught and restored
+sh scripts/check-plugin.sh --negtest   # 9 stages: .env/.gitignore, 2 BRIDGE removals (#2b), #1b hooks.json, #6c template, #6d marker, #6e help catalog, #6g priming token, #3 forged-token → all caught and restored
 sh scripts/check-custom.sh --negtest   # 3 tests: #3 hard-gate + #7 bridge drift ×2 (#2.3 removal + "bolum N.N" injection)
 ```
 
@@ -663,11 +663,14 @@ cp templates/_template_E.md docs/experiments/E-001.md
 - **Experiment Design:** inputs, procedure, control variables, repeatability
 - **Sample Size n:** 40 (informational — the gate parses x/y from the measurement output)
 - **Code Scope:** src/db/**/*.py, lib/engine/*.py
+- **Lineage:** none           <!-- prior-experiment carry-forward; the gate refuses a draft without this (E-022) -->
 ```
 
 > **English field labels are MANDATORY** — the gate parses them. Translate them and the gate will not recognise the record.
 
 `Code Scope` glob syntax: `**` any depth, `*` a single segment, `?` a single character; separated by commas/spaces; `none` = an experiment that produces no code.
+
+`Lineage` is the prior-experiment carry-forward (E-022): the gate refuses a draft without it, so the judgment is explicit, never skipped. Write `none` for a genuinely new line of inquiry; otherwise the E-ids this experiment builds on / supersedes, and say what is inherited. Every cited id must resolve to `docs/experiments/E-NNN.md`, must not be the record itself, and a **REJECTED** record whose `Code Scope` this draft re-treads must be named — the lesson travels, it is not silently re-run (P9).
 
 **3. Run the gate (the gate runs the measurement itself; it does not accept the operator's declared number):**
 

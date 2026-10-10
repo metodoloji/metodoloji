@@ -12,6 +12,7 @@ did not pass that stage. The `Raw results`, `Uncertainty`, `Metric`, `Decision`,
 - **Hypothesis:** H-NNN: "metric >= threshold"   <!-- e.g. H-001: "accuracy >= 0.90" — falsifiable claim; threshold is a unitless number -->
 - **Measurement Metrics:** <metric name + threshold, e.g. "latency <= 100" (use a unitless numeric threshold)>
 - **Experiment Design:** <inputs, procedure, control variables, repeatability>
+- **Lineage:** <none | E-NNN[, E-NNN ...] — what this carries from the prior experiments>  <!-- mandatory: the gate refuses a draft without it (E-022); 'none' = a new line of inquiry -->
 - **Sample n:** <optional — sample size; if absent, the gate writes an "n unknown" warning>
 - **Raw Results:** <numbers/outputs — as-is; raw files: docs/experiments/<experiment-id>/raw/>
 - **Uncertainty:** <gate writes: sample too small | none | n unknown — not filled manually>

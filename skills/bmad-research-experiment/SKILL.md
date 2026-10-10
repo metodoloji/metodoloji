@@ -134,6 +134,7 @@ Clarify with the researcher the **theory/framework** behind this question:
 - Why is this question being asked? What model, framework, or prior evidence motivates it?
 - A vague "I'm curious" is not a theory — write down the reasoning that predicts an outcome.
 - A good next experiment: (a) maps to a PDF claim or an existing surface's gap, (b) is falsifiable (a broken implementation scores below the threshold), (c) fits in one coherent commit.
+- **Consult the corpus first (E-022).** The E record is the methodology's memory and a new one must carry it: read the sibling records in `docs/experiments/` — what did they measure, what scope did they open, what did a REJECTED one teach? Record the result in the mandatory `Lineage` field: `none` for a genuinely new line of inquiry, otherwise the E-ids this builds on / supersedes, with what is inherited. The gate REFUSES a draft whose `Lineage` is missing, malformed, dangling, self-citing, or silent about a REJECTED record whose `Code Scope` it re-treads (P9).
 - Output: a short theory statement recorded in the experiment log.
 
 ### Stage 2 — Hypothesis

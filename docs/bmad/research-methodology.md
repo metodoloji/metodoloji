@@ -103,6 +103,7 @@ Each mode's gate rules determine the quality and compliance of that mode's outpu
   - **Measurement Metrics:** Metric name + threshold value
   - **Experiment Design:** Inputs, procedure, control variables
   - **Code Scope:** File globs opened by the approval
+  - **Lineage:** `none` (a genuinely new line of inquiry) or the prior E-ids this experiment builds on / supersedes, with what it inherits — the gate refuses a draft without this field, a dangling/self-citing ref, or silence about a REJECTED record whose Code Scope it re-treads (E-022)
   - **Status:** planned → APPROVED | REJECTED (written by the gate)
 
 ### §4.2 Experiment Approval

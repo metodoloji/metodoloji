@@ -469,6 +469,84 @@ def experiment_id_issue(text: str) -> str | None:
     return None
 
 
+# Lineage (E-022): the prior-experiment carry-forward declaration. The corpus
+# is the methodology's memory, but before this the gate never asked a draft what
+# the earlier records already proved — a record that opened none of the 21
+# siblings passed exactly as one that read all of them, so a lesson could be
+# re-learned and a rejected hypothesis silently re-run under a fresh id.
+_LINEAGE_NONE_RE = re.compile(r"^\s*none\b", re.IGNORECASE)
+_LINEAGE_EID_RE = re.compile(r"\bE-\d+\b")
+
+
+def _scope_tokens(scope: str) -> set:
+    """Path tokens a 'Code Scope' value covers (for the rejected-overlap rule).
+
+    The literal ``none`` ("this experiment produces no code") is not a path:
+    two code-less records do not share a surface, so counting it would make
+    every no-code draft look like a re-tread of every rejected no-code record.
+    """
+    return {p for p in parse_scope(scope) if p and p.lower() != "none"}
+
+
+def lineage_issue(text: str, records_dir) -> str | None:
+    """Why the record's 'Lineage' declaration cannot be used (None = fine).
+
+    Three mechanical rules:
+      (1) the field must be present and be either 'none' (a genuinely new line
+          of inquiry) or a list of prior E-ids — a silent draft is refused, so
+          the judgment is made explicitly instead of skipped;
+      (2) every cited E-id must resolve to a record file beside this one and
+          must not be the record itself (a dangling claim is a false claim);
+      (3) a draft whose 'Code Scope' shares a path with a REJECTED record must
+          cite it (P9: a rejection is a lesson the next record carries, not a
+          hole to silently re-run).
+
+    `records_dir` is the directory the record lives in (docs/experiments/);
+    rule (3) needs the siblings, rules (1)-(2) do not.
+    """
+    value = record_fields(text).get("Lineage", "").strip()
+    if not value:
+        return ("record missing 'Lineage' — declare what prior experiments this "
+                "carries: 'Lineage: none' for a genuinely new line of inquiry, "
+                "otherwise the E-ids it builds on / supersedes (see "
+                "docs/experiments/_template.md)")
+    ids = sorted(set(_LINEAGE_EID_RE.findall(value)))
+    if not ids and not _LINEAGE_NONE_RE.match(value):
+        return (f"record 'Lineage' is neither 'none' nor a list of E-ids "
+                f"(read as '{value[:60]}')")
+    if ids and _LINEAGE_NONE_RE.match(value):
+        return (f"record 'Lineage' says 'none' but also cites {', '.join(ids)} — "
+                f"pick one: 'none' means a new line of inquiry")
+    did = deney_id(text)
+    if did in ids:
+        return f"record 'Lineage' cites itself ({did})"
+    if not ids:
+        return None
+    dirp = pathlib.Path(records_dir)
+    for ref in ids:
+        if not (dirp / f"{ref}.md").is_file():
+            return (f"record 'Lineage' cites {ref}, which has no record in "
+                    f"{dirp} — carry an existing experiment or drop the claim")
+    own_scope = _scope_tokens(record_fields(text).get("Code Scope", ""))
+    if own_scope:
+        for path in sorted(dirp.glob("E-*.md")):
+            if path.stem == did or path.stem in ids:
+                continue
+            try:
+                other = path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            if "REJECTED" not in record_fields(other).get("Decision", ""):
+                continue
+            shared = own_scope & _scope_tokens(record_fields(other).get("Code Scope", ""))
+            if shared:
+                return (f"record 'Lineage' is silent about {path.stem}, a REJECTED "
+                        f"record whose scope this draft re-treads "
+                        f"({', '.join(sorted(shared))}) — carry its lesson or "
+                        f"open a different scope")
+    return None
+
+
 def hypothesis_claim(hypothesis: str) -> tuple[str, str]:
     """From 'H-001: \"accuracy >= 0.90\"' -> (id, claim)."""
     hm = re.search(r"(H-\d+)[:\s]", hypothesis)
@@ -1010,6 +1088,16 @@ def main() -> int:
               "Open a new experiment record for a new measurement.", file=sys.stderr)
         return 2
 
+    # Lineage (E-022): the ONE mechanical question that forces the corpus to be
+    # read before a new line of inquiry is measured. Deliberately AFTER the
+    # 'already decided' check (a legacy decided record must keep its real
+    # message, not a missing-field one) and BEFORE the key is touched (the
+    # refusal is a draft-format fault, so it works with no gate key configured).
+    lineage_problem = lineage_issue(text, pathlib.Path(args.record).parent)
+    if lineage_problem:
+        print(f"ERROR: {lineage_problem}", file=sys.stderr)
+        return 2
+
     # Token (GATE-OK) is produced with HMAC-SHA256(key, ...) — key is outside repo.
     # Decision is only written when the key is configured (forged records blocked).
     try:
@@ -1392,6 +1480,7 @@ def _selfcheck() -> None:
                 "- **Measurement Metrics:** fake_accuracy >= 0.90\n"
                 "- **Experiment Design:** unit test\n"
                 "- **Code Scope:** none\n"
+                "- **Lineage:** none\n"
             )
         # Rule: an unreadable Experiment id is refused BEFORE the measurement runs
         # (trap bench would leave a marker), and the record stays untouched.
@@ -1411,6 +1500,7 @@ def _selfcheck() -> None:
                 "- **Measurement Metrics:** fake_accuracy >= 0.90\n"
                 "- **Experiment Design:** unit test\n"
                 "- **Code Scope:** none\n"
+                "- **Lineage:** none\n"
             )
         import contextlib, io as _io
         os.environ["BB_TRAP_MARKER"] = trap_marker
@@ -1479,6 +1569,7 @@ def _selfcheck() -> None:
                 "- **Measurement Metrics:** fake_accuracy >= 0.90\n"
                 "- **Experiment Design:** unit test\n"
                 "- **Code Scope:** none\n"
+                "- **Lineage:** none\n"
             )
         sys.argv = ["run_experiment.py", "--record", rec2,
                     "--run", f'"{sys.executable}" "{bench}"']
@@ -1495,6 +1586,7 @@ def _selfcheck() -> None:
                 "- **Measurement Metrics:** accuracy >= 0.90\n"
                 "- **Experiment Design:** unit test\n"
                 "- **Code Scope:** none\n"
+                "- **Lineage:** none\n"
             )
         with open(bench, "w", encoding="utf-8") as fh:
             fh.write('print("hello")\n')
@@ -1517,6 +1609,7 @@ def _selfcheck() -> None:
                 "- **Measurement Metrics:** accuracy >= 0.90\n"
                 "- **Experiment Design:** unit test\n"
                 "- **Code Scope:** none\n"
+                "- **Lineage:** none\n"
             )
         sys.argv = ["run_experiment.py", "--record", rec4,
                     "--run", f'"{sys.executable}" "{bench}"']
@@ -1537,6 +1630,7 @@ def _selfcheck() -> None:
                 "- **Measurement Metrics:** accuracy >= 0.90\n"
                 "- **Experiment Design:** unit test\n"
                 "- **Code Scope:** none\n"
+                "- **Lineage:** none\n"
             )
         sys.argv = ["run_experiment.py", "--record", rec5,
                     "--run", f'"{sys.executable}" "{bench}"']
@@ -1557,6 +1651,7 @@ def _selfcheck() -> None:
                 "- **Measurement Metrics:** accuracy >= 0.90\n"
                 "- **Experiment Design:** unit test\n"
                 "- **Code Scope:** none\n"
+                "- **Lineage:** none\n"
             )
         before6 = open(rec6, encoding="utf-8").read()
         # Distinct from rec3 ('hello' prints no value at all): this bench DID print a
@@ -1638,6 +1733,7 @@ def _selfcheck() -> None:
 - **Measurement Metrics:** accuracy >= 0.90
 - **Experiment Design:** unit test
 - **Code Scope:** none
+- **Lineage:** none
 """)
         with open(bench, "w", encoding="utf-8") as fh:
             fh.write('print("fake_accuracy=0.93 (14/15)")')
@@ -1657,6 +1753,7 @@ def _selfcheck() -> None:
 - **Measurement Metrics:** grounding_accuracy >= 0.90
 - **Experiment Design:** unit test
 - **Code Scope:** none
+- **Lineage:** none
 """)
         with open(bench, "w", encoding="utf-8") as fh:
             fh.write('print("grounding_accuracy=0.93 (14/15)")')
@@ -1676,6 +1773,7 @@ def _selfcheck() -> None:
                 "- **Measurement Metrics:** accuracy >= 0.90\n"
                 "- **Experiment Design:** unit test\n"
                 "- **Code Scope:** none\n"
+                "- **Lineage:** none\n"
             )
         with open(bench, "w", encoding="utf-8") as fh:
             fh.write('print("fake_accuracy=0.93 (14/15)")')
@@ -1703,6 +1801,7 @@ def _selfcheck() -> None:
                 "- **Measurement Metrics:** accuracy >= 0.90\n"
                 "- **Experiment Design:** unit test\n"
                 "- **Code Scope:** none\n"
+                "- **Lineage:** none\n"
                 "- **Raw Results:** <numbers — as-is>\n"
                 "- **Uncertainty:** <gate writes: small sample | none | n unknown>\n"
                 "- **Metric:** <gate writes: consistent | MISMATCH | n/a>\n"

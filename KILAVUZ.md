@@ -560,7 +560,7 @@ Sıra önerisi: önce pytest (motor davranışı), sonra check-plugin (en geniş
 Negatif testler (kapıların gerçekten çalıştığının kanıtı):
 
 ```bash
-sh scripts/check-plugin.sh --negtest   # 7 aşama: .env/.gitignore, 2 BRIDGE sökme (#2b), #1b hooks.json, #6c template, #6d marker, #6e help catalog → hepsi yakalanıp restore edilir
+sh scripts/check-plugin.sh --negtest   # 9 aşama: .env/.gitignore, 2 BRIDGE sökme (#2b), #1b hooks.json, #6c template, #6d marker, #6e help catalog, #6g priming token, #3 sahte-token → hepsi yakalanıp restore edilir
 sh scripts/check-custom.sh --negtest   # 3 test: #3 hard-gate + #7 bridge drift ×2 (#2.3 silme + "bolum N.N" enjeksiyonu)
 ```
 
@@ -662,11 +662,14 @@ cp templates/_template_E.md docs/experiments/E-001.md
 - **Experiment Design:** girdiler, prosedür, kontrol değişkenleri, tekrarlanabilirlik
 - **Sample Size n:** 40 (bilgilendirici — gate x/y'yi ölçüm çıktısından parse eder)
 - **Code Scope:** src/db/**/*.py, lib/engine/*.py
+- **Lineage:** none           <!-- önceki-deney devralma; bu alan olmadan gate taslağı reddeder (E-022) -->
 ```
 
 > **İngilizce alan etiketleri ZORUNLU** — gate onları parse eder. Türkçe etikete çevirirsen gate kaydı tanımaz.
 
 `Code Scope` glob sözdizimi: `**` her derinlik, `*` tek segment, `?` tek karakter; virgül/boşlukla ayrılır; `none` = kod üretmeyen deney.
+
+`Lineage` önceki-deney devralmasıdır (E-022): gatesiz taslak ölçüme geçemez, yani karar atlanmaz, açıkça verilir. Gerçekten yeni bir sorgu hattıysa `none` yaz; değilse bu deneyin üzerine kurulduğu / yerine geçtiği E-id'leri ve onlardan ne devralındığını yaz. Her id `docs/experiments/E-NNN.md` olarak çözülmeli, kaydın kendisi olmamalı; bu taslak **REJECTED** bir kaydın `Code Scope`unu yeniden işliyorsa o kayıt mutlaka anılmalı — ders taşınır, sessizce yeniden koşulmaz (P9).
 
 **3. Gate'i çalıştır (ölçümü gate kendisi koşar, operatörün beyan ettiği sayıyı kabul etmez):**
 
