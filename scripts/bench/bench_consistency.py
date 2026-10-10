@@ -1722,6 +1722,64 @@ def _check_bridge_runtime_visibility_audit_covers_every_surface() -> str | None:
     return "; ".join(problems) if problems else None
 
 
+def _check_story_title_grammar_agreement() -> str | None:
+    """E-028: the record generators and the engine read the shipped story titles.
+
+    Three title forms ship: the story template `# Story: S-XXX — Title`, a
+    native draft `# Story: 1-2-slug` (plus `- **Story key:** 1-2-slug`), and a
+    generated methodology record `# Methodology Record: S-NNN`.
+    ``create-qr-record.py`` matched ONLY the legacy prose form (`# Story 1.1:
+    Title`), so for a template story or a methodology record it wrote an EMPTY
+    `| Story |` row — a declaration covering nothing, which left the guard
+    denying the very story the gate told the operator to generate a record for.
+    This drives the real generator and the engine on the shipped template and on
+    each form.
+    """
+    import importlib.util
+    problems: list[str] = []
+
+    def _load(name: str, rel: str):
+        spec = importlib.util.spec_from_file_location(name, ROOT / rel)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+
+    try:
+        qr = _load("bench_create_qr_record", "scripts/create-qr-record.py")
+        sgen = _load("bench_create_methodology_record",
+                     "scripts/create-methodology-record.py")
+        sys.path.insert(0, str(ROOT / "hooks" / "engine"))
+        from modules.utils import extract_story_key_from_content  # noqa: PLC0415
+    except Exception as exc:
+        return f"cannot load a record parser: {type(exc).__name__}: {exc}"
+
+    template = _read("templates/_template_S.md")
+    if not qr.extract_story_metadata(template)['story_key']:
+        problems.append("create-qr-record.py resolves no story key from the "
+                        "shipped story template")
+    if not sgen.extract_story_metadata(template)['title']:
+        problems.append("create-methodology-record.py resolves no title from "
+                        "the shipped story template")
+
+    # `# Story: <key>` forms the engine also reads must agree exactly.
+    agree_forms = {
+        "# Story: S-002 — Resolve cyan alias\n": "S-002",
+        "# Story: 1-2-resolve-cyan-accent-alias\n": "1-2-resolve-cyan-accent-alias",
+        "# Story S-002: Legacy prose\n": "S-002",
+    }
+    for text, expected in agree_forms.items():
+        got = qr.extract_story_metadata(text)['story_key']
+        if got != expected:
+            problems.append(f"create-qr-record.py key {got!r} != {expected!r}")
+        eng = extract_story_key_from_content(text)
+        if eng != expected:
+            problems.append(f"engine story key {eng!r} != {expected!r}")
+    if qr.extract_story_metadata("# Methodology Record: S-002\n")['story_key'] != "S-002":
+        problems.append("create-qr-record.py does not read a methodology-record "
+                        "heading")
+    return "; ".join(problems) if problems else None
+
+
 def _check_experiment_lineage_enforced() -> str | None:
     """E-022: a new experiment must declare what the prior ones carry.
 
@@ -2052,6 +2110,8 @@ def build_checks() -> list[tuple[str, object]]:
                    _check_qr_feeder_skillmd_audit_covers_every_surface))
     checks.append(("bridge runtime-visibility audit covers every bridge surface (E-027)",
                    _check_bridge_runtime_visibility_audit_covers_every_surface))
+    checks.append(("story-key grammar agreed by generator and engine (E-028)",
+                   _check_story_title_grammar_agreement))
     checks.append(("experiment lineage declared and enforced (E-022)",
                    _check_experiment_lineage_enforced))
     checks.append(("negtest counts and check-plugin doc pointers pinned (E-023)",

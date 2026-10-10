@@ -125,10 +125,23 @@ def extract_story_metadata(content: str) -> dict:
         "dod": [],
     }
 
-    # Title
-    title_match = re.search(r"^#\s+Story\s+\S+\s*:\s*(.+)$", content, re.MULTILINE)
-    if title_match:
-        meta["title"] = _clean_field(title_match.group(1))
+    # Title — the three shipped title forms: `# Story: S-XXX — Title` (the
+    # story template), `# Story 1.1: Title` (legacy prose), and
+    # `# Methodology Record: S-NNN` (this generator's own output). The old
+    # pattern matched ONLY the legacy prose form, so a story written from the
+    # shipped template produced an S record with an empty `Story Title`.
+    colon_title = re.search(
+        r"^#\s+Story\s*:\s*[A-Za-z0-9][A-Za-z0-9._-]*\s*(?:[—–-]\s*(.+))?$",
+        content, re.MULTILINE | re.IGNORECASE,
+    )
+    legacy_title = re.search(
+        r"^#\s+Story\s+[A-Za-z0-9][A-Za-z0-9._-]*\s*:\s*(.+)$",
+        content, re.MULTILINE | re.IGNORECASE,
+    )
+    if colon_title and colon_title.group(1):
+        meta["title"] = _clean_field(colon_title.group(1))
+    elif legacy_title:
+        meta["title"] = _clean_field(legacy_title.group(1))
 
     # Status — line-start anchored (with optional list bullet / bold), so an
     # indented YAML `status: APPROVED` under experiment_refs never matches.

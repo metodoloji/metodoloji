@@ -38,6 +38,70 @@ _DOD_ID_RE = re.compile(r"[\[(]?DoD-(\d+)[\])]?")
 # must not leak the box into the description).
 _CHECKBOX_RE = re.compile(r"^\s*-\s+\[([ xX])\]\s*")
 
+# --- Story identity grammar -------------------------------------------------
+# Three title forms ship, and the QR record must name the story it was built
+# for in ONE of them:
+#   template   `# Story: S-XXX — Title`          (docs/development/stories/_template_S.md)
+#   native     `# Story: 1-2-slug`               (+ `- **Story key:** 1-2-slug`)
+#   record     `# Methodology Record: S-NNN`     (create-methodology-record.py)
+# The old pattern `^#\s+Story\s+(\S+)\s*:\s*(.+)$` matched ONLY the legacy
+# prose form (`# Story 1.1: Title`), so a QR generated for a template story or
+# a methodology record carried an EMPTY `| Story |` row — a declaration that
+# covers nothing. The guard's QR gate therefore kept denying the very story the
+# record had just been generated for, and the gate's own suggested remedy
+# (`create-qr-record.py --story docs/development/stories/S-XXX.md`) could never
+# satisfy the gate.
+_STORY_KEY_FIELD_RE = re.compile(
+    r"\*\*Story key:\*\*\s*([A-Za-z0-9][A-Za-z0-9._-]*)", re.IGNORECASE)
+_METHODOLOGY_TITLE_RE = re.compile(
+    r"^#\s*Methodology\s+Record\s*:\s*([A-Za-z0-9][A-Za-z0-9._-]*)",
+    re.IGNORECASE | re.MULTILINE)
+_STORY_COLON_TITLE_RE = re.compile(
+    r"^#\s*Story\s*:\s*([A-Za-z0-9][A-Za-z0-9._-]*)\s*(?:[—–-]\s*(.*))?$",
+    re.IGNORECASE | re.MULTILINE)
+_STORY_SPACE_TITLE_RE = re.compile(
+    r"^#\s*Story\s+([A-Za-z0-9][A-Za-z0-9._-]*)\s*:\s*(.*)$",
+    re.IGNORECASE | re.MULTILINE)
+_STORY_TITLE_ROW_RE = re.compile(
+    r"^\|\s*Story Title\s*\|\s*(.+?)\s*\|", re.IGNORECASE | re.MULTILINE)
+_NATIVE_STORY_ROW_RE = re.compile(
+    r"^\|\s*Native Story\s*\|\s*(.+?)\s*\|", re.IGNORECASE | re.MULTILINE)
+
+
+def _story_identity(content: str) -> tuple[str, str]:
+    """(story_key, title) from every shipped story-title form.
+
+    Key precedence: the explicit native field (`- **Story key:**`), then the
+    methodology-record heading, then the `# Story: <key>` / `# Story <key>:`
+    headings, then the `| Native Story |` path stem. Title precedence: the
+    `| Story Title |` row, then the heading's own remainder.
+    """
+    key = title = ""
+    m = _STORY_KEY_FIELD_RE.search(content)
+    if m:
+        key = m.group(1)
+    m = _METHODOLOGY_TITLE_RE.search(content)
+    if m and not key:
+        key = m.group(1)
+    m = _STORY_COLON_TITLE_RE.search(content)
+    if m:
+        key = key or m.group(1)
+        title = title or (m.group(2) or "").strip()
+    m = _STORY_SPACE_TITLE_RE.search(content)
+    if m:
+        key = key or m.group(1)
+        title = title or m.group(2).strip()
+    m = _STORY_TITLE_ROW_RE.search(content)
+    if m:
+        title = title or m.group(1).strip()
+    if not key:
+        m = _NATIVE_STORY_ROW_RE.search(content)
+        if m and m.group(1).strip() not in ("", "—"):
+            key = Path(m.group(1).strip().replace("\\", "/")).stem
+    if not title and not key:
+        return "", ""
+    return key, title
+
 
 def _dod_item_start(line: str) -> tuple[str, bool] | None:
     """(id, checked) when *line* opens a DoD item, else None (both forms)."""
@@ -126,15 +190,17 @@ def extract_dod_items(content: str) -> list[dict]:
 
 
 def extract_story_metadata(content: str) -> dict:
-    """Extract basic story metadata."""
-    meta = {"title": "", "story_key": ""}
+    """Extract the story key and title from every shipped title form.
 
-    title_match = re.search(r"^#\s+Story\s+(\S+)\s*:\s*(.+)$", content, re.MULTILINE)
-    if title_match:
-        meta["story_key"] = title_match.group(1).strip()
-        meta["title"] = title_match.group(2).strip()
-
-    return meta
+    Delegates to `_story_identity`, which reads the template heading
+    (`# Story: S-XXX — Title`), the native slug heading and its explicit
+    `- **Story key:**` field, and the generated methodology-record heading
+    (`# Methodology Record: S-NNN`). The old legacy-only pattern left the key
+    empty for two of the three, so the QR declared nothing (see the grammar
+    note above).
+    """
+    key, title = _story_identity(content)
+    return {"title": title, "story_key": key}
 
 
 def create_qr_record(

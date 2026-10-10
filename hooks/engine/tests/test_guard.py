@@ -2319,6 +2319,81 @@ def test_qr_generator_row_is_a_declaration_the_gate_accepts():
                       _re.MULTILINE)
 
 
+def _load_qr_generator():
+    import importlib.util
+    root = Path(__file__).resolve().parents[3]
+    spec = importlib.util.spec_from_file_location(
+        "create_qr_record_e2e", root / "scripts" / "create-qr-record.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_qr_generated_for_a_methodology_record_satisfies_the_gate():
+    """E-028: the gate's own remedy must produce a record the gate accepts.
+
+    The gate tells the operator to run
+    `create-qr-record.py --story docs/development/stories/S-XXX.md`. The
+    generator resolved the story key only from the legacy prose heading
+    (`# Story 1.1: Title`), so for a methodology record (`# Methodology
+    Record: S-NNN`) it wrote `| Story |  |` — a declaration covering nothing,
+    which left the gate denying the story forever. Run the real generator, then
+    the real gate.
+    """
+    qr_gen = _load_qr_generator()
+    td = tempfile.TemporaryDirectory()
+    root = Path(td.name)
+    stories = root / "docs/development/stories"
+    stories.mkdir(parents=True)
+    (root / "docs/quality").mkdir(parents=True)
+    (stories / "S-002.md").write_text(
+        "# Methodology Record: S-002\n\n"
+        "| Field | Value |\n|------|-------|\n"
+        "| Status | done |\n| Story Title | Resolve cyan alias |\n"
+        "| Native Story | docs/development/native/1-2-resolve-cyan-accent-alias.md |\n\n"
+        "## Definition of Done\n\n"
+        "- [DoD-001] Alias removed\n  - Verify: bench\n",
+        encoding="utf-8")
+    try:
+        content = (stories / "S-002.md").read_text(encoding="utf-8")
+        meta = qr_gen.extract_story_metadata(content)
+        items = qr_gen.extract_dod_items(content)
+        assert meta["story_key"] == "S-002", meta
+        qr_path = qr_gen.create_qr_record(meta, items, 1, root)
+        assert "| Story | S-002 |" in qr_path.read_text(encoding="utf-8")
+        from modules.guard import _find_done_stories_without_qr
+        assert _find_done_stories_without_qr(td.name) == []
+    finally:
+        td.cleanup()
+
+
+def test_qr_generated_for_a_template_story_covers_it():
+    """E-028: a story written from the shipped template is covered too.
+
+    The template heading is `# Story: S-XXX — Title`; the old generator's
+    pattern matched none of it, so the same empty-declaration dead-end hit
+    every real story.
+    """
+    qr_gen = _load_qr_generator()
+    td = tempfile.TemporaryDirectory()
+    root = Path(td.name)
+    stories = root / "docs/development/stories"
+    stories.mkdir(parents=True)
+    (root / "docs/quality").mkdir(parents=True)
+    (stories / "S-003.md").write_text(
+        "# Story: S-003 — Template story\n\nStatus: done\n\n"
+        "- [DoD-001] Done\n  - Verify: y\n", encoding="utf-8")
+    try:
+        content = (stories / "S-003.md").read_text(encoding="utf-8")
+        meta = qr_gen.extract_story_metadata(content)
+        assert meta["story_key"] == "S-003", meta
+        qr_gen.create_qr_record(meta, qr_gen.extract_dod_items(content), 1, root)
+        from modules.guard import _find_done_stories_without_qr
+        assert _find_done_stories_without_qr(td.name) == []
+    finally:
+        td.cleanup()
+
+
 def test_secret_ref_denies_key_access_and_dir_consumers():
     from modules.guard import _secret_ref
     assert _secret_ref("ls ~/.bmad/gate-key")

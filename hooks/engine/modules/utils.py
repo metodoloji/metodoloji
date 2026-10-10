@@ -292,13 +292,20 @@ def is_code_target(path: str) -> bool:
 
 
 def extract_story_key_from_content(content: str) -> str:
-    """Extract story key from file content — matches 'S-XXX' in title or 'N-N-slug' pattern."""
+    """Extract story key from file content — the `# Story: <key>` title forms.
+
+    The key is a single token, never one that swallowed a trailing colon: the
+    old ``\\S+`` matched the `:` separator itself, so `# Story S-002: Title`
+    yielded the key `S-002:` — a token no declaration can ever equal, which
+    silently hid the story from its own record check. ``[^\\s:]+`` stops at
+    the colon.
+    """
     # Try '# Story: S-XXX' header first (handles space variations around colon)
-    m = re.search(r"#\s+Story\s*:\s*(\S+)", content, re.IGNORECASE)
+    m = re.search(r"#\s+Story\s*:\s*([^\s:]+)", content, re.IGNORECASE)
     if m:
         return m.group(1)
-    # Try '# Story S-XXX' (no colon)
-    m = re.search(r"#\s+Story\s+(\S+)", content, re.IGNORECASE)
+    # Try '# Story S-XXX' (key before the colon)
+    m = re.search(r"#\s+Story\s+([^\s:]+)", content, re.IGNORECASE)
     if m:
         return m.group(1)
     return ""

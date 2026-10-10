@@ -29,7 +29,10 @@ PLUGIN = Path(__file__).resolve().parents[2]
 if str(PLUGIN) not in sys.path:
     sys.path.insert(0, str(PLUGIN))
 
-from hooks.engine.modules.utils import scan_dod_items  # noqa: E402
+from hooks.engine.modules.utils import (  # noqa: E402
+    extract_story_key_from_content,
+    scan_dod_items,
+)
 
 
 def _load_module(name: str, filename: str):
@@ -161,6 +164,57 @@ def test_qr_generator_reads_both_canonical_dod_forms():
         assert items[0]["ac_refs"] == ["AC-001"], text
     assert [i["status"] for i in QR_GEN.extract_dod_items(CHECKBOX_DOD)] == ["pending", "passed"]
     assert [i["status"] for i in QR_GEN.extract_dod_items(TOKEN_DOD)] == ["pending", "pending"]
+
+
+def test_qr_generator_reads_every_shipped_story_title_form():
+    """The QR must DECLARE the story it was generated for (E-028).
+
+    Three title forms ship — the template `# Story: S-XXX — Title`, a native
+    `# Story: 1-2-slug`, and a generated `# Methodology Record: S-NNN`. The
+    generator's old pattern matched ONLY the legacy prose form (`# Story 1.1:
+    Title`), so a QR for a template story or a methodology record carried an
+    EMPTY `| Story |` row — a declaration covering nothing, which left the
+    guard denying the very story the record was made for.
+    """
+    forms = {
+        "# Story: S-002 — Resolve cyan alias\n": "S-002",
+        "# Story: 1-2-resolve-cyan-accent-alias\n": "1-2-resolve-cyan-accent-alias",
+        "# Story 1.1: Consistency bench runs in CI\n": "1.1",
+        "# Methodology Record: S-002\n\n"
+        "| Native Story | docs/development/native/1-2-resolve-cyan-accent-alias.md |\n":
+            "S-002",
+    }
+    for text, expected in forms.items():
+        assert QR_GEN.extract_story_metadata(text)["story_key"] == expected, text
+    # the explicit native field wins over the prose heading
+    explicit = ("- **Story key:** 1-1-bench-in-ci\n"
+                "# Story 1.1: Consistency bench runs in CI\n")
+    assert QR_GEN.extract_story_metadata(explicit)["story_key"] == "1-1-bench-in-ci"
+    # the shipped fixture resolves to its own declared key, never "1.1" prose
+    assert (QR_GEN.extract_story_metadata(SHIPPED_STORY.read_text(encoding="utf-8"))
+            ["story_key"] == "1-1-bench-in-ci")
+
+
+def test_generators_agree_with_the_engine_on_the_story_key():
+    """The engine and the QR generator must read the same key (E-028).
+
+    The engine's `extract_story_key_from_content` matched the colon into the
+    key (`# Story S-002: Title` -> `S-002:`); the generator matched only the
+    legacy form. Both now agree on the shipped `# Story: <key>` forms.
+    """
+    for text in ("# Story: S-002 — Title\n",
+                 "# Story: 1-2-resolve-cyan-accent-alias\n"):
+        assert (QR_GEN.extract_story_metadata(text)["story_key"]
+                == extract_story_key_from_content(text)), text
+    assert extract_story_key_from_content("# Story S-002: Title\n") == "S-002"
+
+
+def test_s_generator_reads_the_template_title_form():
+    """A story from the shipped template must not yield an empty title (E-028)."""
+    assert S_GEN.extract_story_metadata(
+        "# Story: S-002 — Resolve cyan alias\n")["title"] == "Resolve cyan alias"
+    assert S_GEN.extract_story_metadata(
+        "# Story 1.1: Legacy prose title\n")["title"] == "Legacy prose title"
 
 
 def test_generators_agree_with_the_engine_on_the_shipped_template():
