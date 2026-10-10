@@ -252,6 +252,45 @@ def test_e_templates_carry_the_lineage_field():
         assert "**Lineage:**" in text, f"{rel} is missing the Lineage field"
 
 
+def test_all_negtest_counts_match_their_stages():
+    """E-026: every negtest suite's declared count must match its stages.
+
+    E-023 pinned only check-plugin.sh's count; check-techdebt.sh kept the same
+    unfalsified shape and check-custom.sh had no counter at all. This calls the
+    bench's check, which pins each suite's total_stages to its 1..N headers and
+    closing line, and the runbooks' advertised check-custom count.
+    """
+    bench = _load_bench()
+    problem = bench._check_all_negtest_counts_are_falsifiable()
+    assert problem is None, problem
+
+
+def test_check_custom_negtest_has_one_counter():
+    """check-custom.sh --negtest must declare total_stages and use it (E-026)."""
+    text = (PLUGIN / "scripts" / "check-custom.sh").read_text(
+        encoding="utf-8", errors="replace")
+    assert re.search(r"total_stages = \d+", text), (
+        "check-custom.sh --negtest has no total_stages counter"
+    )
+    assert "{total_stages}" in text, "check-custom.sh does not use its counter"
+
+
+def test_negtest_suites_cover_the_known_scripts():
+    """The derived negtest-suite set must include the three shipped suites (E-026).
+
+    The bench derives the suites from the tree so a new counter is covered
+    automatically; this pins the three that exist so one cannot silently drop
+    out of that set (e.g. if its ``total_stages`` line is deleted).
+    """
+    bench = _load_bench()
+    names = {p.name for p in bench._negtest_suites()}
+    for name in ("check-plugin.sh", "check-custom.sh", "check-techdebt.sh"):
+        assert name in names, (
+            f"negtest suite {name} is no longer derived from the tree — "
+            "its total_stages counter was removed or renamed"
+        )
+
+
 def test_cross_machine_marker_is_anchored():
     """E-025: §3 must read Re-Measured-By from the canonical bullet, not prose.
 

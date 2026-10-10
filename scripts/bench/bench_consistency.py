@@ -1783,6 +1783,75 @@ def _check_negtest_stage_wiring() -> str | None:
     return "; ".join(problems) if problems else None
 
 
+def _negtest_suites() -> list[pathlib.Path]:
+    """Every shipped scripts/ file that declares a negtest stage counter.
+
+    Derived from the tree rather than a hardcoded tuple (the E-018..E-024
+    lesson): a new ``scripts/*.sh``/``.py`` that ships a ``total_stages``
+    negtest counter is covered automatically. The regression test
+    ``test_negtest_suites_cover_the_known_scripts`` pins the three suites that
+    exist today so one cannot silently drop out of the set.
+    """
+    suites: list[pathlib.Path] = []
+    for path in sorted((ROOT / "scripts").glob("*")):
+        if not path.is_file() or path.suffix not in (".sh", ".py"):
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if "--negtest" in text and "total_stages" in text:
+            suites.append(path)
+    return suites
+
+
+def _check_all_negtest_counts_are_falsifiable() -> str | None:
+    """E-026: every negtest suite declares one count that matches its stages.
+
+    E-023 pinned ``check-plugin.sh``'s negtest count to its headers and to the
+    runbooks, but left the sibling suites alone — its Known Gaps named this exact
+    follow-up ("unifying the two counters under one bench check").
+    ``check-techdebt.sh`` still carried the same unfalsified shape:
+    ``total_stages = 4`` drove the banners AND the closing success line, so a
+    deleted stage would still print "all 4 successful". And ``check-custom.sh``
+    had no counter at all — three hardcoded ``N/3`` literals that could silently
+    desync while the runbooks advertise "3 tests". This derives every negtest
+    suite from the tree and pins, for each, the declared count to the stage
+    indices that actually exist (1..N), requires the closing line to use that
+    count, and pins the runbooks' advertised check-custom count.
+    """
+    problems: list[str] = []
+    suites = _negtest_suites()
+    if not suites:
+        return "no negtest suite with a total_stages counter was found"
+    for path in suites:
+        rel = path.relative_to(ROOT).as_posix()
+        script = path.read_text(encoding="utf-8", errors="replace")
+        m = re.search(r"total_stages = (\d+)", script)
+        if not m:
+            problems.append(f"{rel}: no declared 'total_stages'")
+            continue
+        declared = int(m.group(1))
+        headers = [int(i) for i in re.findall(
+            r'print\(f"[^"]*?(\d+)/\{total_stages\}', script)]
+        if headers != list(range(1, declared + 1)):
+            problems.append(
+                f"{rel}: total_stages={declared} but stage headers={headers}")
+        if "all {total_stages} negtest stages successful" not in script:
+            problems.append(f"{rel}: closing line does not use the declared count")
+    # The runbooks advertise the counts a reader trusts.
+    for rel, script_name, word in (("GUIDE.md", "check-custom.sh", "tests"),
+                                   ("KILAVUZ.md", "check-custom.sh", "test")):
+        claim = re.search(
+            rf"{re.escape(script_name)} --negtest\s+#\s*(\d+)\s+{word}\b", _read(rel))
+        if not claim:
+            problems.append(f"{rel}: no '{script_name} --negtest # N {word}' claim")
+            continue
+        declared = int(re.search(r"total_stages = (\d+)",
+                                 _read(f"scripts/{script_name}")).group(1))
+        if int(claim.group(1)) != declared:
+            problems.append(f"{rel} advertises {claim.group(1)} {script_name} "
+                            f"{word}, the script declares {declared}")
+    return "; ".join(problems) if problems else None
+
+
 def _check_cross_machine_marker_is_anchored() -> str | None:
     """E-025: §3 must read Re-Measured-By from the canonical bullet line, not prose.
 
@@ -1930,6 +1999,8 @@ def build_checks() -> list[tuple[str, object]]:
                    _check_experiment_lineage_enforced))
     checks.append(("negtest counts and check-plugin doc pointers pinned (E-023)",
                    _check_negtest_stage_wiring))
+    checks.append(("every negtest suite's count matches its stages (E-026)",
+                   _check_all_negtest_counts_are_falsifiable))
     checks.append(("cross-machine marker read from the canonical bullet (E-025)",
                    _check_cross_machine_marker_is_anchored))
     checks.append(("pytest suite green (falsifier)", _run_pytest))

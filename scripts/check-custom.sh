@@ -17,8 +17,8 @@
 #
 # Usage:  sh scripts/check-custom.sh
 #            sh scripts/check-custom.sh --negtest
-#            (negative-test only: §3 hard-gate + §7 bridge drift (2/2:
-#             delete §N.N, inject "bolum N.N") → catch MISS → restore)
+#            (negative-test only, 3 stages: §3 hard-gate + §7 bridge drift ×2
+#             (delete §N.N, inject "bolum N.N") → catch MISS → restore)
 # Output:    [OK] / [WARNING] / [ERROR] at the start of each line; overall status at the end.
 set -u
 
@@ -50,6 +50,9 @@ toml = PLUGIN / "custom" / "bmad-dev-story.toml"
 bridge = PLUGIN / "docs" / "bmad" / "dev-skill-to-methodology-bridge.md"
 # Accept both the legacy Turkish markers and the new English markers.
 KEYWORDS = ("APPROVED", "REJECTED", "FORGED", "VERIFIED", "ONAYLANDI", "REDDEDİLDİ")
+# Single source of truth for the stage count (E-026): the three banners and the
+# closing line below all read it, and the bench pins it to the stages that exist.
+total_stages = 3
 
 orig_toml = toml.read_text(encoding="utf-8")
 orig_bridge = bridge.read_text(encoding="utf-8")
@@ -86,7 +89,7 @@ if removed == removed_after or removed == 0:
 if not has_dev_story_gate_error(broken_toml):
     print("[ERROR] negative test 1 failed: §3 logic did not catch removed hard-gate")
     sys.exit(1)
-print("[OK]   negative test 1/3: hard-gate keywords removed → §3 MISS caught")
+print(f"[OK]   negative test 1/{total_stages}: hard-gate keywords removed → §3 MISS caught")
 
 # ---- Test 2: §7 bridge drift ----
 def has_bridge_drift_error(bridge_text: str) -> bool:
@@ -133,7 +136,7 @@ if "### §2.3" in broken_bridge or "§2.3" in broken_bridge:
 if not has_bridge_drift_error(broken_bridge):
     print("[ERROR] negative test 2 failed: §7 logic did not catch §2.3 removed from bridge")
     sys.exit(1)
-print("[OK]   negative test 2/3: bridge §2.3 removed → §7 MISS caught → bridge restored")
+print(f"[OK]   negative test 2/{total_stages}: bridge §2.3 removed → §7 MISS caught → bridge restored")
 
 # ---- Test 3: §7 bolum N.N pattern ----
 # Inject "bolum 99.99" into bmad-testarch-atdd.toml — a section not in the
@@ -165,7 +168,8 @@ broken_toml = orig_test_toml + "\n# drift test: bolum 99.99\n"
 if not has_bolum_drift_error(broken_toml):
     print("[ERROR] negative test 3 failed: §7 logic did not catch injected 'bolum 99.99'")
     sys.exit(1)
-print("[OK]   negative test 3/3: 'bolum 99.99' injected → §7 MISS caught → testarch TOML restored")
+print(f"[OK]   negative test 3/{total_stages}: 'bolum 99.99' injected → §7 MISS caught → testarch TOML restored")
+print(f"[OK]   all {total_stages} negtest stages successful")
 sys.exit(0)
 PY
     exit $?
