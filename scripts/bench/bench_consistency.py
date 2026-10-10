@@ -1493,6 +1493,45 @@ def _check_bridge_producer_verify_audit() -> str | None:
     return "; ".join(problems) if problems else None
 
 
+def _check_bridge_section_refs_resolve() -> str | None:
+    """E-019: a live bridge-citing surface must not point at a missing section.
+
+    ``check-custom.sh`` §7 exists to catch a ``§N.N`` the bridge document does
+    not contain, but it read only ``custom/*.toml``. The bridge is also cited
+    by the QR-feeder ``SKILL.md`` files and the command docs, and one already
+    dangled: both review feeders said "§1.1 and §3.1" while the bridge has no
+    §1.1 (their sibling TOMLs say "§1 and §3.1"). This check evaluates the
+    invariant directly on every surface that names the bridge — custom
+    overrides, ``skills/*/SKILL.md`` and ``commands/*.md`` — and pins §7's
+    widened scope so it cannot silently narrow back to ``custom/``.
+    """
+    problems: list[str] = []
+    bridge = _read("docs/bmad/dev-skill-to-methodology-bridge.md")
+    sections = set(re.findall(r"^(?:##|###) §([0-9]+(?:\.[0-9]+[a-z]?)?)",
+                              bridge, re.MULTILINE))
+    ref_re = re.compile(
+        r"(?:§([0-9]+(?:\.[0-9]+[a-z]?)?)"
+        r"|(?:section|bol[uü]m)\s+([0-9]+(?:\.[0-9]+[a-z]?)?))",
+        re.IGNORECASE)
+    surfaces: list[pathlib.Path] = [
+        p for p in (ROOT / "custom").glob("*.toml") if p.name != "config.toml"]
+    surfaces += sorted((ROOT / "skills").glob("*/SKILL.md"))
+    surfaces += sorted((ROOT / "commands").glob("*.md"))
+    for path in sorted(surfaces):
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if "dev-skill-to-methodology-bridge" not in text:
+            continue
+        refs = {m.group(1) or m.group(2) for m in ref_re.finditer(text)}
+        unknown = sorted(refs - sections)
+        if unknown:
+            problems.append(f"{path.relative_to(ROOT).as_posix()}: "
+                            f"§N.N not in bridge → {', '.join(unknown)}")
+    script = _read("scripts/check-custom.sh")
+    if 'os.path.join(PLUGIN, "skills", "*", "SKILL.md")' not in script:
+        problems.append("check-custom.sh §7 no longer scans skills/*/SKILL.md")
+    return "; ".join(problems) if problems else None
+
+
 def _run_pytest() -> str | None:
     """The falsifier: the whole suite must stay green."""
     proc = subprocess.run([sys.executable, "-m", "pytest", "-q"],
@@ -1594,6 +1633,8 @@ def build_checks() -> list[tuple[str, object]]:
                    _check_engine_decode_refusals))
     checks.append(("producer VERIFY audit covers every producer surface (E-018)",
                    _check_bridge_producer_verify_audit))
+    checks.append(("bridge section refs resolve on every citing surface (E-019)",
+                   _check_bridge_section_refs_resolve))
     checks.append(("pytest suite green (falsifier)", _run_pytest))
     checks.append(("hooks.json in sync with generator", _run_hooks_json_sync))
     return checks

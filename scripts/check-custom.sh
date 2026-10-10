@@ -635,10 +635,24 @@ SECTION_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Surfaces that cite the bridge document: the team overrides
+# (custom/*.toml), the QR-feeder SKILL.md files and the command docs. §7 used
+# to read only custom/*.toml, so a dangling §N.N in a SKILL.md stayed silent —
+# and one already was (§1.1 in the two review feeders; E-019). Every shipped
+# surface that names the bridge is audited here.
+def _bridge_label(path):
+    rel = os.path.relpath(path, PLUGIN).replace(os.sep, "/")
+    if rel.startswith("custom/"):
+        return os.path.basename(path)[:-5]
+    return rel
+
+SURFACES = (sorted(glob.glob(os.path.join(PLUGIN, "custom", "*.toml")))
+            + sorted(glob.glob(os.path.join(PLUGIN, "skills", "*", "SKILL.md")))
+            + sorted(glob.glob(os.path.join(PLUGIN, "commands", "*.md"))))
 problems = []
 checked = 0
-for path in sorted(glob.glob(os.path.join(PLUGIN, "custom", "*.toml"))):
-    name = os.path.basename(path)[:-5]
+for path in SURFACES:
+    name = _bridge_label(path)
     if name == "config":
         continue
     try:

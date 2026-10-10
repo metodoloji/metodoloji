@@ -87,6 +87,28 @@ def test_bridge_producer_audit_reads_agent_principles_key():
         )
 
 
+def test_bridge_section_refs_resolve_on_every_citing_surface():
+    """Every live surface citing the bridge must point at a real section (E-019).
+
+    §7 used to audit only ``custom/*.toml``; the two review ``SKILL.md`` files
+    cited a non-existent ``§1.1`` and went unnoticed. This calls the bench's
+    check, which evaluates the invariant across custom overrides,
+    ``skills/*/SKILL.md`` and ``commands/*.md``.
+    """
+    bench = _load_bench()
+    problem = bench._check_bridge_section_refs_resolve()
+    assert problem is None, problem
+
+
+def test_bridge_drift_audit_scans_skill_md_surfaces():
+    """§7 must keep reading ``skills/*/SKILL.md`` (the E-019 widening)."""
+    text = (PLUGIN / "scripts" / "check-custom.sh").read_text(
+        encoding="utf-8", errors="replace")
+    assert 'os.path.join(PLUGIN, "skills", "*", "SKILL.md")' in text, (
+        "check-custom.sh §7 narrowed back to custom/ — SKILL.md refs go unaudited"
+    )
+
+
 def test_bench_engine_module_scan_covers_every_module():
     """Every engine module must be listed in the bench's duplicate-def scan.
 
