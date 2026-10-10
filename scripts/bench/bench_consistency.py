@@ -1625,6 +1625,48 @@ def _check_bridge_record_target_audit_covers_every_producer() -> str | None:
     return "; ".join(problems) if problems else None
 
 
+def _check_qr_feeder_skillmd_audit_covers_every_surface() -> str | None:
+    """E-024: the QR-feeder SKILL.md audit must cover every bridge-citing surface.
+
+    §2 audits the QR feed on the ``skills/*/SKILL.md`` feeders through
+    ``QR_FEEDERS_SKILLMD``, a hardcoded three-entry list. It is the last
+    bridge-audit list in ``check-plugin.sh`` not pinned to a tree-derived set
+    (E-020 and E-021 name this exact follow-up): exactly those three SKILL.md
+    files cite the bridge today, but a new bridge-citing ``SKILL.md`` would
+    drop out of §2's bridge-reference + QR-target check silently while §2 kept
+    reporting HEALTHY. This derives the surface set from the tree (every
+    ``skills/*/SKILL.md`` that cites the bridge) and pins §2's list to it, then
+    re-checks the bridge reference + QR feed target on each surface.
+    """
+    problems: list[str] = []
+    script = _read("scripts/check-plugin.sh")
+    blk = re.search(r"QR_FEEDERS_SKILLMD = \[(.*?)\]", script, re.DOTALL)
+    if not blk:
+        return "check-plugin.sh §2 has no QR_FEEDERS_SKILLMD list"
+    audited = set(re.findall(r'"([^"]+)"', blk.group(1)))
+    tree: set[str] = set()
+    for path in sorted((ROOT / "skills").glob("*/SKILL.md")):
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if "dev-skill-to-methodology-bridge" in text:
+            tree.add(path.parent.name)
+    if audited != tree:
+        missing = sorted(tree - audited)
+        extra = sorted(audited - tree)
+        problems.append("§2 QR_FEEDERS_SKILLMD != bridge-citing SKILL.md "
+                        f"surfaces (missing {missing}, extra {extra})")
+    for name in sorted(audited):
+        path = ROOT / "skills" / name / "SKILL.md"
+        if not path.is_file():
+            problems.append(f"feeder SKILL.md missing: skills/{name}/SKILL.md")
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if "dev-skill-to-methodology-bridge" not in text:
+            problems.append(f"{name}: no bridge reference in SKILL.md")
+        if "docs/quality/QR" not in text and "docs/development/QR" not in text:
+            problems.append(f"{name}: no QR feed target in SKILL.md")
+    return "; ".join(problems) if problems else None
+
+
 def _check_experiment_lineage_enforced() -> str | None:
     """E-022: a new experiment must declare what the prior ones carry.
 
@@ -1848,6 +1890,8 @@ def build_checks() -> list[tuple[str, object]]:
                    _check_bridge_feeder_audit_covers_every_feeder))
     checks.append(("producer record targets audited (E-021)",
                    _check_bridge_record_target_audit_covers_every_producer))
+    checks.append(("QR feeder SKILL.md audit covers every bridge surface (E-024)",
+                   _check_qr_feeder_skillmd_audit_covers_every_surface))
     checks.append(("experiment lineage declared and enforced (E-022)",
                    _check_experiment_lineage_enforced))
     checks.append(("negtest counts and check-plugin doc pointers pinned (E-023)",

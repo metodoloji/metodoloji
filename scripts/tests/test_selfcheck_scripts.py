@@ -161,6 +161,37 @@ def test_producer_record_targets_list_gds_and_wds_producers():
         assert name in listed, f"§2 BRIDGE_SKILLS is missing the producer {name}"
 
 
+def test_qr_feeder_skillmd_audit_covers_every_surface():
+    """E-024: §2's QR_FEEDERS_SKILLMD must equal the bridge-citing SKILL.md set.
+
+    §2 audits the SKILL.md QR feeders through a hardcoded three-entry list — the
+    last bridge-audit list not pinned to a tree-derived set. This calls the
+    bench's check, which derives the bridge-citing ``skills/*/SKILL.md`` set and
+    pins §2's list to it.
+    """
+    bench = _load_bench()
+    problem = bench._check_qr_feeder_skillmd_audit_covers_every_surface()
+    assert problem is None, problem
+
+
+def test_qr_feeder_skillmd_audit_lists_every_bridge_skill():
+    """§2's QR_FEEDERS_SKILLMD must list every bridge-citing SKILL.md (E-024)."""
+    text = (PLUGIN / "scripts" / "check-plugin.sh").read_text(
+        encoding="utf-8", errors="replace")
+    blk = re.search(r"QR_FEEDERS_SKILLMD = \[(.*?)\]", text, re.DOTALL)
+    assert blk, "check-plugin.sh §2 has no QR_FEEDERS_SKILLMD list"
+    listed = set(re.findall(r'"([^"]+)"', blk.group(1)))
+    tree = {
+        p.parent.name
+        for p in (PLUGIN / "skills").glob("*/SKILL.md")
+        if "dev-skill-to-methodology-bridge" in p.read_text(
+            encoding="utf-8", errors="replace")
+    }
+    assert listed == tree, (
+        f"§2 QR_FEEDERS_SKILLMD {sorted(listed)} != bridge-citing SKILL.md {sorted(tree)}"
+    )
+
+
 def test_bench_engine_module_scan_covers_every_module():
     """Every engine module must be listed in the bench's duplicate-def scan.
 

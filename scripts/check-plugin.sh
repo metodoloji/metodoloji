@@ -728,6 +728,11 @@ for skill, (rec_type, target, _) in BRIDGE_SKILLS.items():
         missing.append("%s (methodology record target %s missing)" % (skill, target))
 
 # Phase-3 QR feeders — ones working through the "## Methodology" section of SKILL.md.
+# This list must equal the tree's bridge-citing skills/*/SKILL.md surfaces: every
+# SKILL.md that cites dev-skill-to-methodology-bridge. The bench check "QR feeder
+# SKILL.md audit covers every bridge surface (E-024)" pins that equality. Before
+# E-024 it was a hardcoded 3, so a new bridge-citing SKILL.md would drop out of
+# this audit silently while §2 kept reporting HEALTHY (the E-018/E-020/E-021 class).
 QR_FEEDERS_SKILLMD = ["bmad-review-adversarial-general", "bmad-review-edge-case-hunter", "bmad-eval-runner"]
 for skill in QR_FEEDERS_SKILLMD:
     skill_md = os.path.join(PLUGIN, "skills", skill, "SKILL.md")
