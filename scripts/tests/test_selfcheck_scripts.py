@@ -250,3 +250,27 @@ def test_e_templates_carry_the_lineage_field():
     for rel in ("templates/_template_E.md", "docs/experiments/_template.md"):
         text = (PLUGIN / rel).read_text(encoding="utf-8", errors="replace")
         assert "**Lineage:**" in text, f"{rel} is missing the Lineage field"
+
+
+def test_cross_machine_marker_is_anchored():
+    """E-025: §3 must read Re-Measured-By from the canonical bullet, not prose.
+
+    §3's guard was an unanchored ``grep 'Re-Measured-By:'``, so E-023's prose
+    mention of the marker was misparsed into a bogus filename and a wrong
+    CROSS-MACHINE classification. This calls the bench's check, which evaluates
+    §3's marker pattern against a prose line (must not match) and the canonical
+    bullet (must match and yield its E-id).
+    """
+    bench = _load_bench()
+    problem = bench._check_cross_machine_marker_is_anchored()
+    assert problem is None, problem
+
+
+def test_cross_machine_marker_guard_is_anchored_in_script():
+    """§3 must carry the anchored marker pattern and no unanchored guard (E-025)."""
+    text = (PLUGIN / "scripts" / "check-plugin.sh").read_text(
+        encoding="utf-8", errors="replace")
+    assert "RE_MEASURED_MARKER=" in text, "§3 dropped the anchored marker pattern"
+    assert "grep -q 'Re-Measured-By:'" not in text, (
+        "§3 regressed to the unanchored 'Re-Measured-By:' guard"
+    )

@@ -1783,6 +1783,40 @@ def _check_negtest_stage_wiring() -> str | None:
     return "; ".join(problems) if problems else None
 
 
+def _check_cross_machine_marker_is_anchored() -> str | None:
+    """E-025: §3 must read Re-Measured-By from the canonical bullet line, not prose.
+
+    §3 reports an approved-but-unverifiable record as CROSS-MACHINE only when the
+    operator declared a re-measurement with the plain ``Re-Measured-By:`` marker.
+    The old guard was an unanchored ``grep -q 'Re-Measured-By:'``, so a record
+    that merely DISCUSSES the marker in prose (E-023 documents the P11 repair)
+    was read as carrying one: the extractor returned the sentence text as the
+    "declared" record, and §3 printed a bogus filename and a wrong CROSS-MACHINE
+    classification. This extracts §3's marker pattern and evaluates it against
+    both forms — the canonical bullet must match and yield its E-id, a prose
+    mention must not match — so the guard cannot silently un-anchor again.
+    """
+    problems: list[str] = []
+    script = _read("scripts/check-plugin.sh")
+    m = re.search(r"RE_MEASURED_MARKER='([^']+)'", script)
+    if not m:
+        return "check-plugin.sh §3 no longer declares RE_MEASURED_MARKER"
+    if "grep -q 'Re-Measured-By:'" in script:
+        problems.append("§3 fell back to the unanchored 'Re-Measured-By:' guard")
+    if 'grep -oE "$RE_MEASURED_MARKER"' not in script:
+        problems.append("§3 no longer extracts the E-id from the marker pattern")
+    # Evaluate the anchoring semantics (POSIX ERE -> Python re: [[:space:]] -> \s).
+    py = m.group(1).replace("[[:space:]]", r"\s")
+    prose = ("  `Re-Measured-By:` marker; these three were never re-measured). "
+             "The record has")
+    bullet = "- **Re-Measured-By:** E-006 (08.10.2026)"
+    if re.search(py, prose, re.MULTILINE):
+        problems.append("§3 marker pattern matches a prose mention of Re-Measured-By")
+    if not re.search(py, bullet, re.MULTILINE):
+        problems.append("§3 marker pattern does not match the canonical bullet line")
+    return "; ".join(problems) if problems else None
+
+
 def _run_pytest() -> str | None:
     """The falsifier: the whole suite must stay green."""
     proc = subprocess.run([sys.executable, "-m", "pytest", "-q"],
@@ -1896,6 +1930,8 @@ def build_checks() -> list[tuple[str, object]]:
                    _check_experiment_lineage_enforced))
     checks.append(("negtest counts and check-plugin doc pointers pinned (E-023)",
                    _check_negtest_stage_wiring))
+    checks.append(("cross-machine marker read from the canonical bullet (E-025)",
+                   _check_cross_machine_marker_is_anchored))
     checks.append(("pytest suite green (falsifier)", _run_pytest))
     checks.append(("hooks.json in sync with generator", _run_hooks_json_sync))
     return checks

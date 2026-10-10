@@ -924,6 +924,13 @@ else
 fi
 
 echo "== 3) Approved experiment inventory (did guard open code writing?) =="
+# The P11 cross-machine marker is a canonical bullet line, e.g.
+#   - **Re-Measured-By:** E-006 (08.10.2026)
+# Only that line form counts. A record that merely DISCUSSES the marker in prose
+# (E-023 documents the P11 repair) must not be read as carrying one: the old
+# unanchored `grep 'Re-Measured-By:'` matched the prose and extracted garbage as
+# the "declared" re-measurement, reporting a bogus filename (E-025).
+RE_MEASURED_MARKER='^-[[:space:]]*(\*\*)?Re-Measured-By:(\*\*)?[[:space:]]*E-[0-9][0-9]*'
 FOUND=0
 for rec in "$PROJECT_ROOT"/docs/experiments/*.md; do
     [ -f "$rec" ] || continue
@@ -941,14 +948,14 @@ for rec in "$PROJECT_ROOT"/docs/experiments/*.md; do
             # Does not open code writing, so not counted in FOUND (guard stayed closed),
             # but must NOT be reported as FORGED.
             echo "[OK]   $rec -> VERIFIED (ADVISORY-BLOCK: genuine token, small sample — code stayed closed)"
-        elif grep -q 'Re-Measured-By:' "$rec"; then
+        elif grep -qE "$RE_MEASURED_MARKER" "$rec"; then
             # CROSS-MACHINE provenance, not tampering: the record was approved under a
             # key outside this machine's trust ring (the HMAC keys live outside the
             # repo, so --verify cannot re-derive the token here). The operator has
             # declared the re-measurement record via the plain 'Re-Measured-By:'
             # marker; that record must verify under this machine's trust ring
             # (own key + imported peer keys — run_experiment.py --import-key).
-            remeasured=$(grep 'Re-Measured-By:' "$rec" | head -1 | sed 's/.*Re-Measured-By:\*\{0,2\}[[:space:]]*\(E-[0-9][0-9]*\).*/\1/')
+            remeasured=$(grep -oE "$RE_MEASURED_MARKER" "$rec" | head -1 | grep -oE 'E-[0-9][0-9]*')
             rmrec="$PROJECT_ROOT/docs/experiments/$remeasured.md"
             rmvrc=3
             [ -n "$remeasured" ] && [ -f "$rmrec" ] && \
