@@ -645,6 +645,11 @@ if not os.path.isfile(BRIDGE):
 
 # Phase-1 bridge skills: each must produce docs/development/<record>-*.md.
 # QR records may live under docs/quality/ (new) or docs/development/ (legacy).
+# EVERY producer named by GUIDE.md "Producer (N, creates/updates records)" must
+# appear here so its record path is checked — the bench check "producer record
+# targets audited (E-021)" pins the keys to that documented set. Before E-021
+# this dict held 7 of the 17: the gds, gds-agent and wds producers' record path
+# was never verified.
 BRIDGE_SKILLS = {
     "bmad-check-implementation-readiness": ("IR", "docs/development/", "create"),
     "bmad-sprint-planning": ("SP", "docs/development/", "create"),
@@ -653,6 +658,16 @@ BRIDGE_SKILLS = {
     "bmad-dev-story": ("S", "docs/development/stories/", "update"),
     "bmad-quick-dev": ("S", "docs/development/stories/", "update"),
     "bmad-dev-auto": ("S", "docs/development/stories/", "update"),
+    "bmad-agent-dev": ("S", "docs/development/stories/", "update"),
+    "gds-check-implementation-readiness": ("IR", "docs/development/", "create"),
+    "gds-sprint-planning": ("SP", "docs/development/", "create"),
+    "gds-create-story": ("S", "docs/development/stories/", "create"),
+    "gds-code-review": ("QR", "docs/quality/QR", "create"),
+    "gds-dev-story": ("S", "docs/development/stories/", "update"),
+    "gds-quick-dev": ("S", "docs/development/stories/", "update"),
+    "gds-agent-game-dev": ("S", "docs/development/stories/", "update"),
+    "gds-agent-game-solo-dev": ("S", "docs/development/stories/", "update"),
+    "wds-5-agentic-development": ("S", "docs/development/stories/", "update"),
 }
 for skill, (rec_type, target, _) in BRIDGE_SKILLS.items():
     toml_path = os.path.join(PLUGIN, "custom", "%s.toml" % skill)

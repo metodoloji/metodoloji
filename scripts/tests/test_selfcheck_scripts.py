@@ -135,6 +135,32 @@ def test_qr_feeder_audit_lists_gds_feeders():
         assert name in listed, f"§2 QR_FEEDERS_TOML is missing the gds feeder {name}"
 
 
+def test_producer_record_targets_audited():
+    """check-plugin.sh §2 BRIDGE_SKILLS must hold every producer (E-021).
+
+    §2 demands the bridge reference + record path on each entry but listed only
+    7 of the 17 producers. This calls the bench's check, which pins the dict's
+    keys to GUIDE.md's producer set and re-checks the target per TOML.
+    """
+    bench = _load_bench()
+    problem = bench._check_bridge_record_target_audit_covers_every_producer()
+    assert problem is None, problem
+
+
+def test_producer_record_targets_list_gds_and_wds_producers():
+    """§2's BRIDGE_SKILLS must contain the previously-unaudited producers (E-021)."""
+    text = (PLUGIN / "scripts" / "check-plugin.sh").read_text(
+        encoding="utf-8", errors="replace")
+    blk = re.search(r"BRIDGE_SKILLS = \{(.*?)\}", text, re.DOTALL)
+    assert blk, "check-plugin.sh §2 has no BRIDGE_SKILLS dict"
+    listed = set(re.findall(r'"([^"\s]+)"\s*:', blk.group(1)))
+    for name in ("gds-check-implementation-readiness", "gds-sprint-planning",
+                 "gds-create-story", "gds-code-review", "gds-dev-story",
+                 "gds-quick-dev", "gds-agent-game-dev", "gds-agent-game-solo-dev",
+                 "wds-5-agentic-development", "bmad-agent-dev"):
+        assert name in listed, f"§2 BRIDGE_SKILLS is missing the producer {name}"
+
+
 def test_bench_engine_module_scan_covers_every_module():
     """Every engine module must be listed in the bench's duplicate-def scan.
 

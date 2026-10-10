@@ -1584,6 +1584,47 @@ def _check_bridge_feeder_audit_covers_every_feeder() -> str | None:
     return "; ".join(problems) if problems else None
 
 
+def _check_bridge_record_target_audit_covers_every_producer() -> str | None:
+    """E-021: every producer's record path must be audited by check-plugin §2.
+
+    §2's ``BRIDGE_SKILLS`` dict demands the bridge reference *and* the record
+    path (``docs/development/stories/``, ``docs/quality/QR``, ...) on each
+    entry, but it listed only 7 of the 17 producers — the gds, gds-agent and wds
+    producers' record path was never verified. This pins the dict's keys to
+    GUIDE.md's documented producer set and re-checks the bridge reference plus
+    the record target on every producer TOML.
+    """
+    problems: list[str] = []
+    guide = _read("GUIDE.md")
+    m = re.search(r"\*\*Producer \((\d+),[^)]*\):\*\*(.+?)\.\s*\n",
+                  guide, re.DOTALL)
+    if not m:
+        return "GUIDE.md no longer states a 'Producer (N, ...)' line"
+    documented = set(re.findall(r"`([^`]+)`", m.group(2)))
+    script = _read("scripts/check-plugin.sh")
+    blk = re.search(r"BRIDGE_SKILLS = \{(.*?)\}", script, re.DOTALL)
+    if not blk:
+        return "check-plugin.sh §2 has no BRIDGE_SKILLS dict"
+    entries = re.findall(r'"([^"\s]+)"\s*:\s*\(\s*"[^"]+"\s*,\s*"([^"]+)"',
+                         blk.group(1))
+    audited = dict(entries)
+    if set(audited) != documented:
+        missing = sorted(documented - set(audited))
+        extra = sorted(set(audited) - documented)
+        problems.append(f"§2 BRIDGE_SKILLS != GUIDE producers (missing {missing}, extra {extra})")
+    for name, target in audited.items():
+        path = ROOT / "custom" / f"{name}.toml"
+        if not path.is_file():
+            problems.append(f"producer TOML missing: custom/{name}.toml")
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if "dev-skill-to-methodology-bridge" not in text:
+            problems.append(f"{name}: no bridge reference")
+        if target not in text:
+            problems.append(f"{name}: record target {target} absent")
+    return "; ".join(problems) if problems else None
+
+
 def _run_pytest() -> str | None:
     """The falsifier: the whole suite must stay green."""
     proc = subprocess.run([sys.executable, "-m", "pytest", "-q"],
@@ -1689,6 +1730,8 @@ def build_checks() -> list[tuple[str, object]]:
                    _check_bridge_section_refs_resolve))
     checks.append(("QR feeder audit covers every feeder surface (E-020)",
                    _check_bridge_feeder_audit_covers_every_feeder))
+    checks.append(("producer record targets audited (E-021)",
+                   _check_bridge_record_target_audit_covers_every_producer))
     checks.append(("pytest suite green (falsifier)", _run_pytest))
     checks.append(("hooks.json in sync with generator", _run_hooks_json_sync))
     return checks
