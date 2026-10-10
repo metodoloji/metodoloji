@@ -1667,6 +1667,61 @@ def _check_qr_feeder_skillmd_audit_covers_every_surface() -> str | None:
     return "; ".join(problems) if problems else None
 
 
+def _check_bridge_runtime_visibility_audit_covers_every_surface() -> str | None:
+    """E-027: §2b must probe every bridge-citing TOML override.
+
+    §2b proves the BRIDGE survives the ``resolve_customization`` merge (it is
+    visible at runtime) for a hardcoded pair of lists — ``TOML_SKILLS`` (30) and
+    ``AGENT_TOML_SKILLS`` (3). E-024 called ``QR_FEEDERS_SKILLMD`` "the last
+    bridge-audit list in ``check-plugin.sh`` not pinned to a tree-derived set";
+    reading the tree falsifies that — this pair is another. The 33 names equal
+    the tree's bridge-citing ``custom/*.toml`` files today, but nothing pins it,
+    so a new bridge-citing override (or a rename) drops out of §2b's
+    runtime-visibility probe silently while §2b keeps reporting HEALTHY. This
+    derives the surface set from the tree (every ``custom/*.toml`` that cites
+    the bridge), pins §2b's coverage to it, keeps the agent/workflow
+    classification disjoint, and re-checks the root ``customize.toml`` on each
+    surface (the invariant §2b actually evaluates).
+    """
+    problems: list[str] = []
+    script = _read("scripts/check-plugin.sh")
+    toml_blk = re.search(r"TOML_SKILLS = \[(.*?)\]", script, re.DOTALL)
+    agent_blk = re.search(r"AGENT_TOML_SKILLS = \[(.*?)\]", script, re.DOTALL)
+    if not toml_blk or not agent_blk:
+        return "check-plugin.sh §2b has no TOML_SKILLS/AGENT_TOML_SKILLS lists"
+    toml_skills = set(re.findall(r'"([^"]+)"', toml_blk.group(1)))
+    agent_skills = set(re.findall(r'"([^"]+)"', agent_blk.group(1)))
+    covered = toml_skills | agent_skills
+    both = sorted(toml_skills & agent_skills)
+    if both:
+        problems.append(f"§2b classifies {both} as both workflow and agent surfaces")
+    tree: set[str] = set()
+    for path in sorted((ROOT / "custom").glob("*.toml")):
+        if path.name == "config.toml":
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if "dev-skill-to-methodology-bridge" in text:
+            tree.add(path.stem)
+    if covered != tree:
+        missing = sorted(tree - covered)
+        extra = sorted(covered - tree)
+        problems.append("§2b TOML_SKILLS+AGENT_TOML_SKILLS != bridge-citing "
+                        f"custom/*.toml (missing {missing}, extra {extra})")
+    for name in sorted(covered):
+        root_toml = ROOT / "skills" / name / "customize.toml"
+        if not root_toml.is_file():
+            problems.append(f"{name}: no root customize.toml — team BRIDGE "
+                            "override can never merge")
+        tname = ROOT / "custom" / f"{name}.toml"
+        if not tname.is_file():
+            problems.append(f"{name}: no custom/{name}.toml bridge override")
+            continue
+        if "dev-skill-to-methodology-bridge" not in tname.read_text(
+                encoding="utf-8", errors="replace"):
+            problems.append(f"{name}: custom/{name}.toml has no bridge reference")
+    return "; ".join(problems) if problems else None
+
+
 def _check_experiment_lineage_enforced() -> str | None:
     """E-022: a new experiment must declare what the prior ones carry.
 
@@ -1995,6 +2050,8 @@ def build_checks() -> list[tuple[str, object]]:
                    _check_bridge_record_target_audit_covers_every_producer))
     checks.append(("QR feeder SKILL.md audit covers every bridge surface (E-024)",
                    _check_qr_feeder_skillmd_audit_covers_every_surface))
+    checks.append(("bridge runtime-visibility audit covers every bridge surface (E-027)",
+                   _check_bridge_runtime_visibility_audit_covers_every_surface))
     checks.append(("experiment lineage declared and enforced (E-022)",
                    _check_experiment_lineage_enforced))
     checks.append(("negtest counts and check-plugin doc pointers pinned (E-023)",

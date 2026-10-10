@@ -794,6 +794,12 @@ fi
 echo "== 2b) Bridge instructions visible at runtime? (resolve_customization merge) =="
 # The BRIDGE step in custom/{skill}.toml must merge with the skill-root customize.toml
 # via resolve_customization.py deep_merge (append). Append semantics are persistent.
+# TOML_SKILLS + AGENT_TOML_SKILLS must equal the tree's BRIDGE-bearing overrides:
+# every custom/*.toml that cites dev-skill-to-methodology-bridge. The bench check
+# "bridge runtime-visibility audit covers every bridge surface (E-027)" pins that
+# equality, so a new bridge-citing override cannot drop out of this probe silently
+# (the E-018/E-020/E-021/E-024 class). E-024 named QR_FEEDERS_SKILLMD the "last"
+# unpinned bridge-audit list; reading the tree falsifies that — this pair was another.
 "$PY" - <<'PY'
 import json, os, subprocess, sys
 from pathlib import Path

@@ -291,6 +291,41 @@ def test_negtest_suites_cover_the_known_scripts():
         )
 
 
+def test_bridge_runtime_visibility_audit_covers_every_surface():
+    """E-027: §2b's bridge-merge probe must cover every bridge-citing override.
+
+    §2b proves the BRIDGE survives the ``resolve_customization`` merge through a
+    hardcoded ``TOML_SKILLS``/``AGENT_TOML_SKILLS`` pair. E-024 called
+    ``QR_FEEDERS_SKILLMD`` the last unpinned bridge-audit list; the tree
+    falsifies that — this pair is another. This calls the bench's check, which
+    derives the bridge-citing ``custom/*.toml`` set and pins §2b's coverage to it.
+    """
+    bench = _load_bench()
+    problem = bench._check_bridge_runtime_visibility_audit_covers_every_surface()
+    assert problem is None, problem
+
+
+def test_bridge_runtime_visibility_audit_lists_every_bridge_override():
+    """§2b's coverage must equal the tree's bridge-citing custom/*.toml (E-027)."""
+    text = (PLUGIN / "scripts" / "check-plugin.sh").read_text(
+        encoding="utf-8", errors="replace")
+    def _listed(name):
+        blk = re.search(name + r" = \[(.*?)\]", text, re.DOTALL)
+        assert blk, f"check-plugin.sh §2b has no {name} list"
+        return set(re.findall(r'"([^"]+)"', blk.group(1)))
+    covered = _listed("TOML_SKILLS") | _listed("AGENT_TOML_SKILLS")
+    tree = {
+        p.stem
+        for p in (PLUGIN / "custom").glob("*.toml")
+        if p.name != "config.toml"
+        and "dev-skill-to-methodology-bridge" in p.read_text(
+            encoding="utf-8", errors="replace")
+    }
+    assert covered == tree, (
+        f"§2b coverage {sorted(covered)} != bridge-citing custom/*.toml {sorted(tree)}"
+    )
+
+
 def test_cross_machine_marker_is_anchored():
     """E-025: §3 must read Re-Measured-By from the canonical bullet, not prose.
 
