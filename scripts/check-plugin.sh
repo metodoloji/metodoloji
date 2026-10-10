@@ -791,32 +791,53 @@ import json, os, subprocess, sys
 from pathlib import Path
 PLUGIN = Path(os.environ.get("PLUGIN_ROOT") or ".")
 RESOLVER = PLUGIN / "hooks" / "engine" / "resolve_customization.py"
-BRIDGE_SKILLS = [
-    "bmad-check-implementation-readiness", "bmad-sprint-planning",
-    "bmad-create-story", "bmad-code-review",
-    "bmad-dev-story", "bmad-quick-dev", "bmad-dev-auto",
-    "gds-check-implementation-readiness", "gds-sprint-planning",
-    "gds-create-story", "gds-code-review",
-    "gds-dev-story", "gds-quick-dev",
-]
+# Every producer BRIDGE surface carries a VERIFY step. The BRIDGE text lives in
+# workflow.activation_steps_append for the workflow producers and in
+# [agent].principles for the agent-principles producers (the same key §2b uses).
+# This map must cover EVERY producer named by GUIDE.md "Producer (N,
+# creates/updates records)" — the bench check "producer VERIFY audit covers
+# every producer surface (E-018)" pins that equality, so a surface cannot drop
+# out of the audit. Before E-018 §2c read only workflow.activation_steps_append
+# for 13 of the 17 producers: the three agent-principles producers were never
+# read (probe: stripping VERIFY from bmad-agent-dev left §2c green) and
+# wds-5-agentic-development was not listed at all.
+PRODUCER_KEY = {
+    "bmad-check-implementation-readiness": "workflow.activation_steps_append",
+    "bmad-sprint-planning": "workflow.activation_steps_append",
+    "bmad-create-story": "workflow.activation_steps_append",
+    "bmad-code-review": "workflow.activation_steps_append",
+    "bmad-dev-story": "workflow.activation_steps_append",
+    "bmad-quick-dev": "workflow.activation_steps_append",
+    "bmad-dev-auto": "workflow.activation_steps_append",
+    "bmad-agent-dev": "agent.principles",
+    "gds-check-implementation-readiness": "workflow.activation_steps_append",
+    "gds-sprint-planning": "workflow.activation_steps_append",
+    "gds-create-story": "workflow.activation_steps_append",
+    "gds-code-review": "workflow.activation_steps_append",
+    "gds-dev-story": "workflow.activation_steps_append",
+    "gds-quick-dev": "workflow.activation_steps_append",
+    "gds-agent-game-dev": "agent.principles",
+    "gds-agent-game-solo-dev": "agent.principles",
+    "wds-5-agentic-development": "workflow.activation_steps_append",
+}
 missing = []
 checked = 0
-for name in BRIDGE_SKILLS:
+for name, key in PRODUCER_KEY.items():
     skill_dir = PLUGIN / "skills" / name
     if not skill_dir.is_dir():
+        missing.append("%s (skill directory missing — VERIFY cannot load)" % name)
         continue
     checked += 1
     try:
         r = subprocess.run(
-            [sys.executable, str(RESOLVER), "-s", str(skill_dir),
-             "-k", "workflow.activation_steps_append"],
+            [sys.executable, str(RESOLVER), "-s", str(skill_dir), "-k", key],
             capture_output=True, text=True, encoding="utf-8", timeout=15)
         d = json.loads(r.stdout)
-        asa = d.get("workflow.activation_steps_append", [])
+        steps = d.get(key, [])
         # Accept legacy Turkish marker and both English markers.
-        has_verify = any(m in s for s in asa for m in ("DOGRULAMA", "VERIFICATION", "VERIFY"))
+        has_verify = any(m in s for s in steps for m in ("DOGRULAMA", "VERIFICATION", "VERIFY"))
         if not has_verify:
-            missing.append("%s (no verify marker in BRIDGE — LLM may skip the record)" % name)
+            missing.append("%s (no verify marker in BRIDGE[%s] — LLM may skip the record)" % (name, key))
     except Exception as e:
         missing.append("%s (resolve error: %s)" % (name, str(e)[:60]))
 print("  checked BRIDGE skills: %d" % checked)

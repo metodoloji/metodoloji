@@ -1440,6 +1440,59 @@ def _check_engine_decode_refusals() -> str | None:
     return "; ".join(problems) if problems else None
 
 
+def _check_bridge_producer_verify_audit() -> str | None:
+    """E-018: the producer-VERIFY audit must read every producer BRIDGE surface.
+
+    GUIDE.md promises "Producer BRIDGEs carry a VERIFY step ... (automatic
+    anti-skip check; audit #2c)" and names 17 producers — three of which keep
+    their BRIDGE inside ``[agent].principles``. Before E-018 #2c read only
+    ``workflow.activation_steps_append`` for 13 of them: stripping the VERIFY
+    marker from an agent-principles producer (``bmad-agent-dev``) left the
+    audit green, and ``wds-5-agentic-development`` was never read at all. This
+    check pins #2c's producer set *and* per-surface key to GUIDE's documented
+    set, then re-evaluates the verify-marker invariant on each producer TOML —
+    so a surface cannot silently drop out of the audit (the "guard is only as
+    wide as this tuple" class E-002/E-017 named).
+    """
+    problems: list[str] = []
+    guide = _read("GUIDE.md")
+    m = re.search(r"\*\*Producer \((\d+),[^)]*\):\*\*(.+?)\.\s*\n",
+                  guide, re.DOTALL)
+    if not m:
+        return "GUIDE.md no longer states a 'Producer (N, ...)' line"
+    documented = set(re.findall(r"`([^`]+)`", m.group(2)))
+    if len(documented) != int(m.group(1)):
+        problems.append(f"GUIDE.md producer count {m.group(1)} != {len(documented)} names")
+    script = (ROOT / "scripts" / "check-plugin.sh").read_text(
+        encoding="utf-8", errors="replace")
+    blk = re.search(r"PRODUCER_KEY = \{(.*?)\}", script, re.DOTALL)
+    if not blk:
+        return "check-plugin.sh §2c has no PRODUCER_KEY map"
+    audited = dict(re.findall(r'"([^"]+)"\s*:\s*"([^"]+)"', blk.group(1)))
+    if not audited:
+        return "check-plugin.sh §2c PRODUCER_KEY is empty"
+    if set(audited) != documented:
+        missing = sorted(documented - set(audited))
+        extra = sorted(set(audited) - documented)
+        problems.append(f"§2c producer set != GUIDE.md (missing {missing}, extra {extra})")
+    agent_surfaces = {"bmad-agent-dev", "gds-agent-game-dev", "gds-agent-game-solo-dev"}
+    for name, key in audited.items():
+        want = "agent.principles" if name in agent_surfaces else "workflow.activation_steps_append"
+        if key != want:
+            problems.append(f"§2c reads {name} from {key}, want {want}")
+        path = ROOT / "custom" / f"{name}.toml"
+        if not path.is_file():
+            problems.append(f"producer TOML missing: custom/{name}.toml")
+            continue
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
+        sec, field = key.split(".", 1)
+        steps = data.get(sec, {}).get(field, []) or []
+        if not any(mk in s for s in steps
+                   for mk in ("DOGRULAMA", "VERIFICATION", "VERIFY")):
+            problems.append(f"{name}: no verify marker in {key}")
+    return "; ".join(problems) if problems else None
+
+
 def _run_pytest() -> str | None:
     """The falsifier: the whole suite must stay green."""
     proc = subprocess.run([sys.executable, "-m", "pytest", "-q"],
@@ -1539,6 +1592,8 @@ def build_checks() -> list[tuple[str, object]]:
                    _check_record_decode_refusals))
     checks.append(("engine and check scripts refuse a non-UTF-8 file (E-017)",
                    _check_engine_decode_refusals))
+    checks.append(("producer VERIFY audit covers every producer surface (E-018)",
+                   _check_bridge_producer_verify_audit))
     checks.append(("pytest suite green (falsifier)", _run_pytest))
     checks.append(("hooks.json in sync with generator", _run_hooks_json_sync))
     return checks
