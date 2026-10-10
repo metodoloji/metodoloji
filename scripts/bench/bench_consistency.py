@@ -1532,6 +1532,58 @@ def _check_bridge_section_refs_resolve() -> str | None:
     return "; ".join(problems) if problems else None
 
 
+def _check_bridge_feeder_audit_covers_every_feeder() -> str | None:
+    """E-020: the QR-feeder audit must cover every feeder BRIDGE surface.
+
+    The 33 BRIDGE surfaces partition cleanly: 17 carry a VERIFY step (producers,
+    guarded by §2c — E-018) and 16 do not (feeders, whose BRIDGE says "does not
+    produce an independent methodology record"). ``check-plugin.sh`` §2 lists
+    the TOML feeders but named only 9 of the 16 — the seven gds feeders
+    (``gds-test-*``, ``gds-e2e-scaffold``, ``gds-performance-test``,
+    ``gds-playtest-plan``) were never checked for the bridge reference + QR
+    target. This derives the feeder set from the feeder phrase (cross-checked
+    against the absence of a VERIFY step so the two signals agree) and pins §2's
+    list to it, then re-checks the bridge-reference + QR-target invariant.
+    """
+    problems: list[str] = []
+    script = _read("scripts/check-plugin.sh")
+    blk = re.search(r"QR_FEEDERS_TOML = \[(.*?)\]", script, re.DOTALL)
+    if not blk:
+        return "check-plugin.sh §2 has no QR_FEEDERS_TOML list"
+    audited = set(re.findall(r'"([^"]+)"', blk.group(1)))
+    feeder_phrase = "does not produce an independent methodology record"
+    verify_markers = ("DOGRULAMA", "VERIFICATION", "VERIFY")
+    tree_feeders: set[str] = set()
+    for path in sorted((ROOT / "custom").glob("*.toml")):
+        if path.name == "config.toml":
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if "dev-skill-to-methodology-bridge" not in text:
+            continue
+        is_feeder = feeder_phrase in text
+        has_verify = any(mk in text for mk in verify_markers)
+        if is_feeder == has_verify:
+            problems.append(f"{path.name}: feeder/producer signals disagree "
+                            f"(feeder phrase={is_feeder}, verify={has_verify})")
+        if is_feeder:
+            tree_feeders.add(path.stem)
+    if audited != tree_feeders:
+        missing = sorted(tree_feeders - audited)
+        extra = sorted(audited - tree_feeders)
+        problems.append(f"§2 QR_FEEDERS_TOML != tree feeders (missing {missing}, extra {extra})")
+    for name in sorted(audited):
+        path = ROOT / "custom" / f"{name}.toml"
+        if not path.is_file():
+            problems.append(f"feeder TOML missing: custom/{name}.toml")
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if "dev-skill-to-methodology-bridge" not in text:
+            problems.append(f"{name}: no bridge reference")
+        if "docs/quality/QR" not in text and "docs/development/QR" not in text:
+            problems.append(f"{name}: no QR target")
+    return "; ".join(problems) if problems else None
+
+
 def _run_pytest() -> str | None:
     """The falsifier: the whole suite must stay green."""
     proc = subprocess.run([sys.executable, "-m", "pytest", "-q"],
@@ -1635,6 +1687,8 @@ def build_checks() -> list[tuple[str, object]]:
                    _check_bridge_producer_verify_audit))
     checks.append(("bridge section refs resolve on every citing surface (E-019)",
                    _check_bridge_section_refs_resolve))
+    checks.append(("QR feeder audit covers every feeder surface (E-020)",
+                   _check_bridge_feeder_audit_covers_every_feeder))
     checks.append(("pytest suite green (falsifier)", _run_pytest))
     checks.append(("hooks.json in sync with generator", _run_hooks_json_sync))
     return checks

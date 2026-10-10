@@ -109,6 +109,32 @@ def test_bridge_drift_audit_scans_skill_md_surfaces():
     )
 
 
+def test_qr_feeder_audit_covers_every_feeder():
+    """check-plugin.sh §2 QR_FEEDERS_TOML must equal the tree's feeder surfaces (E-020).
+
+    The 33 BRIDGE surfaces partition into 17 producers (VERIFY step) and 16
+    feeders ("does not produce an independent methodology record"). §2 named
+    only 9 of the 16 TOML feeders; the seven gds feeders went unread. This
+    calls the bench's check, which derives the feeder set and pins §2 to it.
+    """
+    bench = _load_bench()
+    problem = bench._check_bridge_feeder_audit_covers_every_feeder()
+    assert problem is None, problem
+
+
+def test_qr_feeder_audit_lists_gds_feeders():
+    """The gds feeder TOMLs must be in §2's QR_FEEDERS_TOML (the E-020 widening)."""
+    text = (PLUGIN / "scripts" / "check-plugin.sh").read_text(
+        encoding="utf-8", errors="replace")
+    blk = re.search(r"QR_FEEDERS_TOML = \[(.*?)\]", text, re.DOTALL)
+    assert blk, "check-plugin.sh §2 has no QR_FEEDERS_TOML list"
+    listed = set(re.findall(r'"([^"]+)"', blk.group(1)))
+    for name in ("gds-test-automate", "gds-test-design", "gds-test-framework",
+                 "gds-test-review", "gds-e2e-scaffold", "gds-performance-test",
+                 "gds-playtest-plan"):
+        assert name in listed, f"§2 QR_FEEDERS_TOML is missing the gds feeder {name}"
+
+
 def test_bench_engine_module_scan_covers_every_module():
     """Every engine module must be listed in the bench's duplicate-def scan.
 

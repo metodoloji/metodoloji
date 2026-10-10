@@ -687,11 +687,18 @@ for skill in QR_FEEDERS_SKILLMD:
         missing.append("%s (no QR feed target in SKILL.md)" % skill)
 
 # Phase-3 QR feeders — ones working via custom/{skill}.toml activation_steps_append.
+# This list must equal the tree's FEEDER BRIDGE surfaces: every custom/*.toml that
+# cites the bridge but carries no VERIFY step (its BRIDGE says "does not produce
+# an independent methodology record"). The bench check "QR feeder audit covers
+# every feeder surface (E-020)" pins that equality. Before E-020 it named only 9
+# of the 16 — the seven gds feeders were never read here.
 QR_FEEDERS_TOML = [
     "bmad-qa-generate-e2e-tests",
     "bmad-testarch-atdd", "bmad-testarch-automate", "bmad-testarch-ci",
     "bmad-testarch-framework", "bmad-testarch-nfr", "bmad-testarch-test-design",
     "bmad-testarch-test-review", "bmad-testarch-trace",
+    "gds-test-automate", "gds-test-design", "gds-test-framework", "gds-test-review",
+    "gds-e2e-scaffold", "gds-performance-test", "gds-playtest-plan",
 ]
 for skill in QR_FEEDERS_TOML:
     toml_path = os.path.join(PLUGIN, "custom", "%s.toml" % skill)
