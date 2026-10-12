@@ -50,7 +50,12 @@ from datetime import date as _date
 # the engine tree, not next to this script. Layout (this file at <root>/skills/
 # bmad-research-experiment/scripts/): parents[0]=scripts, [1]=skill, [2]=skills,
 # [3]=<methodology-root>.
-_ENGINE_DIR = pathlib.Path(__file__).resolve().parents[3] / "hooks" / "engine"
+# This script's own path, so a remedy that tells the operator to re-run the
+# gate is runnable from any cwd (E-029: a gate command naming only the script
+# filename cannot be found where the message is printed — the skill's scripts/
+# dir is not the operator's cwd).
+_SELF = pathlib.Path(__file__).resolve()
+_ENGINE_DIR = _SELF.parents[3] / "hooks" / "engine"
 if _ENGINE_DIR.is_dir() and str(_ENGINE_DIR) not in sys.path:
     sys.path.insert(0, str(_ENGINE_DIR))
 try:
@@ -131,7 +136,7 @@ def require_secret() -> bytes:
     secret = load_secret()
     if secret is None:
         raise GateError(
-            "gate key not found. Run first: python3 run_experiment.py --init-secret "
+            f"gate key not found. Run first: python3 {_SELF} --init-secret "
             f"(writes: {SECRET_FILE}) or set the {SECRET_ENV} environment variable.")
     return secret
 
@@ -141,7 +146,7 @@ def require_any_secret() -> list[bytes]:
     secrets = trusted_secrets()
     if not secrets:
         raise GateError(
-            "gate key not found. Run first: python3 run_experiment.py --init-secret "
+            f"gate key not found. Run first: python3 {_SELF} --init-secret "
             f"(writes: {SECRET_FILE}) or set the {SECRET_ENV} environment variable.")
     return secrets
 
@@ -226,7 +231,7 @@ def check_secret() -> int:
             print(f"[OK] no own key, but trust ring has {len(ring)} peer key(s) "
                   f"({SECRETS_DIR}) — verify works, signing does not.")
         return 0
-    print(f"[ERROR] gate key not found. Run: python3 run_experiment.py --init-secret",
+    print(f"[ERROR] gate key not found. Run: python3 {_SELF} --init-secret",
           file=sys.stderr)
     return 1
 

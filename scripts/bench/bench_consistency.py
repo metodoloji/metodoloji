@@ -1780,6 +1780,58 @@ def _check_story_title_grammar_agreement() -> str | None:
     return "; ".join(problems) if problems else None
 
 
+def _check_gate_remedy_paths_are_runnable() -> str | None:
+    """E-029: every printed record-chain remedy resolves inside the plugin.
+
+    The gate runs in a TARGET project, which does not ship the plugin's
+    ``scripts/`` tree, so ``python3 scripts/create-qr-record.py`` (the very
+    generator the QR gate tells the operator to run) is not runnable where it is
+    printed — the E-028 Known Gap. This drives the real gate on a temp target
+    project and demands the remedy point at the plugin's own script file and
+    name the story the operator actually has (no literal ``S-XXX``), then scans
+    the engine + gate sources so no cwd-relative plugin-script remedy can return.
+    """
+    import tempfile  # noqa: PLC0415
+
+    problems: list[str] = []
+    engine_dir = str(ROOT / "hooks" / "engine")
+    if engine_dir not in sys.path:
+        sys.path.insert(0, engine_dir)
+    from modules import guard as guard_mod  # noqa: PLC0415
+
+    qr_script = ROOT / "scripts" / "create-qr-record.py"
+    meth_script = ROOT / "scripts" / "create-methodology-record.py"
+    with tempfile.TemporaryDirectory() as td:
+        root = pathlib.Path(td)
+        (root / "docs/development/stories").mkdir(parents=True)
+        (root / "docs/quality").mkdir(parents=True)
+        (root / "docs/development/IR-001.md").write_text("# IR\n", encoding="utf-8")
+        (root / "docs/development/stories/S-001.md").write_text(
+            "## Story: S-001\n- **Status:** done\n", encoding="utf-8")
+        res = guard_mod._check_gate_records(str(root), "git commit")
+        reason = res.get("reason", "")
+        if res.get("decision") != "deny" or str(qr_script) not in reason:
+            problems.append("QR remedy does not name the plugin's own script: "
+                            + reason[-180:])
+        elif "docs/development/stories/S-001.md" not in reason:
+            problems.append("QR remedy does not name the story file: "
+                            + reason[-180:])
+        ok, write_reason = guard_mod._validate_methodology_chain(
+            "## Story: S-001\n- **Status:** done\n",
+            "docs/development/stories/S-001.md", str(root))
+        if ok or str(qr_script) not in write_reason \
+                or str(meth_script) not in write_reason:
+            problems.append("story-write remedy does not name runnable scripts: "
+                            + write_reason[-220:])
+
+    for rel in ("hooks/engine/modules/guard.py",
+                "skills/bmad-research-experiment/scripts/run_experiment.py"):
+        src = _read(rel)
+        if "python3 scripts/" in src or "python3 run_experiment.py" in src:
+            problems.append(f"{rel} prints a cwd-relative plugin-script remedy")
+    return "; ".join(problems) if problems else None
+
+
 def _check_experiment_lineage_enforced() -> str | None:
     """E-022: a new experiment must declare what the prior ones carry.
 
@@ -2112,6 +2164,8 @@ def build_checks() -> list[tuple[str, object]]:
                    _check_bridge_runtime_visibility_audit_covers_every_surface))
     checks.append(("story-key grammar agreed by generator and engine (E-028)",
                    _check_story_title_grammar_agreement))
+    checks.append(("record-chain remedies name runnable plugin scripts (E-029)",
+                   _check_gate_remedy_paths_are_runnable))
     checks.append(("experiment lineage declared and enforced (E-022)",
                    _check_experiment_lineage_enforced))
     checks.append(("negtest counts and check-plugin doc pointers pinned (E-023)",

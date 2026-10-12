@@ -148,6 +148,85 @@ def test_gate_qr_missing_denies():
         td.cleanup()
 
 
+def test_qr_remedy_names_the_real_plugin_script_and_story():
+    """E-029: the QR remedy runs where it is printed.
+
+    The gate runs in a TARGET project, which does not ship the plugin's
+    `scripts/` tree, so `python3 scripts/create-qr-record.py` fails with "No
+    such file" exactly where the gate tells the operator to run it (the E-028
+    Known Gap). The remedy must point at the engine's own plugin root and name
+    the story file the operator actually has — not a literal `S-XXX`.
+    """
+    from modules import config
+    td, root = _make_project(stories=[("S-001", "done")])
+    try:
+        (root / "docs/development/IR-001.md").write_text("# IR\nready",
+                                                          encoding="utf-8")
+        res = _check_gate_records(td.name, "git commit blocked")
+        assert res["decision"] == "deny"
+        script = config._METHODOLOGY_ROOT / "scripts" / "create-qr-record.py"
+        assert str(script) in res["reason"], res["reason"]
+        assert script.is_file(), "the remedy names a script that does not exist"
+        assert "docs/development/stories/S-001.md" in res["reason"], res["reason"]
+        assert "S-XXX" not in res["reason"], "placeholder path leaked: " + res["reason"]
+    finally:
+        td.cleanup()
+
+
+def test_story_write_remedies_name_runnable_scripts():
+    """E-029: the story-write remedies resolve to existing plugin scripts.
+
+    Both the QR and the methodology-record remedy are printed while the guard
+    runs in a target project; each must name a file that exists in the plugin
+    install (so it runs as written), not a cwd-relative `scripts/…` path.
+    """
+    from modules import config
+    from modules.guard import _validate_methodology_chain
+    td, root = _make_project(stories=[])
+    try:
+        ok, reason = _validate_methodology_chain(
+            "## Story: S-001\n- **Status:** done\n",
+            "docs/development/stories/S-001.md", td.name)
+        assert ok is False
+        for rel in ("scripts/create-qr-record.py",
+                    "scripts/create-methodology-record.py"):
+            script = config._METHODOLOGY_ROOT / rel
+            assert str(script) in reason, reason
+            assert script.is_file(), f"remedy names a missing script: {script}"
+        assert "python3 scripts/" not in reason
+    finally:
+        td.cleanup()
+
+
+def test_plugin_script_cmd_anchors_at_the_plugin_root():
+    """E-029: every plugin-script remedy goes through the anchored helper."""
+    from modules import config
+    from modules.guard import _plugin_script_cmd
+    cmd = _plugin_script_cmd("scripts/create-qr-record.py", "--story", "x.md")
+    assert cmd.startswith("python3 ")
+    assert str(config._METHODOLOGY_ROOT / "scripts" / "create-qr-record.py") in cmd
+    assert cmd.endswith("--story x.md")
+
+
+def test_no_remedy_uses_a_bare_plugin_script_path():
+    """E-029 contract: no engine/gate remedy may print `python3 scripts/<x>`.
+
+    That form cannot be found in a target project (which has no `scripts/`
+    tree); every recorded remedy must be anchored at the plugin root so the
+    operator can run it as printed.
+    """
+    root = Path(__file__).resolve().parents[3]
+    checked = [root / "hooks" / "engine" / "modules" / "guard.py",
+               root / "skills" / "bmad-research-experiment" / "scripts"
+               / "run_experiment.py"]
+    for src_path in checked:
+        src = src_path.read_text(encoding="utf-8", errors="replace")
+        assert "python3 scripts/" not in src, (
+            f"{src_path.name} prints a cwd-relative plugin-script remedy")
+        assert "python3 run_experiment.py" not in src, (
+            f"{src_path.name} prints a bare run_experiment.py remedy")
+
+
 def test_gate_allow_when_records_present():
     td, root = _make_project(stories=[("S-001", "done")],
                              records=[("QR-001", "S-001")])

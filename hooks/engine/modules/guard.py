@@ -746,6 +746,37 @@ def _is_methodology_record(content: str) -> bool:
     return bool(_RECORD_TITLE_RE.search(content) or _NATIVE_STORY_ROW_RE.search(content))
 
 
+def _plugin_script_cmd(script: str, *args: str) -> str:
+    """A runnable command for one of the PLUGIN's own scripts.
+
+    The gate runs in a TARGET project, which does not ship the plugin's
+    ``scripts/`` tree — so a remedy that names the script relative to the cwd
+    cannot be run where it is printed (E-029, the E-028 Known Gap: the observed
+    session's project had no ``scripts/`` dir). Anchor the command at the
+    engine's OWN plugin root (``config._METHODOLOGY_ROOT``, the same root
+    ``_check_scope_coverage`` derives), so the remedy runs as written.
+    """
+    from .config import _METHODOLOGY_ROOT
+    return "python3 " + " ".join([str(_METHODOLOGY_ROOT / script), *args])
+
+
+def _qr_remedy(root: str, missing_keys: "list[str]") -> str:
+    """One `create-qr-record.py --story <real file>` command per missing story.
+
+    Names the story file the operator actually has (resolved with the gate's
+    own key precedence); a key that resolves to nothing falls back to the
+    conventional `docs/development/stories/<key>.md` path so the command is
+    still shaped as a runnable example (E-029).
+    """
+    paths = _story_paths_for_keys(root, missing_keys)
+    cmds = [
+        _plugin_script_cmd("scripts/create-qr-record.py", "--story",
+                           paths.get(key, f"docs/development/stories/{key}.md"))
+        for key in missing_keys
+    ]
+    return "; ".join(cmds)
+
+
 def _validate_methodology_chain(content: str, rel_path: str, root: str = "") -> tuple[bool, str]:
     """Validate that the methodology chain is intact for a story file.
 
@@ -826,8 +857,8 @@ def _validate_methodology_chain(content: str, rel_path: str, root: str = "") -> 
                     f"Story status is 'done' but no QR record found for {story_key}. "
                     f"A QR covers a story only when it DECLARES it (a `| Story | … |` "
                     f"row or a `- **Story:** …` field) — a mention in the body is "
-                    f"not a record. Run: python3 scripts/create-qr-record.py "
-                    f"--story {rel_path}"
+                    f"not a record. Run: "
+                    f"{_plugin_script_cmd('scripts/create-qr-record.py', '--story', rel_path)}"
                 )
 
     # Check 2: If status is 'review', methodology record must exist.
@@ -865,7 +896,7 @@ def _validate_methodology_chain(content: str, rel_path: str, root: str = "") -> 
                     f"Story status is '{status}' but no methodology record found for {story_key}. "
                     f"A record covers a story when it declares it (`| Native Story | … |` "
                     f"or a Story field) or its own title/filename names it. "
-                    f"Run: python3 scripts/create-methodology-record.py --story {rel_path}"
+                    f"Run: {_plugin_script_cmd('scripts/create-methodology-record.py', '--story', rel_path)}"
                 )
 
     # Check 3: If story references SP-XXX, SP record must exist AND backreference chain S→SP→IR→E
@@ -1059,7 +1090,9 @@ def find_approved(target: str, recs_dir: str | None = None, root: str = "") -> t
             best = f"record {rec} scope not matched"
 
     if key_missing:
-        return False, "gate key not configured (python3 run_experiment.py --init-secret)"
+        return False, ("gate key not configured (" + _plugin_script_cmd(
+            'skills/bmad-research-experiment/scripts/run_experiment.py',
+            '--init-secret') + ")")
     return False, advisory or best or "no approved experiment record"
 
 
@@ -1574,6 +1607,35 @@ def _story_key_of(content: str, path: pathlib.Path) -> str:
     return path.stem
 
 
+def _story_paths_for_keys(root: str, keys: "list[str]") -> dict[str, str]:
+    """Map each missing story key to its project-relative file path.
+
+    A remedy the gate prints must name the file the operator actually has, not
+    a literal ``S-XXX`` placeholder — the observed E-028 session hand-substituted
+    the path (and then the script path failed too). Reuses ``_iter_story_files``
+    and ``_story_key_of`` so the mapping is the SAME precedence the gate itself
+    matched the story by; a key that resolves to nothing is left out (the caller
+    falls back to the key).
+    """
+    wanted = set(keys)
+    found: dict[str, str] = {}
+    if not wanted:
+        return found
+    base = pathlib.Path(root)
+    for story_file in _iter_story_files(root):
+        try:
+            content = story_file.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        key = _story_key_of(content, story_file)
+        if key in wanted and key not in found:
+            try:
+                found[key] = story_file.relative_to(base).as_posix()
+            except ValueError:
+                found[key] = story_file.as_posix()
+    return found
+
+
 def _find_done_stories_without_record(root: str, record_glob: str, record_dir: str,
                                       require_sp_ref: bool = False) -> list[str]:
     """Find stories with Status: done that lack a record of the given type.
@@ -1799,7 +1861,7 @@ def _check_qr_table_coherence(root: str, blocked_action: str) -> dict:
             "reason": (
                 f"{blocked_action}: {s_file.name} is done and its QR record "
                 f"is APPROVED, but its embedded QR table still reads "
-                f"pending. Run: python3 scripts/sync-story-qr.py --apply"
+                f"pending. Run: {_plugin_script_cmd('scripts/sync-story-qr.py', '--apply')}"
             ),
         }
     return {"decision": "allow"}
@@ -2041,7 +2103,7 @@ def _check_gate_records(root: str, blocked_action: str, include_pr: bool = False
                 f"Stories: {', '.join(missing_qr)}. "
                 f"A QR covers a story only when it DECLARES it (a `| Story | … |` row "
                 f"or a `- **Story:** …` field; a mention in the body is not a record). "
-                f"Create QR with: python3 scripts/create-qr-record.py --story docs/development/stories/S-XXX.md"
+                f"Create QR with: {_qr_remedy(root, missing_qr)}"
             ),
         }
 
