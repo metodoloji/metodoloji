@@ -491,6 +491,12 @@ GATE_REFERENCE_OK = {
     "bmad-tea",  # test strategy documentary: "depends on Mod A mechanical approval"
     "bmad-quality-record",        # QR consumer: reads experiment/story gate status
     "bmad-production-readiness",  # PR consumer: reads QR gate status before certifying
+    # Meta/generator surface: its principles DESCRIBE the gate ("writes without
+    # a VERIFIED record are mechanically blocked by the guard hook"); it
+    # produces surfaces, it does not enforce the gate itself. Before this entry
+    # §3 reported it as a leak on every run — a permanent red that masked the
+    # next real hard-gate regression.
+    "bmad-agent-builder",
 }
 # May appear in both activation_steps_append and principles.
 # Accept both the legacy Turkish markers and the new English markers.

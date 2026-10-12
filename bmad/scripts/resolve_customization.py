@@ -240,9 +240,10 @@ def main():
 
     # A missing skill-root customize.toml means "no defaults" ({}), not an
     # error: minimal skills carry no customization surface, and the team/user
-    # layers still merge on top. 22 skills ship a byte-identical minimal stub
-    # with only these persistent_facts — keep them working by defaulting here
-    # instead of requiring the stub file on disk.
+    # layers still merge on top. 26 skills carry no customize.toml (the old
+    # byte-identical minimal stubs with only these persistent_facts were
+    # deleted) — keep them working by defaulting here instead of requiring the
+    # stub file on disk.
     # ponytail: the stub files themselves are deleted; this default covers them.
     if defaults_path.is_file():
         defaults = load_toml(defaults_path, required=True)
