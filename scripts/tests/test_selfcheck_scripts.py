@@ -18,6 +18,7 @@ invariants so the instruments cannot silently go stale again.
 
 import importlib.util
 import re
+import tomllib
 from pathlib import Path
 
 PLUGIN = Path(__file__).resolve().parents[2]
@@ -481,4 +482,60 @@ def test_shipped_gate_invocations_resolve_where_they_ship():
     src = BENCH.read_text(encoding="utf-8")
     assert ("plugin-script invocations resolve where they ship "
             "(E-038, E-039)") in src, (
-        "the bench dropped its shipped-invocation check")
+        "the bench dropped its shipped-invocation check"
+    )
+
+
+_ACTIVATION_MARKERS = (
+    ":", "before ", "after ", "during ", "per ", "bridge",
+    "methodology manifesto", "record chain", "mod a", "do not ", "never ",
+    "error and recreate", "approved", "rejected", "verify", "compliance",
+    "manifesto",
+)
+
+
+def test_activation_steps_append_carries_the_methodology_contract():
+    """E-040: every activation_steps_append entry must be a compliance step.
+
+    The field is executed at Step 7 of every skill ("execute each entry in
+    order ... before starting the work"). A bare workflow-stage command there
+    makes the skill run the whole flow DURING activation — the 2026-10-12
+    Claude Code session ran ``/metodoloji:bmad-research-experiment for story
+    2-1`` and never left activation (manifesto + lineage + record format +
+    gate mechanics read, then the user interrupted) because the team override
+    shipped "Define the hypothesis" / "Create the experiment design" /
+    "Analyze the results" as its activation steps, on top of the shipped two.
+    The same scaffolding shape recurred in bmb/index/loop/module/shard/wds.
+
+    Independent derivation (tomllib, no check-custom import): every entry must
+    carry at least one frame marker — a structured check, a temporal/compliance
+    frame, or a named contract token.
+    """
+    violations = []
+    for path in sorted((PLUGIN / "custom").glob("*.toml")):
+        if path.name == "config.toml":
+            continue
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
+        for step in (data.get("workflow", {})
+                     .get("activation_steps_append", []) or []):
+            if not any(m in step.lower() for m in _ACTIVATION_MARKERS):
+                violations.append(f"{path.name}: {step!r}")
+    assert not violations, (
+        "bare workflow steps in activation_steps_append (E-040): "
+        + "; ".join(violations)
+    )
+
+
+def test_activation_compliance_rule_is_wired_and_audited():
+    """check-custom.sh §2b must own the rule and ship a negtest stage for it."""
+    text = (PLUGIN / "scripts" / "check-custom.sh").read_text(
+        encoding="utf-8", errors="replace")
+    assert "2b) activation_steps_append compliance frame" in text, (
+        "check-custom.sh lost its §2b activation compliance-frame audit"
+    )
+    assert re.search(r"total_stages = 4", text), (
+        "check-custom.sh must declare 4 negtest stages (incl. the §2b stage)"
+    )
+    assert "bare workflow step" in text, (
+        "§2b no longer names the violation it reports"
+    )

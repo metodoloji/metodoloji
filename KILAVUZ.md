@@ -561,7 +561,7 @@ Negatif testler (kapıların gerçekten çalıştığının kanıtı):
 
 ```bash
 sh {metodoloji-root}/scripts/check-plugin.sh --negtest   # 9 aşama: .env/.gitignore, 2 BRIDGE sökme (#2b), #1b hooks.json, #6c template, #6d marker, #6e help catalog, #6g priming token, #3 sahte-token → hepsi yakalanıp restore edilir
-sh {metodoloji-root}/scripts/check-custom.sh --negtest   # 3 test: #3 hard-gate + #7 bridge drift ×2 (#2.3 silme + "bolum N.N" enjeksiyonu)
+sh {metodoloji-root}/scripts/check-custom.sh --negtest   # 4 test: #3 hard-gate + #7 bridge drift ×2 (#2.3 silme + "bolum N.N" enjeksiyonu) + #2b çıplak aktivasyon adımı
 ```
 
 ### P23 — Blackboard ile ekip akışı

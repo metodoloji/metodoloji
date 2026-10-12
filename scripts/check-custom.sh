@@ -6,6 +6,12 @@
 #   2. activation_steps_append depth
 #        Gate enforcers (GATE_REQUIRED)  → >= 3 steps
 #        Other workflows (MOD_A_RECORD_ONLY + tools) → >= 1 step
+#   2b. activation_steps_append compliance frame
+#        Every entry must carry the methodology contract (a structured
+#        "LABEL: ..." check, a before/after/during frame, or a named
+#        contract token) — never a bare workflow-stage command. The field is
+#        executed at Step 7 ("in order ... before starting the work"), so a
+#        workflow body there runs the whole flow during activation (E-040).
 #   3. Hard-gate keywords
 #        GATE_REQUIRED    → must contain ONAYLANDI/REDDEDİLDİ/FORGED/VERIFIED
 #        GATE_REFERENCE_OK → may carry as reference (e.g. bmad-tea)
@@ -17,8 +23,9 @@
 #
 # Usage:  sh scripts/check-custom.sh
 #            sh scripts/check-custom.sh --negtest
-#            (negative-test only, 3 stages: §3 hard-gate + §7 bridge drift ×2
-#             (delete §N.N, inject "bolum N.N") → catch MISS → restore)
+#            (negative-test only, 4 stages: §3 hard-gate + §7 bridge drift ×2
+#             (delete §N.N, inject "bolum N.N") + §2b bare activation step
+#             → catch MISS → restore)
 # Output:    [OK] / [WARNING] / [ERROR] at the start of each line; overall status at the end.
 set -u
 
@@ -52,7 +59,7 @@ bridge = PLUGIN / "docs" / "bmad" / "dev-skill-to-methodology-bridge.md"
 KEYWORDS = ("APPROVED", "REJECTED", "FORGED", "VERIFIED", "ONAYLANDI", "REDDEDİLDİ")
 # Single source of truth for the stage count (E-026): the three banners and the
 # closing line below all read it, and the bench pins it to the stages that exist.
-total_stages = 3
+total_stages = 4
 
 orig_toml = toml.read_text(encoding="utf-8")
 orig_bridge = bridge.read_text(encoding="utf-8")
@@ -169,6 +176,41 @@ if not has_bolum_drift_error(broken_toml):
     print("[ERROR] negative test 3 failed: §7 logic did not catch injected 'bolum 99.99'")
     sys.exit(1)
 print(f"[OK]   negative test 3/{total_stages}: 'bolum 99.99' injected → §7 MISS caught → testarch TOML restored")
+
+# ---- Test 4: §2b activation compliance frame ----
+# Inject a bare workflow-stage command into a custom TOML's
+# activation_steps_append — §2b must flag it (the defect E-040 fixed).
+bmb = PLUGIN / "custom" / "bmad-bmb-setup.toml"
+orig_bmb = bmb.read_text(encoding="utf-8")
+
+def has_bare_activation_error(text: str) -> bool:
+    bmb.write_text(text, encoding="utf-8")
+    try:
+        r = subprocess.run(
+            ["sh", str(PLUGIN / "scripts" / "check-custom.sh")],
+            capture_output=True, text=True, encoding="utf-8", timeout=30)
+        out = r.stdout
+        for line in out.splitlines():
+            if "bmad-bmb-setup" in line and "bare workflow step" in line:
+                return True
+        return False
+    finally:
+        bmb.write_text(orig_bmb, encoding="utf-8")
+
+if has_bare_activation_error(orig_bmb):
+    print("[ERROR] bare-activation error visible even in intact bmb TOML — test setup broken")
+    sys.exit(1)
+
+injected_bmb = orig_bmb.replace(
+    "activation_steps_append = [",
+    'activation_steps_append = [\n  "Install the dependencies",', 1)
+if injected_bmb == orig_bmb:
+    print("[ERROR] could not inject a bare activation step — test setup broken")
+    sys.exit(1)
+if not has_bare_activation_error(injected_bmb):
+    print("[ERROR] negative test 4 failed: §2b logic did not catch a bare activation step")
+    sys.exit(1)
+print(f"[OK]   negative test 4/{total_stages}: bare workflow step injected → §2b MISS caught → bmb TOML restored")
 print(f"[OK]   all {total_stages} negtest stages successful")
 sys.exit(0)
 PY
@@ -362,6 +404,63 @@ if [ $? -eq 0 ]; then
     echo "[OK]   activation_steps_append depth conforms to the rule"
 else
     echo "[WARNING] depth violation (see above)"
+    PROBLEMS=$((PROBLEMS + 1))
+fi
+
+echo "== 2b) activation_steps_append compliance frame =="
+"$PY" - <<'PY'
+import glob, os, sys, tomllib
+for _s in (sys.stdout, sys.stderr):
+    try: _s.reconfigure(encoding="utf-8")
+    except (AttributeError, ValueError): pass
+
+PLUGIN = os.environ.get("PLUGIN_ROOT") or "."
+# The field is documented as "pre-flight loads, compliance checks": an
+# activation step exists to carry the methodology contract, not to restate
+# the workflow. The skill executes every entry at Step 7 ("in order ...
+# before starting the work"), so a bare workflow-stage command there runs the
+# whole flow during activation — E-040: the team override shipped "Define the
+# hypothesis" / "Create the experiment design" / "Analyze the results" as
+# activation steps (and the same shape in bmb/index/loop/module/shard/wds).
+# A valid step carries at least one frame marker:
+#   - a structured check ("LABEL: ..."),
+#   - a temporal/compliance frame ("before ", "after ", "during ", "per "),
+#   - or a named contract token (bridge, methodology manifesto, record chain,
+#     Mod A, APPROVED/REJECTED, VERIFY, "error and recreate", ...).
+# Matched case-insensitively against step.lower(); all lowercase here.
+MARKERS = (":", "before ", "after ", "during ", "per ", "bridge",
+           "methodology manifesto", "record chain", "mod a", "do not ",
+           "never ", "error and recreate", "approved", "rejected", "verify",
+           "compliance", "manifesto")
+
+problems = []
+checked = 0
+for path in sorted(glob.glob(os.path.join(PLUGIN, "custom", "*.toml"))):
+    name = os.path.basename(path)[:-5]
+    if name == "config":
+        continue
+    try:
+        data = tomllib.load(open(path, "rb"))
+    except Exception:
+        continue
+    asa = data.get("workflow", {}).get("activation_steps_append", []) or []
+    if not asa:
+        continue
+    checked += 1
+    for step in asa:
+        if not any(m in step.lower() for m in MARKERS):
+            problems.append("%s: bare workflow step in "
+                            "activation_steps_append — %r" % (name, step[:70]))
+
+print("  checked: %d" % checked)
+for p in problems:
+    print("  MISS: %s" % p)
+raise SystemExit(1 if problems else 0)
+PY
+if [ $? -eq 0 ]; then
+    echo "[OK]   activation_steps_append entries carry the methodology contract"
+else
+    echo "[WARNING] bare workflow step in activation (see above)"
     PROBLEMS=$((PROBLEMS + 1))
 fi
 

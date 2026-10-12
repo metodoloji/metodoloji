@@ -562,7 +562,7 @@ Negative tests (proof the gates actually work):
 
 ```bash
 sh {metodoloji-root}/scripts/check-plugin.sh --negtest   # 9 stages: .env/.gitignore, 2 BRIDGE removals (#2b), #1b hooks.json, #6c template, #6d marker, #6e help catalog, #6g priming token, #3 forged-token → all caught and restored
-sh {metodoloji-root}/scripts/check-custom.sh --negtest   # 3 tests: #3 hard-gate + #7 bridge drift ×2 (#2.3 removal + "bolum N.N" injection)
+sh {metodoloji-root}/scripts/check-custom.sh --negtest   # 4 tests: #3 hard-gate + #7 bridge drift ×2 (#2.3 removal + "bolum N.N" injection) + #2b bare activation step
 ```
 
 ### P23 — Team flow over the blackboard

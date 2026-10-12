@@ -7,7 +7,6 @@ persistent_facts = [
   "file:{metodoloji-root}/docs/bmad/research-methodology.md",
 ]
 activation_steps_append = [
-  "Verify the project goals and scope with the customer",
-  "Document the points on which agreement was reached",
-  "Obtain signature/approval"
+  "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
+  "Before finishing the work, verify that the record is complete: English field labels, decision rationale, uncertainty acknowledgment. A documentary decision is not permission to write code."
 ]
