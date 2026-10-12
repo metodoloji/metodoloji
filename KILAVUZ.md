@@ -151,7 +151,7 @@ Hedef projede .metodoloji/initialized var mı?
 4. **Uyarıları yorumla:** "marker var → init'i tekrar çalıştırma", "marker yok → bir kez çalıştır", iskelet var + marker yok → **bozuk init** (tek seferlik onarım: `python3 {metodoloji-root}/bmad/scripts/skeleton.py --install`).
 5. **Kullanıcı isteğini al** → #3 karar ağacına bağla ve hangi playbook'u koşacağını söyle.
 
-**Yapma:** Oturum başında toplu denetim koşma (`check-plugin.sh` \~65s sürer) — kullanıcı istemedikçe P22'ye bırak.
+**Yapma:** Oturum başında toplu denetim koşma (`{metodoloji-root}/scripts/check-plugin.sh` \~65s sürer) — kullanıcı istemedikçe P22'ye bırak.
 
 ### 4.1 Rutin checklist (kendine uygula)
 
@@ -278,7 +278,7 @@ Kurallar: dosya repo **dışında**, 0600, `secrets.token_hex(32)` ile üretilir
 **Adım 5 — `/metodoloji:audit`:**
 
 ```bash
-sh scripts/check-plugin.sh
+sh {metodoloji-root}/scripts/check-plugin.sh
 ```
 
 Kapsam ve # haritası #16'dadır. Exit 0 = HEALTHY; sorun varsa #17'ye geç.
@@ -287,8 +287,8 @@ Kapsam ve # haritası #16'dadır. Exit 0 = HEALTHY; sorun varsa #17'ye geç.
 
 ```bash
 python -m pytest -q             # 1100+ test: hook motoru, bridge, skill
-sh scripts/check-custom.sh      # bridge TOML statik denetimi
-sh scripts/check-plugin.sh      # plugin yapı denetimi (#0–#6f)
+sh {metodoloji-root}/scripts/check-custom.sh      # bridge TOML statik denetimi
+sh {metodoloji-root}/scripts/check-plugin.sh      # plugin yapı denetimi (#0–#6f)
 sh scripts/check-methodology.sh # kayıt format denetimi
 ```
 
@@ -375,7 +375,7 @@ deploy_guard = "hard"
 
 Koşullu self-modifikasyon zonu devrede: korunan proje kökü pluginin kendi reposuysa `hooks/`, `scripts/`, `skills/`, `custom/` serbesttir. Başka projede bu ağaçlara dokunmak deney ister.
 
-**Ek kurallar:** `hooks.json`'u elle editleme — `scripts/sync-hooks-json.py --write` ile üret (`check-plugin.sh` #1b byte-identical ister). Değişiklikten sonra `python -m pytest -q` + statik check'leri koş. Davranış değişikliğini E kaydıyla belgele (bench + E — #18'deki improvement loop).
+**Ek kurallar:** `hooks.json`'u elle editleme — `{metodoloji-root}/scripts/sync-hooks-json.py --write` ile üret (`{metodoloji-root}/scripts/check-plugin.sh` #1b byte-identical ister). Değişiklikten sonra `python -m pytest -q` + statik check'leri koş. Davranış değişikliğini E kaydıyla belgele (bench + E — #18'deki improvement loop).
 
 ### P5 — Solo-spike (tek kişilik hızlı deneme)
 
@@ -413,11 +413,11 @@ E-045 (bench: scripts/bench/bench_bfs.py → APPROVED, VERIFIED)
 Komut iskeleti:
 
 ```bash
-cp templates/_template_E.md docs/experiments/E-045.md        # doldur
+cp {metodoloji-root}/templates/_template_E.md docs/experiments/E-045.md        # doldur
 python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py \
   --record docs/experiments/E-045.md --run "python scripts/bench/bench_bfs.py"
 # APPROVED → IR/SP/S doldur → kodla → QR doldur → commit → PR doldur → deploy
-python3 scripts/create-qr-record.py --story docs/development/stories/S-027.md  # QR iskeleti
+python3 {metodoloji-root}/scripts/create-qr-record.py --story docs/development/stories/S-027.md  # QR iskeleti
 git commit -m "feat(search): S-027 bfs ..."
 ```
 
@@ -546,8 +546,8 @@ Değişiklikten sonra yerelde koş (CI yalnızca sürümü doğrular ve `vX.Y.Z`
 
 ```bash
 python -m pytest -q
-sh scripts/check-custom.sh
-sh scripts/check-plugin.sh
+sh {metodoloji-root}/scripts/check-custom.sh
+sh {metodoloji-root}/scripts/check-plugin.sh
 sh scripts/check-methodology.sh
 sh scripts/check-techdebt.sh
 python scripts/check-handoff.py
@@ -560,8 +560,8 @@ Sıra önerisi: önce pytest (motor davranışı), sonra check-plugin (en geniş
 Negatif testler (kapıların gerçekten çalıştığının kanıtı):
 
 ```bash
-sh scripts/check-plugin.sh --negtest   # 9 aşama: .env/.gitignore, 2 BRIDGE sökme (#2b), #1b hooks.json, #6c template, #6d marker, #6e help catalog, #6g priming token, #3 sahte-token → hepsi yakalanıp restore edilir
-sh scripts/check-custom.sh --negtest   # 3 test: #3 hard-gate + #7 bridge drift ×2 (#2.3 silme + "bolum N.N" enjeksiyonu)
+sh {metodoloji-root}/scripts/check-plugin.sh --negtest   # 9 aşama: .env/.gitignore, 2 BRIDGE sökme (#2b), #1b hooks.json, #6c template, #6d marker, #6e help catalog, #6g priming token, #3 sahte-token → hepsi yakalanıp restore edilir
+sh {metodoloji-root}/scripts/check-custom.sh --negtest   # 3 test: #3 hard-gate + #7 bridge drift ×2 (#2.3 silme + "bolum N.N" enjeksiyonu)
 ```
 
 ### P23 — Blackboard ile ekip akışı
@@ -580,10 +580,10 @@ PRD → UX → mimari → spec → epics → story → dev rölesini handoff kan
 ```bash
 cd /path/to/metodoloji
 git pull
-python -m pytest -q && sh scripts/check-plugin.sh
+python -m pytest -q && sh {metodoloji-root}/scripts/check-plugin.sh
 ```
 
-`hooks.json`'da local edit'in varsa `sync-hooks-json.py --write` ile yeniden üret (yoksa #1b byte-identical hatası alırsın — bu hata seni koruyor).
+`hooks.json`'da local edit'in varsa `{metodoloji-root}/scripts/sync-hooks-json.py --write` ile yeniden üret (yoksa #1b byte-identical hatası alırsın — bu hata seni koruyor).
 
 ### P26 — `.env` hijyeni (#6a)
 
@@ -647,7 +647,7 @@ Her kaydı **şablondan** aç (`{metodoloji-root}/templates/`), alanları doldur
 **1. Dosyayı oluştur:**
 
 ```bash
-cp templates/_template_E.md docs/experiments/E-001.md
+cp {metodoloji-root}/templates/_template_E.md docs/experiments/E-001.md
 ```
 
 **2. Zorunlu alanları doldur (`REQUIRED_DRAFT` — bunlar yoksa gate çalışmaz):**
@@ -719,7 +719,7 @@ python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment
 - **Re-Measured-By:** E-012 (17.09.2026)
 ```
 
-`check-plugin.sh` #3 bunu `CROSS-MACHINE` uyarısı sayar (hata değil) — yeni kaydın kendi anahtarında verify olması şartıyla.
+`{metodoloji-root}/scripts/check-plugin.sh` #3 bunu `CROSS-MACHINE` uyarısı sayar (hata değil) — yeni kaydın kendi anahtarında verify olması şartıyla.
 
 **Alan tablosu:**
 
@@ -794,7 +794,7 @@ experiment_refs:
 **Native story'den kayıt üretimi:**
 
 ```bash
-python3 scripts/create-methodology-record.py --story docs/development/stories/S-001.md
+python3 {metodoloji-root}/scripts/create-methodology-record.py --story docs/development/stories/S-001.md
 ```
 
 ### 8.5 QR — Quality Review (Gate 3)
@@ -815,7 +815,7 @@ QR şablonu iki standart tablo ister (denetim bunları yapısal doğrular):
 Oluşturma:
 
 ```bash
-python3 scripts/create-qr-record.py --story docs/development/stories/S-001.md
+python3 {metodoloji-root}/scripts/create-qr-record.py --story docs/development/stories/S-001.md
 ```
 
 ### 8.6 PR — Production Readiness (Gate 4)
@@ -847,7 +847,7 @@ Tek `pre` girişi **guard → quality → deploy**'u tek prosesste koşar (ilk d
 
 Üç kapı kendi config anahtarını korur — paylaşılan sadece prosestir (eskiden çağrı başına 3 dispatch + 3 python cold-start vardı). Union matcher sayesinde Claude `Bash` çağrısı da guard'a ulaşır — `echo x > src/a.py` gibi shell yazımı artık deney kapısını dolanamaz. Normal çağrı \~40ms sürer; 10s tavan askıda kalma güvenlik ağıdır.
 
-Hook komutları plugin kökünü kendisi bulur (`$CLAUDE_PLUGIN_ROOT`, `$METODOLOJI_PLUGIN_ROOT`, marketplace cache, OpenHands kurulum dizini; ilk `hooks/scripts/run-hook.sh` bulunan kazanır). `hooks.json` **üretilir** — kanonik dispatch listesi `scripts/sync-hooks-json.py` + `hooks/scripts/run-hook.sh` içindeki discovery listesidir. Yol değiştirirsen `python3 scripts/sync-hooks-json.py --write` koş; `check-plugin.sh` #1b byte-identical doğrular.
+Hook komutları plugin kökünü kendisi bulur (`$CLAUDE_PLUGIN_ROOT`, `$METODOLOJI_PLUGIN_ROOT`, marketplace cache, OpenHands kurulum dizini; ilk `hooks/scripts/run-hook.sh` bulunan kazanır). `hooks.json` **üretilir** — kanonik dispatch listesi `{metodoloji-root}/scripts/sync-hooks-json.py` + `hooks/scripts/run-hook.sh` içindeki discovery listesidir. Yol değiştirirsen `python3 {metodoloji-root}/scripts/sync-hooks-json.py --write` koş; `{metodoloji-root}/scripts/check-plugin.sh` #1b byte-identical doğrular.
 
 ### 9.2 Guard (PreToolUse) — Fail-Closed, önce koşar
 
@@ -884,7 +884,7 @@ Kapsam: sadece `git commit` içeren `Bash`/`terminal`.
 
 Zincir: done story var ama hiç IR yok → deny (Gate 1) → QR'sız done story → deny (Gate 3) → SP kaydı eksik referans → deny (Gate 2). Sıra: IR (proje) → QR (story) → SP (story).
 
-**QR-coherence adımı (SP-022'den beri quality'nin 4. adımı):** done story + APPROVED QR'a rağmen story'nin Definition of Done tablosunda `pending`/`⏳` satırı kalmışsa commit `DENY` yer (hard) veya uyarı alır (soft) — quality tablodaki statü metnini okur, token doğrulamaz. Gerekçe, çözümü de söyler: `python3 scripts/sync-story-qr.py --apply` ile QR'daki geçmiş sonucu story'ye geri senkronla, sonra coherence'i yeniden doğrula (done S + APPROVED QR ⇒ sıfır pending satırı — `bench_sp021.py` ağaç durumunu, `bench_sp020.py` operasyonu pinler). Muhafazakâr atlamalar: QR kaydı henüz doğmamış in-progress story'ler ve desteklenmeyen tablo düzenleri denetlenmez (deny değil, sessiz geç).
+**QR-coherence adımı (SP-022'den beri quality'nin 4. adımı):** done story + APPROVED QR'a rağmen story'nin Definition of Done tablosunda `pending`/`⏳` satırı kalmışsa commit `DENY` yer (hard) veya uyarı alır (soft) — quality tablodaki statü metnini okur, token doğrulamaz. Gerekçe, çözümü de söyler: `python3 {metodoloji-root}/scripts/sync-story-qr.py --apply` ile QR'daki geçmiş sonucu story'ye geri senkronla, sonra coherence'i yeniden doğrula (done S + APPROVED QR ⇒ sıfır pending satırı — `bench_sp021.py` ağaç durumunu, `bench_sp020.py` operasyonu pinler). Muhafazakâr atlamalar: QR kaydı henüz doğmamış in-progress story'ler ve desteklenmeyen tablo düzenleri denetlenmez (deny değil, sessiz geç).
 
 `quality_gate="soft"` ise deny → `allow + methodology_warnings`; `"hard"` ise bloklar. Config çağrı başına canlı okunur — reload gerekmez.
 
@@ -897,7 +897,7 @@ Tanınan deploy komutları (regex, case-insensitive): `terraform apply|destroy|p
 ### 9.5 Audit (PostToolUse) — Fail-open, senkron
 
 - Her çağrıyı tek JSON satırı olarak ekler. Gövde 300-karakter önizlemeye redakte edilir (`content`, `code`, `source`...); path/komut/flag bütün kalır (stop çalışsın diye); tam gövde loga girmez.
-- QR DoD uyarısı warn-only'dir (done-story→QR dizin taraması per-write hot path'te değil `check-plugin.sh`'tedir). QR DoD, story DoD ile **aynı parser/kuralla** doğrulanır (`.utils.dod_issues`): her DoD maddesinde kimlik + doğrulama kaydı gerekir (story'de `Verify:`; QR'da `Verify:`/`Evidence:` satırı veya `- DoD-NNN …` bullet'ında sonuç işareti `→ ✓ PASS`, veya `| DoD Item | Status | Evidence | Date |` tablosunda dolu hücre).
+- QR DoD uyarısı warn-only'dir (done-story→QR dizin taraması per-write hot path'te değil `{metodoloji-root}/scripts/check-plugin.sh`'tedir). QR DoD, story DoD ile **aynı parser/kuralla** doğrulanır (`.utils.dod_issues`): her DoD maddesinde kimlik + doğrulama kaydı gerekir (story'de `Verify:`; QR'da `Verify:`/`Evidence:` satırı veya `- DoD-NNN …` bullet'ında sonuç işareti `→ ✓ PASS`, veya `| DoD Item | Status | Evidence | Date |` tablosunda dolu hücre).
 - Log-only: blackboard okuma/yazma yok, canvas/bridge mutasyonu yok — motor hot path blackboard-free'dir.
 - Log yazım hatası fail-open (stderr notu, asla crash).
 - **Senkron** koşar (`"async": true` yok): 2s timeout'lu fail-open modda fonksiyonel kayıp olmaz; ayrıca async PostToolUse yarışından doğan `InputValidationError: Bash was called with input that could not be parsed as JSON` semptomunu azaltır. Gerçek kök neden genelde pluginin Claude'da **iki kez** kayıtlı olmasıdır ("2 async PostToolUse hooks completed" görürsen duplicate kurulumu temizle: manifest + manuel `settings.json` girişi + stale marketplace cache).
@@ -920,7 +920,7 @@ hook-entry.sh audit    → audit (fail-open, senkron)
 hook-entry.sh stop     → stop (fail-open, report-only)
 ```
 
-`hooks.json` sadece birleşik `pre`'yi dispatch eder; tekil modlar direkt çağrı + `check-plugin.sh` #1 smoke testi için geçerlidir.
+`hooks.json` sadece birleşik `pre`'yi dispatch eder; tekil modlar direkt çağrı + `{metodoloji-root}/scripts/check-plugin.sh` #1 smoke testi için geçerlidir.
 
 - Runtime: 2. CLI arg &gt; `METODOLOJI_RUNTIME` env &gt; varsayılan `openhands`.
 - Python çözümleyici: `python3 → python → py`, sonra yaygın Windows yolları.
@@ -1105,7 +1105,7 @@ Paylaşılan `core` + o modülün anahtarlarını döndürür (eski modül confi
 
 ### 13.3 Manifesto wiring
 
-Her yüzey şu dokümanlara referans vermeli: `research-methodology.md` (tüm yüzeyler), `project-context.md` (tüm yüzeyler), `development-methodology.md` (development kanadı). Köprü dokümanı: `{metodoloji-root}/docs/bmad/dev-skill-to-methodology-bridge.md` (#-numaralı — `check-custom.sh` #7 `custom/` referanslarının onunla senkron kaldığını denetler).
+Her yüzey şu dokümanlara referans vermeli: `research-methodology.md` (tüm yüzeyler), `project-context.md` (tüm yüzeyler), `development-methodology.md` (development kanadı). Köprü dokümanı: `{metodoloji-root}/docs/bmad/dev-skill-to-methodology-bridge.md` (#-numaralı — `{metodoloji-root}/scripts/check-custom.sh` #7 `custom/` referanslarının onunla senkron kaldığını denetler).
 
 ---
 
@@ -1198,7 +1198,7 @@ python3 {metodoloji-root}/bmad/scripts/blackboard.py hot --clear
 | `/metodoloji:init`       | `{project-root}` altına dizin+template kur. **Bir kez** çalışır ve `.metodoloji/initialized` marker'ını yazar; marker varsa kısa devre yapıp "already installed" der (yeniden kurmak için `--force`). Mevcutu ezmez. Manifestoları kopyalamaz. Gate key yoksa uyarır. Brownfield notu basar. Özet yazdırır (`/metodoloji:audit` sonraki adım).                                                                                                                                                                                                                  |
 | `/metodoloji:gate-setup` | `~/.bmad/gate-key` varsa "already installed" deyip bitir (üzerine YAZMA). Yoksa `--init-secret` koş. 0600 kontrol et. İçeriği **asla** yazdırma/kopyalama/taşıma. Örnek `GATE-OK-...` çıktısı = tamam. Sonraki adım: ilk E kaydı.                                                                                                                                                                                                                                                                                                                               |
 | `/metodoloji:verify`     | Tek kaydı doğrula: `python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --verify --record {project-root}/docs/experiments/<id>.md`. `VERIFIED` = scope açık; `FORGED` = kaydı yeniden üret; `REJECTED` = hipotezi revize et; `ADVISORY-BLOCK` (exit 2) = yeni kayıtta yeniden ölç (kodu açmaz).                                                                                                                                                                                                                                 |
-| `/metodoloji:audit`      | Sağlık kontrolü: (1) `sh {metodoloji-root}/scripts/check-plugin.sh` koş + özetle (exit 0 = HEALTHY). (2) Custom-odaklı rapor istenirse `scripts/check-custom.sh` (#0–#7). (3) `{project-root}/docs/experiments/` + `docs/development/` kayıtlarını listele, zincir boşluklarını not et (S var QR yok gibi). (4) Her E'ye `--verify` koş, VERIFIED/FORGED dağılımını raporla. (5) `custom/config.toml [hooks]` soft/hard değerlerini oku. (6) PASS/FAIL + düzeltme önerisi. Bridge şüphesinde `check-custom.sh --negtest` ile break→catch→restore kanıtı göster. |
+| `/metodoloji:audit`      | Sağlık kontrolü: (1) `sh {metodoloji-root}/scripts/check-plugin.sh` koş + özetle (exit 0 = HEALTHY). (2) Custom-odaklı rapor istenirse `{metodoloji-root}/scripts/check-custom.sh` (#0–#7). (3) `{project-root}/docs/experiments/` + `docs/development/` kayıtlarını listele, zincir boşluklarını not et (S var QR yok gibi). (4) Her E'ye `--verify` koş, VERIFIED/FORGED dağılımını raporla. (5) `custom/config.toml [hooks]` soft/hard değerlerini oku. (6) PASS/FAIL + düzeltme önerisi. Bridge şüphesinde `{metodoloji-root}/scripts/check-custom.sh --negtest` ile break→catch→restore kanıtı göster. |
 
 
 ### 15.2 Hızlı komut kartı
@@ -1219,13 +1219,13 @@ python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment
   --verify --record docs/experiments/E-001.md
 
 # Kayıtlar
-python3 scripts/create-methodology-record.py --story docs/development/stories/S-001.md
-python3 scripts/create-qr-record.py --story docs/development/stories/S-001.md
+python3 {metodoloji-root}/scripts/create-methodology-record.py --story docs/development/stories/S-001.md
+python3 {metodoloji-root}/scripts/create-qr-record.py --story docs/development/stories/S-001.md
 
 # Denetim
 python -m pytest -q
-sh scripts/check-custom.sh
-sh scripts/check-plugin.sh
+sh {metodoloji-root}/scripts/check-custom.sh
+sh {metodoloji-root}/scripts/check-plugin.sh
 sh scripts/check-methodology.sh
 sh scripts/check-techdebt.sh
 python scripts/check-handoff.py
@@ -1233,7 +1233,7 @@ python scripts/check-handoff.py
 # Customization
 python3 {metodoloji-root}/bmad/scripts/resolve_customization.py -s skills/bmad-dev-story -k workflow.activation_steps_append
 python3 {metodoloji-root}/bmad/scripts/resolve_config.py --project-root . --key core.communication_language --key modules.tea.test_artifacts
-python3 scripts/sync-hooks-json.py --write
+python3 {metodoloji-root}/scripts/sync-hooks-json.py --write
 
 # Blackboard
 python3 {metodoloji-root}/bmad/scripts/blackboard.py write --key prd.acme --value "..." --type state --hot
@@ -1258,9 +1258,9 @@ grep 'methodology_warnings' .metodoloji/logs/hook-audit.log
 ## 16. Denetim ve Sağlık Kontrolü
 
 ```bash
-sh scripts/check-plugin.sh        # #0–#6f tam denetim (0=HEALTHY, 1=sorun)
-sh scripts/check-plugin.sh --negtest
-sh scripts/check-custom.sh        # bridge TOML #0–#7
+sh {metodoloji-root}/scripts/check-plugin.sh        # #0–#6f tam denetim (0=HEALTHY, 1=sorun)
+sh {metodoloji-root}/scripts/check-plugin.sh --negtest
+sh {metodoloji-root}/scripts/check-custom.sh        # bridge TOML #0–#7
 python scripts/check-handoff.py   # handoff wiring lint
 sh scripts/check-methodology.sh   # proje-kayıt formatı (kayıtsız tazede uyarılı exit 0)
 sh scripts/check-techdebt.sh      # borç drift/ID/P0/orphan (#6b olarak da koşar)
@@ -1300,7 +1300,7 @@ Bir deny/uyarı gördüğünde kullanıcıya "sistem bozuk" deme: semptomu bul, 
 | Commit deny (hard)                   | IR/QR/SP eksik                                                                   | Sırayla tamamla (IR→QR→SP); story metadata'yı düzelt                                                                                       |
 | Deploy deny (hard)                   | IR/QR/SP/PR eksik                                                                | PR'ı tamamla (staging+rollback+monitoring+onay)                                                                                            |
 | Bench reddedildi                     | free yüzeyde (scratch/tmp/temp/graft/openhands/*bmad/.metodoloji/kök explore*\*) | `scripts/bench/`'e taşı, yeni kayıtla koş                                                                                                  |
-| hooks.json uyumsuzluğu               | Elle edit                                                                        | `sync-hooks-json.py --write`                                                                                                               |
+| hooks.json uyumsuzluğu               | Elle edit                                                                        | `{metodoloji-root}/scripts/sync-hooks-json.py --write`                                                                                                               |
 
 
 **Kullanıcının sık sorduğu "neden"ler:**

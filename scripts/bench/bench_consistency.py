@@ -1473,6 +1473,13 @@ def _check_remedies_and_session_guidance_pinned() -> str | None:
 _GATE_ROOT_TOKENS = ("{metodoloji-root}", "{skill-root}", "$SYNCED",
                       "METODOLOJI_SYNCED")
 
+# A template reference resolves only when rooted at the plugin. A consuming
+# project ships the copies under docs/**/_template_*.md (skeleton install), but
+# no root-level templates/ dir — so a bare `templates/_template_X.md` dies
+# exactly where the bridge steps are read. `{metodoloji-root}/templates/…`
+# resolves; the lookbehind skips an already-rooted occurrence.
+_TEMPLATE_REF_RE = re.compile(r"(?<![\w}/])templates/_template_[\w.]+")
+
 # The surfaces a CONSUMING project reads or runs (E-038). Plugin-repo-only
 # tooling (scripts/, tests, the bench itself) is deliberately excluded: those
 # run where skills/ exists at the root, and historical records
@@ -1491,13 +1498,21 @@ _SHIPPED_SURFACE_GLOBS = (
 def _plugin_script_basenames() -> frozenset[str]:
     """Every script the plugin ships for a consuming session (E-039, derived).
 
-    The bmad/ CLIs (blackboard, workflow, orient, skeleton, …) and the
-    skill-side CLIs — derived from the filesystem, so a newly shipped script
-    joins the rule the day it lands (the E-037/E-038 lesson: a hand-listed
-    set IS the narrow-surface class).
+    EVERY `scripts/` tree — the top-level tooling (create-qr-record,
+    sync-story-qr, sync-hooks-json, the check-*.sh gates), the bmad/ CLIs
+    (blackboard, workflow, orient, skeleton, …), the skill-side CLIs and the
+    hook dispatch scripts. Derived from the filesystem, so a newly shipped
+    script joins the rule the day it lands. Deriving from only
+    `bmad/scripts/*.py` + `skills/*/scripts/*.py` was itself the E-037
+    narrow-surface class one level up: the top-level `scripts/` tree the
+    guard's own remedies name, and every `.sh` gate, escaped the scan.
     """
-    names = {p.name for p in ROOT.glob("bmad/scripts/*.py")}
-    names |= {p.name for p in ROOT.glob("skills/*/scripts/*.py")}
+    names: set[str] = set()
+    for pat in ("scripts/*", "bmad/scripts/*", "skills/*/scripts/*",
+                "hooks/scripts/*"):
+        for path in ROOT.glob(pat):
+            if path.is_file() and path.suffix in (".py", ".sh"):
+                names.add(path.name)
     return frozenset(names)
 
 
@@ -1521,6 +1536,12 @@ def _shipped_gate_invocation_broken(line: str) -> str | None:
             seg = line[:m2.end() - len(name)]
             if not any(r in seg for r in _GATE_ROOT_TOKENS):
                 return f"unrooted python3 invocation of {name}"
+    # (c) `templates/_template_X.md`: a template path resolves only at the
+    # plugin root; the lookbehind already skipped a rooted occurrence.
+    for m in _TEMPLATE_REF_RE.finditer(line):
+        if not any(line[:m.start()].endswith(r + "/")
+                   for r in _GATE_ROOT_TOKENS):
+            return f"unrooted template path: {m.group(0)}"
     if "guard-code.sh" in line:
         return "names guard-code.sh (a script that does not exist)"
     return None

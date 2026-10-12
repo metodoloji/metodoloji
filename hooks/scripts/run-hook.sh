@@ -9,9 +9,9 @@
 # hooks/hooks.json cannot reference this file (neither runtime injects a
 # guaranteed plugin-root env var), so its hook commands embed a DISPATCH copy of
 # the loop. Those copies are GENERATED from the canonical dispatch list in
-# scripts/sync-hooks-json.py — edit THAT list (or this one) and run:
-#   python3 scripts/sync-hooks-json.py --write
-# scripts/check-plugin.sh §1b mechanically verifies hooks.json never drifts from
+# {metodoloji-root}/scripts/sync-hooks-json.py — edit THAT list (or this one) and run:
+#   python3 {metodoloji-root}/scripts/sync-hooks-json.py --write
+# {metodoloji-root}/scripts/check-plugin.sh §1b mechanically verifies hooks.json never drifts from
 # the generator and that every dispatch root is resolvable by this file.
 
 TARGET_HOOK="$1"

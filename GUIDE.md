@@ -151,7 +151,7 @@ Does the target project have .metodoloji/initialized?
 4. **Interpret the warnings:** "marker exists → do not re-run init", "no marker → run once", skeleton present + no marker → **broken init** (one-off repair: `python3 {metodoloji-root}/bmad/scripts/skeleton.py --install`).
 5. **Take the user's request** → map it via the #3 decision tree and state which playbook you will run.
 
-**Don't:** run a full audit at session start (`check-plugin.sh` takes \~65s) — leave that to P22 unless the user asks.
+**Don't:** run a full audit at session start (`{metodoloji-root}/scripts/check-plugin.sh` takes \~65s) — leave that to P22 unless the user asks.
 
 ### 4.1 Routine checklist (apply to yourself)
 
@@ -278,7 +278,7 @@ Rules: the file lives **outside** the repo, 0600, generated with `secrets.token_
 **Step 5 — `/metodoloji:audit`:**
 
 ```bash
-sh scripts/check-plugin.sh
+sh {metodoloji-root}/scripts/check-plugin.sh
 ```
 
 The scope and the # map are in #16. Exit 0 = HEALTHY; on problems go to #17.
@@ -287,8 +287,8 @@ The scope and the # map are in #16. Exit 0 = HEALTHY; on problems go to #17.
 
 ```bash
 python -m pytest -q             # 1100+ tests: hook engine, bridge, skills
-sh scripts/check-custom.sh      # bridge TOML static audit
-sh scripts/check-plugin.sh      # plugin structure audit (#0–#6f)
+sh {metodoloji-root}/scripts/check-custom.sh      # bridge TOML static audit
+sh {metodoloji-root}/scripts/check-plugin.sh      # plugin structure audit (#0–#6f)
 sh scripts/check-methodology.sh # record format audit
 ```
 
@@ -376,7 +376,7 @@ deploy_guard = "hard"
 
 The conditional self-modification zone is active: when the protected project root is the plugin's own repo, `hooks/`, `scripts/`, `skills/`, `custom/` are free. In an ordinary project those trees require an experiment.
 
-**Extra rules:** do not hand-edit `hooks.json` — generate it with `scripts/sync-hooks-json.py --write` (`check-plugin.sh` #1b demands byte-identical). After a change run `python -m pytest -q` plus the static checks. Document behaviour changes with an E record (bench + E — the improvement loop in #18).
+**Extra rules:** do not hand-edit `hooks.json` — generate it with `{metodoloji-root}/scripts/sync-hooks-json.py --write` (`{metodoloji-root}/scripts/check-plugin.sh` #1b demands byte-identical). After a change run `python -m pytest -q` plus the static checks. Document behaviour changes with an E record (bench + E — the improvement loop in #18).
 
 ### P5 — Solo-spike (quick one-person experiment)
 
@@ -414,11 +414,11 @@ E-045 (bench: scripts/bench/bench_bfs.py → APPROVED, VERIFIED)
 Command skeleton:
 
 ```bash
-cp templates/_template_E.md docs/experiments/E-045.md        # fill it in
+cp {metodoloji-root}/templates/_template_E.md docs/experiments/E-045.md        # fill it in
 python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py \
   --record docs/experiments/E-045.md --run "python scripts/bench/bench_bfs.py"
 # APPROVED → fill IR/SP/S → implement → fill QR → commit → fill PR → deploy
-python3 scripts/create-qr-record.py --story docs/development/stories/S-027.md  # QR skeleton
+python3 {metodoloji-root}/scripts/create-qr-record.py --story docs/development/stories/S-027.md  # QR skeleton
 git commit -m "feat(search): S-027 bfs ..."
 ```
 
@@ -547,8 +547,8 @@ Run locally after a change (CI is release-numbers only — `.github/workflows/re
 
 ```bash
 python -m pytest -q
-sh scripts/check-custom.sh
-sh scripts/check-plugin.sh
+sh {metodoloji-root}/scripts/check-custom.sh
+sh {metodoloji-root}/scripts/check-plugin.sh
 sh scripts/check-methodology.sh
 sh scripts/check-techdebt.sh
 python scripts/check-handoff.py
@@ -561,8 +561,8 @@ Suggested order: pytest first (engine behaviour), then check-plugin (the widest 
 Negative tests (proof the gates actually work):
 
 ```bash
-sh scripts/check-plugin.sh --negtest   # 9 stages: .env/.gitignore, 2 BRIDGE removals (#2b), #1b hooks.json, #6c template, #6d marker, #6e help catalog, #6g priming token, #3 forged-token → all caught and restored
-sh scripts/check-custom.sh --negtest   # 3 tests: #3 hard-gate + #7 bridge drift ×2 (#2.3 removal + "bolum N.N" injection)
+sh {metodoloji-root}/scripts/check-plugin.sh --negtest   # 9 stages: .env/.gitignore, 2 BRIDGE removals (#2b), #1b hooks.json, #6c template, #6d marker, #6e help catalog, #6g priming token, #3 forged-token → all caught and restored
+sh {metodoloji-root}/scripts/check-custom.sh --negtest   # 3 tests: #3 hard-gate + #7 bridge drift ×2 (#2.3 removal + "bolum N.N" injection)
 ```
 
 ### P23 — Team flow over the blackboard
@@ -581,10 +581,10 @@ Carry the PRD → UX → architecture → spec → epics → story → dev relay
 ```bash
 cd /path/to/metodoloji
 git pull
-python -m pytest -q && sh scripts/check-plugin.sh
+python -m pytest -q && sh {metodoloji-root}/scripts/check-plugin.sh
 ```
 
-If you have a local edit in `hooks.json`, regenerate it with `sync-hooks-json.py --write` (otherwise you get the #1b byte-identical failure — that failure is protecting you).
+If you have a local edit in `hooks.json`, regenerate it with `{metodoloji-root}/scripts/sync-hooks-json.py --write` (otherwise you get the #1b byte-identical failure — that failure is protecting you).
 
 ### P26 — `.env` hygiene (#6a)
 
@@ -648,7 +648,7 @@ Open every record **from a template** (`{metodoloji-root}/templates/`), fill its
 **1. Create the file:**
 
 ```bash
-cp templates/_template_E.md docs/experiments/E-001.md
+cp {metodoloji-root}/templates/_template_E.md docs/experiments/E-001.md
 ```
 
 **2. Fill the mandatory fields (`REQUIRED_DRAFT` — without these the gate will not run):**
@@ -720,7 +720,7 @@ python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment
 - **Re-Measured-By:** E-012 (17.09.2026)
 ```
 
-`check-plugin.sh` #3 counts this as a `CROSS-MACHINE` warning (not an error) — provided the new record verifies under your own key.
+`{metodoloji-root}/scripts/check-plugin.sh` #3 counts this as a `CROSS-MACHINE` warning (not an error) — provided the new record verifies under your own key.
 
 **Field table:**
 
@@ -795,7 +795,7 @@ experiment_refs:
 **Generating a record from a native story:**
 
 ```bash
-python3 scripts/create-methodology-record.py --story docs/development/stories/S-001.md
+python3 {metodoloji-root}/scripts/create-methodology-record.py --story docs/development/stories/S-001.md
 ```
 
 ### 8.5 QR — Quality Review (Gate 3)
@@ -816,7 +816,7 @@ The QR template requires two standard tables (the audit checks them structurally
 Creation:
 
 ```bash
-python3 scripts/create-qr-record.py --story docs/development/stories/S-001.md
+python3 {metodoloji-root}/scripts/create-qr-record.py --story docs/development/stories/S-001.md
 ```
 
 ### 8.6 PR — Production Readiness (Gate 4)
@@ -848,7 +848,7 @@ The single `pre` entry runs **guard → quality → deploy** in one process (the
 
 Each gate keeps its own config key — only the process is shared (it used to be three hook dispatches + three python cold-starts per tool call). Thanks to the union matcher a Claude `Bash` call reaches guard too — a shell write such as `echo x > src/a.py` can no longer sidestep the experiment gate. A normal call takes \~40ms; the 10s ceiling is a hang safety net.
 
-Hook commands locate the plugin root themselves (`$CLAUDE_PLUGIN_ROOT`, `$METODOLOJI_PLUGIN_ROOT`, marketplace cache, OpenHands install dir; the first one containing `hooks/scripts/run-hook.sh` wins). `hooks.json` is **generated** — the canonical dispatch list is `scripts/sync-hooks-json.py` plus the discovery list inside `hooks/scripts/run-hook.sh`. If you change a path, run `python3 scripts/sync-hooks-json.py --write`; `check-plugin.sh` #1b verifies byte-identical.
+Hook commands locate the plugin root themselves (`$CLAUDE_PLUGIN_ROOT`, `$METODOLOJI_PLUGIN_ROOT`, marketplace cache, OpenHands install dir; the first one containing `hooks/scripts/run-hook.sh` wins). `hooks.json` is **generated** — the canonical dispatch list is `{metodoloji-root}/scripts/sync-hooks-json.py` plus the discovery list inside `hooks/scripts/run-hook.sh`. If you change a path, run `python3 {metodoloji-root}/scripts/sync-hooks-json.py --write`; `{metodoloji-root}/scripts/check-plugin.sh` #1b verifies byte-identical.
 
 ### 9.2 Guard (PreToolUse) — Fail-Closed, runs first
 
@@ -885,7 +885,7 @@ Scope: only `Bash`/`terminal` containing `git commit`.
 
 Chain: a done story exists but there is no IR at all → deny (Gate 1) → a done story without a QR → deny (Gate 3) → an SP record with a missing reference → deny (Gate 2). Order: IR (project) → QR (story) → SP (story).
 
-**QR-coherence step (quality's 4th step since SP-022):** even with a done story + APPROVED QR, if the story's Definition of Done table still has a `pending`/`⏳` row the commit `DENY`s (hard) or warns (soft) — quality reads the status text in the table, it does not verify tokens. The reason also names the fix: run `python3 scripts/sync-story-qr.py --apply` to sync the past result from the QR back into the story, then re-check coherence (done S + APPROVED QR ⇒ zero pending rows — `bench_sp021.py` pins the tree state, `bench_sp020.py` the operation). Conservative skips: in-progress stories whose QR does not exist yet and unsupported table layouts are not checked (silent pass, not deny).
+**QR-coherence step (quality's 4th step since SP-022):** even with a done story + APPROVED QR, if the story's Definition of Done table still has a `pending`/`⏳` row the commit `DENY`s (hard) or warns (soft) — quality reads the status text in the table, it does not verify tokens. The reason also names the fix: run `python3 {metodoloji-root}/scripts/sync-story-qr.py --apply` to sync the past result from the QR back into the story, then re-check coherence (done S + APPROVED QR ⇒ zero pending rows — `bench_sp021.py` pins the tree state, `bench_sp020.py` the operation). Conservative skips: in-progress stories whose QR does not exist yet and unsupported table layouts are not checked (silent pass, not deny).
 
 With `quality_gate="soft"` a deny becomes `allow + methodology_warnings`; with `"hard"` it blocks. Config is read live per call — no reload needed.
 
@@ -898,7 +898,7 @@ Recognised deploy commands (regex, case-insensitive): `terraform apply|destroy|p
 ### 9.5 Audit (PostToolUse) — Fail-open, synchronous
 
 - Appends every call as a single JSON line. The body is redacted to a 300-character preview (`content`, `code`, `source`...); path/command/flags stay intact (so stop works); the full body never enters the log.
-- The QR DoD warning is warn-only (the done-story→QR directory scan is in `check-plugin.sh`, not on the per-write hot path). QR DoD is verified with the **same parser/rules** as story DoD (`.utils.dod_issues`): every DoD item needs an identifier + a verification record (in a story `Verify:`; in a QR a `Verify:`/`Evidence:` line, or a result marker `→ ✓ PASS` in a `- DoD-NNN …` bullet, or a filled cell in the `| DoD Item | Status | Evidence | Date |` table).
+- The QR DoD warning is warn-only (the done-story→QR directory scan is in `{metodoloji-root}/scripts/check-plugin.sh`, not on the per-write hot path). QR DoD is verified with the **same parser/rules** as story DoD (`.utils.dod_issues`): every DoD item needs an identifier + a verification record (in a story `Verify:`; in a QR a `Verify:`/`Evidence:` line, or a result marker `→ ✓ PASS` in a `- DoD-NNN …` bullet, or a filled cell in the `| DoD Item | Status | Evidence | Date |` table).
 - Log-only: no blackboard read/write, no canvas/bridge mutation — the engine hot path is blackboard-free.
 - A log-write failure is fail-open (stderr note, never a crash).
 - It runs **synchronously** (no `"async": true`): with a 2s timeout in fail-open mode there is no functional loss, and it reduces the `InputValidationError: Bash was called with input that could not be parsed as JSON` symptom born of an async PostToolUse race. The real root cause is usually the plugin being registered **twice** in Claude (if you see "2 async PostToolUse hooks completed", clean up the duplicate install: manifest + manual `settings.json` entry + stale marketplace cache).
@@ -921,7 +921,7 @@ hook-entry.sh audit    → audit (fail-open, synchronous)
 hook-entry.sh stop     → stop (fail-open, report-only)
 ```
 
-`hooks.json` only dispatches the combined `pre`; the individual modes exist for direct calls and for the `check-plugin.sh` #1 smoke test.
+`hooks.json` only dispatches the combined `pre`; the individual modes exist for direct calls and for the `{metodoloji-root}/scripts/check-plugin.sh` #1 smoke test.
 
 - Runtime: 2. CLI arg &gt; `METODOLOJI_RUNTIME` env &gt; default `openhands`.
 - Python resolver: `python3 → python → py`, then common Windows paths.
@@ -1106,7 +1106,7 @@ Returns the shared `core` plus that module's keys (the old module config.yaml sh
 
 ### 13.3 Manifesto wiring
 
-Every surface must reference these documents: `research-methodology.md` (all surfaces), `project-context.md` (all surfaces), `development-methodology.md` (the development wing). The bridge document: `{metodoloji-root}/docs/bmad/dev-skill-to-methodology-bridge.md` (#-numbered — `check-custom.sh` #7 verifies that `custom/` references stay in sync with it).
+Every surface must reference these documents: `research-methodology.md` (all surfaces), `project-context.md` (all surfaces), `development-methodology.md` (the development wing). The bridge document: `{metodoloji-root}/docs/bmad/dev-skill-to-methodology-bridge.md` (#-numbered — `{metodoloji-root}/scripts/check-custom.sh` #7 verifies that `custom/` references stay in sync with it).
 
 ---
 
@@ -1199,7 +1199,7 @@ python3 {metodoloji-root}/bmad/scripts/blackboard.py hot --clear
 | `/metodoloji:init`       | Install the directory+template skeleton under `{project-root}`. Runs **once** and writes the `.metodoloji/initialized` marker; if the marker exists it short-circuits with "already installed" (use `--force` to reinstall). Never overwrites existing files. Does not copy manifests. Warns when the gate key is missing. Prints a brownfield note. Prints a summary (next step: `/metodoloji:audit`).                                                                                                                                                                      |
 | `/metodoloji:gate-setup` | If `~/.bmad/gate-key` exists, say "already installed" and stop (do NOT overwrite). Otherwise run `--init-secret`. Check 0600. **Never** print/copy/move the content. A sample `GATE-OK-...` output = done. Next step: the first E record.                                                                                                                                                                                                                                                                                                                                    |
 | `/metodoloji:verify`     | Verify one record: `python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --verify --record {project-root}/docs/experiments/<id>.md`. `VERIFIED` = scope open; `FORGED` = regenerate the record; `REJECTED` = revise the hypothesis; `ADVISORY-BLOCK` (exit 2) = re-measure in a new record (it does not open code).                                                                                                                                                                                                                           |
-| `/metodoloji:audit`      | Health check: (1) run and summarise `sh {metodoloji-root}/scripts/check-plugin.sh` (exit 0 = HEALTHY). (2) If a custom-focused report is wanted, `scripts/check-custom.sh` (#0–#7). (3) List `{project-root}/docs/experiments/` + `docs/development/` records and note chain gaps (an S without a QR, etc.). (4) Run `--verify` on every E and report the VERIFIED/FORGED split. (5) Read the `custom/config.toml [hooks]` soft/hard values. (6) PASS/FAIL + a fix suggestion. When a bridge is suspect, show break→catch→restore evidence with `check-custom.sh --negtest`. |
+| `/metodoloji:audit`      | Health check: (1) run and summarise `sh {metodoloji-root}/scripts/check-plugin.sh` (exit 0 = HEALTHY). (2) If a custom-focused report is wanted, `{metodoloji-root}/scripts/check-custom.sh` (#0–#7). (3) List `{project-root}/docs/experiments/` + `docs/development/` records and note chain gaps (an S without a QR, etc.). (4) Run `--verify` on every E and report the VERIFIED/FORGED split. (5) Read the `custom/config.toml [hooks]` soft/hard values. (6) PASS/FAIL + a fix suggestion. When a bridge is suspect, show break→catch→restore evidence with `{metodoloji-root}/scripts/check-custom.sh --negtest`. |
 
 
 ### 15.2 Quick command card
@@ -1220,13 +1220,13 @@ python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment
   --verify --record docs/experiments/E-001.md
 
 # Records
-python3 scripts/create-methodology-record.py --story docs/development/stories/S-001.md
-python3 scripts/create-qr-record.py --story docs/development/stories/S-001.md
+python3 {metodoloji-root}/scripts/create-methodology-record.py --story docs/development/stories/S-001.md
+python3 {metodoloji-root}/scripts/create-qr-record.py --story docs/development/stories/S-001.md
 
 # Audit
 python -m pytest -q
-sh scripts/check-custom.sh
-sh scripts/check-plugin.sh
+sh {metodoloji-root}/scripts/check-custom.sh
+sh {metodoloji-root}/scripts/check-plugin.sh
 sh scripts/check-methodology.sh
 sh scripts/check-techdebt.sh
 python scripts/check-handoff.py
@@ -1234,7 +1234,7 @@ python scripts/check-handoff.py
 # Customization
 python3 {metodoloji-root}/bmad/scripts/resolve_customization.py -s skills/bmad-dev-story -k workflow.activation_steps_append
 python3 {metodoloji-root}/bmad/scripts/resolve_config.py --project-root . --key core.communication_language --key modules.tea.test_artifacts
-python3 scripts/sync-hooks-json.py --write
+python3 {metodoloji-root}/scripts/sync-hooks-json.py --write
 
 # Blackboard
 python3 {metodoloji-root}/bmad/scripts/blackboard.py write --key prd.acme --value "..." --type state --hot
@@ -1259,9 +1259,9 @@ grep 'methodology_warnings' .metodoloji/logs/hook-audit.log
 ## 16. Auditing and Health Checks
 
 ```bash
-sh scripts/check-plugin.sh        # full audit #0–#6f (0=HEALTHY, 1=problem)
-sh scripts/check-plugin.sh --negtest
-sh scripts/check-custom.sh        # bridge TOML #0–#7
+sh {metodoloji-root}/scripts/check-plugin.sh        # full audit #0–#6f (0=HEALTHY, 1=problem)
+sh {metodoloji-root}/scripts/check-plugin.sh --negtest
+sh {metodoloji-root}/scripts/check-custom.sh        # bridge TOML #0–#7
 python scripts/check-handoff.py   # handoff wiring lint
 sh scripts/check-methodology.sh   # project record format (warn+exit 0 on a fresh install without records)
 sh scripts/check-techdebt.sh      # debt drift/ID/P0/orphan (also runs as #6b)
@@ -1301,7 +1301,7 @@ When you see a deny/warning, do not tell the user "the system is broken": find t
 | Commit deny (hard)                   | missing IR/QR/SP                                                                       | Complete them in order (IR→QR→SP); fix the story metadata                                                                                  |
 | Deploy deny (hard)                   | missing IR/QR/SP/PR                                                                    | Complete the PR (staging+rollback+monitoring+approval)                                                                                     |
 | Bench rejected                       | on a free surface (scratch/tmp/temp/graft/openhands/*bmad/.metodoloji/root explore*\*) | Move it to `scripts/bench/`, run it in a new record                                                                                        |
-| hooks.json mismatch                  | hand edit                                                                              | `sync-hooks-json.py --write`                                                                                                               |
+| hooks.json mismatch                  | hand edit                                                                              | `{metodoloji-root}/scripts/sync-hooks-json.py --write`                                                                                                               |
 
 
 **The "why" the user asks most often:**

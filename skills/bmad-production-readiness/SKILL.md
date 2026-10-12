@@ -581,7 +581,7 @@ This gate ensures operational readiness and minimizes production incident risk.
 
 ## See Also
 
-- Template: `templates/_template_PR.md`
+- Template: `{metodoloji-root}/templates/_template_PR.md`
 - Workflow chain: E → IR → SP → S → QR → PR
 - Gates: Gate 1 (IR), Gate 2 (SP), Gate 3 (QR), **Gate 4 (PR)**
 - Previous skill: `bmad-quality-record` (QR generation)

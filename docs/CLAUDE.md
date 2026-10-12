@@ -6,7 +6,7 @@ Claude Code plugin for methodology enforcement, compatible with BMad Method.
 
 - **Record chain**: E → IR → SP → S → QR → PR (experiment → implementation readiness → sprint planning → story → quality review → production readiness)
 - **Mechanical gates**: guard (write/edit blocking, config-gated), quality (`git commit` chain check, config-gated), deploy (deploy-command chain check, config-gated), audit (post-write trail), stop (session-end report, never blocks)
-- **125 skills** with **121 customization TOMLs** + `config.toml` (33 active BRIDGEs linking native outputs to methodology records). `bmad-customize`, `bmad-help`, `memory`, `sync` are tool/meta skills with no bridge TOML by design (see check-plugin.sh §2 EXCLUDED / §6b pairing).
+- **125 skills** with **121 customization TOMLs** + `config.toml` (33 active BRIDGEs linking native outputs to methodology records). `bmad-customize`, `bmad-help`, `memory`, `sync` are tool/meta skills with no bridge TOML by design (see {metodoloji-root}/scripts/check-plugin.sh §2 EXCLUDED / §6b pairing).
 
 ## Hooks
 
@@ -93,7 +93,7 @@ stop_guard = "soft"     # backward compat — stop is report-only and never bloc
   APPROVED QR but a stale `pending`/`⏳` row left in its Definition of Done table
   denies `git commit` (hard) or warns (soft) — quality reads the table's status
   text, never verifies tokens. The deny reason names the remedy:
-  `python3 scripts/sync-story-qr.py --apply`, then re-verify coherence
+  `python3 {metodoloji-root}/scripts/sync-story-qr.py --apply`, then re-verify coherence
   (done S + APPROVED QR implies zero pending rows). In-progress stories whose QR
   is not born yet and unsupported table layouts are conservatively skipped.
 - **The engine write path is blackboard-free**: no hook ever WRITES the

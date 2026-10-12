@@ -436,10 +436,24 @@ def test_shipped_gate_invocations_resolve_where_they_ship():
              "skills/bmad-research-experiment/experiment-log.md",
              "skills/bmad-research-experiment/scripts/run_experiment.py",
              "hooks/scripts/*.sh")
-    names = {p.name for p in (PLUGIN / "bmad" / "scripts").glob("*.py")}
-    names |= {p.name for p in PLUGIN.glob("skills/*/scripts/*.py")}
+    # Every `scripts/` tree, every shipped script — .py and .sh alike, so the
+    # top-level tooling (create-qr-record, sync-story-qr, the check-*.sh gates)
+    # cannot drop out of the rule the way it did under the old two-glob
+    # derivation (E-037's narrow-surface class one level up).
+    names = set()
+    for pat in ("scripts/*", "bmad/scripts/*", "skills/*/scripts/*",
+                "hooks/scripts/*"):
+        for p in PLUGIN.glob(pat):
+            if p.is_file() and p.suffix in (".py", ".sh"):
+                names.add(p.name)
     assert "run_experiment.py" in names and "blackboard.py" in names, (
         "the shipped-script derivation lost a known CLI")
+    assert "create-qr-record.py" in names and "check-custom.sh" in names, (
+        "the shipped-script derivation lost a top-level CLI or a .sh gate")
+    # A template reference resolves only at the plugin root ({metodoloji-root});
+    # a bare `templates/_template_X.md` dies in a consuming project, which
+    # ships the copies under docs/**/ but no root-level templates/ dir.
+    template_re = re.compile(r"(?<![\w}/])templates/_template_[\w.]+")
     problems = []
     for pat in globs:
         for path in sorted(PLUGIN.glob(pat)):
@@ -457,6 +471,10 @@ def test_shipped_gate_invocations_resolve_where_they_ship():
                         if not any(r in seg for r in roots):
                             problems.append(f"{rel}:{lineno}: unrooted "
                                             f"python3 {name}")
+                for m in template_re.finditer(line):
+                    if not any(r in line[:m.start()] for r in roots):
+                        problems.append(f"{rel}:{lineno}: unrooted template "
+                                        f"path {m.group(0)}")
                 if "guard-code.sh" in line:
                     problems.append(f"{rel}:{lineno}: phantom guard-code.sh")
     assert not problems, f"dead plugin instructions where they ship: {problems}"

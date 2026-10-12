@@ -145,7 +145,7 @@ moved test path, and that mention alone passed as the story's quality record).
 
 The declaration is written against the NATIVE story, because that is the work
 item. A generated methodology record is covered through the very same hop
-`scripts/sync-story-qr.py` resolves its QR with: the record's `| Native Story |`
+`{metodoloji-root}/scripts/sync-story-qr.py` resolves its QR with: the record's `| Native Story |`
 field names the native story, so the QR that declares that story covers the
 record too (shipped case: native `S-056` → generated `S-057` → `QR-014`). An
 unrelated record still covers nothing — the hop follows a declaration, never a
@@ -202,7 +202,7 @@ mention.
 When `bmad-check-implementation-readiness` completes, the IR record is created:
 
 1. The `docs/development/IR-<sequence>.md` file is created
-2. Copy the template from `templates/_template_IR.md` and fill the fields from the
+2. Copy the template from `{metodoloji-root}/templates/_template_IR.md` and fill the fields from the
    native readiness report with English labels:
    - **Date**, **Status**: `preparing` | `READY` | `INCOMPLETE`
    - **Research inputs**, **Design documents**, **Success criteria**
@@ -230,7 +230,7 @@ When `bmad-sprint-planning` completes, the SP record is created:
    (`SP-2026-01-15` → id `2026`), so two sprints of the same year become
    indistinguishable to the SP gate.
 1. The `docs/development/SP-<sequence>.md` file is created
-2. Copy the template from `templates/_template_SP.md` and fill the fields from the
+2. Copy the template from `{metodoloji-root}/templates/_template_SP.md` and fill the fields from the
    native sprint output with English labels:
    - **Date**, **Status**: `planned` | `in progress` | `completed` | `cancelled`
    - **Readiness input**: the IR id + path this sprint plans from (`- **Readiness input:** IR-001 (`docs/development/IR-001.md`)`). This IS the SP → IR hop the story chain check reads: an SP record that names no IR record fails with `SP record SP-00N does not reference any … (IR) record`, so the template carries the field (2026-10-01 dogfood audit — the first four sprint records were all written without it)
@@ -258,7 +258,7 @@ record at `docs/development/PR-<sequence>.md`. This bridge step produces it from
 deployment surface (dev-story, quick-dev, agent-dev):
 
 1. The `docs/development/PR-<sequence>.md` file is created
-2. Copy the template from `docs/development/_template_PR.md` and fill the fields with
+2. Copy the template from `{metodoloji-root}/templates/_template_PR.md` and fill the fields with
    English labels:
    - **Date**, **Status**: `preparing` | `READY` | `PENDING`
    - **Stories**: every story this release ships (`- **Stories:** S-001, S-002` or a
@@ -336,7 +336,7 @@ When the story file is written, the guard hook validates the methodology chain:
 
 - **Status = done**: The QR record (docs/quality/QR-XXX.md) must exist
 - **Status = review/done**: The methodology record (docs/development/stories/S-XXX.md) must exist
-- Missing record = DENY + "Run: python3 scripts/create-qr-record.py" or "python3 scripts/create-methodology-record.py" message
+- Missing record = DENY + "Run: python3 {metodoloji-root}/scripts/create-qr-record.py" or "python3 {metodoloji-root}/scripts/create-methodology-record.py" message
 
 ### §3.7 Programmatic Enforcement Summary
 

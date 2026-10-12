@@ -393,7 +393,7 @@ This gate prevents low-quality code from reaching production.
 
 ## See Also
 
-- Template: `templates/_template_QR.md`
+- Template: `{metodoloji-root}/templates/_template_QR.md`
 - Workflow chain: E → IR → SP → S → QR → PR
 - Gates: Gate 1 (IR), Gate 2 (SP), **Gate 3 (QR)**, Gate 4 (PR)
 - Next skill: `bmad-production-readiness` (PR generation)

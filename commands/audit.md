@@ -24,8 +24,8 @@ Mechanically audits the plugin's own integrity and the record discipline in the 
    `{project-root}/docs/` = the target project — localize the failure to one
    side before touching anything.)
 
-2. Custom/ bridge TOMLs (only if an audit is requested): run `scripts/check-custom.sh`
-   to see §0–§7 in detail. `check-plugin.sh` §5c already runs the same sections; this
+2. Custom/ bridge TOMLs (only if an audit is requested): run `{metodoloji-root}/scripts/check-custom.sh`
+   to see §0–§7 in detail. `{metodoloji-root}/scripts/check-plugin.sh` §5c already runs the same sections; this
    step is only used when a custom/-focused report is wanted.
 
 3. Record chain status: list the records under `{project-root}/docs/experiments/` and
@@ -72,4 +72,4 @@ Never reference the gate key file in a shell command (`ls`/`cat` of any
 6. Result report: PASS/FAIL list + fix suggestions. If you find an issue requiring a
    negative test (e.g. bridge cannot resolve), show the script's
    break→catch→restore output; prove the custom/ drift check is live with
-   `check-custom.sh --negtest`.
+   `{metodoloji-root}/scripts/check-custom.sh --negtest`.
