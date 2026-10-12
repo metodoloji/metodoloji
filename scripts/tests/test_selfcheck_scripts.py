@@ -526,6 +526,34 @@ def test_activation_steps_append_carries_the_methodology_contract():
     )
 
 
+def test_tool_contract_names_the_real_harness_failures():
+    """E-041: the coaching must name the failure the harness actually emits.
+
+    A real Claude Code session lost many turns to
+    ``InputValidationError: ... The required parameter 'file_path' is missing``
+    (params dropped on PARALLEL Read/Bash calls); the shipped cue named only
+    ``provided as 'unknown'`` and never forbade batching. Independent derivation
+    here, then the bench check is pinned to keep owning it.
+    """
+    boot = (PLUGIN / "hooks" / "scripts" / "bootstrap.sh").read_text(
+        encoding="utf-8", errors="replace")
+    assert boot.count("required parameter") >= 2, (
+        "bootstrap.sh must name the real 'required parameter' signature in both "
+        "the python tools var and the printf fallback"
+    )
+    assert boot.count("never batch") >= 2, (
+        "bootstrap.sh must carry the one-call-at-a-time rule in both copies"
+    )
+    for rel in ("skills/bmad-workflow/SKILL.md",
+                "skills/bmad-research-experiment/SKILL.md"):
+        text = (PLUGIN / rel).read_text(encoding="utf-8", errors="replace")
+        assert "required parameter" in text and "never batch" in text, (
+            f"{rel}: tool contract lost the real failure signature / batching rule"
+        )
+    bench = _load_bench()
+    assert bench._check_tool_contract_names_the_real_harness_failures() is None
+
+
 def test_activation_compliance_rule_is_wired_and_audited():
     """check-custom.sh §2b must own the rule and ship a negtest stage for it."""
     text = (PLUGIN / "scripts" / "check-custom.sh").read_text(

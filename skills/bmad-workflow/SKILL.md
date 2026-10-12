@@ -40,10 +40,16 @@ harness — always use YOUR harness's native tools (Claude Code:
 Use each tool's own bare name and never import another harness's schema.
 
 - Run shell commands with the command as given — no extra wrapper params; one command per
-  tool call.
-- Never emit a tool call with a missing argument: a call whose path/command value is not yet
-  known fails harness validation and kills the turn. If it is not known, resolve it in text
-  first, then call. On `provided as 'unknown'`, re-issue the SAME call with the literal value.
+  tool call, and ONE tool call per turn (never batch several `Read`/`Bash` calls: a
+  parameter can drop on a parallel call, killing the turn).
+- Never emit a tool call with a missing argument. A dropped or empty argument fails harness
+  validation as `InputValidationError: … The required parameter 'file_path'/'command' is
+  missing` (the older `provided as 'unknown'` form is the same failure) and kills the turn.
+  If the value is not known, resolve it in text first, then call. Recovery: re-issue that
+  SAME call ALONE with the argument repeated — a value you "already provided" can still drop
+  on a batched call; never an empty retry. A namespaced tool name (a namespace and a tool
+  joined by a dot) is not a tool — it fails as `No such tool available`; use the
+  bare name your harness lists.
 - **Platform dialects.** Write paths with forward slashes on every OS; match the
   failure-proofing to the shell tool you call (`Bash` = POSIX sh, `PowerShell` = PowerShell).
 - Prefer `python3` over `uv run` (uv is not available in every environment).

@@ -37,13 +37,18 @@ OpenHands: `terminal`/`file_editor`). Use each tool's own bare name and never
 import another harness's schema:
 
 - Run shell commands with the command as given — no extra wrapper params.
+- Issue ONE tool call at a time; never batch several `Read`/`Bash` calls into
+  one turn — a parameter can drop on a parallel call, and the turn dies.
 - Never emit a tool call with a missing argument: a `Read`/`Bash`/`Skill`
-  call whose path/command/skill value is not yet known fails harness
-  validation (`... provided as 'unknown'`) and kills the turn. If the value
-  is not known, resolve it in text first (digest, prior output), then call.
-  Recovery: on `provided as 'unknown'`, re-issue the SAME call with the
-  literal value (never an empty retry); if a call is rejected as unknown,
-  retry with the bare name.
+  call whose path/command/skill value is dropped fails harness validation
+  (`InputValidationError: … The required parameter 'file_path'/'command'/'skill'
+  is missing`; older harnesses say `provided as 'unknown'`) and kills the
+  turn. If the value is not known, resolve it in text first (digest, prior
+  output), then call. Recovery: re-issue that SAME call ALONE with the literal
+  value — a value you "already provided" can still drop on a batched call
+  (never an empty retry). A namespaced tool name (a namespace and a tool joined by
+  a dot) is not a tool — it fails as `No such tool available`: use the bare
+  name your harness lists.
 - **Platform dialects.** Write paths with forward slashes on every OS —
   `C:/Users/...` works in Bash, PowerShell and Python, while a `C:\...` path
   collapses inside a POSIX shell (`ls C:\a\b` reads as `ls C:ab`). Match the

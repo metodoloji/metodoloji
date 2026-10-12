@@ -2714,6 +2714,41 @@ def _run_hooks_json_sync() -> str | None:
     return None
 
 
+def _check_tool_contract_names_the_real_harness_failures() -> str | None:
+    """E-041: the shipped tool coaching must name the failure the harness emits.
+
+    The 2026-10-12 Claude Code session ran /metodoloji:bmad-research-experiment
+    and burned many turns on `InputValidationError: ... The required parameter
+    'file_path'/'command' is missing` — arguments dropped on PARALLEL Read/Bash
+    calls — plus one `No such tool available: default.Bash`. The shipped
+    recovery cue named only `provided as 'unknown'` (a form that never appeared)
+    and never forbade batching, so the agent had to rediscover "shift to single
+    tool calls" itself. The session line (bootstrap.sh — the python `tools` var
+    AND the shell printf fallback) and the two Tool Contract surfaces must name
+    the real signature and the one-call-at-a-time rule.
+    """
+    problems: list[str] = []
+    boot = _read("hooks/scripts/bootstrap.sh")
+    if boot.count("required parameter") < 2:
+        problems.append("bootstrap.sh: 'required parameter' must appear in both "
+                        "the python tools var and the printf fallback")
+    if boot.count("never batch") < 2:
+        problems.append("bootstrap.sh: the 'never batch' rule must be in both "
+                        "session-line copies")
+    if "No such tool available" not in boot:
+        problems.append("bootstrap.sh: does not name the 'No such tool available' "
+                        "(namespaced tool) failure")
+    for rel in ("skills/bmad-workflow/SKILL.md",
+                "skills/bmad-research-experiment/SKILL.md"):
+        t = _read(rel)
+        if "required parameter" not in t:
+            problems.append(f"{rel}: tool contract does not name the real "
+                            "'required parameter' signature")
+        if "never batch" not in t:
+            problems.append(f"{rel}: tool contract has no one-call-at-a-time rule")
+    return "; ".join(problems) if problems else None
+
+
 def build_checks() -> list[tuple[str, object]]:
     checks: list[tuple[str, object]] = []
     for rel in DOC_FILES:
@@ -2833,6 +2868,8 @@ def build_checks() -> list[tuple[str, object]]:
                    _check_all_negtest_counts_are_falsifiable))
     checks.append(("cross-machine marker read from the canonical bullet (E-025)",
                    _check_cross_machine_marker_is_anchored))
+    checks.append(("tool contract names the real harness failures (E-041)",
+                   _check_tool_contract_names_the_real_harness_failures))
     checks.append(("pytest suite green (falsifier)", _run_pytest))
     checks.append(("hooks.json in sync with generator", _run_hooks_json_sync))
     return checks

@@ -140,11 +140,15 @@ head = ('METODOLOJI active. {metodoloji-root} = ' + plugin_disp
         + 'if a plugin path 404s, re-read this line instead of searching or reusing the old one. ')
 chain = 'Record chain: E → IR → SP → S → QR → PR. '
 tools = ('Tools: call every tool by the exact bare name your harness lists, with '
-         'complete arguments, and issue one command per call; if a call is '
-         'rejected as unknown, re-issue it immediately with the bare name; write '
-         'every path with forward slashes on every OS (a backslash path collapses '
-         'in a POSIX shell); use the dialect of the shell tool you call — Bash is '
-         'POSIX sh, PowerShell is PowerShell. ')
+         'complete arguments — and issue ONE tool call at a time; never batch '
+         'several Read/Bash calls into one turn (a parameter can drop on a parallel '
+         'call). On the harness error InputValidationError — required parameter is '
+         'missing — or a namespaced tool name failing as No such tool available, re-issue that SAME call '
+         'ALONE with '
+         'the argument repeated (a value you already provided can still drop — '
+         'never an empty retry). Write every path with forward slashes on every OS '
+         '(a backslash path collapses in a POSIX shell); use the dialect of the '
+         'shell tool you call — Bash is POSIX sh, PowerShell is PowerShell. ')
 tail = ('Before writing code you need a scope-matching VERIFIED experiment approval; gate key: '
         + key + '. ' + init_hint)
 ctx = head + chain + tools + tail
@@ -172,5 +176,5 @@ except Exception:
         pass
 
 print(json.dumps({'additionalContext': ctx}))
-" 2>/dev/null || printf '%s\n' "{\"additionalContext\":\"METODOLOJI active. {metodoloji-root} = $SYNCED; {project-root} = $WS (both literal — use them verbatim, never search the filesystem for them). The plugin root above is THIS install's: a root cached in memory or copied from a previous transcript goes stale on every plugin update — if a plugin path 404s, re-read this line instead of searching or reusing the old one. Record chain: E → IR → SP → S → QR → PR. Tools: call every tool by the exact bare name your harness lists, with complete arguments; one command per call; if a call is rejected as unknown, re-issue it with the bare name; write every path with forward slashes on every OS (a backslash path collapses in a POSIX shell); use the dialect of the shell tool you call — Bash is POSIX sh, PowerShell is PowerShell. Before writing code you need a scope-matching VERIFIED experiment approval; gate key: $KEY. $INIT_HINT\"}"
+" 2>/dev/null || printf '%s\n' "{\"additionalContext\":\"METODOLOJI active. {metodoloji-root} = $SYNCED; {project-root} = $WS (both literal — use them verbatim, never search the filesystem for them). The plugin root above is THIS install's: a root cached in memory or copied from a previous transcript goes stale on every plugin update — if a plugin path 404s, re-read this line instead of searching or reusing the old one. Record chain: E → IR → SP → S → QR → PR. Tools: call every tool by the exact bare name your harness lists, with complete arguments — and issue ONE tool call at a time; never batch several Read/Bash calls into one turn (a parameter can drop on a parallel call). On the harness error InputValidationError — required parameter is missing — or a namespaced tool name failing as No such tool available, re-issue that SAME call ALONE with the argument repeated (a value you already provided can still drop — never an empty retry). Write every path with forward slashes on every OS (a backslash path collapses in a POSIX shell); use the dialect of the shell tool you call — Bash is POSIX sh, PowerShell is PowerShell. Before writing code you need a scope-matching VERIFIED experiment approval; gate key: $KEY. $INIT_HINT\"}"
 exit 0
