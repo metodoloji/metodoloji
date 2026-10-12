@@ -91,6 +91,18 @@ def test_bench_zone_covers_free_prefixes_and_explore_files():
     assert gate.bench_in_free_zone("python3 ./explore_probe.py") is True
     assert is_free("explore_dir/bench_probe.py") is False
     assert gate.bench_in_free_zone("python3 explore_dir/bench_probe.py") is False
+    # E-035: FREE_PREFIXES is not the whole free surface — the docs surfaces
+    # (docs/*.md documents, docs/*/raw/ raw data) are guard-free too, so the
+    # parity set must cover them or a fabricated bench slips through there.
+    for probe in ("docs/e_surface/raw/bench_probe.py",
+                  "docs/e_surface/raw/nested/bench_probe.py",
+                  "docs/e_surface.md"):
+        assert is_free(probe) is True, f"{probe} should be guard-free"
+        assert gate.bench_in_free_zone(f"python3 {probe}") is True, (
+            f"guard-free {probe} hosts a gate-accepted bench")
+    # ...and the gate must NOT refuse what the guard gates (docs code).
+    assert is_free("docs/e_surface/bench_probe.py") is False
+    assert gate.bench_in_free_zone("python3 docs/e_surface/bench_probe.py") is False
 
 
 def test_code_dirs_do_not_collide_with_non_code_exts():

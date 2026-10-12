@@ -1183,8 +1183,13 @@ def _check_free_surface_parity() -> str | None:
     engine — it runs standalone on the measurement host), so drift between
     config.FREE_PREFIXES and _AGENT_BENCH_ZONE re-opens free-zone measurement
     silently. This check replays every FREE_PREFIX (except `_bmad/`, whose
-    own selfcheck bench detection keys on it) plus the explore_* doctrine
-    through bench_in_free_zone and fails on the first accepted bench.
+    own selfcheck bench detection keys on it), the FREE_DOC_MD / FREE_DOC_RAW
+    docs surfaces and the explore_* doctrine through bench_in_free_zone and
+    fails on the first accepted bench (E-035: an enumeration that stopped at
+    FREE_PREFIXES let a fabricated measurement run from docs/*/raw/). It then
+    probes the case rule both ways: the refusal must equal guard-free for
+    every spelling, so the bundled matcher folds exactly when utils.is_free
+    folds (os.name == "nt"), never a blanket (?i).
     """
     import sys as _sys  # noqa: PLC0415
 
@@ -1192,6 +1197,7 @@ def _check_free_surface_parity() -> str | None:
     _sys.path.insert(0, str(ROOT / "hooks" / "engine"))
     try:
         from modules.config import FREE_PREFIXES  # noqa: PLC0415
+        from modules.utils import is_free  # noqa: PLC0415
         import run_experiment as _gate  # noqa: PLC0415
     except Exception as exc:
         return f"free-surface parity unreadable: {exc}"
@@ -1208,6 +1214,23 @@ def _check_free_surface_parity() -> str | None:
             return f"bench matcher raised on {probe!r}: {exc}"
         if not refused:
             drift.append(prefix)
+    # The docs surfaces are guard-free too (FREE_DOC_MD documents and
+    # FREE_DOC_RAW raw trees): a bench there is the same fabricable
+    # measurement the rule refuses everywhere else (E-035).
+    for probe in ("python3 docs/e_surface/raw/bench_probe.py",
+                  "python3 docs/e_surface/raw/deep/bench_probe.py",
+                  "python3 docs/e_surface.md"):
+        try:
+            refused = _gate.bench_in_free_zone(probe)
+        except Exception as exc:
+            return f"bench matcher raised on {probe!r}: {exc}"
+        if not refused:
+            drift.append(probe.removeprefix("python3 "))
+    # ...and the reverse direction must hold too: the gate must NOT refuse
+    # what the guard gates (a docs path that is neither a document nor a raw
+    # tree is protected code).
+    if _gate.bench_in_free_zone("python3 docs/e_surface/bench_probe.py"):
+        drift.append("docs/<sub>/ guarded path (gate must not refuse)")
     # explore_* is free as a root-level FILE in the guard; a bench there must
     # be refused too.
     if not _gate.bench_in_free_zone("python3 explore_probe.py"):
@@ -1218,6 +1241,23 @@ def _check_free_surface_parity() -> str | None:
         drift.append("explore_*/ nested (guard gates it — gate must not refuse)")
     if _gate.bench_in_free_zone("python3 sub/explore_probe.py"):
         drift.append("*/explore_* (guard gates it — gate must not refuse)")
+    # Case-rule parity (E-035): refusal == guard-free for every spelling —
+    # the bundled matcher folds on the same OSes utils.is_free folds, so a
+    # blanket (?i) (POSIX: refusing guarded `SCRATCH/…`) or a missing fold
+    # (Windows: accepting `SCRATCH/…` the guard frees) both surface here.
+    # The probe set is limited to the UNCONDITIONAL free surfaces — plugin
+    # trees (hooks/scripts/skills) are freed only in self-modification and
+    # host the benches themselves, so they are deliberately not gate-refused.
+    for probe in ("SCRATCH/bench_probe.py", "Scratch/bench_probe.py",
+                  "DOCS/e_surface/raw/bench_probe.py", "EXPLORE_probe.py"):
+        try:
+            guarded_free = bool(is_free(probe))
+            refused = _gate.bench_in_free_zone(f"python3 {probe}")
+        except Exception as exc:
+            return f"case-parity probe raised on {probe!r}: {exc}"
+        if refused != guarded_free:
+            drift.append(f"case rule drift on {probe!r}: "
+                         f"guard_free={guarded_free} gate_refused={refused}")
     if drift:
         return f"gate accepts benches in guard-free surfaces: {drift}"
     return None

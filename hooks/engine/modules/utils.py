@@ -18,6 +18,21 @@ from .config import (
     PLUGIN_FREE_PREFIXES,
 )
 
+# Free-zone case key (E-035): membership is compared against a case-folded
+# path ONLY where the filesystem itself folds (os.name == "nt" — Windows).
+# On a case-sensitive filesystem the fold would free `DOCS/e/raw/`, a
+# directory distinct from `docs/` (fail-open); without the fold on nt,
+# `SCRATCH/` is gated although it IS the documented gapless zone
+# (fail-closed). `os.path.normcase` is the OS's own answer but also swaps
+# separators; norm_path() already normalized those, so plain lower() carries
+# exactly the fold half we need.
+_FREE_ZONE_FOLD = os.name == "nt"
+INFRA_FILES_KEY = frozenset(f.lower() for f in INFRA_FILES) if _FREE_ZONE_FOLD else INFRA_FILES
+_FREE_PREFIXES_KEY = tuple(x.lower() for x in FREE_PREFIXES) if _FREE_ZONE_FOLD else FREE_PREFIXES
+_PLUGIN_FREE_PREFIXES_KEY = (
+    tuple(x.lower() for x in PLUGIN_FREE_PREFIXES) if _FREE_ZONE_FOLD else PLUGIN_FREE_PREFIXES
+)
+
 
 def _coerce_json_scalar(v, _depth: int = 0) -> str:
     """Str-coerce one hook payload value, defensively.
@@ -232,25 +247,36 @@ def _project_is_methodology_root() -> bool:
 
 
 def is_free(path: str) -> bool:
-    """True if the project-relative path is inside a free zone (no approval needed)."""
+    """True if the project-relative path is inside a free zone (no approval needed).
+
+    Case rule (E-035): zone membership follows the filesystem's own case
+    semantics. On a case-insensitive filesystem two spellings are the SAME
+    file, so `SCRATCH/b.py` must be free exactly like `scratch/b.py` (the
+    documented gapless free zone); on a case-sensitive one a differently-cased
+    name is a different, ungoverned path, so `DOCS/e/raw/p.py` must stay gated
+    — freeing it would release a directory the doctrine never listed. The
+    fold happens only on os.name == "nt" and only for these membership tests;
+    the normalized path itself keeps its original spelling.
+    """
     p = norm_path(path).lstrip("/")
     if not p:
         return True
-    if FREE_DOC_MD.match(p) or FREE_DOC_RAW.match(p):
+    key = p.lower() if _FREE_ZONE_FOLD else p
+    if FREE_DOC_MD.match(key) or FREE_DOC_RAW.match(key):
         return True
-    if p in INFRA_FILES:
+    if key in INFRA_FILES_KEY:
         return True
-    if p.startswith("explore_") and "/" not in p:
+    if key.startswith("explore_") and "/" not in key:
         # Root-level exploration files only: without the slash guard an
         # `explore_*` DIRECTORY releases its whole subtree
         # (explore_evil/payload.py) with no approval — a code-gate bypass.
         # Nested paths stay gated; scratch/ is the wide-open prototyping area.
         return True
-    if any(p.startswith(prefix) for prefix in FREE_PREFIXES):
+    if any(key.startswith(prefix) for prefix in _FREE_PREFIXES_KEY):
         return True
     # Plugin source trees: free ONLY when the project is this repo itself
     # (self-modification). Otherwise they are protected by the experiment gate.
-    if any(p.startswith(prefix) for prefix in PLUGIN_FREE_PREFIXES):
+    if any(key.startswith(prefix) for prefix in _PLUGIN_FREE_PREFIXES_KEY):
         return _project_is_methodology_root()
     return False
 

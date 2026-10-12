@@ -972,13 +972,15 @@ The order guard asks before a write: **scan for secrets → deny if dirty → is
 | Infrastructure files | `scripts/check-methodology.sh`, `skills/bmad-research-experiment/scripts/run_experiment.py` |
 
 
-> **Two narrowings (evidenced):** `explore_*` frees only the root **file** — the inside of an `explore_foo/` directory is protected (otherwise the gate could be bypassed with a directory name). Conversely, the gate **refuses to run a measurement from any** guard-free surface: besides `scratch/`, `tmp/`, `temp/`, the benches in `graft/`, `openhands/`, `_bmad/`, `.metodoloji/` and root `explore_*` are rejected too — measurement always lives in a protected directory (`scripts/bench/`).
+> **Two narrowings (evidenced):** `explore_*` frees only the root **file** — the inside of an `explore_foo/` directory is protected (otherwise the gate could be bypassed with a directory name). Conversely, the gate **refuses to run a measurement from any** guard-free surface: besides `scratch/`, `tmp/`, `temp/`, the benches in `graft/`, `openhands/`, `_bmad/`, `.metodoloji/`, the docs surfaces (`docs/*.md`, `docs/*/raw/`) and root `explore_*` are rejected too — measurement always lives in a protected directory (`scripts/bench/`).
+
+> **Case rule (E-035):** zone membership follows the **filesystem's** case semantics, never a blanket match. On a case-insensitive filesystem (Windows) `SCRATCH/b.py` is the same file as `scratch/b.py`, so it is free and its bench is refused; on a case-sensitive one a differently-cased name is a **different** directory, so `DOCS/e/raw/p.py` stays gated and `SCRATCH/` is not a free surface. The guard (`utils.is_free`) and the gate's standalone matcher (`bench_in_free_zone`) fold on the same condition (`os.name == "nt"`), pinned by a parity probe both ways.
 
 **Conditional self-modification:** `hooks/`, `scripts/`, `skills/`, `custom/`, `bmad/tests/` (plugin source trees) are free **only when the protected project root is the plugin's own repo** (working on the plugin itself). In an ordinary target project these trees are **protected** — editing plugin source requires an approved experiment too. The `bmad/tests/` exemption is for circularity: the gate's own tests cannot be gated behind the gate's permission.
 
 ### 10.2 Protected area (requires approval)
 
-All source code + executable config (the #9.2 table). Note: the gate **refuses to run a measurement script from any free surface** (`scratch/`, `tmp/`, `temp/`, `graft/`, `openhands/`, `_bmad/`, `.metodoloji/`, root `explore_*`) — benches live in a protected directory such as `scripts/bench/`.
+All source code + executable config (the #9.2 table). Note: the gate **refuses to run a measurement script from any free surface** (`scratch/`, `tmp/`, `temp/`, `graft/`, `openhands/`, `_bmad/`, `.metodoloji/`, `docs/*.md`, `docs/*/raw/`, root `explore_*`) — benches live in a protected directory such as `scripts/bench/`.
 
 ### 10.3 Secret scanning (BEYOND the free zone)
 

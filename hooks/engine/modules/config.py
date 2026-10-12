@@ -323,8 +323,14 @@ PLUGIN_FREE_PREFIXES = ("hooks/", "scripts/", "skills/", "custom/", "bmad/tests/
 
 INFRA_FILES = {"scripts/check-methodology.sh", "skills/bmad-research-experiment/scripts/run_experiment.py"}
 
-FREE_DOC_MD = re.compile(r"(?i)^docs/.*\.md$")
-FREE_DOC_RAW = re.compile(r"(?i)^docs/.*/raw(/|$)")
+FREE_DOC_MD = re.compile(r"^docs/.*\.md$")
+FREE_DOC_RAW = re.compile(r"^docs/.*/raw(/|$)")
+# Case rule (E-035): these patterns carry NO `(?i)`. Free-zone membership
+# follows the filesystem's own case semantics — is_free() matches them
+# against a case-folded path only where the filesystem itself folds
+# (os.name == "nt"). A blanket (?i) freed `DOCS/e/raw/` on a case-SENSITIVE
+# host (a different directory — fail-open) while the prefix tuples gated
+# `SCRATCH/` on a case-INSENSITIVE one (the same directory — fail-closed).
 
 # Archive limits
 ARCHIVE_MAX_FILE = 512 * 1024 * 1024

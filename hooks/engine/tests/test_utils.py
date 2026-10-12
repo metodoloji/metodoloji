@@ -84,6 +84,37 @@ def test_is_free_docs_raw():
     assert is_free("docs/foo/raw/data.json")
 
 
+def test_free_zone_case_follows_the_filesystem():
+    """Free-zone membership follows the filesystem's own case rule (E-035).
+
+    The prefix tuples are lowercase and the docs regexes carried a blanket
+    `(?i)`, so the two spellings of one surface disagreed per OS: on a
+    case-SENSITIVE filesystem `DOCS/e/raw/p.py` was freed although it is a
+    different directory (fail-open — a zone the doctrine never listed), while
+    on a case-INSENSITIVE one `SCRATCH/p.py` was gated although it IS scratch/
+    (the documented "gapless" free zone, fail-closed). is_free now folds case
+    exactly the way the filesystem does: fold on nt (same physical file),
+    exact on POSIX (a differently-cased name is a different file).
+    """
+    fold = os.name == "nt"
+    # Canonical spellings stay free everywhere.
+    assert is_free("scratch/explore.py") is True
+    assert is_free("docs/foo/raw/data.json") is True
+    assert is_free("explore_x.py") is True
+    assert is_free("scripts/check-methodology.sh") is True
+    # Case variants: free iff the filesystem reads them as the same file.
+    assert is_free("SCRATCH/explore.py") is fold
+    assert is_free("Scratch/explore.py") is fold
+    assert is_free("DOCS/foo/raw/payload.py") is fold
+    assert is_free("DOCS/notes.MD") is fold
+    assert is_free("EXPLORE_x.py") is fold
+    assert is_free("SCRIPTS/check-methodology.sh") is fold
+    # A case variant of a PROTECTED tree stays gated on every filesystem
+    # (protected must never widen by spelling).
+    assert is_free("SRC/main.py") is False
+    assert is_free("LIB/engine/core.py") is False
+
+
 def test_is_free_infra_files():
     assert is_free("scripts/check-methodology.sh")
     assert is_free("skills/bmad-research-experiment/scripts/run_experiment.py")

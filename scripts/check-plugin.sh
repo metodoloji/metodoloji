@@ -1005,6 +1005,7 @@ echo "== 3b) Code-scope coverage (did every edited file sit inside an approved s
 # would resolve to a nonexistent /c/... directory).
 "$PY" - "$PROJECT_ROOT" "$GATE" <<'PYEOF'
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -1051,14 +1052,20 @@ except Exception:
 
     def _is_free(norm: str) -> bool:  # noqa: E302
         # Parity: scratch/tmp/temp + the other guard FREE_PREFIXES, root-level
-        # explore_* files only (nested explore_* paths stay gated), docs/*.md.
-        if norm.startswith("docs/") and norm.endswith(".md"):
+        # explore_* files only (nested explore_* paths stay gated), and the
+        # docs surfaces FREE_DOC_MD (docs/*.md) + FREE_DOC_RAW (docs/*/raw/)
+        # — a fallback that stopped at docs/*.md freed a raw-tree script the
+        # engine gates and reported it as a MISS here (E-035). Case folds
+        # only where the filesystem folds (os.name == "nt"), the engine rule.
+        n = norm.lower() if os.name == "nt" else norm
+        if n.startswith("docs/") and (n.endswith(".md")
+                                      or re.match(r"^docs/.*/raw(/|$)", n)):
             return True
-        if norm.startswith("explore_") and "/" not in norm:
+        if n.startswith("explore_") and "/" not in n:
             return True
-        return norm.startswith(("scratch/", "tmp/", "temp/", "graft/",
-                                "_bmad/", ".metodoloji/", "openhands/",
-                                ".git/"))
+        return n.startswith(("scratch/", "tmp/", "temp/", "graft/",
+                             "_bmad/", ".metodoloji/", "openhands/",
+                             ".git/"))
 
 problems = []
 checked = 0

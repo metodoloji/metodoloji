@@ -383,6 +383,38 @@ def test_bench_in_free_zone():
     assert gate.bench_in_free_zone("python3 src/bench.py data.csv") is False
     assert gate.bench_in_free_zone("sh scripts/bench.sh") is False
     assert gate.bench_in_free_zone("python3 -c 'print(1)'") is False
+    # E-035: the DOCS surfaces are guard-free too (`docs/*.md` documents,
+    # `docs/*/raw/` raw data), so a bench there is the same freely fabricable
+    # measurement the rule refuses everywhere else.
+    assert gate.bench_in_free_zone("python3 docs/evidence/raw/bench.py") is True
+    assert gate.bench_in_free_zone("python3 docs/evidence/raw/deep/bench.py") is True
+    assert gate.bench_in_free_zone("python3 docs/evidence.md") is True
+    # A docs path that is neither a document nor a raw tree is guarded by the
+    # guard too — the gate must not refuse what the guard gates.
+    assert gate.bench_in_free_zone("python3 docs/experiments/bench.py") is False
+
+
+def test_bench_free_zone_case_parity():
+    """The bench matcher's case rule must be the filesystem's (E-035).
+
+    guard.is_free folds case only where the filesystem does; the gate's
+    bundled matcher used a blanket `(?i)`, so the two surfaces could disagree
+    about one spelling on either OS. Both sides now fold iff `os.name ==
+    "nt"`, so the refusal equals guard-free for every spelling.
+    """
+    try:
+        from modules.utils import is_free  # noqa: E402
+    except Exception:
+        import pytest as _pytest  # noqa: E402
+        _pytest.skip("engine is_free unavailable")
+    probes = ("scratch/bench.py", "docs/e/raw/bench.py", "docs/e.md",
+              "explore_probe.py")
+    for path in probes:
+        for spelled in (path, path.upper(), path.capitalize()):
+            # guard-free is the single source; the gate must refuse exactly
+            # the spellings the guard frees.
+            assert gate.bench_in_free_zone(f"python3 {spelled}") is is_free(spelled), (
+                f"{spelled!r}: gate refusal and guard.free disagree")
 
 
 def test_bench_free_zone_guard_parity():
@@ -406,6 +438,9 @@ def test_bench_free_zone_guard_parity():
         "openhands/bench_probe.py",
         "_bmad/bench.py",
         ".metodoloji/bench.py",
+        "docs/e_surface/raw/bench.py",       # E-035: FREE_DOC_RAW surface
+        "docs/e_surface/raw/deep/bench.py",  # E-035: raw tree at any depth
+        "docs/e_surface.md",                 # E-035: FREE_DOC_MD surface
     ]  # .git/ is VCS-internal (git-managed); not an agent-writable surface.
     for path in free_paths:
         assert is_free(path), f"{path} should be guard-free"

@@ -720,11 +720,20 @@ def run_and_measure(cmd: str, claim_metric: str | None = None
 # './' and drive prefixes are stripped BEFORE matching, so './explore_probe.py'
 # and 'C:\proj\scratch\b.py' are the same free surface as their bare spellings.
 # Anchor two cases: (^|/) for guard prefixes/stems, and a bare-start alternative
-# for the guard's ./-stripped root-file shapes.
+# for the guard's ./-stripped root-file shapes. The docs surfaces
+# (FREE_DOC_MD `docs/*.md`, FREE_DOC_RAW `docs/*/raw/`) are guard-free too, so
+# they refuse benches exactly like the prefixes — an enumeration that stopped
+# at FREE_PREFIXES left a fabricated measurement runnable from docs/*/raw/
+# (E-035).
+# Case rule (E-035): these patterns are lowercase and carry NO `(?i)` — the
+# matcher folds the same way the guard does (bench_in_free_zone below folds
+# only on os.name == "nt"), so guard-free and gate-refused stay equal on both
+# filesystem classes.
 _AGENT_BENCH_ZONE = re.compile(
-    r"(?i)(?:^|[/\\])(?:scratch|tmp|temp|graft|openhands|_bmad|\.metodoloji)"
+    r"(?:^|[/\\])(?:scratch|tmp|temp|graft|openhands|_bmad|\.metodoloji)"
     r"(?:[/\\]|$)")  # guard FREE_PREFIXES (project-relative, norm_path'd)
-_EXPLORE_FILE = re.compile(r"(?i)^(?:\./)?explore_[^/\\]*$")
+_DOC_ZONE = re.compile(r"^docs/(?:.*/raw(?:/|$)|.*\.md$)")  # guard FREE_DOC_RAW / FREE_DOC_MD
+_EXPLORE_FILE = re.compile(r"^(?:\./)?explore_[^/\\]*$")
 _KNOWN_INTERP = {"python", "python3", "py", "sh", "bash", "zsh", "node", "nodejs",
                  "deno", "bun", "perl", "ruby", "php", "rscript", "uv"}
 
@@ -801,9 +810,9 @@ def bench_in_free_zone(cmd: str) -> bool:
     """True if the run command executes a script inside a free zone.
 
     The free-surface set mirrors the guard (hooks/engine/modules/config.py —
-    FREE_PREFIXES plus the root-level explore_* file doctrine): any bench in
-    those surfaces is unattributable to a protected artifact and must be
-    refused.
+    FREE_PREFIXES, the FREE_DOC_MD / FREE_DOC_RAW docs surfaces and the
+    root-level explore_* file doctrine): any bench in those surfaces is
+    unattributable to a protected artifact and must be refused.
 
     Unattributable commands (shell chains) count as free-zone: the gate must
     refuse what it cannot attribute.
@@ -818,8 +827,16 @@ def bench_in_free_zone(cmd: str) -> bool:
     norm = re.sub(r"^[a-zA-Z]:", "", norm)
     while norm.startswith("./"):
         norm = norm[2:]
+    # Case fold exactly when the filesystem folds (E-035): on Windows
+    # `SCRATCH/b.py` IS `scratch/b.py` (guard frees it — must refuse); on
+    # POSIX a differently-cased name is a different, guarded path (must not
+    # refuse). Mirrors utils.is_free's _FREE_ZONE_FOLD rule.
+    if os.name == "nt":
+        norm = norm.lower()
     if _EXPLORE_FILE.match(norm):
         return True  # guard-free root-level explore_* file
+    if _DOC_ZONE.match(norm):
+        return True  # guard-free docs surfaces (documents and raw trees)
     return bool(_AGENT_BENCH_ZONE.search(norm))
 
 
@@ -1437,6 +1454,16 @@ def _selfcheck() -> None:
     assert bench_in_free_zone("python3 src/bench.py data.csv") is False
     assert bench_in_free_zone("python3 -c 'print(1)'") is False
     assert bench_in_free_zone(f'"{sys.executable}" "scripts/fake_bench.py"') is False
+    # E-035: the docs surfaces are guard-free (documents and raw trees), so
+    # they refuse benches; a non-raw docs code path is guarded by the guard
+    # and must NOT be refused.
+    assert bench_in_free_zone("python3 docs/selfcheck/raw/bench.py") is True
+    assert bench_in_free_zone("python3 docs/selfcheck/raw/deep/bench.py") is True
+    assert bench_in_free_zone("python3 docs/selfcheck.md") is True
+    assert bench_in_free_zone("python3 docs/selfcheck/bench.py") is False
+    # E-035: the case rule is the filesystem's — fold iff os.name == "nt".
+    assert bench_in_free_zone("python3 SCRATCH/bench.py") is (os.name == "nt")
+    assert bench_in_free_zone("python3 DOCS/selfcheck/raw/bench.py") is (os.name == "nt")
     assert _bench_target("python3 src/bench.py data.csv") == "src/bench.py"
     assert _bench_target("sh scripts/bench.sh") == "scripts/bench.sh"
     assert _bench_target("python3 -m timeit 'x'") is None

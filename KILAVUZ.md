@@ -971,13 +971,15 @@ Bir yazımdan önce guard'ın sorduğu sıra: **Secret tara → kirliyse DENY �
 | Altyapı dosyaları | `scripts/check-methodology.sh`, `skills/bmad-research-experiment/scripts/run_experiment.py` |
 
 
-> **İki daraltma (kanıtlı):** `explore_*` yalnızca kökteki **dosyayı** serbest bırakır — `explore_foo/` dizininin içi korumalıdır (aksi halde dizin adıyla gate bypass edilirdi). Tersine, gate **hiçbir** guard-free yüzeyden ölçüm koşmaz: `scratch/`, `tmp/`, `temp/` dışındaki `graft/`, `openhands/`, `_bmad/`, `.metodoloji/`, kök `explore_*` bench'leri de reddedilir — ölçüm hep korumalı dizinde (`scripts/bench/`).
+> **İki daraltma (kanıtlı):** `explore_*` yalnızca kökteki **dosyayı** serbest bırakır — `explore_foo/` dizininin içi korumalıdır (aksi halde dizin adıyla gate bypass edilirdi). Tersine, gate **hiçbir** guard-free yüzeyden ölçüm koşmaz: `scratch/`, `tmp/`, `temp/` dışındaki `graft/`, `openhands/`, `_bmad/`, `.metodoloji/`, docs yüzeyleri (`docs/*.md`, `docs/*/raw/`) ve kök `explore_*` bench'leri de reddedilir — ölçüm hep korumalı dizinde (`scripts/bench/`).
+
+> **Kural (E-035):** zone üyeliği **dosya sisteminin** kuralına tabidir, hiçbir zaman kör bir eşleşmeye değil. Case-insensitive dosya sisteminde (Windows) `SCRATCH/b.py`, `scratch/b.py` ile aynı dosyadır — serbesttir ve bench'i reddedilir; case-sensitive olan birinde farklı yazılmış ad **farklı** bir dizindir, dolayısıyla `DOCS/e/raw/p.py` korumalı kalır ve `SCRATCH/` free yüzey değildir. Guard (`utils.is_free`) ve gate'in bağımsız eşleyicisi (`bench_in_free_zone`) aynı koşulda fold eder (`os.name == "nt"`), parite probu iki yönde de bunu sabitler.
 
 **Koşullu self-modifikasyon:** `hooks/`, `scripts/`, `skills/`, `custom/`, `bmad/tests/` (plugin kaynak ağaçları) **sadece korunan proje kökü pluginin kendi reposuysa** serbesttir (plugin kendisi üzerinde çalışırken). Sıradan hedef projede bu ağaçlar **korumalıdır** — plugin kaynağına edit de onaylı deney ister. `bmad/tests/` muafiyeti döngüsellik içindir: gate'in kendi testleri gate iznine bağlanamaz.
 
 ### 10.2 Korumalı alan (onaylı)
 
-Tüm kaynak kod + yürütülebilir config (#9.2 tablosu). Not: gate **hiçbir free yüzeyden ölçüm scripti koşmayı reddeder** (`scratch/`, `tmp/`, `temp/`, `graft/`, `openhands/`, `_bmad/`, `.metodoloji/`, kök `explore_*`) — bench'ler `scripts/bench/` gibi korumalı dizinde durur.
+Tüm kaynak kod + yürütülebilir config (#9.2 tablosu). Not: gate **hiçbir free yüzeyden ölçüm scripti koşmayı reddeder** (`scratch/`, `tmp/`, `temp/`, `graft/`, `openhands/`, `_bmad/`, `.metodoloji/`, `docs/*.md`, `docs/*/raw/`, kök `explore_*`) — bench'ler `scripts/bench/` gibi korumalı dizinde durur.
 
 ### 10.3 Secret taraması (free zone'un ÖTESİNDE)
 
