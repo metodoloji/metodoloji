@@ -105,7 +105,7 @@ stop_guard = "soft"     # backward compat — stop is report-only and never bloc
   (`mirror.pending_note`, throttled), and the chain-progress peek
   (`compact_context` methodology values) in session_start. The blackboard
   mutation surface stays a skill-side CLI concern (`blackboard.py`, plus the
-  gate's automatic decision mirror in `run_experiment.py --run`), keeping
+  gate's automatic decision mirror in `{metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --run`), keeping
   hook decisions deterministic and fast.
 - Two independent layers: the fail-open/fail-closed column above is what happens when
   the **engine cannot run** (pre/guard deny + exit 2; quality/deploy/audit/stop pass
@@ -119,7 +119,7 @@ stop_guard = "soft"     # backward compat — stop is report-only and never bloc
   `python3 {metodoloji-root}/bmad/scripts/skeleton.py --install` (`--status` to only report)
 - `/metodoloji:gate-setup` — generate `~/.bmad/gate-key` (machine-local, not committed).
   Multi-machine development: import a peer machine's key into the trust ring
-  (`~/.bmad/gate-keys/`) with `run_experiment.py --import-key` (key material via the
+  (`~/.bmad/gate-keys/`) with `{metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --import-key` (key material via the
   `BMAD_PEER_GATE_KEY` env var, label via `BMAD_PEER_LABEL`) — records APPROVED on that
   machine then verify here; signing always uses this machine's own key
 - `/metodoloji:verify` — verify an experiment record against this machine's trust ring

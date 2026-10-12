@@ -15,7 +15,7 @@ probe further):
    Claude Code — do not depend on them, do not echo them to "verify".)
 2. Fixed checkout `~/.claude/plugins/marketplaces/metodoloji/`
 3. Versioned cache `~/.claude/plugins/cache/metodoloji/metodoloji/*`
-   (newest first; e.g. `.../0.1.32/` on Claude Code v2.1.x)
+   (newest first; e.g. `.../0.1.33/` on Claude Code v2.1.x)
 4. OpenHands install directory `~/.openhands/plugins/installed/metodoloji/`
 
 (An old `~/.claude/plugins/cache/yunusgungor/metodoloji/*` path appears in
@@ -126,7 +126,7 @@ wasted work and makes the chain look like it re-initializes the project.
     guard — including `ls ~/.bmad/gate-key` — and the denial looks like a
     confusing failure). To check gate state, read the orient digest's
     `gate_key` line or run `/metodoloji:verify` logic
-    (`run_experiment.py --check-secret`); never reference the key file in a
+    (`{metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --check-secret`); never reference the key file in a
     command. If the digest says the key is MISSING, point at
     `/metodoloji:gate-setup` — do not shell-probe further.
 

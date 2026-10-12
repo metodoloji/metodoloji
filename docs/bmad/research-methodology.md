@@ -107,7 +107,7 @@ Each mode's gate rules determine the quality and compliance of that mode's outpu
   - **Status:** planned → APPROVED | REJECTED (written by the gate)
 
 ### §4.2 Experiment Approval
-- Experiment approval is verified with `run_experiment.py --verify`
+- Experiment approval is verified with `{metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --verify`
 - Approved experiment: `status: APPROVED` and a valid HMAC signature
 - Unapproved experiment: Code writing is blocked (guard hook)
 

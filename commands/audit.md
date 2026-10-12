@@ -67,7 +67,7 @@ needed. Heredoc writes are rejected — use the file editor tool. Resolve
 (forward-slash paths, verbatim — never search the filesystem for the plugin).
 Never reference the gate key file in a shell command (`ls`/`cat` of any
 `gate-key` path is guard-denied); check gate state via the orient digest's
-`gate_key` line or `run_experiment.py --check-secret`.
+`gate_key` line or `{metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --check-secret`.
 
 6. Result report: PASS/FAIL list + fix suggestions. If you find an issue requiring a
    negative test (e.g. bridge cannot resolve), show the script's

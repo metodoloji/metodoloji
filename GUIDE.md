@@ -48,7 +48,7 @@ Do not treat this as text to read once from cover to cover. It is a **decision t
 
 1. Take the chain's real state from the **SessionStart output** (`Chain progress`, record inventory, sprint line, PROACTIVE nudge). The session's own state is authoritative, not your recollection of the model.
 2. Never invent the `{metodoloji-root}` value: use the SessionStart `METODOLOJI active (plugin: PATH)` line **verbatim**. If you cannot find it, use the resolution order in #20.
-3. If you cannot recall a script's interface, run `--help` (`run_experiment.py --help`, `blackboard.py --help`, `workflow.py --help`). The engine and CLIs are canonical; this document summarises them.
+3. If you cannot recall a script's interface, run its `--help` from `{metodoloji-root}` (e.g. `python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --help`; `blackboard.py` and `workflow.py` live under `{metodoloji-root}/bmad/scripts/` — same rule). The engine and CLIs are canonical; this document summarises them.
 4. This document is for v0.1.0. When in doubt, cross-check: `docs/CLAUDE.md` (engine summary), `docs/bmad/*-methodology.md` (manifesto), `templates/` (current templates), `.plugin/plugin.json` (version).
 
 ---
@@ -871,6 +871,7 @@ Behaviour:
 | Code directory    | `src/`, `lib/`, `tools/`, `bin/`, `core/`, `app/`                              | ✅          |
 | Exec config       | `.github/workflows/*`, `.gitlab-ci.yml`, `docker-compose*.yml`, `package.json` | ✅          |
 | Unknown extension | anything not on the non-code list                                              | ✅          |
+| Version literal   | bare `v?MAJOR.MINOR(.PATCH)*` tokens (`0.1.0`, `v1.2.3`, `3.11`) — version semantics, never file semantics (E-037) | ❌ not a file |
 | Toolchain config  | `prisma/vite/jest.config.*`, `tsconfig*.json`, lockfiles                       | ❌ free     |
 | Documentation     | `.md`, `.txt`, `.rst`                                                          | ❌ free     |
 | Data/config       | `.json`, `.toml`, `.yaml`, `.csv`, `.log`, `.lock`                             | ❌ free     |
@@ -969,7 +970,7 @@ The order guard asks before a write: **scan for secrets → deny if dirty → is
 | `docs/*.md`          | Documents under `docs/`                                                                     |
 | `docs/*/raw/`        | Raw data                                                                                    |
 | `explore_*`          | Root-level exploration FILE (`explore_x.py` is free; `explore_dir/a.py` is protected)       |
-| Infrastructure files | `scripts/check-methodology.sh`, `skills/bmad-research-experiment/scripts/run_experiment.py` |
+| Infrastructure files | `scripts/check-methodology.sh` (the gate script is NOT freed at a project-relative `skills/…` spelling — that path exists only inside the plugin checkout (E-038)) |
 
 
 > **Two narrowings (evidenced):** `explore_*` frees only the root **file** — the inside of an `explore_foo/` directory is protected (otherwise the gate could be bypassed with a directory name). Conversely, the gate **refuses to run a measurement from any** guard-free surface: besides `scratch/`, `tmp/`, `temp/`, the benches in `graft/`, `openhands/`, `_bmad/`, `.metodoloji/`, the docs surfaces (`docs/*.md`, `docs/*/raw/`) and root `explore_*` are rejected too — measurement always lives in a protected directory (`scripts/bench/`).
@@ -1117,7 +1118,7 @@ One event-sourced JSON: `.metodoloji/blackboard.json` + an append-only event log
 
 **Invariants:** atomic writes under an exclusive lock; event-sourced (a snapshot may be deleted, the log can rebuild it); bounded (nothing grows without limit); fail-open (a corrupt/missing board never blocks work); exactly one `hot` + one `hot_canvas`.
 
-**The engine's write path is blackboard-free:** hooks do not write to the board. Read-only peeks (fail-open, non-consuming): the PROACTIVE handoff nudge + chain progress at SessionStart (`Chain progress`), the PROACTIVE nudge at Stop. Audit is log-only. Board writes are the job of the skill-side CLI (`blackboard.py`) and the gate mirror (`run_experiment.py --run` processes `E-<id>` + the readiness hand-off automatically after the decision).
+**The engine's write path is blackboard-free:** hooks do not write to the board. Read-only peeks (fail-open, non-consuming): the PROACTIVE handoff nudge + chain progress at SessionStart (`Chain progress`), the PROACTIVE nudge at Stop. Audit is log-only. Board writes are the job of the skill-side CLI (`blackboard.py`) and the gate mirror (`{metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --run` processes `E-<id>` + the readiness hand-off automatically after the decision).
 
 **CLI (the memorisation set):**
 
@@ -1449,7 +1450,7 @@ metodoloji/
 | `{skill-root}`      | The skill's location inside the plugin                                                                                                                                                                                                                                                                                                                                                         |
 
 
-**Instrument-as-tool rule:** you *run* a plugin script (`run_experiment.py`, `resolve_customization.py`) from `{metodoloji-root}`; the record it produces is still written to `{project-root}`. What the output *is* decides its root, not which script produced it.
+**Instrument-as-tool rule:** you *run* a plugin script (`run_experiment.py`, `resolve_customization.py`) from `{metodoloji-root}`; the record it produces is still written to `{project-root}`. What the output *is* decides its root, not which script produced it. (E-038: every shipped invocation of the gate script carries a resolving root — `{metodoloji-root}`, `{skill-root}` or `$SYNCED`; a gate mention without one is a dead instruction in a consuming project.)
 
 **Manifesto rule:** the `docs/bmad/*-methodology.md` files are plugin-canonical — they are not copied into the project, they are read from the plugin. Delete a leftover `docs/bmad/` copy from an old `init` (stale copies confuse).
 

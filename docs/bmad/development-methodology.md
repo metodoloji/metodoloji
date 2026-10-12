@@ -162,6 +162,7 @@ experiment_refs:
   - **Blind Hunter:** General code quality
   - **Edge Case Hunter:** Edge case analysis
   - **Acceptance Auditor:** AC metadata + Task↔AC + DoD check
+- **Evidence rule:** every finding cites `file:line` the layer VERIFIED by reading that file — a citation the layer cannot point at in the file is itself a finding-level failure, and the triage must re-derive any citation it cannot confirm before assigning severity.
 
 ### §6.2 Review Outcome
 - **Approve:** Story done — After Approve, §9 Session Closure steps are triggered

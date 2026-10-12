@@ -345,6 +345,14 @@ def is_code_target(path: str) -> bool:
     # tail that treats unknown extensions as code.
     if _SHELL_JUNK_RE.search(base):
         return False
+    # A bare version token (0.1.0, v1.2.3, 3.11) carries version semantics,
+    # never file semantics (E-037): without this the fail-closed tail below
+    # reads its `.0` suffix as an unknown code extension and gates every
+    # command that merely MENTIONS a version — a real session was denied
+    # with "No approved experiment record for 0.1.0 … attempt #19" for an
+    # inspection command. A name with a REAL extension keeps its verdict.
+    if re.fullmatch(r"v?\d+(?:\.\d+)+", base):
+        return False
     # Executable CI/config (workflows, compose, package.json) is always code,
     # even with a data extension like .yml — the pipeline runs it.
     if EXEC_CONFIG_NAME.search(p):

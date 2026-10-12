@@ -8,7 +8,7 @@ triggers: ["bmad-loop-sweep", "/bmad-loop-sweep", "loop-sweep"]
 
 Bu yuzey arastirma metodolojisine baglidir: `{metodoloji-root}/docs/bmad/research-methodology.md` — Mod A (sayisal) — bekleyen is taramasi; E-id kaydi.
 Belgesel karar kod yazma izni degildir; kod her durumda Mod A mekanik onayini ister
-(run_experiment.py --verify + guard-code.sh). Uydurma kanit/olcum sahtekarliktir.
+(mekanik onay: {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --verify; onaysiz yazimi guard hook'u durdurur). Uydurma kanit/olcum sahtekarliktir.
 
 
 # Deferred-Work Sweep Triage

@@ -1356,6 +1356,188 @@ def _check_free_zone_symlink_closure() -> str | None:
     return "; ".join(problems) if problems else None
 
 
+def _check_remedies_and_session_guidance_pinned() -> str | None:
+    """E-037: dead remedies, the stale-root trap, and the citation rule.
+
+    A real consuming-project session (2026-10-12) showed three defects at
+    once: the guard's deny text printed `run_experiment.py --record …` and
+    `python3 skills/bmad-research-experiment/scripts/run_experiment.py
+    --amend-plan …` (neither path exists in the target project — E-029's
+    class on shapes its two-literal pin could not see); the resumed session
+    opened by running a plugin path cached from an earlier transcript
+    (`…/metodoloji/1.2.5/…/orient.py` — gone after the plugin update); and
+    a review layer cited lines in the 1500s of a 230-line file. The check
+    pins all three closures: every EMITTED engine string that names the
+    gate script is built through the plugin-cmd helpers (AST scan,
+    docstrings and helper arguments excluded), the session-start context
+    carries the stale-root warning, and the review evidence rule stands on
+    all three surfaces that ship the review flow.
+    """
+    problems = []
+    # 1. Emitted remedies (AST — the same scan test_guard pins). The module
+    # list is DERIVED (E-038): the E-037 tuple was hand-maintained and never
+    # contained plan.py/config.py, so the narrow-surface class this check
+    # exists to close could regrow behind a whitelist.
+    _HELPERS = {"_plugin_script_cmd", "plugin_script_cmd"}
+    try:
+        _module_paths = sorted(
+            (ROOT / "hooks" / "engine" / "modules").glob("*.py"))
+    except OSError as exc:
+        return f"engine modules unreadable for the remedy scan: {exc}"
+    for path in _module_paths:
+        name = path.name
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except (OSError, SyntaxError) as exc:
+            problems.append(f"{name}: unreadable for the remedy scan: {exc}")
+            continue
+        doc_lines = set()
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef,
+                                 ast.AsyncFunctionDef)):
+                body = node.body
+                if (body and isinstance(body[0], ast.Expr)
+                        and isinstance(body[0].value, ast.Constant)
+                        and isinstance(body[0].value.value, str)):
+                    doc_lines.update(range(body[0].lineno,
+                                           body[0].end_lineno + 1))
+        allowed = set()
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.Call)
+                    and getattr(node.func, "id", "") in _HELPERS):
+                for sub in ast.walk(node):
+                    allowed.add(id(sub))
+            if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
+                for sub in ast.walk(node):
+                    allowed.add(id(sub))
+
+        def scan(node):
+            if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                if ("run_experiment.py" in node.value
+                        and node.lineno not in doc_lines
+                        and id(node) not in allowed):
+                    problems.append(f"{name}:{node.lineno}: bare "
+                                    f"run_experiment.py in an emitted string")
+                return
+            if isinstance(node, ast.JoinedStr):
+                rooted = any(
+                    isinstance(part, ast.FormattedValue)
+                    and isinstance(part.value, ast.Call)
+                    and getattr(part.value.func, "id", "") in _HELPERS
+                    for part in node.values)
+                if not rooted and any(
+                        isinstance(part, ast.Constant)
+                        and "run_experiment.py" in str(part.value)
+                        for part in node.values):
+                    problems.append(f"{name}:{node.lineno}: run_experiment.py "
+                                    f"not routed through the plugin-cmd helper")
+                return
+            for child in ast.iter_child_nodes(node):
+                scan(child)
+
+        scan(tree)
+    # 2. Session-start context: the stale-root warning.
+    bootstrap = _read("hooks/scripts/bootstrap.sh")
+    # BOTH session-start branches must carry it: the python-built context (the
+    # branch that actually runs when python is healthy — where the real stale
+    # 1.2.5 path was spent) and the printf fallback. A warning shipped only in
+    # the fallback is the same dead remedy E-037 closed on the engine side.
+    if bootstrap.count("goes stale on every plugin update") < 2:
+        problems.append("bootstrap.sh's session-start context lost the stale-root warning (E-037)")
+    # 3. Review evidence rule on every surface that ships the review flow.
+    for rel in ("docs/bmad/development-methodology.md",
+                "skills/bmad-code-review/SKILL.md",
+                "skills/gds-code-review/SKILL.md"):
+        if "VERIFIED by reading that file" not in _read(rel):
+            problems.append(f"{rel} lost the verified-citation rule (E-037)")
+    # 4. The version-literal classifier rule and its falsifiers ship.
+    utils_src = _read("hooks/engine/modules/utils.py")
+    if 'v?\\d+(?:\\.\\d+)+' not in utils_src:
+        problems.append("utils.py lost the version-literal classifier rule")
+    for rel, names in {
+        "hooks/engine/tests/test_utils.py": (
+            "test_version_literal_is_not_a_code_target",),
+        "hooks/engine/tests/test_bash_targets.py": (
+            "test_inline_eval_ignores_a_quoted_version_literal",
+            "test_inline_eval_still_finds_real_inline_writes"),
+        "hooks/engine/tests/test_guard.py": (
+            "test_emitted_remedies_are_plugin_rooted",),
+    }.items():
+        src = _read(rel)
+        missing = [n for n in names if n not in src]
+        if missing:
+            problems.append(f"missing E-037 tests in {rel}: {missing}")
+    return "; ".join(problems) if problems else None
+
+
+_GATE_ROOT_TOKENS = ("{metodoloji-root}", "{skill-root}", "$SYNCED",
+                      "METODOLOJI_SYNCED")
+
+# The surfaces a CONSUMING project reads or runs (E-038). Plugin-repo-only
+# tooling (scripts/, tests, the bench itself) is deliberately excluded: those
+# run where skills/ exists at the root, and historical records
+# (docs/experiments/E-*.md) are provenance, not guidance.
+_SHIPPED_SURFACE_GLOBS = (
+    "GUIDE.md", "KILAVUZ.md", "docs/CLAUDE.md", "docs/bmad/*.md",
+    "docs/experiments/_template.md", "commands/*.md", "custom/*.toml",
+    "templates/*.md", "skills/*/SKILL.md",
+    "skills/bmad-research-experiment/plan.md",
+    "skills/bmad-research-experiment/experiment-log.md",
+    "skills/bmad-research-experiment/scripts/run_experiment.py",
+    "hooks/scripts/*.sh",
+)
+
+
+def _shipped_gate_invocation_broken(line: str) -> str | None:
+    """Why this line teaches a gate invocation that dies where it ships."""
+    for m in re.finditer(r"run_experiment\.py\s+--", line):
+        if not any(r in line[:m.start()] for r in _GATE_ROOT_TOKENS):
+            return ("bare/project-relative run_experiment.py invocation "
+                    "(no resolving root on the line)")
+    m2 = re.search(r"python3\s+(?:scripts/)?run_experiment\.py", line)
+    if m2 and not any(r in line[:m2.start()] for r in _GATE_ROOT_TOKENS):
+        return "unrooted python3 run_experiment.py invocation"
+    if "guard-code.sh" in line:
+        return "names guard-code.sh (a script that does not exist)"
+    return None
+
+
+def _check_gate_mentions_resolve_where_shipped() -> str | None:
+    """E-038: every shipped invocation of the gate script resolves where it ships.
+
+    A real consuming-project session (2026-10-12) pasted the engine's own
+    remedy `python3 skills/bmad-research-experiment/scripts/run_experiment.py
+    --amend-plan …` — a path that exists only inside the plugin checkout —
+    and was denied 19 times on one target. E-037 rooted the EMITTED strings;
+    this check roots the written half: the surfaces a consuming project
+    reads (slash commands, workflow tomls, skill files, GUIDE/KILAVUZ, the
+    manifesto, the gate's own usage docstring, the session-start shell). A
+    gate invocation on a line that carries no resolving root
+    ({metodoloji-root}, {skill-root}, $SYNCED) is a dead instruction there —
+    the same class. It also pins that no shipped surface names the phantom
+    `guard-code.sh` (18 references before E-038, zero files in this tree's
+    whole history: a script that never existed).
+    """
+    problems = []
+    for pat in _SHIPPED_SURFACE_GLOBS:
+        for path in sorted(ROOT.glob(pat)):
+            rel = path.relative_to(ROOT).as_posix()
+            try:
+                text = path.read_text(encoding="utf-8")
+            except OSError as exc:
+                problems.append(f"{rel}: unreadable for the E-038 scan: {exc}")
+                continue
+            for lineno, line in enumerate(text.splitlines(), 1):
+                why = _shipped_gate_invocation_broken(line)
+                if why:
+                    problems.append(f"{rel}:{lineno}: {why}")
+    if not problems:
+        return None
+    head = "; ".join(problems[:8])
+    return (head + f"; … +{len(problems) - 8} more" if len(problems) > 8
+            else head)
+
+
 def _check_techdebt_audit_covers_the_tree() -> str | None:
     """E-015: the debt audit sees the code it governs, and this tree is clean.
 
@@ -2559,6 +2741,10 @@ def build_checks() -> list[tuple[str, object]]:
                    _check_free_surface_parity))
     checks.append(("free-zone symlink closure holds on every surface (E-036)",
                    _check_free_zone_symlink_closure))
+    checks.append(("remedies rooted and session/review guidance pinned (E-037)",
+                   _check_remedies_and_session_guidance_pinned))
+    checks.append(("gate invocations resolve where they ship (E-038)",
+                   _check_gate_mentions_resolve_where_shipped))
     checks.append(("tech-debt audit covers the shipped tree and is clean (E-015)",
                    _check_techdebt_audit_covers_the_tree))
     checks.append(("record tooling refuses a non-UTF-8 file (E-016)",

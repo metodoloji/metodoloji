@@ -227,6 +227,86 @@ def test_no_remedy_uses_a_bare_plugin_script_path():
             f"{src_path.name} prints a bare run_experiment.py remedy")
 
 
+def test_emitted_remedies_are_plugin_rooted():
+    """E-037: an emitted remedy naming run_experiment.py must be ROOTED.
+
+    A real consuming-project session (2026-10-12) printed
+    `run_experiment.py --record …` (bare name) and
+    `python3 skills/bmad-research-experiment/scripts/run_experiment.py
+    --amend-plan …` (project-relative) from the guard's deny text: neither
+    path exists in the target project, so the remedy died where it was
+    printed — E-029's class on the shapes its two-literal pin could not
+    see. Every EMITTED string (AST: constants inside JoinedStrs, docstrings
+    excluded) that names the gate script must build its command through
+    `_plugin_script_cmd`, so no future message shape can reintroduce a dead
+    instruction.
+    """
+    import ast
+    root = Path(__file__).resolve().parents[3]
+    # E-038: derive the list from the filesystem — the E-037 tuple was
+    # hand-maintained and never contained plan.py/config.py, so the very
+    # narrow-surface class this test closes could regrow behind a whitelist.
+    module_paths = sorted((root / "hooks" / "engine" / "modules").glob("*.py"))
+    assert module_paths, "no engine modules found to scan"
+    violations = []
+    for path in module_paths:
+        name = path.name
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        docstring_lines = set()
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef,
+                                 ast.AsyncFunctionDef)):
+                body = node.body
+                if (body and isinstance(body[0], ast.Expr)
+                        and isinstance(body[0].value, ast.Constant)
+                        and isinstance(body[0].value.value, str)):
+                    docstring_lines.update(range(body[0].lineno,
+                                                 body[0].end_lineno + 1))
+        # Constants the tree proves are NOT emitted text: the script argument
+        # handed TO the plugin-cmd helpers (guard's _plugin_script_cmd, the
+        # utils plugin_script_cmd they wrap), and Path-division operands
+        # (`gate_scripts / "run_experiment.py"` — a filesystem probe).
+        _HELPERS = {"_plugin_script_cmd", "plugin_script_cmd"}
+        allowed = set()
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.Call)
+                    and getattr(node.func, "id", "") in _HELPERS):
+                for sub in ast.walk(node):
+                    allowed.add(id(sub))
+            if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
+                for sub in ast.walk(node):
+                    allowed.add(id(sub))
+
+        def scan(node):
+            if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                if ("run_experiment.py" in node.value
+                        and node.lineno not in docstring_lines
+                        and id(node) not in allowed):
+                    violations.append(
+                        f"{name}:{node.lineno}: bare run_experiment.py in an "
+                        f"emitted string")
+                return
+            if isinstance(node, ast.JoinedStr):
+                rooted = any(
+                    isinstance(part, ast.FormattedValue)
+                    and isinstance(part.value, ast.Call)
+                    and getattr(part.value.func, "id", "") in _HELPERS
+                    for part in node.values)
+                if not rooted and any(
+                        isinstance(part, ast.Constant)
+                        and "run_experiment.py" in str(part.value)
+                        for part in node.values):
+                    violations.append(
+                        f"{name}:{node.lineno}: run_experiment.py not routed "
+                        f"through _plugin_script_cmd")
+                return  # the JoinedStr is decided; do not descend into parts
+            for child in ast.iter_child_nodes(node):
+                scan(child)
+
+        scan(tree)
+    assert not violations, violations
+
+
 def test_gate_allow_when_records_present():
     td, root = _make_project(stories=[("S-001", "done")],
                              records=[("QR-001", "S-001")])

@@ -90,6 +90,7 @@ This uses **step-file architecture** for disciplined execution:
 - **NEVER** skip steps or optimize the sequence
 - **ALWAYS** follow the exact instructions in the step file
 - **ALWAYS** halt at checkpoints and wait for human input
+- **ALWAYS** cite `file:line` the layer VERIFIED by reading that file — an unverifiable or fabricated citation is itself a finding-level failure, and the triage must re-derive any citation it cannot confirm before assigning severity
 
 
 ## INITIALIZATION SEQUENCE

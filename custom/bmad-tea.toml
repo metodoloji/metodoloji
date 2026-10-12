@@ -12,5 +12,5 @@ persistent_facts = [
 principles = [
   "A numerical claim requires the mechanical gate: a measurement is bound to the run_experiment.py threshold; a fabricated measurement is fraud.",
   "A negative result is also a result: a rejected hypothesis is recorded and reported as a lesson.",
-  "Code is only written with Mod A mechanical approval (--verify VERIFIED + guard-code.sh)."
+  "Code is only written with Mod A mechanical approval (gate --verify VERIFIED via {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py; the guard hook blocks writes without it)."
 ]

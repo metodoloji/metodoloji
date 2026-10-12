@@ -261,6 +261,23 @@ def test_plugin_trees_protected_when_no_project_env(monkeypatch, tmp_path):
     assert not is_free("skills/anything.py")
 
 
+def test_version_literal_is_not_a_code_target():
+    """A dotted version token is not a file (E-037).
+
+    Real session (2026-10-12): a version literal reaching the gate as a
+    target was denied as code (suffix `.0` = unknown extension, fail-closed
+    tail) — "No approved experiment record for 0.1.0 … attempt #19". A
+    bare `v?MAJOR.MINOR(.PATCH)*` token carries version semantics, never
+    file semantics; a name with a REAL extension keeps its verdict.
+    """
+    for token in ("0.1.0", "1.2.5", "v0.1.30", "3.11", "2026.10.12"):
+        assert is_code_target(token) is False, token
+    assert is_code_target("v1.2.3.py") is True   # real extension stays code
+    assert is_code_target("src/foo.py") is True
+    assert is_code_target("docs/report.2026.10.data") is True  # unknown ext: fail-closed
+    assert is_code_target("docs/report.2026.10.md") is False  # .md is non-code by design
+
+
 def test_is_code_target_classification():
     # Code: unknown/executable extensions are code
     assert is_code_target("src/foo.py")

@@ -25,6 +25,37 @@ BENCH = PLUGIN / "scripts" / "bench" / "bench_consistency.py"
 CHECK_PLUGIN = PLUGIN / "scripts" / "check-plugin.sh"
 
 
+def test_session_context_warns_against_stale_cached_plugin_roots():
+    """E-037: the session-start context must name the stale-root trap.
+
+    Real session (2026-10-12): a resumed session ran the plugin path it
+    had cached in memory (`…/metodoloji/1.2.5/…/orient.py`) after the
+    plugin had been updated — file gone, first command of the session
+    dead. The injected context now says the root above is THIS install's
+    and a cached one goes stale on every update.
+    """
+    src = (PLUGIN / "hooks" / "scripts" / "bootstrap.sh").read_text(
+        encoding="utf-8")
+    assert "goes stale on every plugin update" in src, (
+        "session-start context lost the stale-root warning")
+
+
+def test_review_layers_must_cite_verified_file_lines():
+    """E-037: every review surface demands verified file:line evidence.
+
+    Real session (2026-10-12): one review layer reported citations into
+    the 1500s of a 230-line file; the triage had to re-derive every
+    citation by hand. The rule now lives on all three surfaces the review
+    flows read: the methodology chapter and both code-review skills.
+    """
+    for rel in ("docs/bmad/development-methodology.md",
+                "skills/bmad-code-review/SKILL.md",
+                "skills/gds-code-review/SKILL.md"):
+        src = (PLUGIN / rel).read_text(encoding="utf-8")
+        assert "VERIFIED by reading that file" in src, (
+            f"{rel} lost the verified-citation rule (E-037)")
+
+
 def _load_bench():
     spec = importlib.util.spec_from_file_location("bench_consistency", BENCH)
     module = importlib.util.module_from_spec(spec)
@@ -378,3 +409,43 @@ def test_cross_machine_marker_guard_is_anchored_in_script():
     assert "grep -q 'Re-Measured-By:'" not in text, (
         "§3 regressed to the unanchored 'Re-Measured-By:' guard"
     )
+
+
+def test_shipped_gate_invocations_resolve_where_they_ship():
+    """E-038: shipped text may not teach a gate invocation that dies there.
+
+    The 2026-10-12 consuming session pasted the engine's own
+    ``python3 skills/bmad-research-experiment/scripts/run_experiment.py
+    --amend-plan …`` remedy (a path that exists only inside the plugin
+    checkout) and was denied 19 times; the same session's shipped docs also
+    taught bare ``run_experiment.py --verify`` and named ``guard-code.sh`` —
+    a script with zero files in this tree's whole history. Every shipped
+    invocation must carry a resolving root ({metodoloji-root}, {skill-root},
+    $SYNCED) on its own line. The scan is independent of the bench so a
+    drifted bench cannot bury the closure; the bench is then pinned to keep
+    its own check.
+    """
+    roots = ("{metodoloji-root}", "{skill-root}", "$SYNCED",
+             "METODOLOJI_SYNCED")
+    globs = ("GUIDE.md", "KILAVUZ.md", "docs/CLAUDE.md", "docs/bmad/*.md",
+             "docs/experiments/_template.md", "commands/*.md",
+             "custom/*.toml", "templates/*.md", "skills/*/SKILL.md",
+             "skills/bmad-research-experiment/plan.md",
+             "skills/bmad-research-experiment/experiment-log.md",
+             "skills/bmad-research-experiment/scripts/run_experiment.py",
+             "hooks/scripts/*.sh")
+    problems = []
+    for pat in globs:
+        for path in sorted(PLUGIN.glob(pat)):
+            rel = path.relative_to(PLUGIN).as_posix()
+            for lineno, line in enumerate(
+                    path.read_text(encoding="utf-8").splitlines(), 1):
+                for m in re.finditer(r"run_experiment\.py\s+--", line):
+                    if not any(r in line[:m.start()] for r in roots):
+                        problems.append(f"{rel}:{lineno}: bare gate invocation")
+                if "guard-code.sh" in line:
+                    problems.append(f"{rel}:{lineno}: phantom guard-code.sh")
+    assert not problems, f"dead gate instructions where they ship: {problems}"
+    src = BENCH.read_text(encoding="utf-8")
+    assert "gate invocations resolve where they ship (E-038)" in src, (
+        "the bench dropped its E-038 shipped-invocation check")

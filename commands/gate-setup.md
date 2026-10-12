@@ -13,7 +13,7 @@ peer key imported into `~/.bmad/gate-keys/` (see Trust ring below). The key file
 
 1. If `~/.bmad/gate-key` exists: say "already installed" and finish (do not overwrite —
    old evidence would break). Determine existence ONLY via
-   `run_experiment.py --check-secret` or the orient digest's `gate_key`
+   `{metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --check-secret` or the orient digest's `gate_key`
    line — never `ls`/`test -f`/`cat` the key path in shell (the guard
    denies any command referencing it, including existence probes).
 

@@ -48,7 +48,7 @@ Bu dokümanı baştan sona "okuyup bitirilecek" bir metin sanma. Bir **karar tab
 
 1. Zincirin gerçek durumunu **SessionStart çıktısından** al (`Chain progress`, kayıt envanteri, sprint satırı, PROACTIVE dürtme). Modelin ezberi değil, oturumun kendi durumu esastır.
 2. `{metodoloji-root}` değerini uydurma: SessionStart'ın `METODOLOJI active (plugin: PATH)` satırını **verbatim** kullan. Bulamıyorsan #20'deki çözümleme sırasına bak.
-3. Bir script'in arayüzünü hatırlamıyorsan `--help` koş (`run_experiment.py --help`, `blackboard.py --help`, `workflow.py --help`). Motor ve CLI'lar kanoniktir; bu doküman onların özetidir.
+3. Bir script'in arayüzünü hatırlamıyorsan `--help`'i `{metodoloji-root}`'tan koş (ör. `python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --help`; `blackboard.py` ve `workflow.py` `{metodoloji-root}/bmad/scripts/` altındadır — aynı kural). Motor ve CLI'lar kanoniktir; bu doküman onların özetidir.
 4. Bu doküman v0.1.0 içindir. Şüphede çapraz kontrol: `docs/CLAUDE.md` (motor özeti), `docs/bmad/*-methodology.md` (manifesto), `templates/` (güncel şablon), `.plugin/plugin.json` (sürüm).
 
 ---
@@ -870,6 +870,7 @@ Davranış:
 | Kod dizini        | `src/`, `lib/`, `tools/`, `bin/`, `core/`, `app/`                              | ✅         |
 | Exec config       | `.github/workflows/*`, `.gitlab-ci.yml`, `docker-compose*.yml`, `package.json` | ✅         |
 | Bilinmeyen uzantı | non-code listesinde olmayan her şey                                            | ✅         |
+| Version literal   | çıplak `v?MAJOR.MINOR(.PATCH)*` tokenları (`0.1.0`, `v1.2.3`, `3.11`) — sürüm semantiği, asla dosya semantiği değil (E-037) | ❌ dosya değil |
 | Toolchain config  | `prisma/vite/jest.config.*`, `tsconfig*.json`, lockfile'lar                    | ❌ serbest |
 | Doküman           | `.md`, `.txt`, `.rst`                                                          | ❌ serbest |
 | Veri/config       | `.json`, `.toml`, `.yaml`, `.csv`, `.log`, `.lock`                             | ❌ serbest |
@@ -968,7 +969,7 @@ Bir yazımdan önce guard'ın sorduğu sıra: **Secret tara → kirliyse DENY �
 | `docs/*.md`       | `docs/` altındaki dokümanlar                                                                |
 | `docs/*/raw/`     | Ham veriler                                                                                 |
 | `explore_*`       | Kök-seviye keşif DOSYASI (`explore_x.py` serbest; `explore_dir/a.py` korumalı)              |
-| Altyapı dosyaları | `scripts/check-methodology.sh`, `skills/bmad-research-experiment/scripts/run_experiment.py` |
+| Altyapı dosyaları | `scripts/check-methodology.sh` (gate script'i proje-bağımlı `skills/…` yazımıyla serbest DEĞİLDİR — bu yol yalnız plugin checkout'unun içinde var olur (E-038)) |
 
 
 > **İki daraltma (kanıtlı):** `explore_*` yalnızca kökteki **dosyayı** serbest bırakır — `explore_foo/` dizininin içi korumalıdır (aksi halde dizin adıyla gate bypass edilirdi). Tersine, gate **hiçbir** guard-free yüzeyden ölçüm koşmaz: `scratch/`, `tmp/`, `temp/` dışındaki `graft/`, `openhands/`, `_bmad/`, `.metodoloji/`, docs yüzeyleri (`docs/*.md`, `docs/*/raw/`) ve kök `explore_*` bench'leri de reddedilir — ölçüm hep korumalı dizinde (`scripts/bench/`).
@@ -1116,7 +1117,7 @@ Tek event-sourced JSON: `.metodoloji/blackboard.json` + append-only event log. H
 
 **Değişmezler:** exclusive lock altında atomik yazım; event-sourced (snapshot silinebilir, logdan rebuild); sınırlı (hiçbir şey sınırsız büyümez); fail-open (bozuk/kayıp board işi bloklamaz); tek `hot` + tek `hot_canvas`.
 
-**Motor yazım yolu blackboard-free'dir:** hook'lar board'a yazmaz. Salt-okunur peek'ler (fail-open, tüketmez): SessionStart'taki PROACTIVE handoff dürtmesi + zincir ilerlemesi (`Chain progress`), Stop'taki PROACTIVE dürtme. Audit log-only'dir. Board yazımı skill-tarafı CLI (`blackboard.py`) + gate aynası (`run_experiment.py --run` karar sonrası `E-<id>` + readiness hand-off'u otomatik işler) işidir.
+**Motor yazım yolu blackboard-free'dir:** hook'lar board'a yazmaz. Salt-okunur peek'ler (fail-open, tüketmez): SessionStart'taki PROACTIVE handoff dürtmesi + zincir ilerlemesi (`Chain progress`), Stop'taki PROACTIVE dürtme. Audit log-only'dir. Board yazımı skill-tarafı CLI (`blackboard.py`) + gate aynası (`{metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --run` karar sonrası `E-<id>` + readiness hand-off'u otomatik işler) işidir.
 
 **CLI (ezber seti):**
 
@@ -1448,7 +1449,7 @@ metodoloji/
 | `{skill-root}`      | Plugin içindeki skill konumu                                                                                                                                                                                                                                                                                                                                                   |
 
 
-**Alet-olarak-enstrüman kuralı:** Plugin scriptini (`run_experiment.py`, `resolve_customization.py`) `{metodoloji-root}`'tan *çalıştırırsın*; ürettiği kayıt yine `{project-root}`'a yazılır. Çıktının kökünü ne olduğu belirler, hangi script ürettiği değil.
+**Alet-olarak-enstrüman kuralı:** Plugin scriptini (`run_experiment.py`, `resolve_customization.py`) `{metodoloji-root}`'tan *çalıştırırsın*; ürettiği kayıt yine `{project-root}`'a yazılır. Çıktının kökünü ne olduğu belirler, hangi script ürettiği değil. (E-038: gate çağrısının shipped her görüntüsü çözümlü bir kök taşır — `{metodoloji-root}`, `{skill-root}` veya `$SYNCED`; köksüz bir gate çağrısı, tüketilen projede ölü talimattır.)
 
 **Manifesto kuralı:** `docs/bmad/*-methodology.md` dosyaları plugin-kanoniktir — projeye kopyalanmaz, pluginden okunur. Eski `init`'ten kalma `docs/bmad/` kopyası varsa sil (stale kafa karıştırır).
 

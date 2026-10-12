@@ -100,7 +100,7 @@ fi
 # guessing whether the root was ~/.metodoloji, /root/bmad or the plugin dir,
 # even though this line was already printing it.
 # Short context: gate-key status + record chain reminder.
-if [ -f "$HOME/.bmad/gate-key" ]; then KEY="present"; else KEY="MISSING — python run_experiment.py --init-secret"; fi
+if [ -f "$HOME/.bmad/gate-key" ]; then KEY="present"; else KEY="MISSING — python $SYNCED/skills/bmad-research-experiment/scripts/run_experiment.py --init-secret"; fi
 
 # Single python call (Faz 5): engine session_start stamps the marker and
 # returns the fixed context sentence, plus the read-only handoff peek
@@ -134,7 +134,10 @@ plugin_disp = str(plugin).replace(os.sep, '/')
 ws_disp = ws.replace(os.sep, '/')
 head = ('METODOLOJI active. {metodoloji-root} = ' + plugin_disp
         + '; {project-root} = ' + ws_disp
-        + ' (both literal — use them verbatim, never search the filesystem for them). ')
+        + ' (both literal — use them verbatim, never search the filesystem for them). '
+        + 'The plugin root above is THIS install\'s: a root cached in memory or '
+        + 'copied from a previous transcript goes stale on every plugin update — '
+        + 'if a plugin path 404s, re-read this line instead of searching or reusing the old one. ')
 chain = 'Record chain: E → IR → SP → S → QR → PR. '
 tools = ('Tools: call every tool by the exact bare name your harness lists, with '
          'complete arguments, and issue one command per call; if a call is '
@@ -169,5 +172,5 @@ except Exception:
         pass
 
 print(json.dumps({'additionalContext': ctx}))
-" 2>/dev/null || printf '%s\n' "{\"additionalContext\":\"METODOLOJI active. {metodoloji-root} = $SYNCED; {project-root} = $WS (both literal — use them verbatim, never search the filesystem for them). Record chain: E → IR → SP → S → QR → PR. Tools: call every tool by the exact bare name your harness lists, with complete arguments; one command per call; if a call is rejected as unknown, re-issue it with the bare name; write every path with forward slashes on every OS (a backslash path collapses in a POSIX shell); use the dialect of the shell tool you call — Bash is POSIX sh, PowerShell is PowerShell. Before writing code you need a scope-matching VERIFIED experiment approval; gate key: $KEY. $INIT_HINT\"}"
+" 2>/dev/null || printf '%s\n' "{\"additionalContext\":\"METODOLOJI active. {metodoloji-root} = $SYNCED; {project-root} = $WS (both literal — use them verbatim, never search the filesystem for them). The plugin root above is THIS install's: a root cached in memory or copied from a previous transcript goes stale on every plugin update — if a plugin path 404s, re-read this line instead of searching or reusing the old one. Record chain: E → IR → SP → S → QR → PR. Tools: call every tool by the exact bare name your harness lists, with complete arguments; one command per call; if a call is rejected as unknown, re-issue it with the bare name; write every path with forward slashes on every OS (a backslash path collapses in a POSIX shell); use the dialect of the shell tool you call — Bash is POSIX sh, PowerShell is PowerShell. Before writing code you need a scope-matching VERIFIED experiment approval; gate key: $KEY. $INIT_HINT\"}"
 exit 0

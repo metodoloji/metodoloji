@@ -321,7 +321,14 @@ FREE_PREFIXES = (
 # tested without the gate's permission). bmad/ workflows stay gated.
 PLUGIN_FREE_PREFIXES = ("hooks/", "scripts/", "skills/", "custom/", "bmad/tests/")
 
-INFRA_FILES = {"scripts/check-methodology.sh", "skills/bmad-research-experiment/scripts/run_experiment.py"}
+INFRA_FILES = {"scripts/check-methodology.sh"}
+# The gate script is DELIBERATELY not listed under its project-relative
+# `skills/…` spelling (E-038): that path exists only inside the plugin
+# checkout — in an ordinary project it is the dead-remedy shape itself
+# (a path the agent can paste but that resolves nowhere), and in this repo
+# the skills/ self-modification prefix already frees it. The gate script is
+# edited at its PLUGIN root, never at a project-relative one. Removing the
+# spelling also closes the E-035 Known Gap that left this policy open.
 
 FREE_DOC_MD = re.compile(r"^docs/.*\.md$")
 FREE_DOC_RAW = re.compile(r"^docs/.*/raw(/|$)")

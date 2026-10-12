@@ -9,11 +9,11 @@ token is forged (detected by --verify).
 Flow:
   draft record written (Theory/Hypothesis/Measurement Metrics/Experiment Design, Status: planned)
   -> experiment runs, value measured MECHANICALLY by the gate
-  -> run_experiment.py --record <rec> --run "<cmd>" [--raw "<note>"]
+  -> {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --record <rec> --run "<cmd>" [--raw "<note>"]
         gate executes <cmd>, parses the measured value from its stdout (it never
         trusts an operator-supplied value), compares to the claim, writes
         Raw Results / Decision / Gate Evidence / Next Step / Status
-  -> later: run_experiment.py --verify --record <rec>   (confirms the decision is genuine)
+  -> later: {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --verify --record <rec>   (confirms the decision is genuine)
 
 One measurement, one decision per record. A decided record refuses a re-run;
 a new measurement requires a new experiment record.
@@ -27,9 +27,9 @@ the record (E-189 lesson).
 Usage (both flag forms are the documented ones — the docstring is what an
 agent reads to learn the command, so a form that argparse rejects is the same
 class of dead instruction as a remedy naming a missing script):
-  run_experiment.py --record docs/experiments/E-001.md --run "<cmd>"
-  run_experiment.py --record docs/experiments/E-001.md --run "<cmd>" --dry-run
-  run_experiment.py --verify --record docs/experiments/E-001.md
+  {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --record docs/experiments/E-001.md --run "<cmd>"
+  {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --record docs/experiments/E-001.md --run "<cmd>" --dry-run
+  {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --verify --record docs/experiments/E-001.md
 """
 from __future__ import annotations
 

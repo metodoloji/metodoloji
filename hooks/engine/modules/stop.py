@@ -293,9 +293,13 @@ def _plan_progress_note(root: str, writes: list[str]) -> str:
             parts.append(line)
     if not parts:
         return ""
+    from .utils import plugin_script_cmd
     return ("plan progress (GRP): " + "; ".join(parts)
             + " — extend an operation's plan with "
-              "run_experiment.py --amend-plan.")
+            + plugin_script_cmd(
+                'skills/bmad-research-experiment/scripts/run_experiment.py',
+                '--amend-plan', '<rec>', '--files', '<file>',
+                '--reason', '\"<why>\"') + ".")
 
 
 def record_session_start(root: str) -> None:

@@ -8,7 +8,7 @@ triggers: ["wds-2-trigger-mapping", "/wds-2-trigger-mapping"]
 
 Bu yuzey arastirma metodolojisine baglidir: `{metodoloji-root}/docs/bmad/research-methodology.md` — Mod B+C (nitel/tasarim) — tetik haritalama; R-id/D-id kaydi.
 Belgesel karar kod yazma izni degildir; kod her durumda Mod A mekanik onayini ister
-(run_experiment.py --verify + guard-code.sh). Uydurma kanit/olcum sahtekarliktir.
+(mekanik onay: {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --verify; onaysiz yazimi guard hook'u durdurur). Uydurma kanit/olcum sahtekarliktir.
 
 
 ## On Activation

@@ -376,7 +376,9 @@ def _validate_story_experiment_refs(content: str, root: str = "") -> tuple[bool,
         if rc != 0:
             return False, (
                 f"Experiment record {exp_id} is not verified (rc={rc}). "
-                f"Run run_experiment.py --verify --record {exp_file} first."
+                f"Run: {_plugin_script_cmd(
+                    'skills/bmad-research-experiment/scripts/run_experiment.py',
+                    '--verify', '--record', str(exp_file))}"
             )
         
     # Also validate AC experiment references
@@ -1349,13 +1351,20 @@ def guard(json_in: dict) -> dict:
                 if staged:
                     _soft_warnings.append(
                         f"{rel}: {staged_msg} — instrument staging only; the "
-                        f"decision still requires run_experiment.py --run, "
+                        f"decision still requires a gate measurement run: "
+                        f"{_plugin_script_cmd(
+                            'skills/bmad-research-experiment/scripts/run_experiment.py',
+                            '--record', 'docs/experiments/E-XXX.md',
+                            '--run', '<cmd>')}, "
                         f"and product code stays closed until VERIFIED")
                     continue
             from .config import hook_gate_mode
             msg = (f"No approved experiment record for {rel}: {detail}. "
                    f"Create a hypothesis, measure, and get approval with "
-                   f"run_experiment.py --record docs/experiments/E-XXX.md --run <cmd>")
+                   f"{_plugin_script_cmd(
+                       'skills/bmad-research-experiment/scripts/run_experiment.py',
+                       '--record', 'docs/experiments/E-XXX.md',
+                       '--run', '<cmd>')}")
             msg += _out_of_root_note(rel, target)
             if _is_instrument_path(rel):
                 msg += (f" Note: '{rel}' is a measurement bench — benches "
@@ -1374,8 +1383,10 @@ def guard(json_in: dict) -> dict:
             # old static deny text fed (_prior_attempts history).
             msg += (f" Plan path (E-065): if '{rel}' belongs to this operation's "
                     f"declared plan, add it without re-measuring: "
-                    f"python3 skills/bmad-research-experiment/scripts/run_experiment.py "
-                    f"--amend-plan docs/experiments/E-XXX.md --files {rel} --reason \"<why>\". "
+                    f"{_plugin_script_cmd(
+                        'skills/bmad-research-experiment/scripts/run_experiment.py',
+                        '--amend-plan', 'docs/experiments/E-XXX.md',
+                        '--files', rel, '--reason', '\"<why>\"')}. "
                     f"A decided record refuses amendment — open a new E record instead.")
             try:
                 tries = _prior_attempts(root, rel)
@@ -1383,7 +1394,9 @@ def guard(json_in: dict) -> dict:
                     msg += (f" This is attempt #{tries + 1} on the same target — retrying "
                             f"the write cannot succeed. Next: create docs/experiments/E-XXX.md "
                             f"from docs/experiments/_template.md with this target in Code Scope, "
-                            f"then run run_experiment.py --record <rec> --run <cmd>.")
+                            f"then run {_plugin_script_cmd(
+                                'skills/bmad-research-experiment/scripts/run_experiment.py',
+                                '--record', '<rec>', '--run', '<cmd>')}. ")
             except Exception:
                 pass
 

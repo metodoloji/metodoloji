@@ -11,5 +11,5 @@ persistent_facts = [
 principles = [
   "Generated surfaces inherit the manifesto: no surface is produced outside the methodology scope.",
   "A generated surface is wired via: persistent_facts (customization line) or a SKILL.md pointer.",
-  "Code always requires Mod A mechanical approval (guard-code.sh + --verify); generator surfaces are not exempt from this either."
+  "Code always requires Mod A mechanical approval (the gate: {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --verify — writes without a VERIFIED record are mechanically blocked by the guard hook); generator surfaces are not exempt from this either."
 ]

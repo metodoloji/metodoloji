@@ -21,6 +21,35 @@ from modules.bash_targets import (  # noqa: E402
 )
 
 
+# --- E-037: inline eval must not promote a version literal to a target ------
+
+
+def test_inline_eval_ignores_a_quoted_version_literal():
+    """A dotted version token inside `-c` code is not a write target (E-037).
+
+    Real consuming-project session (2026-10-12): the command below was
+    denied with "No approved experiment record for 0.1.0 … attempt #19" —
+    the inline-eval candidate regex matched the quoted version literal and
+    is_code_target's fail-closed tail read its `.0` suffix as an unknown
+    code extension. Inspection commands that MENTION a version must never
+    be gated as writes.
+    """
+    cmd = (
+        """python3 -c "import sys; sys.path.insert(0, 'scripts/bench'); """
+        """from contract import rules; print(rules.secondary_version_files('.', '0.1.0'))"""
+        """ 2>&1 | head -5; echo "==="; """
+        """bash scripts/check-contract-version.sh --help 2>&1 | cat -A | head -8"""
+    )
+    assert extract_bash_targets(cmd) == [], (
+        "a quoted version literal was extracted as a write target")
+
+
+def test_inline_eval_still_finds_real_inline_writes():
+    """The closure must not blind the inline-eval write scan (E-037 control)."""
+    cmd = "python3 -c \"open('src/new_module.py','w').write('x')\""
+    assert extract_bash_targets(cmd) == ["src/new_module.py"]
+
+
 # --- _space_out_redirects: quote/escape-aware redirect separation ----------
 
 def test_space_out_redirects_single_gt():
