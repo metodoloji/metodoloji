@@ -1949,6 +1949,62 @@ def _check_hypothesis_optout_agrees_across_gates() -> str | None:
     return "; ".join(problems) if problems else None
 
 
+def _check_native_methodology_mirror_both_directions() -> str | None:
+    """E-032: a QR must cover the native<->methodology pair in EITHER direction.
+
+    A generated methodology record names its native story via `| Native Story |`
+    and the two are ONE work unit. The gate read that link only native -> record,
+    so a QR declaring the METHODOLOGY key (`| Story | S-002 |` \u2014 exactly what
+    `create-qr-record.py` writes) left the done native story looking unrecorded
+    and `git commit` denied it (the observed session's native `1-2-\u2026`). This
+    drives the real `_find_done_stories_without_qr` on both declaration forms
+    (demanding they cover the pair) and on an unrelated control (demanding it
+    still flags), so the missing direction cannot silently return.
+    """
+    import tempfile  # noqa: PLC0415
+
+    sys.path.insert(0, str(ROOT / "hooks" / "engine"))
+    from modules import guard as guard_mod  # noqa: PLC0415
+
+    problems: list[str] = []
+
+    def _fixture(qr_story: str):
+        td = tempfile.TemporaryDirectory()
+        root = pathlib.Path(td.name)
+        (root / "docs/development/stories").mkdir(parents=True)
+        (root / "docs/development/native").mkdir(parents=True)
+        (root / "docs/quality").mkdir(parents=True)
+        (root / "docs/development/native/1-2-resolve-cyan-accent-alias.md").write_text(
+            "# Story: 1-2-resolve-cyan-accent-alias\n"
+            "- **Story key:** 1-2-resolve-cyan-accent-alias\n- **Status:** done\n",
+            encoding="utf-8")
+        (root / "docs/development/stories/S-002.md").write_text(
+            "# Methodology Record: S-002\n\n| Field | Value |\n|------|-------|\n"
+            "| Status | done |\n| Story Title | Resolve cyan alias |\n"
+            "| Native Story | docs/development/native/"
+            "1-2-resolve-cyan-accent-alias.md |\n", encoding="utf-8")
+        (root / "docs/quality/QR-002.md").write_text(
+            "# Quality Record: QR-002\n\n| Field | Value |\n|------|-------|\n"
+            f"| Story | {qr_story} |\n| Status | APPROVED |\n", encoding="utf-8")
+        return td, root
+
+    for decl in ("S-002", "1-2-resolve-cyan-accent-alias"):
+        td, root = _fixture(decl)
+        try:
+            missing = guard_mod._find_done_stories_without_qr(str(root))
+            if missing:
+                problems.append(f"QR declaring {decl!r} left the pair unrecorded: {missing}")
+        finally:
+            td.cleanup()
+    td, root = _fixture("S-999")
+    try:
+        if not guard_mod._find_done_stories_without_qr(str(root)):
+            problems.append("an unrelated QR covered the native/methodology pair")
+    finally:
+        td.cleanup()
+    return "; ".join(problems) if problems else None
+
+
 def _check_experiment_lineage_enforced() -> str | None:
     """E-022: a new experiment must declare what the prior ones carry.
 
@@ -2287,6 +2343,8 @@ def build_checks() -> list[tuple[str, object]]:
                    _check_gate_remedy_paths_are_runnable))
     checks.append(("[HYPOTHESIS] opt-out holds at write and commit time (E-031)",
                    _check_hypothesis_optout_agrees_across_gates))
+    checks.append(("native<->methodology mirror hop works both ways (E-032)",
+                   _check_native_methodology_mirror_both_directions))
     checks.append(("experiment lineage declared and enforced (E-022)",
                    _check_experiment_lineage_enforced))
     checks.append(("negtest counts and check-plugin doc pointers pinned (E-023)",

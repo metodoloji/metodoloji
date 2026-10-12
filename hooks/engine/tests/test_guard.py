@@ -529,6 +529,56 @@ def test_find_done_stories_without_ir():
         td.cleanup()
 
 
+def _mirror_fixture(qr_story):
+    """A done native story + its mirrored done methodology record + one QR."""
+    td = tempfile.TemporaryDirectory()
+    root = Path(td.name)
+    (root / "docs/development/stories").mkdir(parents=True)
+    (root / "docs/development/native").mkdir(parents=True)
+    (root / "docs/quality").mkdir(parents=True)
+    (root / "docs/development/native/1-2-resolve-cyan-accent-alias.md").write_text(
+        "# Story: 1-2-resolve-cyan-accent-alias\n"
+        "- **Story key:** 1-2-resolve-cyan-accent-alias\n- **Status:** done\n",
+        encoding="utf-8")
+    (root / "docs/development/stories/S-002.md").write_text(
+        "# Methodology Record: S-002\n\n| Field | Value |\n|------|-------|\n"
+        "| Status | done |\n| Story Title | Resolve cyan alias |\n"
+        "| Native Story | docs/development/native/"
+        "1-2-resolve-cyan-accent-alias.md |\n", encoding="utf-8")
+    (root / "docs/quality/QR-002.md").write_text(
+        "# Quality Record: QR-002\n\n| Field | Value |\n|------|-------|\n"
+        f"| Story | {qr_story} |\n| Status | APPROVED |\n", encoding="utf-8")
+    return td, root
+
+
+def test_qr_declaring_the_methodology_record_covers_the_native_story():
+    """E-032: the native<->methodology mirror hop must work in BOTH directions.
+
+    A generated methodology record and its native story are ONE work unit. The
+    gate already let a QR that declares the NATIVE story cover the generated
+    record; the reverse — a QR that declares the METHODOLOGY record (`| Story |
+    S-002 |`, exactly what `create-qr-record.py` writes) covering the mirrored
+    native story — was missing, so a done native story looked unrecorded and
+    the observed session's `git commit` was denied on it.
+    """
+    for decl in ("S-002", "1-2-resolve-cyan-accent-alias"):
+        td, root = _mirror_fixture(decl)
+        try:
+            assert _find_done_stories_without_qr(td.name) == [], (
+                f"QR declaring {decl!r} did not cover the mirrored pair")
+        finally:
+            td.cleanup()
+
+
+def test_native_story_still_flagged_when_the_qr_is_unrelated():
+    """The control: an unrelated QR must not cover the pair (no over-eager hop)."""
+    td, root = _mirror_fixture("S-999")
+    try:
+        assert _find_done_stories_without_qr(td.name), "unrelated QR covered the pair"
+    finally:
+        td.cleanup()
+
+
 def test_find_done_stories_without_qr_excludes_templates():
     from modules.guard import _find_done_stories_without_qr
     td, root = _make_project(stories=[("S-001", "done"), ("_template", "done")])

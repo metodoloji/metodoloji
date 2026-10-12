@@ -1655,6 +1655,42 @@ def _story_paths_for_keys(root: str, keys: "list[str]") -> dict[str, str]:
     return found
 
 
+def _methodology_mirror_map(root: str) -> dict[str, str]:
+    """Native story name -> the methodology record key that mirrors it.
+
+    A generated record names its native story in its own ``| Native Story |``
+    row (read by ``_declared_story_names``), so the link is readable without
+    guessing. Keys are both the declared key and its path stem, lowercased.
+    E-032: the commit gate read this link only native -> record; a QR covering
+    the record left the mirrored native story looking unrecorded.
+    """
+    out: dict[str, str] = {}
+    stories_dir = pathlib.Path(root) / "docs" / "development" / "stories"
+    if not stories_dir.is_dir():
+        return out
+    for rec in sorted(stories_dir.glob("S-*.md")):
+        if rec.name.startswith("_"):
+            continue
+        try:
+            text = rec.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        if not _is_methodology_record(text):
+            continue
+        # The record's own FILE STEM is the key a record of this kind is
+        # matched by (`_declaration_covers` compares against `story_stem`), so
+        # a QR declaring `| Story | S-002 |` names S-002.md. `_story_key_of`
+        # deliberately returns the NATIVE slug for a generated record, which
+        # is not what such a declaration carries.
+        rec_key = rec.stem
+        for name in _declared_story_names(text):
+            out.setdefault(name.lower(), rec_key)
+            out.setdefault(
+                pathlib.PurePosixPath(name.replace("\\", "/")).stem.lower(),
+                rec_key)
+    return out
+
+
 def _find_done_stories_without_record(root: str, record_glob: str, record_dir: str,
                                       require_sp_ref: bool = False) -> list[str]:
     """Find stories with Status: done that lack a record of the given type.
@@ -1685,6 +1721,7 @@ def _find_done_stories_without_record(root: str, record_glob: str, record_dir: s
             rec_names |= _declared_story_names(text)
 
     missing: list[str] = []
+    mirror: dict[str, str] | None = None
     for story_file in _iter_story_files(root):
         try:
             content = story_file.read_text(encoding="utf-8", errors="replace")
@@ -1713,6 +1750,20 @@ def _find_done_stories_without_record(root: str, record_glob: str, record_dir: s
         # unrecorded while the reconciler already calls it owned.
         if any(_declaration_covers(rec_names, n, n)
                for n in _declared_story_names(content)):
+            continue
+        # …and the SAME hop read BACKWARDS (E-032): a QR that covers the
+        # generated methodology record also covers the native story that record
+        # mirrors — they are ONE work unit. Without this, a QR declaring
+        # `| Story | S-002 |` left the done native story `1-2-…` looking
+        # unrecorded, and the observed session's `git commit` was denied on it
+        # although the reconciler already called the pair owned.
+        if mirror is None:
+            mirror = _methodology_mirror_map(root)
+        mirror_key = (mirror.get(story_key.lower())
+                      or mirror.get(story_file.stem.lower()))
+        if mirror_key and _declaration_covers(
+                rec_names, mirror_key,
+                pathlib.PurePosixPath(mirror_key).stem):
             continue
         # SP records may be referenced by ID even when the story key isn't in
         # content. ID equality is NUMERIC and SEGMENT-WISE (SP-9 == SP-009 —
