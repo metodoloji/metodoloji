@@ -6,6 +6,7 @@ the advisory-block / legacy-token verify paths.
 """
 
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -415,6 +416,56 @@ def test_bench_free_zone_case_parity():
             # the spellings the guard frees.
             assert gate.bench_in_free_zone(f"python3 {spelled}") is is_free(spelled), (
                 f"{spelled!r}: gate refusal and guard.free disagree")
+
+
+def test_bench_free_zone_symlink_escape(monkeypatch, tmp_path):
+    """A protected prefix symlinked INTO a free zone must still refuse the
+    bench (E-036).
+
+    `scripts/link -> scratch` executed as `python3 scripts/link/bench.py`
+    runs a freely fabricable script: the guard resolves the WRITE through
+    the link (it lands in scratch/, free), so the gate must resolve the RUN
+    to keep its refusal equal to guard-free.
+    """
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "scratch").mkdir()
+    link = tmp_path / "scripts" / "link"
+    try:
+        link.symlink_to(tmp_path / "scratch", target_is_directory=True)
+    except (OSError, NotImplementedError):
+        # Junction fallback: no privilege needed, realpath resolves it the
+        # same way — same escape, same refusal (E-036 must be falsifiable
+        # on a privilege-less Windows box).
+        if os.name != "nt":
+            pytest.skip("symlink creation unavailable")
+        try:
+            proc = subprocess.run(["cmd", "/c", "mklink", "/J", str(link),
+                                   str(tmp_path / "scratch")], capture_output=True)
+        except OSError as exc:  # a host that cannot spawn cannot link
+            pytest.skip(f"junction fallback unavailable: {exc}")
+        if proc.returncode != 0 or not link.exists():
+            pytest.skip("no symlink/junction support on this host")
+    monkeypatch.chdir(tmp_path)
+    assert gate.bench_in_free_zone("python3 scripts/link/bench.py") is True, (
+        "a symlink from a protected prefix into a free zone hosted a "
+        "gate-accepted bench")
+
+
+def test_bench_free_zone_symlink_closure_wiring(monkeypatch):
+    """The resolved spelling is zone-checked even where no link can be built
+    (E-036): the matcher must consult the filesystem, so a host without
+    symlink privileges still pins the wiring that closes the escape."""
+    real = os.path.realpath  # noqa: PT004
+    monkeypatch.setattr(
+        gate.os.path, "realpath",
+        lambda p: real(p).replace(f"scripts{os.sep}link", "scratch"))
+    assert gate.bench_in_free_zone("python3 scripts/link/bench.py") is True
+    # A lexically-PROTECTED bench whose resolution is also outside every
+    # free surface stays allowed (no over-blocking from the closure).
+    monkeypatch.setattr(
+        gate.os.path, "realpath",
+        lambda p: real(p).replace(f"scripts{os.sep}bench", "scratch_data"))
+    assert gate.bench_in_free_zone("python3 scripts/bench/x.py") is False
 
 
 def test_bench_free_zone_guard_parity():

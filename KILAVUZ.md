@@ -975,6 +975,8 @@ Bir yazımdan önce guard'ın sorduğu sıra: **Secret tara → kirliyse DENY �
 
 > **Kural (E-035):** zone üyeliği **dosya sisteminin** kuralına tabidir, hiçbir zaman kör bir eşleşmeye değil. Case-insensitive dosya sisteminde (Windows) `SCRATCH/b.py`, `scratch/b.py` ile aynı dosyadır — serbesttir ve bench'i reddedilir; case-sensitive olan birinde farklı yazılmış ad **farklı** bir dizindir, dolayısıyla `DOCS/e/raw/p.py` korumalı kalır ve `SCRATCH/` free yüzey değildir. Guard (`utils.is_free`) ve gate'in bağımsız eşleyicisi (`bench_in_free_zone`) aynı koşulda fold eder (`os.name == "nt"`), parite probu iki yönde de bunu sabitler.
 
+> **Symlink kuralı (E-036):** sözdizimsel free yüzey, **dosya sisteminin** çözdüğü hâli de free ise serbestlik verdictini korur. `scratch/link -> ../src`, `src/`'yi link üzerinden serbest bırakmaz — guard serbest bırakma yönünde çözülmüş yolu yeniden denetler ve çözümleme başarısız olursa ya da proje kökünden çıkarsa fail-closed davranır; gate bench hedefini aynı şekilde çözer, dolayısıyla `scripts/link -> scratch` de ölçüm sunamaz. Çözümleme yalnızca free verdict verilecek yerde çalışır (serbest bırakılan yazımda iki `realpath` çağrısı), korumalı yolda asla.
+
 **Koşullu self-modifikasyon:** `hooks/`, `scripts/`, `skills/`, `custom/`, `bmad/tests/` (plugin kaynak ağaçları) **sadece korunan proje kökü pluginin kendi reposuysa** serbesttir (plugin kendisi üzerinde çalışırken). Sıradan hedef projede bu ağaçlar **korumalıdır** — plugin kaynağına edit de onaylı deney ister. `bmad/tests/` muafiyeti döngüsellik içindir: gate'in kendi testleri gate iznine bağlanamaz.
 
 ### 10.2 Korumalı alan (onaylı)

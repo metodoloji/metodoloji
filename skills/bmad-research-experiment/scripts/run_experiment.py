@@ -806,6 +806,22 @@ def _bench_target(cmd: str) -> str | None:
     return toks[i]
 
 
+def _norm_zone_spelling(path: str) -> str:
+    """The guard's norm_path spelling for zone matching (./ and drive stripped)."""
+    s = path.replace("\\", "/")
+    s = re.sub(r"^[a-zA-Z]:", "", s)
+    while s.startswith("./"):
+        s = s[2:]
+    return s.lower() if os.name == "nt" else s  # E-035: fold iff the filesystem folds
+
+
+def _in_free_surface(spelling: str) -> bool:
+    """Zone membership for one (already normalized, case-folded) spelling."""
+    return (bool(_EXPLORE_FILE.match(spelling))
+            or bool(_DOC_ZONE.match(spelling))
+            or bool(_AGENT_BENCH_ZONE.search(spelling)))
+
+
 def bench_in_free_zone(cmd: str) -> bool:
     """True if the run command executes a script inside a free zone.
 
@@ -822,22 +838,26 @@ def bench_in_free_zone(cmd: str) -> bool:
         return True
     if not bench:
         return False
-    norm = bench.replace("\\", "/")
-    # Strip the guard's norm_path prefixes (./, drive letter) before matching.
-    norm = re.sub(r"^[a-zA-Z]:", "", norm)
-    while norm.startswith("./"):
-        norm = norm[2:]
     # Case fold exactly when the filesystem folds (E-035): on Windows
     # `SCRATCH/b.py` IS `scratch/b.py` (guard frees it — must refuse); on
     # POSIX a differently-cased name is a different, guarded path (must not
     # refuse). Mirrors utils.is_free's _FREE_ZONE_FOLD rule.
-    if os.name == "nt":
-        norm = norm.lower()
-    if _EXPLORE_FILE.match(norm):
-        return True  # guard-free root-level explore_* file
-    if _DOC_ZONE.match(norm):
-        return True  # guard-free docs surfaces (documents and raw trees)
-    return bool(_AGENT_BENCH_ZONE.search(norm))
+    norm = _norm_zone_spelling(bench)
+    if _in_free_surface(norm):
+        return True
+    # E-036: the run resolves symlinks the same way the guard resolves the
+    # write — `scripts/link -> scratch` executes a freely fabricable
+    # script, so the resolved spelling is zone-checked too. Resolution runs
+    # against the measurement host's cwd (where --run executes the command);
+    # an unresolvable or cross-drive target refuses (fail-closed, like an
+    # unattributable shell chain).
+    try:
+        resolved = _norm_zone_spelling(os.path.relpath(os.path.realpath(norm)))
+    except (OSError, ValueError):
+        return True
+    if resolved == norm:
+        return False
+    return _in_free_surface(resolved)
 
 
 def upsert(lines: list[str], prefix: str, value: str) -> list[str]:
@@ -1464,6 +1484,11 @@ def _selfcheck() -> None:
     # E-035: the case rule is the filesystem's — fold iff os.name == "nt".
     assert bench_in_free_zone("python3 SCRATCH/bench.py") is (os.name == "nt")
     assert bench_in_free_zone("python3 DOCS/selfcheck/raw/bench.py") is (os.name == "nt")
+    # E-036: the matcher consults the filesystem-resolved spelling too —
+    # zone membership of one normalized, case-folded path.
+    assert _in_free_surface("scratch/bench.py") is True
+    assert _in_free_surface("src/bench.py") is False
+    assert _norm_zone_spelling("./scripts\\x.py") == "scripts/x.py"
     assert _bench_target("python3 src/bench.py data.csv") == "src/bench.py"
     assert _bench_target("sh scripts/bench.sh") == "scripts/bench.sh"
     assert _bench_target("python3 -m timeit 'x'") is None

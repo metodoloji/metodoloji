@@ -246,22 +246,34 @@ def _project_is_methodology_root() -> bool:
         return False
 
 
-def is_free(path: str) -> bool:
-    """True if the project-relative path is inside a free zone (no approval needed).
+def _resolved_project_rel(p: str) -> str | None:
+    """Project-relative path with every symlink resolved (E-036), or None.
 
-    Case rule (E-035): zone membership follows the filesystem's own case
-    semantics. On a case-insensitive filesystem two spellings are the SAME
-    file, so `SCRATCH/b.py` must be free exactly like `scratch/b.py` (the
-    documented gapless free zone); on a case-sensitive one a differently-cased
-    name is a different, ungoverned path, so `DOCS/e/raw/p.py` must stay gated
-    — freeing it would release a directory the doctrine never listed. The
-    fold happens only on os.name == "nt" and only for these membership tests;
-    the normalized path itself keeps its original spelling.
+    norm_path is lexical by design (E-006), so a free-zone path can hide a
+    protected target behind a symlink (`scratch/link -> ../src`): the guard
+    would release every write THROUGH the link into the protected tree with
+    no approval. Resolution runs only on the release direction, against the
+    project root repo_root() already derives (env → cwd); a resolution
+    failure, a different drive, or a link that escapes the project root
+    returns None — the caller then fails CLOSED (gated), never open.
     """
-    p = norm_path(path).lstrip("/")
-    if not p:
-        return True
-    key = p.lower() if _FREE_ZONE_FOLD else p
+    try:
+        base = os.path.realpath(repo_root({}))
+        real = os.path.realpath(os.path.join(base, p))
+        rel = os.path.relpath(real, base)
+    except Exception:
+        return None
+    if rel.startswith("..") or os.path.isabs(rel):
+        return None
+    return norm_path(rel)
+
+
+def _lexically_free(key: str) -> bool:
+    """The pure string form of the free-zone decision (no filesystem touch).
+
+    `key` is the norm_path'd, project-relative spelling already case-folded
+    the way the filesystem folds (see _FREE_ZONE_FOLD).
+    """
     if FREE_DOC_MD.match(key) or FREE_DOC_RAW.match(key):
         return True
     if key in INFRA_FILES_KEY:
@@ -279,6 +291,40 @@ def is_free(path: str) -> bool:
     if any(key.startswith(prefix) for prefix in _PLUGIN_FREE_PREFIXES_KEY):
         return _project_is_methodology_root()
     return False
+
+
+def is_free(path: str) -> bool:
+    """True if the project-relative path is inside a free zone (no approval needed).
+
+    Case rule (E-035): zone membership follows the filesystem's own case
+    semantics. On a case-insensitive filesystem two spellings are the SAME
+    file, so `SCRATCH/b.py` must be free exactly like `scratch/b.py` (the
+    documented gapless free zone); on a case-sensitive one a differently-cased
+    name is a different, ungoverned path, so `DOCS/e/raw/p.py` must stay gated
+    — freeing it would release a directory the doctrine never listed. The
+    fold happens only on os.name == "nt" and only for these membership tests;
+    the normalized path itself keeps its original spelling.
+
+    Symlink rule (E-036): a lexical free surface keeps the free verdict only
+    when the FILESYSTEM-RESOLVED path is free too — `scratch/link -> ../src`
+    must not release src/ through the link.
+    """
+    p = norm_path(path).lstrip("/")
+    if not p:
+        return True
+    key = p.lower() if _FREE_ZONE_FOLD else p
+    if not _lexically_free(key):
+        return False
+    # E-036 symlink closure: only a target that is itself free keeps the
+    # free verdict. Only the RELEASE direction pays the resolution (two
+    # realpath calls); a failed or root-escaping resolution is fail-closed.
+    resolved = _resolved_project_rel(p)
+    if resolved is None:
+        return False
+    rkey = resolved.lower() if _FREE_ZONE_FOLD else resolved
+    if rkey == key:
+        return True
+    return _lexically_free(rkey)
 
 
 def is_code_target(path: str) -> bool:

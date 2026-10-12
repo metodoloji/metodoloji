@@ -1263,6 +1263,99 @@ def _check_free_surface_parity() -> str | None:
     return None
 
 
+def _check_free_zone_symlink_closure() -> str | None:
+    """E-036: a link out of a free zone must not release what it points at.
+
+    norm_path is lexical by design (E-006), so `scratch/link -> ../src`
+    used to be freed as a scratch path while every write through the link
+    landed in the protected tree, and a `scripts/link -> scratch` bench ran
+    a freely fabricable script. The guard now re-checks the
+    filesystem-resolved spelling (utils._resolved_project_rel — fail-closed
+    when resolution fails or escapes the root) and the gate resolves the
+    bench target against its cwd. This check pins the wiring on every host
+    (seam present, both consumers consult it, regression tests shipped) and
+    adds a live probe where the platform can build a link (symlink, or a
+    privilege-less Windows junction).
+    """
+    problems = []
+    utils_src = _read("hooks/engine/modules/utils.py")
+    if "def _resolved_project_rel" not in utils_src:
+        problems.append("utils.py lost the symlink-resolution seam")
+    if "resolved = _resolved_project_rel(p)" not in utils_src:
+        problems.append("is_free no longer consults the resolved spelling")
+    gate_src = _read("skills/bmad-research-experiment/scripts/run_experiment.py")
+    if "os.path.realpath(norm)" not in gate_src:
+        problems.append("bench_in_free_zone no longer resolves its target")
+    for rel, names in {
+        "hooks/engine/tests/test_utils.py": (
+            "test_free_zone_symlink_escape_is_not_free",
+            "test_free_zone_symlink_closure_wiring",
+        ),
+        "skills/bmad-research-experiment/scripts/tests/test_run_experiment.py": (
+            "test_bench_free_zone_symlink_escape",
+            "test_bench_free_zone_symlink_closure_wiring",
+        ),
+    }.items():
+        src = _read(rel)
+        missing = [n for n in names if n not in src]
+        if missing:
+            problems.append(f"missing E-036 tests in {rel}: {missing}")
+    # Live probe (best-effort): build a link INSIDE the free zone and demand
+    # the guard refuse what it points at. docs/ is the target because it is
+    # protected even in this dogfood repo (plugin trees are free here, so a
+    # scratch -> hooks link would resolve free and prove nothing).
+    import os as _os  # noqa: PLC0415
+    import sys as _sys  # noqa: PLC0415
+    link = ROOT / "scratch" / "_e036_parity_link"
+    target = ROOT / "docs"
+    built = False
+    try:
+        try:
+            if link.is_symlink():
+                link.unlink()
+            elif link.exists():
+                # a stale junction dir — best effort
+                link.rmdir()
+            link.symlink_to(target, target_is_directory=True)
+            built = True
+        except (OSError, NotImplementedError):
+            if _os.name == "nt":
+                import subprocess as _sp  # noqa: PLC0415
+                try:
+                    proc = _sp.run(["cmd", "/c", "mklink", "/J", str(link),
+                                    str(target)], capture_output=True)
+                    built = proc.returncode == 0 and link.exists()
+                except OSError:
+                    built = False
+        if not built:
+            return "; ".join(problems) if problems else None  # host cannot
+            # build links — the wiring pins above still falsify the closure
+        _sys.path.insert(0, str(ROOT / "hooks" / "engine"))
+        _saved = _os.environ.get("CLAUDE_PROJECT_DIR")
+        _os.environ["CLAUDE_PROJECT_DIR"] = str(ROOT)
+        try:
+            from modules.utils import is_free  # noqa: PLC0415
+            if is_free("scratch/_e036_parity_link/probe.py") is not False:
+                problems.append("is_free still releases a path through a "
+                                "free-zone link into a protected tree")
+        except Exception as exc:
+            problems.append(f"live symlink probe unreadable: {exc}")
+        finally:
+            if _saved is None:
+                _os.environ.pop("CLAUDE_PROJECT_DIR", None)
+            else:
+                _os.environ["CLAUDE_PROJECT_DIR"] = _saved
+    finally:
+        try:
+            if link.is_symlink():
+                link.unlink()
+            elif built and link.exists():
+                link.rmdir()  # junction: remove the reparse point itself
+        except OSError:
+            pass  # cleanup is best-effort; a leftover link is re-used next run
+    return "; ".join(problems) if problems else None
+
+
 def _check_techdebt_audit_covers_the_tree() -> str | None:
     """E-015: the debt audit sees the code it governs, and this tree is clean.
 
@@ -2464,6 +2557,8 @@ def build_checks() -> list[tuple[str, object]]:
                    _check_commit_time_flow_documented_and_tested))
     checks.append(("gate bench refusal mirrors guard free surfaces",
                    _check_free_surface_parity))
+    checks.append(("free-zone symlink closure holds on every surface (E-036)",
+                   _check_free_zone_symlink_closure))
     checks.append(("tech-debt audit covers the shipped tree and is clean (E-015)",
                    _check_techdebt_audit_covers_the_tree))
     checks.append(("record tooling refuses a non-UTF-8 file (E-016)",

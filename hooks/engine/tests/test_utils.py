@@ -120,6 +120,96 @@ def test_is_free_infra_files():
     assert is_free("skills/bmad-research-experiment/scripts/run_experiment.py")
 
 
+def _mklink(link, target):
+    """Build a link, falling back to a Windows junction (no privilege needed).
+
+    Returns True when the link exists; False when the platform forbids both
+    forms — the caller then skips only what it could not build, so the test
+    still runs everything the host supports (E-036 must be falsifiable on a
+    privilege-less Windows box too: a junction resolves exactly like a
+    symlink in os.path.realpath, so it is the same escape).
+    """
+    try:
+        link.symlink_to(target, target_is_directory=target.is_dir())
+        return True
+    except (OSError, NotImplementedError):
+        pass
+    if os.name == "nt" and target.is_dir():
+        import subprocess
+        try:
+            proc = subprocess.run(["cmd", "/c", "mklink", "/J",
+                                   str(link), str(target)], capture_output=True)
+        except OSError:
+            return False
+        return proc.returncode == 0 and link.exists()
+    return False
+
+
+def test_free_zone_symlink_escape_is_not_free(tmp_path, monkeypatch):
+    """A symlink out of a free zone must not release what it points at (E-036).
+
+    norm_path is lexical by design (E-006), so `scratch/link -> ../src`
+    used to be freed as a scratch path while the OS resolves every write
+    through it into the PROTECTED src/ tree — the whole protected tree
+    reachable with no approval. The release decision now re-checks the
+    filesystem-resolved path: only a target that is itself free keeps the
+    free verdict; a resolution that fails or escapes the project is
+    fail-closed (gated).
+    """
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "main.py").write_text("x = 1\n", encoding="utf-8")
+    (tmp_path / "scratch").mkdir()
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+    monkeypatch.delenv("OPENHANDS_PROJECT_DIR", raising=False)
+    # Plain scratch files stay gapless (the fix must not over-block).
+    assert is_free("scratch/plain.py") is True
+    # The escape: a free-zone link into the protected tree.
+    if not _mklink(tmp_path / "scratch" / "link", tmp_path / "src"):
+        import pytest as _pytest
+        _pytest.skip("no symlink/junction support on this host")
+    assert is_free("scratch/link/evil.py") is False, (
+        "a symlinked path out of scratch/ released the protected tree")
+    # Root-level explore_* file symlinked to the protected tree (symlink
+    # only — a junction cannot point at a file, so this part may skip).
+    if _mklink(tmp_path / "explore_link.py", tmp_path / "src" / "main.py"):
+        assert is_free("explore_link.py") is False, (
+            "an explore_* symlink released the protected file it points at")
+    # A symlink that ESCAPES the project is fail-closed too.
+    outside = tmp_path.parent / f"{tmp_path.name}-outside"
+    outside.mkdir(exist_ok=True)
+    try:
+        (tmp_path / "scratch" / "out").symlink_to(outside, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pass
+    else:
+        assert is_free("scratch/out/x.py") is False
+    # The reverse direction is unchanged: a link INTO a free zone from a
+    # protected dir stays gated (the lexical prefix already gated it).
+    if _mklink(tmp_path / "src" / "free_link", tmp_path / "scratch"):
+        assert is_free("src/free_link/notes.py") is False
+
+
+def test_free_zone_symlink_closure_wiring(monkeypatch):
+    """is_free consults the filesystem-resolved spelling (E-036) — the
+    wiring that closes the escape, pinned so it stays falsifiable on hosts
+    that cannot build links (privilege-less Windows): the resolution helper
+    is the single seam, and the release direction fails CLOSED through it.
+    """
+    from modules import utils
+    # Resolved target is protected -> the lexical free verdict is revoked.
+    monkeypatch.setattr(utils, "_resolved_project_rel", lambda p: "src/main.py")
+    assert is_free("scratch/link/evil.py") is False
+    # Resolved target is free -> the free verdict survives resolution.
+    monkeypatch.setattr(utils, "_resolved_project_rel", lambda p: "scratch/other.py")
+    assert is_free("scratch/link/evil.py") is True
+    # Resolution failure is fail-closed on the release direction only.
+    monkeypatch.setattr(utils, "_resolved_project_rel", lambda p: None)
+    assert is_free("scratch/plain.py") is False
+    # ...and a gated path stays gated whatever the resolver says.
+    monkeypatch.setattr(utils, "_resolved_project_rel", lambda p: "scratch/x.py")
+    assert is_free("src/main.py") is False
+
+
 def test_is_free_empty():
     assert is_free("") is True
     assert is_free("/") is True

@@ -976,6 +976,8 @@ The order guard asks before a write: **scan for secrets → deny if dirty → is
 
 > **Case rule (E-035):** zone membership follows the **filesystem's** case semantics, never a blanket match. On a case-insensitive filesystem (Windows) `SCRATCH/b.py` is the same file as `scratch/b.py`, so it is free and its bench is refused; on a case-sensitive one a differently-cased name is a **different** directory, so `DOCS/e/raw/p.py` stays gated and `SCRATCH/` is not a free surface. The guard (`utils.is_free`) and the gate's standalone matcher (`bench_in_free_zone`) fold on the same condition (`os.name == "nt"`), pinned by a parity probe both ways.
 
+> **Symlink rule (E-036):** a lexical free surface keeps the free verdict only when the **filesystem-resolved** path is free too. `scratch/link -> ../src` does not release `src/` through the link — the guard re-checks the resolved spelling on the release direction and fails closed when resolution fails or escapes the project root; the gate resolves the bench target the same way, so `scripts/link -> scratch` cannot host a measurement either. Resolution runs only where a free verdict would be granted (two `realpath` calls per released write), never on the gated path.
+
 **Conditional self-modification:** `hooks/`, `scripts/`, `skills/`, `custom/`, `bmad/tests/` (plugin source trees) are free **only when the protected project root is the plugin's own repo** (working on the plugin itself). In an ordinary target project these trees are **protected** — editing plugin source requires an approved experiment too. The `bmad/tests/` exemption is for circularity: the gate's own tests cannot be gated behind the gate's permission.
 
 ### 10.2 Protected area (requires approval)
