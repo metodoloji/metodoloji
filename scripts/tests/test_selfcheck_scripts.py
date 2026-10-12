@@ -232,6 +232,19 @@ def test_bench_engine_module_scan_covers_every_module():
     )
 
 
+def test_documented_gate_invocations_parse_under_argparse():
+    """E-034: the gate's own usage text must not advertise a rejected command.
+
+    The docstring taught `run_experiment.py --verify <rec>`; running it verbatim
+    exited 2 on argparse ("unrecognized arguments"). This calls the bench's
+    check, which extracts every documented invocation and drives the real gate
+    with it.
+    """
+    bench = _load_bench()
+    problem = bench._check_documented_gate_invocations_parse()
+    assert problem is None, problem
+
+
 def test_experiment_lineage_declared_and_enforced():
     """E-022: the gate must refuse a draft with no Lineage, templates must ship it.
 

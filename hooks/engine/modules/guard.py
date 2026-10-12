@@ -775,8 +775,8 @@ def _plugin_script_cmd(script: str, *args: str) -> str:
     engine's OWN plugin root (``config._METHODOLOGY_ROOT``, the same root
     ``_check_scope_coverage`` derives), so the remedy runs as written.
     """
-    from .config import _METHODOLOGY_ROOT
-    return "python3 " + " ".join([str(_METHODOLOGY_ROOT / script), *args])
+    from .utils import plugin_script_cmd
+    return plugin_script_cmd(script, *args)
 
 
 def _qr_remedy(root: str, missing_keys: "list[str]") -> str:

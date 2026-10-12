@@ -768,3 +768,29 @@ def test_command_failure_signatures_map_to_platform_corrections():
     assert command_failure("file_editor", "zsh: no matches found: x") is None
     assert command_failure("terminal", "") is None
     assert command_failure("terminal", None) is None
+
+
+# --- E-033: injected remedies must be runnable -------------------------------
+
+def test_session_start_handoff_nudge_names_a_runnable_command(tmp_path, monkeypatch):
+    """The proactive nudge must print a command that exists.
+
+    A real session read "peek `handoffs --skill bmad-quality-record`" from the
+    SessionStart context and ran it verbatim — `(eval):1: command not found:
+    handoffs`. `handoffs` is a SUBCOMMAND of the plugin's blackboard.py, not a
+    command, and the plugin tree is not on PATH; the nudge must name the
+    plugin-rooted entry point.
+    """
+    from modules import blackboard
+    from modules.audit import session_start
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+    monkeypatch.delenv("OPENHANDS_PROJECT_DIR", raising=False)
+    (tmp_path / "docs/development/stories").mkdir(parents=True)
+    blackboard.post_handoff(str(tmp_path), "bmad-quality-record",
+                            "e033-key", "a waiting note")
+    ctx = session_start({"cwd": str(tmp_path)})["additionalContext"]
+    assert "hand-off waiting" in ctx
+    assert "`handoffs" not in ctx, f"bare subcommand leaked into the context: {ctx}"
+    root = Path(__file__).resolve().parents[3]
+    assert str(root / "bmad" / "scripts" / "blackboard.py") + " handoffs" in ctx
+    assert "--skill bmad-quality-record" in ctx

@@ -207,7 +207,10 @@ def pending_note(project_root: str | None, to: str = "", *, limit: int = 3) -> s
                  if h.get("from") else f"{h['skill']} ({h['age_s'] // 60}m ago)"
                  for h in hits]
         s = ", ".join(parts)
-        tail = " — peek `handoffs --skill <skill>`, consume the channel, then proceed"
+        from .utils import plugin_script_cmd as _plugin_cmd
+        tail = (" — peek "
+                f"`{_plugin_cmd('bmad/scripts/blackboard.py', 'handoffs', '--skill', '<skill>')}`, "
+                "consume the channel, then proceed")
         if to:
             note = (f"PROACTIVE relay: a hand-off addressed to you ({to}) is still "
                     f"unclaimed: {s}{tail}.")

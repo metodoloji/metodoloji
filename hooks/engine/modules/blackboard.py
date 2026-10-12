@@ -1656,8 +1656,9 @@ def pending_handoff_channels(project_root: str) -> dict:
     (CHAIN_ADJACENT — help, infrastructure, the loop orchestrator's automation
     layer, the WDS backends), so a waiting signal addressed to any known skill
     surfaces instead of being silently dropped. Off-relay channels stay out of
-    the session-start nudge — the skill-side CLI (`handoffs` without `--skill`)
-    lists every channel.
+    the session-start nudge — the skill-side CLI lists every channel: run the
+    plugin's ``bmad/scripts/blackboard.py handoffs`` (without `--skill`) from
+    the plugin root.
     """
     relay = (set(CHAIN) | set(METHODOLOGY_CHAIN) | sub_chain_skills()
              | CHAIN_ADJACENT
@@ -2309,9 +2310,11 @@ def doctor(project_root: str) -> dict:
     # operator-facing surface for "the log hit its bound and history was
     # dropped" is this warning, pointing at `rotate` (archive + fresh log).
     if events_exist and lines >= MAX_EVENTS:
+        from .utils import plugin_script_cmd as _plugin_cmd
         warnings.append(f"event log at bound ({lines}/{MAX_EVENTS} lines) — "
                         "oldest events were already dropped by the truncation "
-                        "guard; archive history with `blackboard.py rotate`")
+                        f"guard; archive history with "
+                        f"`{_plugin_cmd('bmad/scripts/blackboard.py', 'rotate')}`")
 
     # caps
     cells_per_canvas = {name: len(cv.get("cells", {}))

@@ -26,6 +26,7 @@ import ast
 import csv
 import pathlib
 import re
+import shlex
 import subprocess
 import sys
 import tomllib
@@ -2005,6 +2006,112 @@ def _check_native_methodology_mirror_both_directions() -> str | None:
     return "; ".join(problems) if problems else None
 
 
+def _check_injected_remedies_are_runnable() -> str | None:
+    """E-033: a command the engine PRINTS into the session must exist.
+
+    The SessionStart context told the operator "peek `handoffs --skill
+    bmad-quality-record`"; a real session ran exactly that and got
+    "(eval):1: command not found: handoffs" — `handoffs` is a SUBCOMMAND of the
+    plugin's `blackboard.py`, and the plugin tree is not on PATH. This drives
+    the real `session_start` on a temp project with a waiting hand-off and
+    demands the nudge name the plugin-rooted entry point (and never a bare
+    subcommand), then scans the nudge modules' STRING constants (not comments)
+    so the class cannot return on another surface.
+    """
+    import ast  # noqa: PLC0415
+    import tempfile  # noqa: PLC0415
+
+    problems: list[str] = []
+    sys.path.insert(0, str(ROOT / "hooks" / "engine"))
+    from modules import audit as audit_mod  # noqa: PLC0415
+    from modules import blackboard as bb  # noqa: PLC0415
+
+    bb_script = str(ROOT / "bmad" / "scripts" / "blackboard.py")
+    with tempfile.TemporaryDirectory() as td:
+        (pathlib.Path(td) / "docs/development/stories").mkdir(parents=True)
+        bb.post_handoff(td, "bmad-quality-record", "e033-bench", "waiting")
+        ctx = audit_mod.session_start({"cwd": td}).get("additionalContext", "")
+    if "hand-off waiting" not in ctx:
+        problems.append("session_start no longer announces a waiting hand-off")
+    elif "`handoffs" in ctx or bb_script + " handoffs" not in ctx:
+        problems.append("hand-off nudge does not name the runnable command: "
+                        + ctx[-200:])
+
+    bare = re.compile(r"`(?:handoffs|blackboard\.py|run_experiment\.py)\b")
+    for rel in ("hooks/engine/modules/audit.py", "hooks/engine/modules/stop.py",
+                "hooks/engine/modules/mirror.py",
+                "hooks/engine/modules/blackboard.py"):
+        try:
+            tree = ast.parse(_read(rel))
+        except SyntaxError as exc:
+            problems.append(f"{rel}: {exc}")
+            continue
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Constant) and isinstance(node.value, str) \
+                    and bare.search(node.value):
+                problems.append(f"{rel}: a printed remedy names a bare plugin "
+                                f"subcommand: {node.value[:60]!r}")
+    return "; ".join(problems) if problems else None
+
+
+def _check_documented_gate_invocations_parse() -> str | None:
+    """E-034: an invocation the gate DOCUMENTS must be one argparse accepts.
+
+    The gate's module docstring is how an agent learns the command to run; it
+    advertised ``run_experiment.py --verify <rec>``, and running exactly that
+    form (on this very record's path, while verifying E-033) died on argparse:
+    ``error: unrecognized arguments: docs/experiments/E-033.md``. That is the
+    dead-instruction class E-029/E-033 closed for deny remedies and session
+    nudges, on the one surface they did not read — the gate's own usage text.
+    This extracts every ``run_experiment.py <flags>`` invocation from the
+    source, fills the placeholders (``<rec>``/``E-001.md`` -> a temp record,
+    ``<cmd>`` -> ``true``) and drives the REAL gate with that argv, demanding
+    argparse accept the flags: a semantic refusal (undecided record, missing
+    Lineage, no measured value) is fine, a parse error is not.
+    """
+    import tempfile  # noqa: PLC0415
+
+    problems: list[str] = []
+    gate = "skills/bmad-research-experiment/scripts/run_experiment.py"
+    usages: list[str] = []
+    for raw in _read(gate).splitlines():
+        m = re.search(r"run_experiment\.py\s+(\S.*)$", raw)
+        if not m:
+            continue
+        usage = re.sub(r"\[[^\]]*\]", "", m.group(1))  # drop [optional] groups
+        usage = re.split(r"\s+\(|\s+\u2014", usage)[0].strip()  # drop prose
+        if usage:
+            usages.append(usage)
+    if len(usages) < 3:
+        return (f"{gate} documents {len(usages)} invocation(s) — the usage block "
+                "shrank or was reworded away; re-point this check at the new one")
+    with tempfile.TemporaryDirectory() as td:
+        rec = pathlib.Path(td) / "E-999.md"
+        rec.write_text("## Experiment: E-999 \u2014 probe\n", encoding="utf-8")
+        for usage in usages:
+            argv: list[str] = []
+            for tok in shlex.split(usage, posix=True):
+                if "cmd" in tok and "<" in tok:
+                    argv.append("true")
+                elif tok.startswith("<") or tok.endswith(".md"):
+                    argv.append(str(rec))
+                else:
+                    argv.append(tok)
+            # --no-blackboard: the temp record's project root would otherwise
+            # derive to this repo's board. It changes no flag under test.
+            proc = subprocess.run(
+                [sys.executable, gate, *argv, "--no-blackboard"],
+                cwd=ROOT, capture_output=True, text=True, encoding="utf-8",
+                errors="replace", timeout=120, stdin=subprocess.DEVNULL)
+            combined = (proc.stdout or "") + (proc.stderr or "")
+            if any(sig in combined for sig in
+                   ("unrecognized arguments", "are required", "invalid choice")):
+                problems.append(
+                    f"documented invocation dies on argparse: "
+                    f"`run_experiment.py {usage}` -> {combined.strip()[-140:]}")
+    return "; ".join(problems) if problems else None
+
+
 def _check_experiment_lineage_enforced() -> str | None:
     """E-022: a new experiment must declare what the prior ones carry.
 
@@ -2345,6 +2452,10 @@ def build_checks() -> list[tuple[str, object]]:
                    _check_hypothesis_optout_agrees_across_gates))
     checks.append(("native<->methodology mirror hop works both ways (E-032)",
                    _check_native_methodology_mirror_both_directions))
+    checks.append(("commands printed into the session are runnable (E-033)",
+                   _check_injected_remedies_are_runnable))
+    checks.append(("documented gate invocations parse under argparse (E-034)",
+                   _check_documented_gate_invocations_parse))
     checks.append(("experiment lineage declared and enforced (E-022)",
                    _check_experiment_lineage_enforced))
     checks.append(("negtest counts and check-plugin doc pointers pinned (E-023)",

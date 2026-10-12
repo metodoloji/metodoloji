@@ -311,6 +311,20 @@ def extract_story_key_from_content(content: str) -> str:
     return ""
 
 
+def plugin_script_cmd(script: str, *args: str) -> str:
+    """A runnable command for one of the PLUGIN's own scripts (E-029/E-033).
+
+    The engine prints remedies into a TARGET project, which does not ship the
+    plugin's ``scripts/``, ``bmad/scripts/`` or ``skills/`` trees — so a
+    cwd-relative script path or a bare subcommand cannot be run where it is
+    printed (the observed session ran the bare handoffs subcommand and got
+    "command not found: handoffs"). Anchor every printed command at the
+    engine's OWN plugin root; ``script`` is plugin-relative.
+    """
+    from .config import _METHODOLOGY_ROOT
+    return "python3 " + " ".join([str(_METHODOLOGY_ROOT / script), *args])
+
+
 def repo_root(json_in: dict) -> str:
     """Get repository root from environment variables.
 

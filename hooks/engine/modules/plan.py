@@ -9,7 +9,7 @@ breaks when widened. The plan layer adds a declared, record-bound working set:
 * the guard checks a target against that plan FIRST (set membership after one
   parse — O(1) per target, unlike the per-write record sweep in find_approved),
 * plan-external files discovered mid-operation enter through a mechanically
-  chained amendment (`run_experiment.py --amend-plan`): discovery stays free,
+  chained amendment (the gate's ``--amend-plan``): discovery stays free,
   leaving a trace is mandatory,
 * the final --run token binds to the FINAL plan hash, so the plan can grow up
   to the moment of measurement without breaking provenance.

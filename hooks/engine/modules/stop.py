@@ -13,7 +13,7 @@ import re
 import sys
 import time
 
-from .utils import repo_root
+from .utils import repo_root, plugin_script_cmd as _plugin_cmd
 
 
 # Marker the audit log carries per session start; the report only counts
@@ -424,9 +424,11 @@ def stop(json_in: dict) -> dict:
                 f"{sum(routed.values())} unclaimed signal(s) from completed "
                 f"upstream runs — the designed post-close state, not a "
                 f"failure; a run finished its work but nobody picked "
-                f"up the baton — peek `handoffs --skill <self>`, then consume "
-                f"the channel (doctor --json lists every waiting hop; correct "
-                f"a note with handoff-replace, never consume-then-repost).")
+                f"up the baton — peek "
+                f"`{_plugin_cmd('bmad/scripts/blackboard.py', 'handoffs', '--skill', '<self>')}`, "
+                f"then consume the channel (doctor --json lists every waiting "
+                f"hop; correct a note with handoff-replace, never "
+                f"consume-then-repost).")
     except Exception:
         pass
 
@@ -442,7 +444,8 @@ def stop(json_in: dict) -> dict:
             first = str(stop_alerts[0].get("text", ""))[:160]
             more = f" (+{len(stop_alerts) - 1} more)" if len(stop_alerts) > 1 else ""
             notes.append(f"routed alert(s) on the stop channel: {first}{more} — "
-                         f"clear with `blackboard.py consume --channel stop`.")
+                         f"clear with "
+                         f"`{_plugin_cmd('bmad/scripts/blackboard.py', 'consume', '--channel', 'stop')}`.")
     except Exception:
         pass
 

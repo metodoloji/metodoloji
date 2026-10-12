@@ -349,7 +349,7 @@ def session_start(json_in: dict) -> dict:
     leaves just the fixed sentence. Returns additionalContext so SessionStart
     can inject it.
     """
-    from .utils import repo_root
+    from .utils import repo_root, plugin_script_cmd as _plugin_cmd
     root = repo_root(json_in)
     try:
         from .stop import record_session_start
@@ -395,7 +395,8 @@ def session_start(json_in: dict) -> dict:
             str(pathlib.Path(root) / "docs" / "experiments"), root)
         if opens:
             context += (f" Plan progress (GRP): {opens} — extend an operation's "
-                        f"plan with run_experiment.py --amend-plan.")
+                        f"plan with "
+                        f"{_plugin_cmd('skills/bmad-research-experiment/scripts/run_experiment.py', '--amend-plan')}.")
     except Exception:
         pass
     # Both peeks below are read-only (never consume, never mutate) and
@@ -407,8 +408,9 @@ def session_start(json_in: dict) -> dict:
             waiting_s = "; ".join(
                 f"{s} ({n}): {n} unclaimed signal(s) from completed upstream "
                 f"runs — a run finished its work but nobody picked up the "
-                f"baton; peek `handoffs --skill {s}`, then consume its "
-                f"handoff channel"
+                f"baton; peek `{_plugin_cmd('bmad/scripts/blackboard.py', 'handoffs', '--skill', s)}`, then consume its "
+                f"handoff channel with "
+                f"`{_plugin_cmd('bmad/scripts/blackboard.py', 'consume', '--channel', 'handoff.' + s)}`"
                 for s, n in waiting.items())
             context += f" PROACTIVE — hand-off waiting: {waiting_s}."
         # Chain progress: when methodology run keys exist on the board,
@@ -453,7 +455,7 @@ def session_start(json_in: dict) -> dict:
                     if len(session_alerts) > 1 else "")
             context += (f" Blackboard — {len(session_alerts)} routed alert(s) on the "
                         f"session channel: {first}{more}; clear with "
-                        f"`blackboard.py consume --channel session`.")
+                        f"`{_plugin_cmd('bmad/scripts/blackboard.py', 'consume', '--channel', 'session')}`.")
     except Exception:
         pass
 
