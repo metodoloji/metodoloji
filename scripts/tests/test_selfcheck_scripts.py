@@ -16,6 +16,7 @@ This repo's CI only bumps the version (E-010 — it never runs audits), so
 invariants so the instruments cannot silently go stale again.
 """
 
+import csv
 import importlib.util
 import re
 import tomllib
@@ -524,6 +525,34 @@ def test_activation_steps_append_carries_the_methodology_contract():
         "bare workflow steps in activation_steps_append (E-040): "
         + "; ".join(violations)
     )
+
+
+def test_help_catalog_skills_resolve_to_shipped_dirs():
+    """E-042: every /bmad-help menu entry must name a skill that ships.
+
+    The Web Design Studio rows offered `bmad-wds-*` names while the shipped
+    directories are `wds-*`, so help recommended skills that do not exist (an
+    offer to run `bmad-wds-project-brief` dies). Independent derivation here
+    (csv + the tree); the bench check is pinned to keep owning it.
+    """
+    shipped = {p.parent.name for p in (PLUGIN / "skills").glob("*/SKILL.md")}
+    unresolved = []
+    for rel in ("bmad/_config/bmad-help.csv", "bmad/wds/module-help.csv"):
+        with open(PLUGIN / rel, newline="", encoding="utf-8") as fh:
+            rows = list(csv.reader(fh))
+        header, data = rows[0], rows[1:]
+        idx = header.index("skill")
+        for i, row in enumerate(data, start=2):
+            if len(row) != len(header):
+                continue
+            skill = row[idx]
+            if skill and skill != "_meta" and skill not in shipped:
+                unresolved.append(f"{rel}:{i}: {skill}")
+    assert not unresolved, (
+        "/bmad-help offers skills that do not ship: " + "; ".join(unresolved)
+    )
+    bench = _load_bench()
+    assert bench._check_help_menu_code_uniqueness() is None
 
 
 def test_tool_contract_names_the_real_harness_failures():

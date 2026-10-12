@@ -199,7 +199,9 @@ def _check_help_menu_code_uniqueness() -> str | None:
     bmad-spec while also naming the Sprint-Plan record prefix is the shape that
     misrouted a real session). A skill legitimately owns several menu codes
     (bmad-agent-builder: BA + AA) — uniqueness is per (module, code), not per
-    skill; `_meta` rows carry no code.
+    skill; `_meta` rows carry no code. It also pins that every non-`_meta`
+    `skill` names a directory that ships (E-042): the Web Design Studio rows
+    offered `bmad-wds-*` names for dirs named `wds-*`.
     """
     path = ROOT / "bmad" / "_config" / "bmad-help.csv"
     try:
@@ -211,6 +213,7 @@ def _check_help_menu_code_uniqueness() -> str | None:
     if not rows:
         return "catalog empty"
     header, data = rows[0], rows[1:]
+    shipped = {p.parent.name for p in (ROOT / "skills").glob("*/SKILL.md")}
     owners = {}  # (module, code) -> skill: intra-module collisions only
     for i, row in enumerate(data, start=2):
         if len(row) != len(header):
@@ -220,6 +223,8 @@ def _check_help_menu_code_uniqueness() -> str | None:
         if not skill:
             problems.append(f"line {i}: no skill")
             continue
+        if skill != "_meta" and skill not in shipped:
+            problems.append(f"line {i}: skill {skill!r} has no skills/{skill}/ directory")
         if code and skill != "_meta":
             owner = owners.setdefault((module, code), skill)
             if owner != skill:

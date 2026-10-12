@@ -1647,6 +1647,19 @@ for code in RESERVED_PREFIXES:
                      "fine while the skill naming it is the stage that produces "
                      "that record" % (code, code, named))
 
+# Every catalog `skill` value must name a skill that actually ships (E-042).
+# The Web Design Studio rows offered `bmad-wds-*` names while the dirs are
+# `wds-*`, so /bmad-help recommended skills that do not exist (an offer to run
+# `bmad-wds-project-brief` dies as "no such skill"). `_meta` rows are module
+# docs, not skills. The offer must resolve where it is taught.
+shipped = {p.parent.name for p in (PLUGIN / "skills").glob("*/SKILL.md")}
+for row in rows[1:]:
+    if len(row) != len(HEADER):
+        continue
+    if row[1] and row[1] != "_meta" and row[1] not in shipped:
+        problems.append("catalog skill %r has no skills/%s/ directory"
+                        % (row[1], row[1]))
+
 print("  catalog rows: %d skills, %d modules, %d ambiguous code(s)"
       % (skills, len(per_module), len(ambiguous)))
 for p in problems:
