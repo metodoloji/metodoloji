@@ -1900,6 +1900,55 @@ def _check_gate_remedy_paths_are_runnable() -> str | None:
     return "; ".join(problems) if problems else None
 
 
+def _check_hypothesis_optout_agrees_across_gates() -> str | None:
+    """E-031: the [HYPOTHESIS] opt-out must hold at write time AND commit time.
+
+    ``_validate_story_metadata`` treats ``[HYPOTHESIS]`` as an explicit opt-out
+    from the Experiment field requirement, but ``_orphan_story_reason`` read the
+    raw text and dropped ``Experiment: —`` \u2014 so a story whose ACs are all
+    hypotheses passed the write gate and was denied at COMMIT as an orphan (the
+    observed session's S-002 stuck on "the methodology's approved hypothesis
+    exception"). This drives both gates on a hypothesis story (demanding
+    agreement and no orphan denial) and on a non-hypothesis control (demanding
+    the orphan rule still fires), so the opt-out cannot silently regress.
+    """
+    import tempfile  # noqa: PLC0415
+
+    sys.path.insert(0, str(ROOT / "hooks" / "engine"))
+    from modules import guard as guard_mod  # noqa: PLC0415
+
+    problems: list[str] = []
+    hyp = ("## Story: S-002\n- **Status:** done\n\n"
+           "## Acceptance Criteria\n"
+           "- [AC-001] Given X When Y Then Z\n"
+           "  - Experiment: \u2014\n"
+           "  - Type: user-evaluable\n"
+           "  - Measured: false\n"
+           "  - Verify: manual\n"
+           "  - [HYPOTHESIS]\n\n"
+           "## Definition of Done\n"
+           "- [DoD-001] Done\n  - Verify: manual\n")
+    valid, why = guard_mod._validate_story_metadata(hyp)
+    if not valid:
+        problems.append(f"write gate rejects a [HYPOTHESIS] AC: {why}")
+    if guard_mod._orphan_story_reason(hyp):
+        problems.append("commit gate still calls an all-hypothesis story an orphan")
+    # The control: without the tag the same AC IS an orphan.
+    if not guard_mod._orphan_story_reason(hyp.replace("  - [HYPOTHESIS]\n", "")):
+        problems.append("commit gate no longer flags an unlinked, non-hypothesis AC")
+    # Drive the real commit check end to end on a hypothesis story.
+    with tempfile.TemporaryDirectory() as td:
+        root = pathlib.Path(td)
+        (root / "docs/development/stories").mkdir(parents=True)
+        (root / "docs/quality").mkdir(parents=True)
+        (root / "docs/development/stories/S-002.md").write_text(hyp, encoding="utf-8")
+        res = guard_mod._check_all_stories_quality(str(root), "git commit blocked")
+        if "experiment validation failed" in res.get("reason", ""):
+            problems.append("commit gate denies a hypothesis story as an orphan: "
+                            + res["reason"][-160:])
+    return "; ".join(problems) if problems else None
+
+
 def _check_experiment_lineage_enforced() -> str | None:
     """E-022: a new experiment must declare what the prior ones carry.
 
@@ -2236,6 +2285,8 @@ def build_checks() -> list[tuple[str, object]]:
                    _check_story_title_grammar_agreement))
     checks.append(("record-chain remedies name runnable plugin scripts (E-029)",
                    _check_gate_remedy_paths_are_runnable))
+    checks.append(("[HYPOTHESIS] opt-out holds at write and commit time (E-031)",
+                   _check_hypothesis_optout_agrees_across_gates))
     checks.append(("experiment lineage declared and enforced (E-022)",
                    _check_experiment_lineage_enforced))
     checks.append(("negtest counts and check-plugin doc pointers pinned (E-023)",

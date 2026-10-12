@@ -272,18 +272,37 @@ def _orphan_story_reason(content: str) -> str:
 
     A story is an orphan when it has neither frontmatter ``experiment_refs``
     nor any AC-level ``Experiment: E-NNN`` field nor bridge table linkage
-    (field-table refs row or AC-table column). Strictness for this case
-    is decided by the gate branch in the story-write path (soft → warn,
-    hard → deny); this helper only detects it.
+    (field-table refs row or AC-table column) — with the documented
+    ``[HYPOTHESIS]`` opt-out honoured, so an AC that is explicitly a hypothesis
+    is not counted as missing its Experiment (E-031; the write-time validator
+    and this probe share one parser). Strictness for this case is decided by
+    the gate branch in the story-write path (soft → warn, hard → deny); this
+    helper only detects it.
     """
     if _parse_experiment_refs(content):
         return ""
-    ac_exp_pattern = re.compile(r"\[AC-\d+\].*?Experiment:\s*(E-\d+|—|-)", re.DOTALL | re.IGNORECASE)
-    actual_ac_exp_refs = [e for e in ac_exp_pattern.findall(content) if e not in ("—", "-")]
-    if actual_ac_exp_refs:
-        return ""
     if _table_experiment_linked(content):
         return ""
+    acs = _parse_ac_metadata(content)
+    if acs:
+        # One parser, both gates. `_validate_story_metadata` (write time)
+        # honours the documented [HYPOTHESIS] opt-out — "The [HYPOTHESIS] tag
+        # is an explicit opt-out from the Experiment field requirement" — but
+        # this probe read the raw text and filtered `Experiment: —` out, so a
+        # story whose ACs are all hypotheses PASSED the write gate and was
+        # denied at COMMIT as an orphan (observed session 2026-10-1x: S-002
+        # stuck on "the methodology's approved hypothesis exception"). A story
+        # is an orphan only when some AC is neither experiment-linked nor a
+        # hypothesis.
+        if all(ac["experiment"] not in ("", "—", "-") or ac["is_hypothesis"]
+               for ac in acs):
+            return ""
+    else:
+        # No AC metadata parsed (legacy/table-less shape): keep the text probe.
+        ac_exp_pattern = re.compile(r"\[AC-\d+\].*?Experiment:\s*(E-\d+|—|-)", re.DOTALL | re.IGNORECASE)
+        actual_ac_exp_refs = [e for e in ac_exp_pattern.findall(content) if e not in ("—", "-")]
+        if actual_ac_exp_refs:
+            return ""
     return (
         "Story has no experiment reference: every acceptance criterion must reference "
         "an Experiment (E-NNN). Add 'Experiment: E-XXX' field to each AC to link this story "

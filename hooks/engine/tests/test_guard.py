@@ -450,6 +450,64 @@ def test_validate_story_metadata_hypothesis_skips_experiment():
     assert valid is True, reason
 
 
+_HYP_STORY = """## Story: S-002
+- **Status:** done
+
+## Acceptance Criteria
+- [AC-001] Given X When Y Then Z
+  - Experiment: —
+  - Type: user-evaluable
+  - Measured: false
+  - Verify: manual
+  - [HYPOTHESIS]
+
+## Definition of Done
+- [DoD-001] Done
+  - Verify: manual
+"""
+
+
+def test_hypothesis_story_is_not_an_orphan():
+    """E-031: the documented [HYPOTHESIS] opt-out must hold at COMMIT time too.
+
+    `_validate_story_metadata` (write time) treats `[HYPOTHESIS]` as "an
+    explicit opt-out from the Experiment field requirement", but
+    `_orphan_story_reason` read the raw text and filtered `Experiment: —` out —
+    so a story whose ACs are all hypotheses passed the write gate and was
+    denied at commit as an orphan (observed session: S-002 stuck on "the
+    methodology's approved hypothesis exception").
+    """
+    from modules.guard import _orphan_story_reason
+    assert _orphan_story_reason(_HYP_STORY) == ""
+
+
+def test_unlinked_non_hypothesis_ac_is_still_an_orphan():
+    """The fix must not weaken the orphan rule: a bare `Experiment: —` AC is one."""
+    from modules.guard import _orphan_story_reason
+    orphan = _HYP_STORY.replace("  - [HYPOTHESIS]\n", "")
+    assert _orphan_story_reason(orphan), "an unlinked, non-hypothesis AC is an orphan"
+
+
+def test_write_and_commit_gates_agree_on_a_hypothesis_story():
+    """E-031: one parser, both gates — the two verdicts must agree."""
+    from modules.guard import (_validate_story_metadata,
+                               _check_all_stories_quality)
+    valid, why = _validate_story_metadata(_HYP_STORY)
+    assert valid is True, why
+    td = tempfile.TemporaryDirectory()
+    root = Path(td.name)
+    (root / "docs/development/stories").mkdir(parents=True)
+    (root / "docs/quality").mkdir(parents=True)
+    (root / "docs/development/stories/S-002.md").write_text(_HYP_STORY,
+                                                             encoding="utf-8")
+    try:
+        res = _check_all_stories_quality(td.name, "git commit blocked")
+        reason = res.get("reason", "")
+        assert "experiment validation failed" not in reason, reason
+    finally:
+        td.cleanup()
+
+
 def test_is_git_commit():
     from modules.guard import _is_git_commit
     assert _is_git_commit("git commit -am 'x'") is True
