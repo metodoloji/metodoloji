@@ -52,7 +52,7 @@ If the user provides arguments (e.g. `accept all defaults`, `--headless`, `upgra
 
 Only when you detected a **pre-rename install** ("Decide fresh-install vs upgrade" above). The project was set up under the tool's former name, `bmad-auto`. The rename was a clean break — module code `bauto` → `bmad-loop`, tool package `bmad-auto` → `bmad-loop`, state dir `.automator/` → `.bmad-loop/` — with no compatibility shims, so a few steps below need explicit handling. Do these as part of the normal upgrade:
 
-1. **Carry old config defaults over.** `merge-config.py --legacy-dir` reads `bmad/bmad-loop/` (the new code), so it won't find the old `bauto` config on its own. Before collecting values, read the legacy `bauto:` section from `{metodoloji-root}/bmad/config.yaml` (and, if present, the old installer file `{metodoloji-root}/bmad/bauto/config.yaml`) and fold any keys that still match the current `module.yaml` schema into your defaults. Priority: existing `bmad-loop` values > legacy `bauto` section > legacy `bmad/bauto/config.yaml` > `module.yaml` defaults.
+1. **Carry old config defaults over.** `{skill-root}/scripts/merge-config.py --legacy-dir` reads `bmad/bmad-loop/` (the new code), so it won't find the old `bauto` config on its own. Before collecting values, read the legacy `bauto:` section from `{metodoloji-root}/bmad/config.yaml` (and, if present, the old installer file `{metodoloji-root}/bmad/bauto/config.yaml`) and fold any keys that still match the current `module.yaml` schema into your defaults. Priority: existing `bmad-loop` values > legacy `bauto` section > legacy `bmad/bauto/config.yaml` > `module.yaml` defaults.
 2. **Reinstall the tool under its new name** — uv can't rename a package in place, so this is an uninstall + install, not an upgrade. See the renamed-tool note in "Install the Orchestrator Tool" step 2.
 3. **Run `bmad-loop init`** as usual. It handles the on-disk migration for you: strips the old `.automator/` Stop hook from each CLI's settings, removes the `bmad-auto-*` skill dirs, and carries `.automator/policy.toml` over to `.bmad-loop/policy.toml` — leaving the rest of `.automator/` (runs, archives, profiles, plugins) in place for you to delete once satisfied.
 4. **Post-merge cleanup** — the anti-zombie merges key on the **new** names, so old rows and sections survive and need explicit removal:
@@ -79,13 +79,13 @@ Write a temp JSON file with the collected answers structured as `{"core": {...},
 In the commands below, replace `{project-root}` in every path argument with the actual project root (e.g. `/home/me/myapp`) before running — these are filesystem paths, not config values.
 
 ```bash
-python3 ./scripts/merge-config.py --config-path "{metodoloji-root}/bmad/config.yaml" --user-config-path "{metodoloji-root}/bmad/config.user.yaml" --module-yaml ./assets/module.yaml --answers {temp-file} --legacy-dir "{metodoloji-root}/bmad"
-python3 ./scripts/merge-help-csv.py --target "{metodoloji-root}/bmad/module-help.csv" --source ./assets/module-help.csv --legacy-dir "{metodoloji-root}/bmad" --module-code bmad-loop
+python3 {skill-root}/scripts/merge-config.py --config-path "{metodoloji-root}/bmad/config.yaml" --user-config-path "{metodoloji-root}/bmad/config.user.yaml" --module-yaml ./assets/module.yaml --answers {temp-file} --legacy-dir "{metodoloji-root}/bmad"
+python3 {skill-root}/scripts/merge-help-csv.py --target "{metodoloji-root}/bmad/module-help.csv" --source ./assets/module-help.csv --legacy-dir "{metodoloji-root}/bmad" --module-code bmad-loop
 ```
 
 Both scripts output JSON to stdout with results. If either exits non-zero, surface the error and stop. The scripts automatically read legacy config values as fallback defaults. Legacy config files are **preserved, never deleted** — on BMAD v6 the per-module and core `config.yaml` / `module-help.csv` are live, manifest-tracked files (so `legacy_configs_deleted` / `legacy_csvs_deleted` are always empty).
 
-Run `./scripts/merge-config.py --help` or `./scripts/merge-help-csv.py --help` for full usage.
+Run `{skill-root}/scripts/merge-config.py --help` or `{skill-root}/scripts/merge-help-csv.py --help` for full usage.
 
 ## Create Output Directories
 
@@ -189,7 +189,7 @@ After both merge scripts complete successfully, remove any **redundant skill-pay
 As with the merge scripts, replace `{project-root}` in the `--bmad-dir` and `--skills-dir` path arguments with the actual project root before running. For `--skills-dir`, use the skill tree of a CLI registered in step 3: `{metodoloji-root}/skills` for `claude`, `.agents/skills` for `codex`/`gemini`/`copilot`/`antigravity`. `init` lays the bundled skills into **every** selected CLI's tree, so any registered CLI's tree verifies correctly — the command below shows the `claude` tree; substitute `.agents/skills` if only non-Claude CLIs were registered. Do **not** pass `--also-remove _config` (or any shared config/manifest dir): `_config/` is live BMAD infrastructure and the script refuses to remove it regardless.
 
 ```bash
-python3 ./scripts/cleanup-legacy.py --bmad-dir "{metodoloji-root}/bmad" --module-code bmad-loop --skills-dir "{metodoloji-root}/skills"
+python3 {skill-root}/scripts/cleanup-legacy.py --bmad-dir "{metodoloji-root}/bmad" --module-code bmad-loop --skills-dir "{metodoloji-root}/skills"
 ```
 
 A directory is removed only when it is a **verified-redundant skill payload**: it contains a `SKILL.md`, carries no live config/manifest files anywhere in its tree (marker-named files inside a staged skill payload don't count — skills legitimately ship e.g. `assets/module-help.csv`), and (with `--skills-dir`) its skills are verified installed under the `--skills-dir` tree. Live config directories (per-module and nested config/manifests) are protected and reported under `directories_protected`; `core/` and `_config/` are protected by name regardless of contents. If the script exits non-zero, surface the error and stop. Missing directories (already cleaned by a prior run) are not errors — the script is idempotent.
@@ -197,10 +197,10 @@ A directory is removed only when it is a **verified-redundant skill payload**: i
 **On a rename-upgrade from bmad-auto**, if the old `bmad/bauto/` directory holds pre-rename `bmad-auto-*` skill copies (an older payload layout), run this cleanup **without** `--skills-dir` to skip installed-skill verification (their removal is the point). It is a no-op when `bmad/bauto/` holds only config or isn't present:
 
 ```bash
-python3 ./scripts/cleanup-legacy.py --bmad-dir "{metodoloji-root}/bmad" --module-code bauto
+python3 {skill-root}/scripts/cleanup-legacy.py --bmad-dir "{metodoloji-root}/bmad" --module-code bauto
 ```
 
-Check `directories_removed`, `directories_protected`, and `files_removed_count` in the JSON output for the confirmation step. Run `./scripts/cleanup-legacy.py --help` for full usage.
+Check `directories_removed`, `directories_protected`, and `files_removed_count` in the JSON output for the confirmation step. Run `{skill-root}/scripts/cleanup-legacy.py --help` for full usage.
 
 ## Confirm
 

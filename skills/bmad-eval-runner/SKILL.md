@@ -39,7 +39,7 @@ A case is `input + rubric + optional checks + optional state_prefix + optional f
 
 - Positional: a path to the skill being evaluated (directory containing `SKILL.md`).
 - `--evals <path>`: explicit path to the cases file. If omitted, discover.
-- `--mode baseline|variant|quality|trigger`: which mode to run. One per run (`run_evals.py --mode` takes a single value); run again for additional modes.
+- `--mode baseline|variant|quality|trigger`: which mode to run. One per run (`{skill-root}/scripts/run_evals.py --mode` takes a single value); run again for additional modes.
 - `--variant-path <path>`: for variant mode, the stripped or prior-version skill to compare against.
 - `--project-root <path>`: root of the project the skill belongs to. Default: walk up from the skill path looking for `bmad/` or `.git/`.
 - `--output-dir <path>`: where run folders are written. Default: `{bmad_builder_reports}/eval-runs/` if configured, else `~/bmad-evals/`.

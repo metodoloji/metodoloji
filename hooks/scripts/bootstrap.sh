@@ -80,7 +80,7 @@ mkdir -p "$WS/.metodoloji/logs"
 # broken init, not a missing one: the mailjs OpenHands session (2026-09-23) had
 # every template in place but no marker, so every session read "Record skeleton
 # not installed" and re-advertised a FULL init although only the one-byte marker
-# was missing. skeleton.py --install is exactly that repair (idempotent: copies
+# was missing. $SYNCED/bmad/scripts/skeleton.py --install is exactly that repair (idempotent: copies
 # nothing new, writes the marker) — the hint must name the drift as drift.
 SKELETON_PRESENT=0
 for _f in docs/experiments/_template.md docs/development/_template_IR.md docs/development/stories/_template_S.md; do

@@ -173,7 +173,7 @@ openers and front doors across the BMad, GDS and WDS verticals (`DIGEST_FIRST`
 in `scripts/check-handoff.py`). For a router or persona the digest *is* the
 board grounding, so it replaces the raw `read --context` + `handoffs` pair; a
 guest contributor that only needs the invoking run's focus keeps the single
-bounded `read --context`. Config beyond the digest: `resolve_config.py --key
+bounded `read --context`. Config beyond the digest: `{metodoloji-root}/bmad/scripts/resolve_config.py --key
 <dotted.path>` — no dump of any kind, the module-scoped one (`--module`)
 included: `--module tea` is 23 lines / 818 B here against 5 lines / 142 B for a
 targeted read, and the unbounded dump is every key of every layer (~13.7 KB).

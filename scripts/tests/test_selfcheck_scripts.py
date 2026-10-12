@@ -412,18 +412,20 @@ def test_cross_machine_marker_guard_is_anchored_in_script():
 
 
 def test_shipped_gate_invocations_resolve_where_they_ship():
-    """E-038: shipped text may not teach a gate invocation that dies there.
+    """E-038/E-039: shipped text may not teach an invocation that dies there.
 
     The 2026-10-12 consuming session pasted the engine's own
     ``python3 skills/bmad-research-experiment/scripts/run_experiment.py
     --amend-plan …`` remedy (a path that exists only inside the plugin
     checkout) and was denied 19 times; the same session's shipped docs also
     taught bare ``run_experiment.py --verify`` and named ``guard-code.sh`` —
-    a script with zero files in this tree's whole history. Every shipped
-    invocation must carry a resolving root ({metodoloji-root}, {skill-root},
-    $SYNCED) on its own line. The scan is independent of the bench so a
-    drifted bench cannot bury the closure; the bench is then pinned to keep
-    its own check.
+    a script with zero files in this tree's whole history. E-039 widened the
+    rule from the gate script to EVERY shipped plugin script (derived from
+    the filesystem): GUIDE/KILAVUZ alone carried 80 dead ``python3
+    bmad/scripts/blackboard.py …`` invocations. Every shipped invocation must
+    carry a resolving root ({metodoloji-root}, {skill-root}, $SYNCED) on its
+    own line. The scan is independent of the bench so a drifted bench cannot
+    bury the closure; the bench is then pinned to keep its own check.
     """
     roots = ("{metodoloji-root}", "{skill-root}", "$SYNCED",
              "METODOLOJI_SYNCED")
@@ -434,18 +436,31 @@ def test_shipped_gate_invocations_resolve_where_they_ship():
              "skills/bmad-research-experiment/experiment-log.md",
              "skills/bmad-research-experiment/scripts/run_experiment.py",
              "hooks/scripts/*.sh")
+    names = {p.name for p in (PLUGIN / "bmad" / "scripts").glob("*.py")}
+    names |= {p.name for p in PLUGIN.glob("skills/*/scripts/*.py")}
+    assert "run_experiment.py" in names and "blackboard.py" in names, (
+        "the shipped-script derivation lost a known CLI")
     problems = []
     for pat in globs:
         for path in sorted(PLUGIN.glob(pat)):
             rel = path.relative_to(PLUGIN).as_posix()
             for lineno, line in enumerate(
                     path.read_text(encoding="utf-8").splitlines(), 1):
-                for m in re.finditer(r"run_experiment\.py\s+--", line):
-                    if not any(r in line[:m.start()] for r in roots):
-                        problems.append(f"{rel}:{lineno}: bare gate invocation")
+                for name in names:
+                    for m in re.finditer(re.escape(name) + r"\s+--", line):
+                        if not any(r in line[:m.start()] for r in roots):
+                            problems.append(f"{rel}:{lineno}: bare {name}")
+                    m2 = re.search(r"python3\s+(?:\S+/)?(?:scripts/)?"
+                                   + re.escape(name) + r"\b", line)
+                    if m2:
+                        seg = line[:m2.end() - len(name)]
+                        if not any(r in seg for r in roots):
+                            problems.append(f"{rel}:{lineno}: unrooted "
+                                            f"python3 {name}")
                 if "guard-code.sh" in line:
                     problems.append(f"{rel}:{lineno}: phantom guard-code.sh")
-    assert not problems, f"dead gate instructions where they ship: {problems}"
+    assert not problems, f"dead plugin instructions where they ship: {problems}"
     src = BENCH.read_text(encoding="utf-8")
-    assert "gate invocations resolve where they ship (E-038)" in src, (
-        "the bench dropped its E-038 shipped-invocation check")
+    assert ("plugin-script invocations resolve where they ship "
+            "(E-038, E-039)") in src, (
+        "the bench dropped its shipped-invocation check")

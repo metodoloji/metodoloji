@@ -15,7 +15,7 @@ probe further):
    Claude Code — do not depend on them, do not echo them to "verify".)
 2. Fixed checkout `~/.claude/plugins/marketplaces/metodoloji/`
 3. Versioned cache `~/.claude/plugins/cache/metodoloji/metodoloji/*`
-   (newest first; e.g. `.../0.1.33/` on Claude Code v2.1.x)
+   (newest first; e.g. `.../0.1.34/` on Claude Code v2.1.x)
 4. OpenHands install directory `~/.openhands/plugins/installed/metodoloji/`
 
 (An old `~/.claude/plugins/cache/yunusgungor/metodoloji/*` path appears in
@@ -70,7 +70,7 @@ wasted work and makes the chain look like it re-initializes the project.
 
    Idempotent, byte-exact copies, never overwrites an existing file (add
    `--force` to replace copies and rewrite the marker deliberately).
-   `skeleton.py --status` reports the state without changing anything. Steps
+   `{metodoloji-root}/bmad/scripts/skeleton.py --status` reports the state without changing anything. Steps
    2–3 below describe what that run does — check them against the script's
    summary rather than hand-copying files, so the two can never drift.
 
@@ -100,7 +100,7 @@ wasted work and makes the chain look like it re-initializes the project.
    - `{metodoloji-root}/templates/tech-debt.md` → `docs/development/tech-debt.md`
    - `{metodoloji-root}/templates/scratch-README.md` → `scratch/README.md`
 
-4. **The init marker is written by `skeleton.py --install`, never by hand.**
+4. **The init marker is written by `{metodoloji-root}/bmad/scripts/skeleton.py --install`, never by hand.**
     Do NOT run any shell to create `.metodoloji/initialized` yourself
     (no `mkdir -p .metodoloji`, no `VERSION=$(python3 -c ...)`, no
     `echo ... > .../initialized`, no heredocs — heredoc appends are

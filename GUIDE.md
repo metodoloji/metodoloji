@@ -1055,9 +1055,9 @@ Merge rules: for scalars the override wins; tables deep-merge (recursively); for
 Resolution:
 
 ```bash
-python3 hooks/engine/resolve_customization.py -s skills/bmad-dev-story
-python3 hooks/engine/resolve_customization.py -s skills/bmad-dev-story -k workflow.activation_steps_append
-python3 hooks/engine/resolve_customization.py -s skills/bmad-dev-story -k agent.name -k workflow.activation_steps_append
+python3 {metodoloji-root}/bmad/scripts/resolve_customization.py -s skills/bmad-dev-story
+python3 {metodoloji-root}/bmad/scripts/resolve_customization.py -s skills/bmad-dev-story -k workflow.activation_steps_append
+python3 {metodoloji-root}/bmad/scripts/resolve_customization.py -s skills/bmad-dev-story -k agent.name -k workflow.activation_steps_append
 ```
 
 (The canonical implementation is `bmad/scripts/resolve_customization.py` — stdlib only, py3.11+; `uv run` also works.)
@@ -1097,7 +1097,7 @@ Legacy YAML bridge: module `config.yaml` files from old installs are read as a l
 Flat module output (CLI/legacy shape only):
 
 ```bash
-python3 bmad/scripts/resolve_config.py --project-root . --module tea
+python3 {metodoloji-root}/bmad/scripts/resolve_config.py --project-root . --module tea
 ```
 
 Returns the shared `core` plus that module's keys (the old module config.yaml shape). `--module core` returns only core. Artifact paths in the plugin layers point the output at `{project-root}` (`docs/`), not inside the plugin.
@@ -1112,7 +1112,7 @@ Every surface must reference these documents: `research-methodology.md` (all sur
 
 ## 14. Blackboard — Working Context
 
-One event-sourced JSON: `.metodoloji/blackboard.json` + an append-only event log. Hooks read it for context, skills use it to write focus. Full design: `hooks/engine/modules/blackboard.py` + `bmad/scripts/blackboard.py --help` (the old `docs/BLACKBOARD.md` was pruned — the code is canonical).
+One event-sourced JSON: `.metodoloji/blackboard.json` + an append-only event log. Hooks read it for context, skills use it to write focus. Full design: `hooks/engine/modules/blackboard.py` + `{metodoloji-root}/bmad/scripts/blackboard.py --help` (the old `docs/BLACKBOARD.md` was pruned — the code is canonical).
 
 **Concepts:** `hot`/`hot_canvas` (the single key + single canvas in focus — surfaced at session start/end); `keys` (named text, max 128, oldest fade); lists (ordered under one key, max 100); canvases (grid/free live surfaces; `watch` file paths and turn a `touch` notification into an auto-cell); `links` (directed graph edges); subscription (glob → channel); alert (bounded, channel-addressed notification — the `session` channel is injected at session start, the `stop` channel at the end); `tags`/`contributions`/`watchers`.
 
@@ -1123,34 +1123,34 @@ One event-sourced JSON: `.metodoloji/blackboard.json` + an append-only event log
 **CLI (the memorisation set):**
 
 ```bash
-python3 bmad/scripts/blackboard.py write --key prd.acme --value "PRD v1: discovery" --type state --hot
-python3 bmad/scripts/blackboard.py write --key prd.acme --value "PRD v1: finalize" --type state
-python3 bmad/scripts/blackboard.py list-add --key prd.acme.pending --item "Confirm NFR-2"
-python3 bmad/scripts/blackboard.py list-remove --key prd.acme.pending --item "Confirm NFR-2"
-python3 bmad/scripts/blackboard.py list-clear --key prd.acme.pending
-python3 bmad/scripts/blackboard.py canvas create --name doc-map --grid 8x8 --focus
-python3 bmad/scripts/blackboard.py canvas set --name doc-map --cell A1 --content "nav hub" --kind decision
-python3 bmad/scripts/blackboard.py canvas watch --name doc-map --path docs/
-python3 bmad/scripts/blackboard.py canvas touch --path docs/design/spec.md --tool bmad-architecture
-python3 bmad/scripts/blackboard.py canvas-read --name doc-map
-python3 bmad/scripts/blackboard.py canvas focus --clear
-python3 bmad/scripts/blackboard.py link --a prd.acme --b arch.acme --relation informs
-python3 bmad/scripts/blackboard.py neighbors --node prd.acme
-python3 bmad/scripts/blackboard.py subscribe --watcher session --pattern "prd.*" --channel session
-python3 bmad/scripts/blackboard.py alerts
-python3 bmad/scripts/blackboard.py consume --channel stop
-python3 bmad/scripts/blackboard.py notify --channel stop --kind risk --text "NFR unapproved"
-python3 bmad/scripts/blackboard.py mirror --key prd.acme --value "PRD final" --to bmad-ux --note "PRD final — start from NFR-3"
-python3 bmad/scripts/blackboard.py handoffs
-python3 bmad/scripts/blackboard.py handoffs --skill bmad-ux
-python3 bmad/scripts/blackboard.py consume --channel handoff.bmad-ux
-python3 bmad/scripts/blackboard.py chain-health
-python3 bmad/scripts/blackboard.py doctor
-python3 bmad/scripts/blackboard.py tag --tag crm
-python3 bmad/scripts/blackboard.py contribute --who bmad-prd --what "PRD v1 draft"
-python3 bmad/scripts/blackboard.py stats
-python3 bmad/scripts/blackboard.py read --context
-python3 bmad/scripts/blackboard.py hot --clear
+python3 {metodoloji-root}/bmad/scripts/blackboard.py write --key prd.acme --value "PRD v1: discovery" --type state --hot
+python3 {metodoloji-root}/bmad/scripts/blackboard.py write --key prd.acme --value "PRD v1: finalize" --type state
+python3 {metodoloji-root}/bmad/scripts/blackboard.py list-add --key prd.acme.pending --item "Confirm NFR-2"
+python3 {metodoloji-root}/bmad/scripts/blackboard.py list-remove --key prd.acme.pending --item "Confirm NFR-2"
+python3 {metodoloji-root}/bmad/scripts/blackboard.py list-clear --key prd.acme.pending
+python3 {metodoloji-root}/bmad/scripts/blackboard.py canvas create --name doc-map --grid 8x8 --focus
+python3 {metodoloji-root}/bmad/scripts/blackboard.py canvas set --name doc-map --cell A1 --content "nav hub" --kind decision
+python3 {metodoloji-root}/bmad/scripts/blackboard.py canvas watch --name doc-map --path docs/
+python3 {metodoloji-root}/bmad/scripts/blackboard.py canvas touch --path docs/design/spec.md --tool bmad-architecture
+python3 {metodoloji-root}/bmad/scripts/blackboard.py canvas-read --name doc-map
+python3 {metodoloji-root}/bmad/scripts/blackboard.py canvas focus --clear
+python3 {metodoloji-root}/bmad/scripts/blackboard.py link --a prd.acme --b arch.acme --relation informs
+python3 {metodoloji-root}/bmad/scripts/blackboard.py neighbors --node prd.acme
+python3 {metodoloji-root}/bmad/scripts/blackboard.py subscribe --watcher session --pattern "prd.*" --channel session
+python3 {metodoloji-root}/bmad/scripts/blackboard.py alerts
+python3 {metodoloji-root}/bmad/scripts/blackboard.py consume --channel stop
+python3 {metodoloji-root}/bmad/scripts/blackboard.py notify --channel stop --kind risk --text "NFR unapproved"
+python3 {metodoloji-root}/bmad/scripts/blackboard.py mirror --key prd.acme --value "PRD final" --to bmad-ux --note "PRD final — start from NFR-3"
+python3 {metodoloji-root}/bmad/scripts/blackboard.py handoffs
+python3 {metodoloji-root}/bmad/scripts/blackboard.py handoffs --skill bmad-ux
+python3 {metodoloji-root}/bmad/scripts/blackboard.py consume --channel handoff.bmad-ux
+python3 {metodoloji-root}/bmad/scripts/blackboard.py chain-health
+python3 {metodoloji-root}/bmad/scripts/blackboard.py doctor
+python3 {metodoloji-root}/bmad/scripts/blackboard.py tag --tag crm
+python3 {metodoloji-root}/bmad/scripts/blackboard.py contribute --who bmad-prd --what "PRD v1 draft"
+python3 {metodoloji-root}/bmad/scripts/blackboard.py stats
+python3 {metodoloji-root}/bmad/scripts/blackboard.py read --context
+python3 {metodoloji-root}/bmad/scripts/blackboard.py hot --clear
 ```
 
 **Handoff handshake (critical):** when upstream work finishes it leaves a signal with `handoff --to <skill>`; the signal waits until downstream looks with `handoffs --skill <self>` and consumes it with `consume --channel handoff.<skill>` — consuming **is** the handshake. While waiting it appears on two announce-only surfaces (which never consume): the session\_start context nudge (delivery chain + methodology\_chain + sub-chains + `bmad-help`; tool-workflow channels excluded) and the stop wrap-up report (methodology\_chain signals). Delivery relay: prd → ux → architecture → spec → create-epics-and-stories → create-story → dev-story.
@@ -1232,22 +1232,22 @@ sh scripts/check-techdebt.sh
 python scripts/check-handoff.py
 
 # Customization
-python3 hooks/engine/resolve_customization.py -s skills/bmad-dev-story -k workflow.activation_steps_append
-python3 bmad/scripts/resolve_config.py --project-root . --key core.communication_language --key modules.tea.test_artifacts
+python3 {metodoloji-root}/bmad/scripts/resolve_customization.py -s skills/bmad-dev-story -k workflow.activation_steps_append
+python3 {metodoloji-root}/bmad/scripts/resolve_config.py --project-root . --key core.communication_language --key modules.tea.test_artifacts
 python3 scripts/sync-hooks-json.py --write
 
 # Blackboard
-python3 bmad/scripts/blackboard.py write --key prd.acme --value "..." --type state --hot
-python3 bmad/scripts/blackboard.py mirror --key prd.acme --value "PRD final" --to bmad-ux --note "..."
-python3 bmad/scripts/blackboard.py mirror --key story.1-1 --value "dev complete" --to bmad-code-review --sender bmad-dev-story
-python3 bmad/scripts/blackboard.py doctor
+python3 {metodoloji-root}/bmad/scripts/blackboard.py write --key prd.acme --value "..." --type state --hot
+python3 {metodoloji-root}/bmad/scripts/blackboard.py mirror --key prd.acme --value "PRD final" --to bmad-ux --note "..."
+python3 {metodoloji-root}/bmad/scripts/blackboard.py mirror --key story.1-1 --value "dev complete" --to bmad-code-review --sender bmad-dev-story
+python3 {metodoloji-root}/bmad/scripts/blackboard.py doctor
 
 # Workflow (process engine)
-python3 bmad/scripts/workflow.py list --project-root .
-python3 bmad/scripts/workflow.py next --project-root .
-python3 bmad/scripts/workflow.py create --builtin seo-visibility --project-root .
-python3 bmad/scripts/workflow.py complete --slug seo-visibility --stage analyze --project-root .
-python3 bmad/scripts/workflow.py validate --spec docs/workflows/process.json
+python3 {metodoloji-root}/bmad/scripts/workflow.py list --project-root .
+python3 {metodoloji-root}/bmad/scripts/workflow.py next --project-root .
+python3 {metodoloji-root}/bmad/scripts/workflow.py create --builtin seo-visibility --project-root .
+python3 {metodoloji-root}/bmad/scripts/workflow.py complete --slug seo-visibility --stage analyze --project-root .
+python3 {metodoloji-root}/bmad/scripts/workflow.py validate --spec docs/workflows/process.json
 
 # Log
 tail -10 .metodoloji/logs/hook-audit.log
@@ -1379,7 +1379,7 @@ These 60 items are not "good practice" — they are the system's mechanical boun
 47. Array merge looks at `code`/`id` — arrays without those keys append (watch for duplicate bloat).
 48. Personal settings in `*.user.toml` (gitignored), team settings committed — the reverse leaks information or causes conflicts.
 49. Legacy `config.yaml` loses to the project TOML — migrate and delete the YAML.
-50. Activations read config in a targeted way: `resolve_config.py --key <dotted.path>` (repeatable). `--module tea` (23 lines / 818 B) is a CLI shape only for old installs — it gives the flat view a module sees, but it is not the shape to run; the controller has `check_targeted_config_reads` + `check_no_module_dump_in_skills`.
+50. Activations read config in a targeted way: `{metodoloji-root}/bmad/scripts/resolve_config.py --key <dotted.path>` (repeatable). `--module tea` (23 lines / 818 B) is a CLI shape only for old installs — it gives the flat view a module sees, but it is not the shape to run; the controller has `check_targeted_config_reads` + `check_no_module_dump_in_skills`.
 51. Output rule: record/artifact → `{project-root}`; template/config/script → `{metodoloji-root}`. When in doubt ask "what IS the file?".
 52. Manifests are not copied into the project — delete a stale `docs/bmad/` copy.
 53. `init` never overwrites — that is why "the template didn't update"; update it by hand if needed.

@@ -1488,15 +1488,39 @@ _SHIPPED_SURFACE_GLOBS = (
 )
 
 
+def _plugin_script_basenames() -> frozenset[str]:
+    """Every script the plugin ships for a consuming session (E-039, derived).
+
+    The bmad/ CLIs (blackboard, workflow, orient, skeleton, …) and the
+    skill-side CLIs — derived from the filesystem, so a newly shipped script
+    joins the rule the day it lands (the E-037/E-038 lesson: a hand-listed
+    set IS the narrow-surface class).
+    """
+    names = {p.name for p in ROOT.glob("bmad/scripts/*.py")}
+    names |= {p.name for p in ROOT.glob("skills/*/scripts/*.py")}
+    return frozenset(names)
+
+
+_PLUGIN_SCRIPT_BASENAMES = _plugin_script_basenames()
+
+
 def _shipped_gate_invocation_broken(line: str) -> str | None:
-    """Why this line teaches a gate invocation that dies where it ships."""
-    for m in re.finditer(r"run_experiment\.py\s+--", line):
-        if not any(r in line[:m.start()] for r in _GATE_ROOT_TOKENS):
-            return ("bare/project-relative run_experiment.py invocation "
-                    "(no resolving root on the line)")
-    m2 = re.search(r"python3\s+(?:scripts/)?run_experiment\.py", line)
-    if m2 and not any(r in line[:m2.start()] for r in _GATE_ROOT_TOKENS):
-        return "unrooted python3 run_experiment.py invocation"
+    """Why this line teaches a plugin-script invocation that dies where it ships."""
+    for name in sorted(_PLUGIN_SCRIPT_BASENAMES):
+        # (a) `<name> --flag`: invocation-shaped mention.
+        for m in re.finditer(re.escape(name) + r"\s+--", line):
+            if not any(r in line[:m.start()] for r in _GATE_ROOT_TOKENS):
+                return (f"{name} invoked without a resolving root (no "
+                        "{metodoloji-root}/{skill-root}/$SYNCED on the line)")
+        # (b) `python3 [<path>/][scripts/]<name>`: a runnable command line.
+        # The root token, when present, sits INSIDE the match (between
+        # `python3` and the name) — so the prefix check runs up to the name.
+        m2 = re.search(r"python3\s+(?:\S+/)?(?:scripts/)?"
+                       + re.escape(name) + r"\b", line)
+        if m2:
+            seg = line[:m2.end() - len(name)]
+            if not any(r in seg for r in _GATE_ROOT_TOKENS):
+                return f"unrooted python3 invocation of {name}"
     if "guard-code.sh" in line:
         return "names guard-code.sh (a script that does not exist)"
     return None
@@ -1509,14 +1533,17 @@ def _check_gate_mentions_resolve_where_shipped() -> str | None:
     remedy `python3 skills/bmad-research-experiment/scripts/run_experiment.py
     --amend-plan …` — a path that exists only inside the plugin checkout —
     and was denied 19 times on one target. E-037 rooted the EMITTED strings;
-    this check roots the written half: the surfaces a consuming project
-    reads (slash commands, workflow tomls, skill files, GUIDE/KILAVUZ, the
-    manifesto, the gate's own usage docstring, the session-start shell). A
-    gate invocation on a line that carries no resolving root
-    ({metodoloji-root}, {skill-root}, $SYNCED) is a dead instruction there —
-    the same class. It also pins that no shipped surface names the phantom
-    `guard-code.sh` (18 references before E-038, zero files in this tree's
-    whole history: a script that never existed).
+    E-038 rooted the gate script's written half; E-039 widened the same rule
+    to EVERY script the plugin ships (bmad/ CLIs + skill CLIs, derived from
+    the filesystem): 80 further dead invocations (`python3 bmad/scripts/
+    blackboard.py …`, `blackboard.py --help`) lived in GUIDE/KILAVUZ alone.
+    The surfaces are the ones a consuming project reads (slash commands,
+    workflow tomls, skill files, GUIDE/KILAVUZ, the manifesto, the gate's
+    own usage docstring, the session-start shell). A plugin-script invocation
+    on a line that carries no resolving root ({metodoloji-root}, {skill-root},
+    $SYNCED) is a dead instruction there. It also pins that no shipped
+    surface names the phantom `guard-code.sh` (18 references before E-038,
+    zero files in this tree's whole history: a script that never existed).
     """
     problems = []
     for pat in _SHIPPED_SURFACE_GLOBS:
@@ -2743,7 +2770,7 @@ def build_checks() -> list[tuple[str, object]]:
                    _check_free_zone_symlink_closure))
     checks.append(("remedies rooted and session/review guidance pinned (E-037)",
                    _check_remedies_and_session_guidance_pinned))
-    checks.append(("gate invocations resolve where they ship (E-038)",
+    checks.append(("plugin-script invocations resolve where they ship (E-038, E-039)",
                    _check_gate_mentions_resolve_where_shipped))
     checks.append(("tech-debt audit covers the shipped tree and is clean (E-015)",
                    _check_techdebt_audit_covers_the_tree))

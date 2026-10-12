@@ -52,13 +52,13 @@ Write a temp JSON file with the collected answers structured as `{"core": {...},
 In the commands below, replace `{project-root}` in every path argument with the actual project root (e.g. `/home/me/myapp`) before running — these are filesystem paths, not config values. Leave `{temp-file}` and `bmb` as-is.
 
 ```bash
-python3 ./scripts/merge-config.py --config-path "{metodoloji-root}/bmad/config.yaml" --user-config-path "{metodoloji-root}/bmad/config.user.yaml" --module-yaml ./assets/module.yaml --answers {temp-file} --legacy-dir "{metodoloji-root}/bmad"
-python3 ./scripts/merge-help-csv.py --target "{metodoloji-root}/bmad/module-help.csv" --source ./assets/module-help.csv --legacy-dir "{metodoloji-root}/bmad" --module-code bmb
+python3 {skill-root}/scripts/merge-config.py --config-path "{metodoloji-root}/bmad/config.yaml" --user-config-path "{metodoloji-root}/bmad/config.user.yaml" --module-yaml ./assets/module.yaml --answers {temp-file} --legacy-dir "{metodoloji-root}/bmad"
+python3 {skill-root}/scripts/merge-help-csv.py --target "{metodoloji-root}/bmad/module-help.csv" --source ./assets/module-help.csv --legacy-dir "{metodoloji-root}/bmad" --module-code bmb
 ```
 
 Both scripts output JSON to stdout with results. If either exits non-zero, surface the error and stop. The scripts automatically read legacy config values as fallback defaults, then delete the legacy files after a successful merge. Check `legacy_configs_deleted` and `legacy_csvs_deleted` in the output to confirm cleanup.
 
-Run `./scripts/merge-config.py --help` or `./scripts/merge-help-csv.py --help` for full usage.
+Run `{skill-root}/scripts/merge-config.py --help` or `{skill-root}/scripts/merge-help-csv.py --help` for full usage.
 
 ## Create Output Directories
 
@@ -71,12 +71,12 @@ After both merge scripts complete successfully, remove the installer's package d
 As with the merge scripts, replace `{project-root}` in the `--bmad-dir` and `--skills-dir` path arguments with the actual project root before running.
 
 ```bash
-python3 ./scripts/cleanup-legacy.py --bmad-dir "{metodoloji-root}/bmad" --module-code bmb --also-remove _config --skills-dir "{metodoloji-root}/skills"
+python3 {skill-root}/scripts/cleanup-legacy.py --bmad-dir "{metodoloji-root}/bmad" --module-code bmb --also-remove _config --skills-dir "{metodoloji-root}/skills"
 ```
 
 The script verifies that every skill in the legacy directories exists at `{metodoloji-root}/skills/` before removing anything. Directories without skills (like `_config/`) are removed directly. If the script exits non-zero, surface the error and stop. Missing directories (already cleaned by a prior run) are not errors — the script is idempotent.
 
-Check `directories_removed` and `files_removed_count` in the JSON output for the confirmation step. Run `./scripts/cleanup-legacy.py --help` for full usage.
+Check `directories_removed` and `files_removed_count` in the JSON output for the confirmation step. Run `{skill-root}/scripts/cleanup-legacy.py --help` for full usage.
 
 ## Confirm
 
