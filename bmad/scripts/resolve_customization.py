@@ -28,7 +28,8 @@ Merge rules (purely structural — no field-name special-casing):
     merge by that key (matching keys replace, new keys append)
   - All other arrays — including arrays where only some items have
     `code` or `id`, or where items mix the two keys:
-    append (base items followed by override items)
+    append (base items followed by override items), dropping exact
+    duplicates so a fact repeated across layers is carried once
 
 No removal mechanism — overrides cannot delete base items. To suppress
 a default, fork the skill or override the item by code with a no-op
@@ -155,19 +156,35 @@ def _merge_by_key(base, override, key_name):
 
 def _merge_arrays(base, override):
     """Shape-aware array merge. Base + override combined tables may opt into
-    keyed merge if every item has `code` or `id`. Otherwise: append."""
+    keyed merge if every item has `code` or `id`. Otherwise: append, de-duplicating
+    exact repeats so an override that restates the base's default (e.g. the
+    project-context fact every team layer repeats) is carried once, not twice."""
     base_arr = base if isinstance(base, list) else []
     override_arr = override if isinstance(override, list) else []
     keyed_field = _detect_keyed_merge_field(base_arr + override_arr)
     if keyed_field:
         return _merge_by_key(base_arr, override_arr, keyed_field)
-    return base_arr + override_arr
+    # Append, first occurrence wins. Type-tagged keys keep 1 and True distinct;
+    # an unhashable item (dict/list in the append path) is kept in order.
+    merged = []
+    seen = set()
+    for item in base_arr + override_arr:
+        try:
+            key = (type(item), item)
+            if key in seen:
+                continue
+            seen.add(key)
+        except TypeError:
+            pass
+        merged.append(item)
+    return merged
 
 
 def deep_merge(base, override):
     """Recursively merge override into base using structural rules.
     - Table + table: deep merge
-    - Array + array: shape-aware (keyed merge if all items have code/id, else append)
+    - Array + array: shape-aware (keyed merge if all items have code/id, else
+      append with exact duplicates dropped)
     - Anything else: override wins
     """
     if isinstance(base, dict) and isinstance(override, dict):

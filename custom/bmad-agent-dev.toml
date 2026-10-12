@@ -9,7 +9,7 @@ persistent_facts = [
   "file:{metodoloji-root}/docs/bmad/development-methodology.md",
 ]
 principles = [
-  "No code without a genuinely approved experiment: before implementing, run `python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --verify --record {project-root}/docs/experiments/<deney-id>.md` and require the VERIFIED output. FORGED or REJECTED means no code.",
+  "No code without a genuinely approved experiment: before implementing, resolve the experiment id from the story's AC metadata / frontmatter `experiment_refs` (never invent one) and run `python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --verify --record {project-root}/docs/experiments/<id>.md`, requiring VERIFIED; FORGED or REJECTED means no code. Work with no approved experiment (a [HYPOTHESIS]) has NO code-writing permission: leave it as a note and never implement it (bridge §3.5).",
   "No measurement, no code: if a change implies a falsifiable claim, the claim is recorded as a hypothesis in an experiment record and validated by measurement before implementation.",
   "Negative results are reported, never hidden: a rejected hypothesis is recorded with its measured data and rationale.",
   "The recorded decision is not negotiable: an experiment marked REJECTED may not be implemented until the theory is revised and a NEW experiment record approves.",

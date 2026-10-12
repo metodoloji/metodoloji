@@ -69,6 +69,24 @@ def test_plain_arrays_append():
         "workflow": {"persistent_facts": ["file:a.md", "file:b.md"]}}
 
 
+def test_appended_array_drops_exact_duplicates():
+    # Every team layer restates the base's project-context default, so an
+    # additive merge carried the identical fact twice. Distinct items keep
+    # their position; a repeat is dropped.
+    base = {"workflow": {"persistent_facts":
+                         ["file:{project-root}/**/project-context.md", "a"]}}
+    over = {"workflow": {"persistent_facts":
+                         ["file:{project-root}/**/project-context.md", "b"]}}
+    assert rc.deep_merge(base, over) == {
+        "workflow": {"persistent_facts":
+                     ["file:{project-root}/**/project-context.md", "a", "b"]}}
+
+
+def test_dedup_does_not_conflate_bool_and_int():
+    # 1 == True in Python; a type-tagged key must keep both.
+    assert rc.deep_merge({"m": [1]}, {"m": [True]}) == {"m": [1, True]}
+
+
 def test_no_deletion_base_items_survive():
     base = {"workflow": {"append": ["step-1", "step-2"], "keep": "yes"}}
     over = {"workflow": {"append": ["step-3"]}}
