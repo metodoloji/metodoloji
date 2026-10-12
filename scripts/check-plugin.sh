@@ -567,8 +567,12 @@ for _s in (sys.stdout, sys.stderr):
 PLUGIN = os.environ.get("PLUGIN_ROOT") or "."
 PROJECT = os.environ.get("PROJECT_ROOT") or "."
 
-# Non-methodology tool surfaces — explicitly excluded from the audit (outside the capability map).
-EXCLUDED = {"graft", "memory", "sync"}
+# Non-methodology tool surfaces — explicitly excluded from the audit (outside the
+# capability map). `bmad-customize`/`bmad-help` are NOT listed here: they ship no
+# customize.toml and are audited through their SKILL.md manifesto pointer instead
+# (the loop's else branch). "graft" was a stale name — no such skill was ever in
+# the tree (`graft/` is a guard-free DIRECTORY, not a skill).
+EXCLUDED = {"memory", "sync"}
 
 # Development wing surfaces (development-methodology.md §6 mapping + dev agents):
 DEV_WING = {
