@@ -1010,7 +1010,7 @@ Families:
 - **Producer (17, creates/updates records):** `bmad-dev-story`, `bmad-quick-dev`, `bmad-dev-auto`, `bmad-agent-dev`, `bmad-code-review`, `bmad-create-story`, `bmad-sprint-planning`, `bmad-check-implementation-readiness`, `gds-dev-story`, `gds-quick-dev`, `gds-code-review`, `gds-create-story`, `gds-sprint-planning`, `gds-check-implementation-readiness`, `gds-agent-game-dev`, `gds-agent-game-solo-dev`, `wds-5-agentic-development`.
 - **Feeder (16, feeds an existing QR):** `bmad-testarch-*` (atdd, automate, ci, framework, nfr, test-design, test-review, trace), `bmad-qa-generate-e2e-tests`, `gds-test-*` (automate, design, framework, review), `gds-e2e-scaffold`, `gds-performance-test`, `gds-playtest-plan`.
 - 3 of them are agent-principles surfaces (`bmad-agent-dev`, `gds-agent-game-dev`, `gds-agent-game-solo-dev` — inside the BRIDGE `[agent].principles`).
-- Producer BRIDGEs carry a **VERIFY** step — the LLM must confirm the file exists with `ls -la` right after creating the record (automatic anti-skip check; audit #2c).
+- Producer BRIDGEs carry a **VERIFY** step — the LLM must confirm the file exists with `ls -la` right after creating the record, and the BRIDGE names the repair for the missing-file case (`error and recreate`). Audit #2c demands **both halves** (the same two-part pattern §4 demands of its gate-enforcing set) on all 17 producers.
 
 **Pick the skill by job:**
 
@@ -1262,7 +1262,7 @@ sh scripts/check-methodology.sh   # project record format (warn+exit 0 on a fres
 sh scripts/check-techdebt.sh      # debt drift/ID/P0/orphan (also runs as #6b)
 ```
 
-**# map:** #0 gate key · #0b base config project-name leak · #1 engine selfcheck (combined `pre` + individual modes) · #1b hooks.json byte-identical · #2 manifesto wiring · #2b bridge runtime visibility (30 workflow + 3 agent-principles) · #2c bridge VERIFY (13 skills) · #3 approved inventory (VERIFIED/ADVISORY-BLOCK + CROSS-MACHINE warning) · #3b code-scope coverage · #4 documentary records · #5 engine integrity (py\_compile) · #5b hard-gate validity · #5c custom/ static · #6 development format · #6a `.env` · #6b tech-debt · #6c template copy identity · #6d init marker integrity · #6d2 command→script reference integrity · #6d3 plugin version consistency (`.plugin/plugin.json` ↔ `.plugin/marketplace.json` ↔ `.claude-plugin/plugin.json` ↔ `.claude-plugin/marketplace.json` ↔ `pyproject`) · #6e help catalog integrity · #6f trigger/description collision.
+**# map:** #0 gate key · #0b base config project-name leak · #1 engine selfcheck (combined `pre` + individual modes) · #1b hooks.json byte-identical · #2 manifesto wiring · #2b bridge runtime visibility (30 workflow + 3 agent-principles) · #2c bridge VERIFY (17 skills) · #3 approved inventory (VERIFIED/ADVISORY-BLOCK + CROSS-MACHINE warning) · #3b code-scope coverage · #4 documentary records · #5 engine integrity (py\_compile) · #5b hard-gate validity · #5c custom/ static · #6 development format · #6a `.env` · #6b tech-debt · #6c template copy identity · #6d init marker integrity · #6d2 command→script reference integrity · #6d3 plugin version consistency (`.plugin/plugin.json` ↔ `.plugin/marketplace.json` ↔ `.claude-plugin/plugin.json` ↔ `.claude-plugin/marketplace.json` ↔ `pyproject`) · #6e help catalog integrity · #6f trigger/description collision.
 
 **Single-record verification + inventory:**
 

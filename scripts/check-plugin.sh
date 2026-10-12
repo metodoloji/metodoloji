@@ -910,10 +910,18 @@ for name, key in PRODUCER_KEY.items():
             capture_output=True, text=True, encoding="utf-8", timeout=15)
         d = json.loads(r.stdout)
         steps = d.get(key, [])
-        # Accept legacy Turkish marker and both English markers.
-        has_verify = any(m in s for s in steps for m in ("DOGRULAMA", "VERIFICATION", "VERIFY"))
-        if not has_verify:
-            missing.append("%s (no verify marker in BRIDGE[%s] — LLM may skip the record)" % (name, key))
+        # Two-part pattern, the SAME strength check-custom.sh §4 already demands
+        # of its gate-enforcing set: the verify marker AND the "error and
+        # recreate" phrase. Before E-030 §2c read only the marker, so a producer
+        # could drop the recreate instruction — the half that forces the LLM to
+        # re-check the file via the terminal after creating it — and stay green.
+        # Accept legacy Turkish markers and the new English markers (as §4 does).
+        blob = "\n".join(steps)
+        low = blob.lower()
+        has_verify = any(m in blob for m in ("DOGRULAMA", "VERIFICATION", "VERIFY"))
+        has_error = any(m in low for m in ("hata ver", "error and recreate"))
+        if not has_verify or not has_error:
+            missing.append("%s (verify+error pattern missing in BRIDGE[%s] — LLM may skip the record)" % (name, key))
     except Exception as e:
         missing.append("%s (resolve error: %s)" % (name, str(e)[:60]))
 print("  checked BRIDGE skills: %d" % checked)

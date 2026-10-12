@@ -1009,7 +1009,7 @@ Aileler:
 - **Producer (17, kayıt yaratır/günceller):** `bmad-dev-story`, `bmad-quick-dev`, `bmad-dev-auto`, `bmad-agent-dev`, `bmad-code-review`, `bmad-create-story`, `bmad-sprint-planning`, `bmad-check-implementation-readiness`, `gds-dev-story`, `gds-quick-dev`, `gds-code-review`, `gds-create-story`, `gds-sprint-planning`, `gds-check-implementation-readiness`, `gds-agent-game-dev`, `gds-agent-game-solo-dev`, `wds-5-agentic-development`.
 - **Feeder (16, mevcut QR'ı besler):** `bmad-testarch-*` (atdd, automate, ci, framework, nfr, test-design, test-review, trace), `bmad-qa-generate-e2e-tests`, `gds-test-*` (automate, design, framework, review), `gds-e2e-scaffold`, `gds-performance-test`, `gds-playtest-plan`.
 - 3'ü agent-principles yüzeyi (`bmad-agent-dev`, `gds-agent-game-dev`, `gds-agent-game-solo-dev` — BRIDGE `[agent].principles` içinde).
-- Producer BRIDGE'lerde **VERIFY** adımı vardır — LLM kaydı yarattıktan hemen sonra `ls -la` ile varlığını doğrulamak zorundadır (atlanmaya karşı otomatik kontrol; denetim #2c).
+- Producer BRIDGE'lerde **VERIFY** adımı vardır — LLM kaydı yarattıktan hemen sonra `ls -la` ile varlığını doğrulamalı, ve dosya yoksa BRIDGE onarımı da adlandırır (`error and recreate`). Denetim #2c **her iki yarıyı da** ister (§4'ün gate-enforcing kümesinde istediği iki parçalı desenin aynısı) ve 17 producer'ın tümünde uygular.
 
 **İşe göre skill seç:**
 
@@ -1261,7 +1261,7 @@ sh scripts/check-methodology.sh   # proje-kayıt formatı (kayıtsız tazede uya
 sh scripts/check-techdebt.sh      # borç drift/ID/P0/orphan (#6b olarak da koşar)
 ```
 
-**# haritası:** #0 gate key · #0b base config proje-adı sızıntısı · #1 motor selfcheck (birleşik `pre` + tekil modlar) · #1b hooks.json byte-identical · #2 manifesto wiring · #2b bridge runtime görünürlüğü (30 workflow + 3 agent-principles) · #2c bridge VERIFY (13 skill) · #3 approved envanter (VERIFIED/ADVISORY-BLOCK + CROSS-MACHINE uyarısı) · #3b code-scope coverage · #4 dokümantatif kayıtlar · #5 motor bütünlüğü (py\_compile) · #5b hard-gate geçerliliği · #5c custom/ statik · #6 development format · #6a `.env` · #6b tech-debt · #6c template kopya kimliği · #6d init marker bütünlüğü · #6d2 command→script referans bütünlüğü · #6d3 plugin sürüm tutarlılığı (`.plugin/plugin.json` ↔ `.plugin/marketplace.json` ↔ `.claude-plugin/plugin.json` ↔ `.claude-plugin/marketplace.json` ↔ `pyproject`) · #6e help catalog bütünlüğü · #6f trigger/description çakışması.
+**# haritası:** #0 gate key · #0b base config proje-adı sızıntısı · #1 motor selfcheck (birleşik `pre` + tekil modlar) · #1b hooks.json byte-identical · #2 manifesto wiring · #2b bridge runtime görünürlüğü (30 workflow + 3 agent-principles) · #2c bridge VERIFY (17 skill) · #3 approved envanter (VERIFIED/ADVISORY-BLOCK + CROSS-MACHINE uyarısı) · #3b code-scope coverage · #4 dokümantatif kayıtlar · #5 motor bütünlüğü (py\_compile) · #5b hard-gate geçerliliği · #5c custom/ statik · #6 development format · #6a `.env` · #6b tech-debt · #6c template kopya kimliği · #6d init marker bütünlüğü · #6d2 command→script referans bütünlüğü · #6d3 plugin sürüm tutarlılığı (`.plugin/plugin.json` ↔ `.plugin/marketplace.json` ↔ `.claude-plugin/plugin.json` ↔ `.claude-plugin/marketplace.json` ↔ `pyproject`) · #6e help catalog bütünlüğü · #6f trigger/description çakışması.
 
 **Tek kayıt doğrulama + envanter:**
 

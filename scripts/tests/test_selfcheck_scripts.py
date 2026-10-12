@@ -87,6 +87,23 @@ def test_bridge_producer_audit_reads_agent_principles_key():
         )
 
 
+def test_bridge_verify_pattern_parity_with_the_custom_audit():
+    """check-plugin.sh §2c must demand the two-part verify pattern §4 demands (E-030).
+
+    ``check-custom.sh`` §4 required BOTH a verify marker and the "error and
+    recreate" phrase on its gate-enforcing set, while §2c required only the
+    marker on the 17 producers — so a producer could drop the recreate
+    instruction and §2c stayed green. The runbooks' check-map also still said
+    "#2c bridge VERIFY (13 skills)" although E-018 had widened the audit to 17.
+    This calls the bench's check, which pins §2c's two-part gate (with §4's
+    marker vocabulary), keeps §4 from weakening, keeps §4's set inside §2c's,
+    re-evaluates both halves on each producer, and pins the check-map count.
+    """
+    bench = _load_bench()
+    problem = bench._check_bridge_verify_pattern_parity()
+    assert problem is None, problem
+
+
 def test_bridge_section_refs_resolve_on_every_citing_surface():
     """Every live surface citing the bridge must point at a real section (E-019).
 

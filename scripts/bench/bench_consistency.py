@@ -1493,6 +1493,74 @@ def _check_bridge_producer_verify_audit() -> str | None:
     return "; ".join(problems) if problems else None
 
 
+def _check_bridge_verify_pattern_parity() -> str | None:
+    """E-030: §2c must demand the two-part verify pattern §4 already demands.
+
+    ``check-custom.sh`` §4 requires BOTH a verify marker and the "error and
+    recreate" phrase on its gate-enforcing set; ``check-plugin.sh`` §2c required
+    only the marker on the 17 producers — the same class audited by two surfaces
+    at two different strengths. A producer could therefore drop the recreate
+    instruction (the half that forces the LLM to re-check the created file via
+    the terminal) and §2c stayed green. This pins §2c's source to the two halves
+    with §4's exact marker vocabulary, keeps §4 from being weakened in the other
+    direction, keeps §4's set inside §2c's, and re-evaluates both halves on every
+    producer's own BRIDGE TOML.
+    """
+    problems: list[str] = []
+    plugin = _read("scripts/check-plugin.sh")
+    custom = _read("scripts/check-custom.sh")
+    blk = re.search(r"PRODUCER_KEY = \{(.*?)\}", plugin, re.DOTALL)
+    if not blk:
+        return "check-plugin.sh §2c has no PRODUCER_KEY map"
+    audited = dict(re.findall(r'"([^"]+)"\s*:\s*"([^"]+)"', blk.group(1)))
+    if not audited:
+        return "check-plugin.sh §2c PRODUCER_KEY is empty"
+    # §2c must run the same two-part gate as §4 …
+    if "has_error" not in plugin:
+        problems.append("check-plugin.sh §2c dropped the 'error and recreate' half")
+    if '("hata ver", "error and recreate")' not in plugin:
+        problems.append("check-plugin.sh §2c marker vocabulary drifted from §4")
+    # … and §4 must not have been weakened in the other direction.
+    if "has_error" not in custom \
+            or '("hata ver", "error and recreate")' not in custom:
+        problems.append("check-custom.sh §4 no longer demands both halves")
+    # §4's gate-enforcing set must stay inside the producer set §2c audits.
+    k = re.search(r"KOPRU = \{(.*?)\}", custom, re.DOTALL)
+    if not k:
+        problems.append("check-custom.sh §4 has no KOPRU set")
+    else:
+        kopru = set(re.findall(r'"([^"]+)"', k.group(1)))
+        outside = sorted(kopru - set(audited))
+        if outside:
+            problems.append(f"§4 KOPRU not covered by §2c producers: {outside}")
+    # Re-evaluate both halves on each producer's own BRIDGE TOML.
+    for name, key in audited.items():
+        path = ROOT / "custom" / f"{name}.toml"
+        if not path.is_file():
+            problems.append(f"producer TOML missing: custom/{name}.toml")
+            continue
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
+        sec, field = key.split(".", 1)
+        steps = data.get(sec, {}).get(field, []) or []
+        blob = "\n".join(steps)
+        low = blob.lower()
+        if not any(m in blob for m in ("DOGRULAMA", "VERIFICATION", "VERIFY")):
+            problems.append(f"{name}: no verify marker in {key}")
+        if not any(m in low for m in ("hata ver", "error and recreate")):
+            problems.append(f"{name}: no 'error and recreate' phrase in {key}")
+    # The runbooks' check-map must state §2c's real strength and width: E-018
+    # widened §2c to 17 producers but the map kept saying "13 skills", so the
+    # documented claim drifted from the wiring.
+    for rel in ("GUIDE.md", "KILAVUZ.md"):
+        map_m = re.search(r"#2c bridge VERIFY \((\d+) skill", _read(rel))
+        if not map_m:
+            problems.append(f"{rel} check-map no longer states a '#2c bridge VERIFY' count")
+        elif int(map_m.group(1)) != len(audited):
+            problems.append(f"{rel} check-map says #2c audits {map_m.group(1)} skills, "
+                            f"but §2c audits {len(audited)}")
+    return "; ".join(problems) if problems else None
+
+
 def _check_bridge_section_refs_resolve() -> str | None:
     """E-019: a live bridge-citing surface must not point at a missing section.
 
@@ -2152,6 +2220,8 @@ def build_checks() -> list[tuple[str, object]]:
                    _check_engine_decode_refusals))
     checks.append(("producer VERIFY audit covers every producer surface (E-018)",
                    _check_bridge_producer_verify_audit))
+    checks.append(("§2c demands the two-part verify pattern §4 demands (E-030)",
+                   _check_bridge_verify_pattern_parity))
     checks.append(("bridge section refs resolve on every citing surface (E-019)",
                    _check_bridge_section_refs_resolve))
     checks.append(("QR feeder audit covers every feeder surface (E-020)",
