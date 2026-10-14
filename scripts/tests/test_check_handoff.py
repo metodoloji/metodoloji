@@ -79,7 +79,7 @@ def test_graph_and_radar_gaps_warn_without_failing(tmp_path, capsys, monkeypatch
     monkeypatch.setattr(mod, "DIGEST_FIRST", ())
     monkeypatch.setattr(mod, "EXPECTED_LINKS", {"bmad-producer": "link --a x."})
     monkeypatch.setattr(mod, "EXPECTED_SUBSCRIPTIONS",
-                        {"bmad-producer": "subscribe --watcher bmad-producer"})
+                        {"bmad-producer": (("x.*", "session"),)})
     # 1) peek + post wired, traceability missing → WARNING, exit 0
     (producer / "SKILL.md").write_text(
         "peek: handoffs --skill bmad-producer\n"
@@ -88,18 +88,60 @@ def test_graph_and_radar_gaps_warn_without_failing(tmp_path, capsys, monkeypatch
     assert mod.check() == 0
     out = capsys.readouterr().out
     assert "close-out graph edge missing" in out
-    assert "upstream subscription missing" in out
+    assert "change-radar subscription missing" in out
     # 2) fully wired → green
     (producer / "SKILL.md").write_text(
         "peek: handoffs --skill bmad-producer\n"
         "close: mirror --key x --value y --to bmad-next\n"
         "trace: link --a x.1 --b y.1\n"
-        "watch: subscribe --watcher bmad-producer --pattern \"x.*\"\n",
+        "watch: subscribe --watcher bmad-producer --pattern \"x.*\" --channel session\n",
         encoding="utf-8")
     assert mod.check() == 0
     out = capsys.readouterr().out
     assert "close-out traces the relay on the graph" in out
-    assert "watches upstream (subscribe --watcher)" in out
+    assert "watches its upstreams (x.*)" in out
+
+
+def test_radar_contract_requires_the_full_pattern_and_channel(tmp_path, capsys, monkeypatch):
+    """E-043: the change radar is the FULL (pattern, channel) triple, not the
+    watcher name. A skill that watches the right watcher but the WRONG pattern
+    (or the wrong channel) is drifting, not passing — the bmad-spec gap the
+    watcher-name-only first cut could not see."""
+    mod = _load_lint()
+    producer = tmp_path / "bmad-producer"
+    producer.mkdir()
+    monkeypatch.setattr(mod, "PLUGIN", tmp_path)
+    monkeypatch.setattr(mod, "SKILLS", tmp_path)
+    monkeypatch.setattr(mod, "EXPECTED_POSTS", {"bmad-producer": []})
+    monkeypatch.setattr(mod, "PEEK_EXEMPT", {"bmad-producer": "terminal"})
+    monkeypatch.setattr(mod, "FORWARDERS", {})
+    monkeypatch.setattr(mod, "DIGEST_FIRST", ())
+    monkeypatch.setattr(mod, "EXPECTED_LINKS", {})
+    monkeypatch.setattr(mod, "EXPECTED_SUBSCRIPTIONS",
+                        {"bmad-producer": (("prd.*", "session"),)})
+
+    def _write(sub_line):
+        (producer / "SKILL.md").write_text(
+            "peek: handoffs --skill x\n" + sub_line + "\n", encoding="utf-8")
+
+    # right watcher, wrong pattern → flagged (missing contract + extra watch)
+    _write('watch: subscribe --watcher bmad-producer --pattern "ux.*" --channel session')
+    assert mod.check() == 0
+    out = capsys.readouterr().out
+    assert "change-radar subscription missing" in out
+    assert "not in the declared contract" in out
+    # right pattern, wrong channel → flagged
+    _write('watch: subscribe --watcher bmad-producer --pattern "prd.*" --channel stop')
+    assert mod.check() == 0
+    assert "change-radar subscription missing" in capsys.readouterr().out
+    # foreign watcher → flagged
+    _write('watch: subscribe --watcher someone-else --pattern "prd.*" --channel session')
+    assert mod.check() == 0
+    assert "foreign watcher" in capsys.readouterr().out
+    # exactly the contract → green
+    _write('watch: subscribe --watcher bmad-producer --pattern "prd.*" --channel session')
+    assert mod.check() == 0
+    assert "watches its upstreams (prd.*)" in capsys.readouterr().out
 
 
 def test_run_openers_start_from_the_digest(tmp_path, capsys, monkeypatch):

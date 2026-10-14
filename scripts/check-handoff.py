@@ -406,22 +406,42 @@ EXPECTED_LINKS = {
     "gds-sprint-planning": "link --a gds.sp.",
     "gds-create-story": "link --a gds.story.",
 }
+# The change radar (GUIDE/KILAVUZ §14): every subscribing skill watches a fixed
+# set of upstream patterns on ONE channel. The value is the FULL contract —
+# the (pattern, channel) pairs each skill must carry — because the first cut
+# checked only the watcher NAME (`subscribe --watcher <self>`), which let a
+# skill ship the WRONG pattern under the right watcher without the lint
+# noticing: bmad-spec shipped without its documented `prd.*` watch while the
+# runbook claimed it, and nothing could see the drift. This table is the one
+# declared truth: the skills must carry it exactly (checked below), and the two
+# runbooks must enumerate it exactly (bench_consistency
+# `_check_change_radar_contract_matches`, which re-derives the radar from the
+# skills independently so the table cannot quietly agree with itself).
 EXPECTED_SUBSCRIPTIONS = {
-    "bmad-architecture": "subscribe --watcher bmad-architecture",
-    "bmad-spec": "subscribe --watcher bmad-spec",
-    "bmad-create-epics-and-stories":
-        "subscribe --watcher bmad-create-epics-and-stories",
-    "bmad-create-story": "subscribe --watcher bmad-create-story",
-    "bmad-dev-story": "subscribe --watcher bmad-dev-story",
-    "bmad-check-implementation-readiness":
-        "subscribe --watcher bmad-check-implementation-readiness",
-    "bmad-sprint-planning": "subscribe --watcher bmad-sprint-planning",
-    "bmad-quality-record": "subscribe --watcher bmad-quality-record",
-    "bmad-production-readiness":
-        "subscribe --watcher bmad-production-readiness",
-    "bmad-research-experiment":
-        "subscribe --watcher bmad-research-experiment",
+    "bmad-architecture": (("prd.*", "session"), ("ux.*", "session")),
+    "bmad-spec": (("architecture.*", "session"), ("prd.*", "session")),
+    "bmad-create-epics-and-stories": (("spec.*", "session"),),
+    "bmad-create-story": (("epics.*", "session"), ("SP-*", "session")),
+    "bmad-dev-story": (("story.*", "session"),),
+    "bmad-check-implementation-readiness": (("E-*", "session"),
+                                            ("prd.*", "session")),
+    "bmad-sprint-planning": (("IR-*", "session"),),
+    "bmad-quality-record": (("story.*", "stop"),),
+    "bmad-production-readiness": (("QR-*", "stop"),),
+    "bmad-research-experiment": (("retro.*", "session"),),
 }
+
+# The exact CLI triple a SKILL.md ships for the radar. Anchored end to end so a
+# half-written or reordered line is not silently counted as present.
+_SUBSCRIBE_RE = re.compile(
+    r'subscribe --watcher (\S+) --pattern "([^"]+)" --channel (\S+)')
+
+
+def actual_subscriptions(text: str) -> set:
+    """Every (watcher, pattern, channel) a SKILL.md ships, as the radar sees
+    it — the read side the contract is checked against."""
+    return set(_SUBSCRIBE_RE.findall(text))
+
 
 # Reasons whose READ side is mandatory, not decorative. A router is the
 # session's front door and must ground in the chain (relay position + waiting
@@ -634,13 +654,29 @@ def check() -> int:
             else:
                 print(f"[OK]   {skill}: close-out traces the relay on the graph")
         if skill in EXPECTED_SUBSCRIPTIONS:
-            # Subscriptions are activation-side (SKILL.md), never steps/.
-            if EXPECTED_SUBSCRIPTIONS[skill] not in text:
-                print(f"[WARNING] {skill}: upstream subscription missing "
-                      f"('{EXPECTED_SUBSCRIPTIONS[skill]}…') — watch upstream "
-                      f"with 'subscribe --watcher {skill}'")
-            else:
-                print(f"[OK]   {skill}: watches upstream (subscribe --watcher)")
+            # Subscriptions are activation-side (SKILL.md), never steps/. The
+            # contract is the FULL (pattern, channel) set, not the watcher name:
+            # a wrong pattern is drift, not a pass (the bmad-spec gap).
+            want = {(skill, p, c) for p, c in EXPECTED_SUBSCRIPTIONS[skill]}
+            got = actual_subscriptions(text)
+            rogue = sorted(s for s in got if s[0] != skill)
+            missing = sorted(want - got)
+            extra = sorted(s for s in got if s[0] == skill and s not in want)
+            if rogue:
+                print(f"[WARNING] {skill}: subscribes under a foreign watcher "
+                      f"{rogue} — the change radar must watch as '{skill}'")
+            if missing:
+                print(f"[WARNING] {skill}: change-radar subscription missing "
+                      f"{[(p, c) for _, p, c in missing]} — run "
+                      f"'subscribe --watcher {skill} --pattern \"<p>\" "
+                      f"--channel <c>'")
+            if extra:
+                print(f"[WARNING] {skill}: change-radar subscription not in the "
+                      f"declared contract {[(p, c) for _, p, c in extra]} — "
+                      f"update EXPECTED_SUBSCRIPTIONS or drop the watch")
+            if not (rogue or missing or extra):
+                pats = ", ".join(sorted(p for p, _ in EXPECTED_SUBSCRIPTIONS[skill]))
+                print(f"[OK]   {skill}: watches its upstreams ({pats})")
 
     problems += check_forwarders()
     problems += check_receivers()

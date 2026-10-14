@@ -583,6 +583,44 @@ def test_tool_contract_names_the_real_harness_failures():
     assert bench._check_tool_contract_names_the_real_harness_failures() is None
 
 
+def test_change_radar_bullet_matches_the_shipped_subscriptions():
+    """E-043: the DOCUMENTED change radar must equal the SHIPPED radar.
+
+    The blackboard commit that added the §14 radar bullet also added a lint
+    that checked only that a `subscribe --watcher <self>` line existed, so a
+    WRONG pattern slipped through: the runbooks and the skills drifted on the
+    very commit that documented the radar (`bmad-spec` was documented to watch
+    `prd.*` but shipped only `architecture.*`; two skills were called "all on
+    the session channel" while they subscribe on `stop`). Independent
+    derivation here (regex over the skills + the runbooks, no bench import),
+    then the bench check is pinned to keep owning it.
+    """
+    sub_re = re.compile(
+        r'subscribe --watcher (\S+) --pattern "([^"]+)" --channel (\S+)')
+    shipped: dict[str, set] = {}
+    for md in sorted((PLUGIN / "skills").glob("*/SKILL.md")):
+        for watcher, pat, chan in sub_re.findall(
+                md.read_text(encoding="utf-8", errors="replace")):
+            shipped.setdefault(watcher, set()).add((pat, chan))
+    assert shipped, "no skill ships a subscribe line — the change radar vanished"
+    seg_re = re.compile(
+        r"`([a-z][\w-]+)`\s*(?:watches|→)\s*`([^`]+)`\s*\((session|stop)\)")
+    for rel in ("GUIDE.md", "KILAVUZ.md"):
+        text = (PLUGIN / rel).read_text(encoding="utf-8", errors="replace")
+        bullet = next((ln for ln in text.splitlines()
+                       if "change radar" in ln or "değişim radarı" in ln), None)
+        assert bullet is not None, f"{rel}: no change-radar bullet found"
+        claimed: dict[str, set] = {}
+        for skill, pats, chan in seg_re.findall(bullet):
+            claimed.setdefault(skill, set()).update(
+                (p.strip(), chan) for p in pats.split(",") if p.strip())
+        assert claimed == shipped, (
+            f"{rel}: documented radar {sorted(claimed.items())} != shipped "
+            f"{sorted(shipped.items())}")
+    bench = _load_bench()
+    assert bench._check_change_radar_contract_matches() is None
+
+
 def test_activation_compliance_rule_is_wired_and_audited():
     """check-custom.sh §2b must own the rule and ship a negtest stage for it."""
     text = (PLUGIN / "scripts" / "check-custom.sh").read_text(

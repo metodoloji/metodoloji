@@ -2754,6 +2754,64 @@ def _check_tool_contract_names_the_real_harness_failures() -> str | None:
     return "; ".join(problems) if problems else None
 
 
+_SUBSCRIBE_RE = re.compile(
+    r'subscribe --watcher (\S+) --pattern "([^"]+)" --channel (\S+)')
+# A runbook's change-radar bullet, anchored by its marker phrase so the check
+# reads the radar line and not some unrelated `prd.*` mention elsewhere.
+_RADAR_MARKERS = ("change radar", "değişim radarı")
+_RADAR_SEGMENT_RE = re.compile(
+    r"`([a-z][\w-]+)`\s*(?:watches|→)\s*`([^`]+)`\s*\((session|stop)\)")
+
+
+def _check_change_radar_contract_matches() -> str | None:
+    """E-043: the DOCUMENTED change radar must equal the SHIPPED one.
+
+    The last blackboard commit (cc5a02c) added the §14 change-radar bullet to
+    GUIDE/KILAVUZ and, next to it, a handoff-lint that checked only that a
+    `subscribe --watcher <self>` line existed. The lint could not see a WRONG
+    pattern, so the runbooks and the skills drifted on the very commit that
+    documented the radar: the bullet claimed `bmad-spec` watches `architecture.*,
+    prd.*` (the skill shipped only `architecture.*`) and "all on the session
+    channel" (two skills subscribe on `stop`), and it omitted four subscribing
+    skills. This check is the independent half: it DERIVES the radar from the
+    SKILL.md files themselves (no table import) and requires each runbook's
+    radar bullet to enumerate exactly that table — both directions, so neither a
+    missing skill nor a phantom one can pass.
+    """
+    problems: list[str] = []
+    shipped: dict[str, set] = {}
+    for md in sorted((ROOT / "skills").glob("*/SKILL.md")):
+        try:
+            txt = md.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for watcher, pat, chan in _SUBSCRIBE_RE.findall(txt):
+            shipped.setdefault(watcher, set()).add((pat, chan))
+    if not shipped:
+        return "no skill ships a subscribe line — the change radar vanished"
+    for rel in ("GUIDE.md", "KILAVUZ.md"):
+        bullet = next((ln for ln in _read(rel).splitlines()
+                       if any(m in ln for m in _RADAR_MARKERS)), None)
+        if bullet is None:
+            problems.append(f"{rel}: no change-radar bullet found")
+            continue
+        claimed: dict[str, set] = {}
+        for skill, pats, chan in _RADAR_SEGMENT_RE.findall(bullet):
+            claimed.setdefault(skill, set()).update(
+                (p.strip(), chan) for p in pats.split(",") if p.strip())
+        for skill, want in sorted(shipped.items()):
+            got = claimed.get(skill)
+            if got is None:
+                problems.append(f"{rel}: change-radar bullet omits `{skill}`")
+            elif got != want:
+                problems.append(f"{rel}: `{skill}` radar says {sorted(got)} "
+                                f"but the skill ships {sorted(want)}")
+        for skill in sorted(set(claimed) - set(shipped)):
+            problems.append(f"{rel}: change-radar bullet claims `{skill}` "
+                            f"which ships no subscription")
+    return "; ".join(problems) if problems else None
+
+
 def build_checks() -> list[tuple[str, object]]:
     checks: list[tuple[str, object]] = []
     for rel in DOC_FILES:
@@ -2875,6 +2933,8 @@ def build_checks() -> list[tuple[str, object]]:
                    _check_cross_machine_marker_is_anchored))
     checks.append(("tool contract names the real harness failures (E-041)",
                    _check_tool_contract_names_the_real_harness_failures))
+    checks.append(("documented change radar equals the shipped one (E-043)",
+                   _check_change_radar_contract_matches))
     checks.append(("pytest suite green (falsifier)", _run_pytest))
     checks.append(("hooks.json in sync with generator", _run_hooks_json_sync))
     return checks
