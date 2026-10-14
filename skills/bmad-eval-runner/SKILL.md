@@ -99,7 +99,7 @@ When a run fails or comes back weak and the user wants the skill improved from t
 
 Every run writes a dated run folder under the output dir, and those artifacts are permanent. Each case folder holds its prompt, transcript, the `cwd/` with any files the skill wrote, `timing.json`, and `grading.json` once graded. Never delete, overwrite, or rotate a run folder; disk usage is the user's call. `run.json` records the run parameters and `execution-summary.json` the per-case results, so a resumed or audited run reads back cleanly.
 
-Tell the user where the run folder is when you finish. Leave one trace on the board (the only write this skill makes): `python3 {metodoloji-root}/bmad/scripts/blackboard.py contribute --who bmad-eval-runner --what "eval on <skill-name>: <passed>/<total> cases, <run-dir>" --project-root {project-root}` (one line; fail-open — board errors never block the return). If the run feeds a linked QR record, fill its `Skill Eval` block per the header bridge. Then exit — no `doctor` close-out, no focus handling: this skill owns no board state to clear.
+Tell the user where the run folder is when you finish. Leave one trace on the board (the only write this skill makes): `python3 {metodoloji-root}/bmad/scripts/blackboard.py contribute --who bmad-eval-runner --what "eval on <skill-name>: <passed>/<total> cases, <run-dir>" --project-root {project-root}` (format `<run>: <outcome>, <artifact>` — one line; fail-open — board errors never block the return). If the run feeds a linked QR record, fill its `Skill Eval` block per the header bridge. Then exit — no `doctor` close-out, no focus handling: this skill owns no board state to clear.
 
 ## Outcomes
 

@@ -67,7 +67,7 @@ Execute each entry in `{workflow.activation_steps_append}` in order.
 
 ### Step 8: Chain Handshake
 
-Check for signals addressed to you before the workflow begins: `python3 {metodoloji-root}/bmad/scripts/blackboard.py handoffs --skill bmad-quality-record --project-root {project-root}` — the canonical sender is a `bmad-create-story` run whose note names the story key queued for a QR record. Read the named story first (step 1 requires it in review or done status — an earlier signal means the record is still pending implementation), then complete the handshake: `python3 {metodoloji-root}/bmad/scripts/blackboard.py consume --channel handoff.bmad-quality-record --project-root {project-root}` (consume only after the named story file is located — an unconsumed signal keeps the hand-off waiting, which is correct when the user routes elsewhere).
+Check for signals addressed to you before the workflow begins: `python3 {metodoloji-root}/bmad/scripts/blackboard.py handoffs --skill bmad-quality-record --project-root {project-root}` — the canonical sender is a `bmad-create-story` run whose note names the story key queued for a QR record. Read the named story first (step 1 requires it in review or done status — an earlier signal means the record is still pending implementation), then complete the handshake: `python3 {metodoloji-root}/bmad/scripts/blackboard.py consume --channel handoff.bmad-quality-record --project-root {project-root}` (consume only after the named story file is located — an unconsumed signal keeps the hand-off waiting, which is correct when the user routes elsewhere). Watch the story queue for mid-run changes: `python3 {metodoloji-root}/bmad/scripts/blackboard.py subscribe --watcher bmad-quality-record --pattern "story.*" --channel stop --project-root {project-root}` (a story landing in review/done while this run is open surfaces at Stop; clear with `consume --channel stop`).
 
 Activation is complete. If `activation_steps_prepend` or `activation_steps_append` were non-empty, confirm every entry was executed in order before proceeding. Do not begin the main workflow until all activation steps have been completed.
 
@@ -323,6 +323,7 @@ Activation is complete. If `activation_steps_prepend` or `activation_steps_appen
   - [ ] Update story status to "blocked" or revert to "in-progress"
   - [ ] Add comment explaining rejection
   - [ ] Note next steps in story
+  - [ ] Announce the block on the stop channel: `python3 {metodoloji-root}/bmad/scripts/blackboard.py notify --channel stop --kind warn --text "QR-{id} REJECTED for S-XXX — story blocked, see {quality_location}/QR-{id}.md" --project-root {project-root}` (it surfaces at Stop until consumed; clear with `consume --channel stop` once unblocked)
 
 <action>Post handoff notification (one call — heartbeat + signal):</action>
 
@@ -330,7 +331,7 @@ Activation is complete. If `activation_steps_prepend` or `activation_steps_appen
 python3 {metodoloji-root}/bmad/scripts/blackboard.py mirror --key QR-{id} --value "APPROVED for S-XXX — record: {quality_location}/QR-{id}.md" --to bmad-production-readiness --note "QR-{id} approved for S-XXX. Ready for production readiness check." --project-root {project-root}
 ```
 
-(The `mirror --key QR-{id}` run key is the relay heartbeat: the engine mirrors `methodology.last_qr` from it automatically — the injected context then shows how far the E→IR→SP→S→QR→PR chain progressed. Re-running the same mirror never duplicates the waiting signal.)
+(The `mirror --key QR-{id}` run key is the relay heartbeat: the engine mirrors `methodology.last_qr` from it automatically — the injected context then shows how far the E→IR→SP→S→QR→PR chain progressed. Re-running the same mirror never duplicates the waiting signal. Trace the relay on the graph: `python3 {metodoloji-root}/bmad/scripts/blackboard.py link --a story.<story-key> --b QR-{id} --relation validates --project-root {project-root}` — the story key is the one the consumed QR-queued baton named; downstream reads it via `neighbors --node QR-{id}`.)
 
 (Or if rejected, still bind the run key with the REJECTED value, but skip the handoff and note in story why)
 </step>

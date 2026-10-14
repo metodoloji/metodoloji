@@ -62,7 +62,7 @@ Activation is complete. If `activation_steps_prepend` or `activation_steps_appen
 
 ### Chain Handshake (activation)
 
-Check for upstream hand-off signals before starting: `python3 {metodoloji-root}/bmad/scripts/blackboard.py handoffs --skill gds-check-implementation-readiness --project-root {project-root}`. When a waiting baton from an upstream session is addressed to this skill, consume it: `python3 {metodoloji-root}/bmad/scripts/blackboard.py consume --channel handoff.gds-check-implementation-readiness --project-root {project-root}`.
+Check for upstream hand-off signals before starting: `python3 {metodoloji-root}/bmad/scripts/blackboard.py handoffs --skill gds-check-implementation-readiness --project-root {project-root}`. When a waiting baton from an upstream session is addressed to this skill, consume it: `python3 {metodoloji-root}/bmad/scripts/blackboard.py consume --channel handoff.gds-check-implementation-readiness --project-root {project-root}`. Read the upstream graph alongside the handoff: `blackboard.py neighbors --node <upstream-run-key> --project-root {project-root}`.
 
 ## WORKFLOW ARCHITECTURE
 

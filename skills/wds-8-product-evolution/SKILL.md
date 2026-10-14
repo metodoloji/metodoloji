@@ -32,4 +32,6 @@ Post the chain signal so the next phase opens knowing this one landed (one call)
 
 `python3 {metodoloji-root}/bmad/scripts/blackboard.py mirror --key wds.evolve.<cycle> --value "evolution cycle findings complete" --to wds-1-project-brief --note "evolution cycle findings ready — pick up the next phase" --project-root {project-root}`
 
+Trace the relay on the graph (brownfield re-entry): `python3 {metodoloji-root}/bmad/scripts/blackboard.py link --a wds.evolve.<cycle> --b wds.brief.<slug> --relation informs --project-root {project-root}` (the brief run reads it via `neighbors --node wds.brief.<slug>`).
+
 The run key is this phase's heartbeat; repeating the same mirror never duplicates the waiting signal. Then run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --key workflow.on_complete`

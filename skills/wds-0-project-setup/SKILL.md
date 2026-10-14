@@ -32,4 +32,6 @@ Post the chain signal so the next phase opens knowing this one landed (one call)
 
 `python3 {metodoloji-root}/bmad/scripts/blackboard.py mirror --key wds.setup.<slug> --value "project outline complete" --to wds-0-alignment-signoff --note "project outline ready — pick up the next phase" --project-root {project-root}`
 
+Trace the relay on the graph: `python3 {metodoloji-root}/bmad/scripts/blackboard.py link --a wds.setup.<slug> --b wds.signoff.<slug> --relation informs --project-root {project-root}` (downstream reads it via `neighbors --node wds.signoff.<slug>`).
+
 The run key is this phase's heartbeat; repeating the same mirror never duplicates the waiting signal. Then run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --key workflow.on_complete`

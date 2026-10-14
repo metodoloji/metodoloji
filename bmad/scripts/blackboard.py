@@ -183,6 +183,12 @@ def _panel(d: dict) -> str:
     hops = ", ".join(f"{h['from']}->{h['to']}" for h in ch["waiting_hops"]) or "none"
     lines.append(f"chain     {ch['total_waiting']} waiting ({hops})"
                  f" [verdict: {ch.get('verdict', 'HEALTHY')}]")
+    g = c.get("graph", {})
+    if g.get("edges"):
+        orph = g.get("orphans", [])
+        lines.append(f"graph     {g['edges']} edge(s)"
+                     + (f" ({len(orph)} orphan endpoint(s): "
+                        f"{', '.join(orph[:3])})" if orph else ""))
     m = c.get("methodology", {}).get("progress", {})
     if m:
         lines.append("relay     " + " | ".join(f"{k}: {v[:50]}" for k, v in m.items()))

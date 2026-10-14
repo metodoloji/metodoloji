@@ -28,12 +28,14 @@ Run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {s
 
 ## Chain Handshake (activation)
 
-Check for upstream hand-off signals before starting: `python3 {metodoloji-root}/bmad/scripts/blackboard.py handoffs --skill wds-5-agentic-development --project-root {project-root}`. When a waiting baton is addressed to this skill, consume it: `python3 {metodoloji-root}/bmad/scripts/blackboard.py consume --channel handoff.wds-5-agentic-development --project-root {project-root}`.
+Check for upstream hand-off signals before starting: `python3 {metodoloji-root}/bmad/scripts/blackboard.py handoffs --skill wds-5-agentic-development --project-root {project-root}`. When a waiting baton is addressed to this skill, consume it: `python3 {metodoloji-root}/bmad/scripts/blackboard.py consume --channel handoff.wds-5-agentic-development --project-root {project-root}`. Read the upstream graph alongside the handoff: `blackboard.py neighbors --node <upstream-run-key> --project-root {project-root}`.
 
 ## On Complete
 
 Post the chain signal so the next phase opens knowing this one landed (one call):
 
 `python3 {metodoloji-root}/bmad/scripts/blackboard.py mirror --key wds.dev.<slug> --value "development run complete" --to wds-6-asset-generation --note "development run ready — pick up the next phase" --project-root {project-root}`
+
+Trace the relay on the graph: `python3 {metodoloji-root}/bmad/scripts/blackboard.py link --a wds.dev.<slug> --b wds.asset.<slug> --relation informs --project-root {project-root}` (downstream reads it via `neighbors --node wds.asset.<slug>`).
 
 The run key is this phase's heartbeat; repeating the same mirror never duplicates the waiting signal. Then run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --key workflow.on_complete`

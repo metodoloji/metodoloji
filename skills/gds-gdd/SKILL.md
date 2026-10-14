@@ -34,7 +34,7 @@ At the opening greeting, let the user know they can invoke the skills `bmad-part
 
 ### Chain Handshake (activation)
 
-Check for upstream hand-off signals before starting: `python3 {metodoloji-root}/bmad/scripts/blackboard.py handoffs --skill gds-gdd --project-root {project-root}`. When a waiting baton from an upstream session is addressed to this skill, consume it: `python3 {metodoloji-root}/bmad/scripts/blackboard.py consume --channel handoff.gds-gdd --project-root {project-root}`.
+Check for upstream hand-off signals before starting: `python3 {metodoloji-root}/bmad/scripts/blackboard.py handoffs --skill gds-gdd --project-root {project-root}`. When a waiting baton from an upstream session is addressed to this skill, consume it: `python3 {metodoloji-root}/bmad/scripts/blackboard.py consume --channel handoff.gds-gdd --project-root {project-root}`. Read the upstream graph alongside the handoff: `blackboard.py neighbors --node <upstream-run-key> --project-root {project-root}`.
 
 ## Intent Operating Modes
 

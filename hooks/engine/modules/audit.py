@@ -422,6 +422,23 @@ def session_start(json_in: dict) -> dict:
             chain_s = "; ".join(f"{stage}: {val[:60]}"
                                 for stage, val in progress.items())
             context += f" Chain progress — {chain_s}."
+        # Graph peek (blackboard full-integration P1): the hot run's
+        # neighborhood grounds a resumed session in what the run is wired
+        # to (decision map, upstream spec, downstream consumer). Read-only,
+        # bounded to 5, fail-open — a hot-less or link-less board adds
+        # nothing. `neighbors` already rides `compact_context`; this only
+        # renders it into the injected sentence.
+        try:
+            _hot = bb.read_board(root).get("hot")
+            if _hot:
+                _nbs = bb.neighbors(root, _hot)[:5]
+                if _nbs:
+                    _nb_s = ", ".join(
+                        f"{n.get('node')} ({n.get('relation')},{n.get('direction')})"
+                        for n in _nbs)
+                    context += f" Graph — {_hot} ↔ [{_nb_s}]."
+        except Exception:
+            pass
         # Workflow-kernel peek (2026-10-02): the run's position is COMPUTED
         # state, not memory — a resumed session continues the declared workflow
         # instead of re-deriving the plan from chat, and the sentence names

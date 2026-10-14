@@ -209,6 +209,40 @@ def test_doctor_flags_hot_run_with_finished_status(root):
     assert doc2["checks"]["focus"]["status"] == "ok"
 
 
+def test_doctor_warns_on_blocked_tag(root):
+    # The `blocked` tag vocabulary (GUIDE §14): a board carrying it names
+    # the stalled run and flips the verdict until the tag is cleared.
+    bb.write_key(root, "prd.acme", "v1", hot=True)
+    assert bb.doctor(root)["verdict"] == "HEALTHY"
+    bb.add_tag(root, "blocked")
+    doc = bb.doctor(root)
+    assert any("blocked" in w for w in doc["warnings"])
+    assert "prd.acme" in next(w for w in doc["warnings"] if "blocked" in w)
+    assert doc["verdict"] == "NEEDS ATTENTION"
+    bb.remove_tag(root, "blocked")
+    assert bb.doctor(root)["verdict"] == "HEALTHY"
+
+
+def test_doctor_reports_orphan_link_endpoints_without_failing(root):
+    # A forward edge legitimately precedes its downstream run key (the run
+    # lands at the next close-out), so orphans are informational — the
+    # designed mid-relay state must not read NEEDS ATTENTION (same doctrine
+    # as SIGNAL for waiting batons). The listing lets the operator tell a
+    # pending downstream apart from a mis-slugged key.
+    bb.write_key(root, "prd.acme", "v1", hot=True)
+    bb.link(root, "prd.acme", "ux.acme", relation="informs")
+    doc = bb.doctor(root)
+    assert doc["verdict"] == "HEALTHY"
+    assert doc["checks"]["graph"]["edges"] == 1
+    assert doc["checks"]["graph"]["orphans"] == ["ux.acme"]
+    # A literal placeholder pasted from a template is the same shape — the
+    # operator tells them apart by name.
+    bb.link(root, "prd.acme", "ux.<product-slug>", relation="informs")
+    doc2 = bb.doctor(root)
+    assert doc2["verdict"] == "HEALTHY"
+    assert "ux.<product-slug>" in doc2["checks"]["graph"]["orphans"]
+
+
 def test_write_non_run_key_leaves_mirror_untouched(root):
     # Only methodology run keys mirror; an ordinary key write emits exactly
     # one event (no surprise mirror), and the chain context stays empty.
@@ -1365,6 +1399,28 @@ def test_session_start_announces_waiting_relay_handoffs(tmp_path, monkeypatch):
     assert "bmad-ux (1)" in out["additionalContext"]
     # announce-only invariant preserved at the board level: signal still waits
     assert len(bb.pending_handoffs(str(tmp_path), "bmad-ux")) == 1
+
+
+def test_session_start_injects_hot_neighborhood(tmp_path, monkeypatch):
+    # Graph peek (blackboard full-integration): a hot run wired with links
+    # surfaces its neighborhood in the injected context — read-only, bounded.
+    audit_mod, _, _ = _engine(monkeypatch, str(tmp_path))
+    bb.write_key(str(tmp_path), "prd.acme", "PRD final", hot=True)
+    bb.write_key(str(tmp_path), "ux.acme", "UX final")
+    bb.link(str(tmp_path), "prd.acme", "ux.acme", relation="informs")
+    ctx = audit_mod.session_start({"cwd": str(tmp_path)})["additionalContext"]
+    assert "Graph — prd.acme" in ctx
+    assert "ux.acme (informs,out)" in ctx
+    # read-only: the edge survives the peek, nothing routed or consumed
+    assert bb.neighbors(str(tmp_path), "prd.acme")[0]["node"] == "ux.acme"
+
+
+def test_session_start_silent_graph_without_links(tmp_path, monkeypatch):
+    # No hot focus or no edges → no Graph sentence (fresh boards stay quiet).
+    audit_mod, _, _ = _engine(monkeypatch, str(tmp_path))
+    bb.write_key(str(tmp_path), "prd.acme", "v1", hot=True)
+    ctx = audit_mod.session_start({"cwd": str(tmp_path)})["additionalContext"]
+    assert "Graph —" not in ctx
 
 
 def test_session_start_announces_bmad_help_result_channel(tmp_path, monkeypatch):

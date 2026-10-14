@@ -44,6 +44,20 @@ Mechanically audits the plugin's own integrity and the record discipline in the 
    re-harden; flag any softened `quality_gate` / `deploy_guard` as
    over-softening.
 
+6. Blackboard working context (fail-open — a missing/corrupt board is
+   reported, never a failure of the audit itself):
+   ```sh
+   python3 {metodoloji-root}/bmad/scripts/blackboard.py doctor --json --project-root {project-root}
+   python3 {metodoloji-root}/bmad/scripts/blackboard.py stats --project-root {project-root}
+   python3 {metodoloji-root}/bmad/scripts/blackboard.py chain-health --project-root {project-root}
+   ```
+   Verdict mapping: `HEALTHY` = pass; `SIGNAL` (unclaimed batons) = pass
+   with info — a waiting hand-off is the designed post-close state, not a
+   defect; `NEEDS ATTENTION` = fix (stale >24h batons, `blocked` tag,
+   focus/status drift, cap pressure, event-log garbage). If `doctor` reports
+   the event log at bound (`MAX_EVENTS`), archive with
+   `python3 {metodoloji-root}/bmad/scripts/blackboard.py rotate --project-root {project-root}`.
+
 ## Harness note (Claude Code + OpenHands)
 
 Run **one shell command per tool call** with your harness-native shell tool.
@@ -69,7 +83,8 @@ Never reference the gate key file in a shell command (`ls`/`cat` of any
 `gate-key` path is guard-denied); check gate state via the orient digest's
 `gate_key` line or `{metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --check-secret`.
 
-6. Result report: PASS/FAIL list + fix suggestions. If you find an issue requiring a
+7. Result report: PASS/FAIL list + fix suggestions (include the board verdict
+   from step 6: NEEDS ATTENTION items are fixes, SIGNAL batons are info). If you find an issue requiring a
    negative test (e.g. bridge cannot resolve), show the script's
    break→catch→restore output; prove the custom/ drift check is live with
    `{metodoloji-root}/scripts/check-custom.sh --negtest`.

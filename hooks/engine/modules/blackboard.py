@@ -2498,6 +2498,34 @@ def doctor(project_root: str) -> dict:
             f"--value in-progress`); readers route on status"
         )
 
+    # Blocked-run tag (blackboard full-integration P1): `blocked` is the
+    # stalls-the-run marker from the tag vocabulary (GUIDE §14). A board
+    # carrying it names its hot run so the operator triages the stall
+    # instead of re-deriving state. Informational severity stays with the
+    # verdict logic (any warning → NEEDS ATTENTION).
+    if "blocked" in (board.get("tags") or []):
+        _hot_name = board.get("hot") or "(no hot focus)"
+        warnings.append(
+            f"board tagged 'blocked' — run '{_hot_name}' is stalled; "
+            f"clear with `untag --tag blocked` once it moves"
+        )
+
+    # Graph orphans (blackboard full-integration, informational only): a link
+    # endpoint with no key or canvas on the board. A forward edge legitimately
+    # precedes its downstream run key (the run lands at the next close-out),
+    # so — like waiting batons (SIGNAL) — this never touches the verdict; it
+    # names the endpoints so the operator can tell a pending downstream apart
+    # from a mis-slugged key (e.g. a literal `<slug>` pasted from a template).
+    # Bounded to keep doctor bounded.
+    _nodes = set(board["keys"])
+    _nodes.update(board["canvases"])
+    _nodes.update(f"canvas:{n}" for n in board["canvases"])
+    _orphans: list = []
+    for _l in board["links"]:
+        for _end in (_l.get("a"), _l.get("b")):
+            if _end and _end not in _nodes and _end not in _orphans:
+                _orphans.append(_end)
+
     # watch paths (informational: missing prefixes may be created later)
     watch = [{"canvas": name, "path": w, "exists": os.path.exists(w)}
              for name, cv in board["canvases"].items()
@@ -2544,6 +2572,8 @@ def doctor(project_root: str) -> dict:
                   "status": ("ok" if not chain_warnings and not stale
                              else "warn" if stale else "signal")},
         "watch": {"paths": watch, "status": "info" if watch else "ok"},
+        "graph": {"edges": len(board["links"]), "orphans": _orphans[:10],
+                  "status": "info"},
         "methodology": {"progress": methodology,
                         "status": "info" if methodology else "ok"},
     }

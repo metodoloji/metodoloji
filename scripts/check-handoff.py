@@ -356,6 +356,73 @@ SHARED_NAMESPACES = {
     "story.": ["bmad-create-story", "bmad-dev-story"],
 }
 
+# Blackboard full-integration (graph + change radar, GUIDE §14): the producing
+# and relay skills below carry one graph edge per close-out
+# (`link --a <run-key> --b <next>` — SKILL.md or its steps/ tree) and one
+# upstream subscription at activation (`subscribe --watcher <self>` — SKILL.md
+# side). WARNING-level, not ERROR: a missing edge degrades traceability but
+# never breaks the chain the way a missing handoff does — and the GDS/WDS
+# verticals migrate later, so failing the whole lint on them would be wrong.
+# Extend these dicts when they migrate.
+EXPECTED_LINKS = {
+    "bmad-prd": "link --a prd.",
+    "bmad-ux": "link --a ux.",
+    "bmad-architecture": "link --a architecture.",
+    "bmad-spec": "link --a spec.",
+    "bmad-create-epics-and-stories": "link --a spec.",
+    "bmad-create-story": "link --a epics.",
+    "bmad-check-implementation-readiness": "link --a E-",
+    "bmad-sprint-planning": "link --a IR-",
+    "bmad-quality-record": "link --a story.",
+    "bmad-production-readiness": "link --a QR-",
+    # WDS pipeline (linear phases — links only, no subscriptions: the 16-slot
+    # global subscription cap is reserved for the bmad change radar, and a
+    # strict pipeline already carries its radar in the per-phase baton).
+    # Terminal wds-7-design-system writes no run key, so it carries no edge
+    # (same rule as the bmad-code-review terminal).
+    "wds-0-project-setup": "link --a wds.setup.",
+    "wds-0-alignment-signoff": "link --a wds.signoff.",
+    "wds-1-project-brief": "link --a wds.brief.",
+    "wds-2-trigger-mapping": "link --a wds.trigger.",
+    "wds-3-scenarios": "link --a wds.scenario.",
+    "wds-4-ux-design": "link --a wds.ux.",
+    "wds-5-agentic-development": "link --a wds.dev.",
+    "wds-8-product-evolution": "link --a wds.evolve.",
+    # GDS game vertical (close-outs live in custom/<skill>.toml [workflow]
+    # on_complete — the lint blob covers the bridge TOMLs, so TOML edges
+    # count. Feeders, dev variants and governance post no graph edge
+    # (bmad-side symmetry: a feeder adds evidence, it does not open a run).
+    # Terminal gds-dev-story writes no review key (gds-code-review carries no
+    # mirror), so it carries no edge — same rule as the bmad/wds terminals.
+    "gds-domain-research": "link --a gds.research.",
+    "gds-brainstorm-game": "link --a gds.brainstorm.",
+    "gds-create-game-brief": "link --a gds.brief.",
+    "gds-create-narrative": "link --a gds.narrative.",
+    "gds-gdd": "link --a gds.gdd.",
+    "gds-ux": "link --a gds.ux.",
+    "gds-prd": "link --a gds.prd.",
+    "gds-game-architecture": "link --a gds.architecture.",
+    "gds-check-implementation-readiness": "link --a gds.ir.",
+    "gds-sprint-planning": "link --a gds.sp.",
+    "gds-create-story": "link --a gds.story.",
+}
+EXPECTED_SUBSCRIPTIONS = {
+    "bmad-architecture": "subscribe --watcher bmad-architecture",
+    "bmad-spec": "subscribe --watcher bmad-spec",
+    "bmad-create-epics-and-stories":
+        "subscribe --watcher bmad-create-epics-and-stories",
+    "bmad-create-story": "subscribe --watcher bmad-create-story",
+    "bmad-dev-story": "subscribe --watcher bmad-dev-story",
+    "bmad-check-implementation-readiness":
+        "subscribe --watcher bmad-check-implementation-readiness",
+    "bmad-sprint-planning": "subscribe --watcher bmad-sprint-planning",
+    "bmad-quality-record": "subscribe --watcher bmad-quality-record",
+    "bmad-production-readiness":
+        "subscribe --watcher bmad-production-readiness",
+    "bmad-research-experiment":
+        "subscribe --watcher bmad-research-experiment",
+}
+
 # Reasons whose READ side is mandatory, not decorative. A router is the
 # session's front door and must ground in the chain (relay position + waiting
 # batons) before greeting; a contributor must ground in the INVOKING run's
@@ -558,6 +625,22 @@ def check() -> int:
         if not wants and posted:
             print(f"[WARNING] {skill}: terminal skill posts {sorted(posted)} "
                   f"(harmless, informational)")
+        if skill in EXPECTED_LINKS:
+            # The edge may live in a steps/ file (IR, epics), so scan the blob.
+            if EXPECTED_LINKS[skill] not in blob:
+                print(f"[WARNING] {skill}: close-out graph edge missing "
+                      f"('{EXPECTED_LINKS[skill]}…') — trace the relay with "
+                      f"'link --a <run-key> --b <next>'")
+            else:
+                print(f"[OK]   {skill}: close-out traces the relay on the graph")
+        if skill in EXPECTED_SUBSCRIPTIONS:
+            # Subscriptions are activation-side (SKILL.md), never steps/.
+            if EXPECTED_SUBSCRIPTIONS[skill] not in text:
+                print(f"[WARNING] {skill}: upstream subscription missing "
+                      f"('{EXPECTED_SUBSCRIPTIONS[skill]}…') — watch upstream "
+                      f"with 'subscribe --watcher {skill}'")
+            else:
+                print(f"[OK]   {skill}: watches upstream (subscribe --watcher)")
 
     problems += check_forwarders()
     problems += check_receivers()

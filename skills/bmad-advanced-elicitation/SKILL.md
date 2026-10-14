@@ -121,7 +121,7 @@ x. Proceed / No Further Actions
 - Complete elicitation and proceed
 - Return the fully enhanced content back to the invoking skill
 - The enhanced content becomes the final version for that section
-- Leave one trace on the board (the only write this skill makes): `python3 {metodoloji-root}/bmad/scripts/blackboard.py contribute --who bmad-advanced-elicitation --what "elicit on <hot key or purpose>: <method names applied>" --project-root {project-root}` (names the invoking run's session and the methods applied, one line; fail-open — board errors never block the return)
+- Leave one trace on the board (the only write this skill makes): `python3 {metodoloji-root}/bmad/scripts/blackboard.py contribute --who bmad-advanced-elicitation --what "elicit on <hot key>: <method names applied>, <invoking-skill>" --project-root {project-root}` (names the invoking run's session, the methods applied and the caller — format `<run>: <outcome>, <caller>` — one line; fail-open — board errors never block the return)
 - Signal completion back to the invoking skill to continue with next section
 
 **Case a (List All):**
