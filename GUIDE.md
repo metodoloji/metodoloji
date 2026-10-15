@@ -503,7 +503,7 @@ Debt surfaced in QR → add a row to `docs/development/tech-debt.md` + add `// T
 
 ### P17 — Incident → PM
 
-Within 24–48 hours of a SEV1/SEV2, write `docs/development/incidents/PM-XXX.md` (blameless: the system, not a person). Timeline (UTC), impact, 5 Whys, detection/response analysis, lessons, actions (owner+deadline+status). Debt coming out of a PM becomes a TD record → next sprint. Record the PM id in the PR's "Deploy Result".
+Within 24–48 hours of a SEV1/SEV2, write `docs/development/incidents/PM-XXX.md` — copy `{metodoloji-root}/templates/_template_PM.md` (`init` puts it in `docs/development/incidents/`) (blameless: the system, not a person). Timeline (UTC), impact, 5 Whys, detection/response analysis, lessons, actions (owner+deadline+status). Debt coming out of a PM becomes a TD record → next sprint. Record the PM id in the PR's "Deploy Result".
 
 ### P18 — Parallel experiments
 
@@ -642,6 +642,7 @@ Open every record **from a template** (`{metodoloji-root}/templates/`), fill its
 | **S**  | Dev    | Task↔AC match + experiment reference | `docs/development/stories/S-NNN.md`                                       |
 | **QR** | Gate 3 | Coverage ≥ 80%, tests/lint clean     | `docs/quality/QR-NNN.md` (canonical; `docs/development/` legacy accepted) |
 | **PR** | Gate 4 | Staging + rollback + monitoring      | `docs/development/PR-NNN.md`                                              |
+| **PM** | Post   | No gate — written after a SEV1/SEV2  | `docs/development/incidents/PM-NNN.md`                                    |
 
 
 ### 8.1 E — Experiment (Mode A, mechanical gate)
@@ -1438,7 +1439,7 @@ metodoloji/
 ├── skills/                              # 125 BMAD skills (native bodies)
 ├── custom/                              # 121 TOMLs (33 BRIDGE active) + config.toml (soft/hard)
 ├── bmad/                                # module data (bmm,cis,gds,wds,tea,core,bmb,loop,_config) + scripts/ (blackboard, workflow, orient, resolve_config, resolve_customization, skeleton)
-├── templates/                           # _template_E/IR/SP/QR/PR/S/BD/C + README/tech-debt/scratch-README
+├── templates/                           # _template_E/IR/SP/QR/PR/S/PM/BD/C + README/tech-debt/scratch-README
 ├── commands/                            # /metodoloji:init, gate-setup, verify, audit (.md)
 ├── scripts/                             # check-plugin/custom/methodology/techdebt, check-handoff, create-*-record, sync-*, bench/
 ├── docs/                                # CLAUDE.md, bmad manifests, record templates (experiments/development/quality/research/design) + native outputs (development/native/)

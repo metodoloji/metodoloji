@@ -785,3 +785,140 @@ def test_activation_compliance_rule_is_wired_and_audited():
     assert "bare workflow step" in text, (
         "§2b no longer names the violation it reports"
     )
+
+
+# --- E-050: the template inventory, judged in the INSTALLED layout -------------
+# The init-copied README is read by a user inside a project that has ONLY the
+# skeleton (init copies templates/ and creates skeleton.DIRECTORIES, nothing
+# else), and the runbooks plus CHECK 8's scope restate the same inventory by
+# hand. Measured 2026-10-15: the README promised `_template_PM.md` and an
+# `incidents/` directory no installer created, its manifesto links resolved only
+# inside the plugin dogfood (dead in every project), and neither runbook listed
+# the Post-Mortem template at all.
+
+def _rewrite(path: Path, mutate) -> None:
+    """Mutate a fixture file through LF, refusing a no-op (setup must bite)."""
+    text = path.read_text(encoding="utf-8", errors="replace").replace("\r\n", "\n")
+    mutated = mutate(text)
+    assert mutated != text, f"fixture setup broken: {path.name} was not mutated"
+    path.write_text(mutated, encoding="utf-8")
+
+
+def _inventory_fixture(tmp_path: Path) -> Path:
+    """A miniature tree carrying every file the E-050 checks read."""
+    for rel in ("bmad/scripts/skeleton.py", "README.md", "GUIDE.md", "KILAVUZ.md",
+                "scripts/check-methodology.sh"):
+        dest = tmp_path / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes((PLUGIN / rel).read_bytes())
+    (tmp_path / "templates").mkdir(exist_ok=True)
+    for src in (PLUGIN / "templates").glob("*.md"):
+        (tmp_path / "templates" / src.name).write_bytes(src.read_bytes())
+    return tmp_path
+
+
+def test_init_copied_docs_only_promise_paths_init_creates(tmp_path):
+    """E-050: a copied doc may only name paths init itself creates.
+
+    Independent derivation first (the copied README's template names vs the
+    shipped templates/ set), then the bench check is pinned to keep owning it,
+    then three falsifiers: the promised template removed, a relative link into
+    the plugin, and a tree directory init does not create.
+    """
+    bench = _load_bench()
+    assert bench._installed_doc_path_problems(PLUGIN) == []
+
+    readme = (PLUGIN / "templates" / "README.md").read_text(
+        encoding="utf-8", errors="replace")
+    named = set(re.findall(r"_template_[A-Za-z0-9]+\.md", readme))
+    shipped = {p.name for p in (PLUGIN / "templates").glob("*.md")}
+    assert named <= shipped, (
+        f"the init-copied README names templates that do not ship: {sorted(named - shipped)}"
+    )
+
+    # falsifier 1: the shipped bug — the promised template does not exist
+    root = _inventory_fixture(tmp_path)
+    (root / "templates" / "_template_PM.md").unlink()
+    problems = bench._installed_doc_path_problems(root)
+    assert any("_template_PM.md" in p and "templates/README.md" in p
+               for p in problems), problems
+
+    # falsifier 2: a relative link to a plugin-canonical doc (init never copies it)
+    root = _inventory_fixture(tmp_path / "links")
+    _rewrite(root / "templates" / "README.md", lambda t: t.replace(
+        "`{metodoloji-root}/docs/bmad/development-methodology.md`",
+        "[Development Methodology](../bmad/development-methodology.md)"))
+    problems = bench._installed_doc_path_problems(root)
+    assert any("../bmad/development-methodology.md" in p for p in problems), problems
+
+    # falsifier 3: the tree draws a directory init does not create
+    root = _inventory_fixture(tmp_path / "dirs")
+    _rewrite(root / "bmad" / "scripts" / "skeleton.py",
+             lambda t: t.replace('    "docs/development/incidents",\n', ""))
+    problems = bench._installed_doc_path_problems(root)
+    assert any("incidents" in p for p in problems), problems
+
+
+def test_documented_template_inventory_equals_the_shipped_one(tmp_path):
+    """E-050: the three runbooks and CHECK 8 must list what the tree ships."""
+    bench = _load_bench()
+    assert bench._template_inventory_problems(PLUGIN) == []
+
+    # falsifier 1: a runbook shorthand that drops a shipped template
+    root = _inventory_fixture(tmp_path)
+    _rewrite(root / "README.md", lambda t: t.replace(
+        "_template_E/IR/SP/QR/PR/S/PM/BD/C", "_template_E/IR/SP/QR/PR/S/BD/C"))
+    problems = bench._template_inventory_problems(root)
+    assert any("README.md" in p and "_template_PM.md" in p for p in problems), problems
+
+    # falsifier 2: a shipped template no runbook lists (the other direction)
+    root = _inventory_fixture(tmp_path / "extra")
+    (root / "templates" / "_template_ZZ.md").write_text("x", encoding="utf-8")
+    problems = bench._template_inventory_problems(root)
+    assert any("_template_ZZ.md" in p for p in problems), problems
+
+    # falsifier 3: CHECK 8 silently narrowing its scan scope
+    root = _inventory_fixture(tmp_path / "scope")
+    _rewrite(root / "scripts" / "check-methodology.sh", lambda t: t.replace(
+        ' "$METODOLOJI_ROOT/templates/_template_PM.md"', "").replace(
+        '\n    "$PROJECT_ROOT/docs/development/incidents/_template_PM.md"', ""))
+    problems = bench._template_inventory_problems(root)
+    assert any("check-methodology.sh" in p for p in problems), problems
+
+
+def test_postmortem_template_ships_with_its_install_destination():
+    """E-050: the Post-Mortem record has both a template and a home.
+
+    GUIDE/KILAVUZ told readers to write `docs/development/incidents/PM-XXX.md`
+    and the PR template called that path its "Template:" while no
+    `_template_PM.md` existed anywhere and no installer created the directory.
+    Independent derivation here (the skeleton module + the runbook surfaces), so
+    the family cannot be half-shipped again.
+    """
+    spec = importlib.util.spec_from_file_location(
+        "skeleton_pm_pin", PLUGIN / "bmad" / "scripts" / "skeleton.py")
+    sk = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(sk)
+    assert ("_template_PM.md", "docs/development/incidents/_template_PM.md") \
+        in sk.TEMPLATE_PAIRS
+    assert "docs/development/incidents" in sk.DIRECTORIES
+
+    src = PLUGIN / "templates" / "_template_PM.md"
+    assert src.is_file(), "templates/_template_PM.md does not ship"
+    copy = PLUGIN / "docs" / "development" / "incidents" / "_template_PM.md"
+    assert copy.is_file() and copy.read_bytes() == src.read_bytes(), (
+        "the dogfood copy drifted from templates/_template_PM.md (check-plugin §6c)"
+    )
+
+    init = (PLUGIN / "commands" / "init.md").read_text(encoding="utf-8", errors="replace")
+    assert "docs/development/incidents/" in init
+    assert "_template_PM.md` → `docs/development/incidents/_template_PM.md`" in init
+
+    for rel in ("GUIDE.md", "KILAVUZ.md"):
+        text = (PLUGIN / rel).read_text(encoding="utf-8", errors="replace")
+        assert re.search(
+            r"docs/development/incidents/PM-XXX\.md`?[^\n]*_template_PM\.md", text), (
+            f"{rel}: the post-mortem guidance no longer names its template")
+        assert re.search(
+            r"\|\s*\*\*PM\*\*[^\n]*docs/development/incidents/PM-NNN\.md", text), (
+            f"{rel}: the record table does not list the Post-Mortem record")

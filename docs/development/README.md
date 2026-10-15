@@ -316,16 +316,21 @@ D-023 (design: new onboarding flow)
 
 ## Related Documents
 
-- [Development Methodology](../bmad/development-methodology.md) — Development wing manifesto
-- [Research Methodology](../bmad/research-methodology.md) — Research wing manifesto
-- [Project Context](../project-context.md) — Two-wing structure and integration
-- [Usage Guide](../bmad/usage-guide.md) — How to use both wings
+The manifestos are **plugin-canonical**: they live in the plugin installation
+and are read from there — `init` deliberately does not copy them into the
+project, so a relative link to them would be dead in every project.
+
+- `{metodoloji-root}/docs/bmad/development-methodology.md` — Development wing manifesto
+- `{metodoloji-root}/docs/bmad/research-methodology.md` — Research wing manifesto
+- `{metodoloji-root}/docs/bmad/dev-skill-to-methodology-bridge.md` — how the native dev skills write these records
+- `project-context.md` in the project (produced by the `bmad-generate-project-context` skill) — Two-wing structure and integration
+- `{metodoloji-root}/GUIDE.md` — How to use both wings (the agent runbook)
 
 ---
 
 ## Questions and Help
 
 - Don't know which template to use? Look at the "When" sections above
-- Template missing? Format details in [Development Methodology](../bmad/development-methodology.md) §3
-- How does the Research ↔ Development transition work? The bridge mechanism is explained in [Development Methodology](../bmad/development-methodology.md) §4
+- Template missing? Every record template ships in `{metodoloji-root}/templates/` — the folder tree above lists this wing's ones
+- How does the Research ↔ Development transition work? The bridge mechanism is explained in `{metodoloji-root}/docs/bmad/dev-skill-to-methodology-bridge.md`
 - How is technical debt managed? Read the guide in the `tech-debt.md` file

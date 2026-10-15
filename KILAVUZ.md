@@ -502,7 +502,7 @@ QR'da borç çıktı → `docs/development/tech-debt.md`'ye satır ekle + koda `
 
 ### P17 — Incident → PM
 
-SEV1/SEV2 sonrası 24-48 saat içinde `docs/development/incidents/PM-XXX.md` (blameless: suçlu değil sistem). Zaman çizelgesi (UTC), etki, 5 Neden, tespit/müdahale analizi, dersler, aksiyonlar (sahip+deadline+durum). PM'den çıkan borç TD kaydı → sonraki sprint. PR'ın "Deploy Result"una PM-id'yi işle.
+SEV1/SEV2 sonrası 24-48 saat içinde `docs/development/incidents/PM-XXX.md` yaz — `{metodoloji-root}/templates/_template_PM.md` şablonunu kopyala (`init` onu `docs/development/incidents/` altına koyar) (blameless: suçlu değil sistem). Zaman çizelgesi (UTC), etki, 5 Neden, tespit/müdahale analizi, dersler, aksiyonlar (sahip+deadline+durum). PM'den çıkan borç TD kaydı → sonraki sprint. PR'ın "Deploy Result"una PM-id'yi işle.
 
 ### P18 — Paralel deneyler
 
@@ -641,6 +641,7 @@ Her kaydı **şablondan** aç (`{metodoloji-root}/templates/`), alanları doldur
 | **S**  | Dev    | Task↔AC eşleşmesi + deney referansı     | `docs/development/stories/S-NNN.md`                                  |
 | **QR** | Gate 3 | Coverage ≥ %80, test/lint temiz         | `docs/quality/QR-NNN.md` (kanonik; `docs/development/` legacy kabul) |
 | **PR** | Gate 4 | Staging + rollback + monitoring         | `docs/development/PR-NNN.md`                                         |
+| **PM** | Olay sonrası | Kapı yok — SEV1/SEV2 sonrası yazılır | `docs/development/incidents/PM-NNN.md`                               |
 
 
 ### 8.1 E — Experiment (Mode A, mekanik gate)
@@ -1437,7 +1438,7 @@ metodoloji/
 ├── skills/                              # 125 BMAD skill (native gövde)
 ├── custom/                              # 121 TOML (33 BRIDGE aktif) + config.toml (soft/hard)
 ├── bmad/                                # modül verisi (bmm,cis,gds,wds,tea,core,bmb,loop,_config) + scripts/ (blackboard, workflow, orient, resolve_config, resolve_customization, skeleton)
-├── templates/                           # _template_E/IR/SP/QR/PR/S/BD/C + README/tech-debt/scratch-README
+├── templates/                           # _template_E/IR/SP/QR/PR/S/PM/BD/C + README/tech-debt/scratch-README
 ├── commands/                            # /metodoloji:init, gate-setup, verify, audit (.md)
 ├── scripts/                             # check-plugin/custom/methodology/techdebt, check-handoff, create-*-record, sync-*, bench/
 ├── docs/                                # CLAUDE.md, bmad manifestoları, kayıt şablonları (experiments/development/quality/research/design) + native çıktılar (development/native/)

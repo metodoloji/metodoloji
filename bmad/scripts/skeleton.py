@@ -40,6 +40,7 @@ import sys
 DIRECTORIES = (
     "docs/experiments",
     "docs/development/stories",
+    "docs/development/incidents",
     "docs/quality",
     "docs/research",
     "docs/design",
@@ -59,6 +60,7 @@ TEMPLATE_PAIRS = (
     ("_template_QR.md", "docs/development/_template_QR.md"),
     ("_template_PR.md", "docs/development/_template_PR.md"),
     ("_template_S.md", "docs/development/stories/_template_S.md"),
+    ("_template_PM.md", "docs/development/incidents/_template_PM.md"),
     ("README.md", "docs/development/README.md"),
     ("tech-debt.md", "docs/development/tech-debt.md"),
     ("scratch-README.md", "scratch/README.md"),

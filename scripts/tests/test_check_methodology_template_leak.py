@@ -12,12 +12,30 @@ bash, so the only honest test is the program the project runs. Only the CHECK 8
 slice is asserted on: a throwaway root legitimately fails earlier checks.
 """
 
+import importlib.util
 import os
 import subprocess
 from pathlib import Path
 
 PLUGIN = Path(__file__).resolve().parents[2]
 SCRIPT = PLUGIN / "scripts" / "check-methodology.sh"
+
+
+def _planned_dev_templates() -> int:
+    """How many canonical development templates CHECK 8 must scan.
+
+    Derived from `skeleton.TEMPLATE_PAIRS` (the canonical owner, E-047), never
+    from CHECK 8's own list — otherwise a row deleted from the audit would move
+    the expectation with it and the count could never fail (E-050).
+    """
+    spec = importlib.util.spec_from_file_location(
+        "skeleton_leak_scope", PLUGIN / "bmad" / "scripts" / "skeleton.py")
+    sk = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(sk)
+    return len([src for src, dest in sk.TEMPLATE_PAIRS
+                if src.startswith("_template_")
+                and dest.startswith("docs/development/")
+                and (PLUGIN / "templates" / src).is_file()])
 
 
 def _run_check8(project_root: Path) -> str:
@@ -54,7 +72,10 @@ def test_shipped_templates_are_meta_text_free(tmp_path):
     # come from the plugin's own canonical templates/ directory.
     section = _run_check8(tmp_path)
     assert "❌ ISSUE" not in section, section
-    assert "templates checked: 5" in section, section
+    # E-050: the count comes from the canonical pair table, so a template added
+    # to the skeleton without joining CHECK 8's scope fails here too.
+    expected = _planned_dev_templates()
+    assert f"templates checked: {expected}" in section, section
 
 
 def test_clean_template_copy_is_not_an_issue(tmp_path):

@@ -3516,6 +3516,149 @@ def _check_audit_inventory_matches_the_shipped_one() -> str | None:
     return "; ".join(problems) if problems else None
 
 
+# E-050: the template inventory is DERIVED from templates/ + skeleton.py's
+# TEMPLATE_PAIRS, and three shipped surfaces restate it by hand: the folder tree
+# the init-copied README draws (plus its `cp _template_X.md` recipes and relative
+# links, read by a user inside a project that has ONLY the skeleton), the
+# shorthand tree comments in the three runbooks, and CHECK 8's scan scope in
+# check-methodology.sh. Measured 2026-10-15: the README promised
+# `_template_PM.md` and an `incidents/` directory no installer ever created
+# (GUIDE/KILAVUZ and the PR template all pointed readers into that directory),
+# and two init-copied docs linked the manifestos as `../bmad/...` — a path init
+# deliberately refuses to build (one of them, `../bmad/usage-guide.md`, the
+# plugin never shipped at all). Nothing measured any of it.
+_SHORTHAND_DOCS = ("README.md", "GUIDE.md", "KILAVUZ.md")
+_TEMPLATE_SHORTHAND_RE = re.compile(
+    r"_template_([A-Za-z]+(?:/[A-Za-z]+)*)\s*\+\s*([A-Za-z0-9_./-]+)")
+_TREE_DIR_RE = re.compile(r"[\u251c\u2514]\u2500\u2500\s+([A-Za-z0-9_.-]+)/")
+_MD_LINK_RE = re.compile(r"\]\(([^)\s]+)\)")
+_TEMPLATE_NAME_RE = re.compile(r"_template_[A-Za-z0-9]+\.md")
+
+
+def _bench_skeleton(root: pathlib.Path):
+    """skeleton.py is the canonical owner of the skeleton contract (E-047)."""
+    import importlib.util as _importlib_util  # noqa: PLC0415
+
+    spec = _importlib_util.spec_from_file_location(
+        "_bench_template_inventory", root / "bmad" / "scripts" / "skeleton.py")
+    module = _importlib_util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _resolve_relative(base: str, target: str) -> str:
+    """`base/target` with `.`/`..` applied — no filesystem access."""
+    parts: list[str] = []
+    for seg in f"{base}/{target}".split("/"):
+        if seg == "..":
+            if parts:
+                parts.pop()
+        elif seg not in ("", "."):
+            parts.append(seg)
+    return "/".join(parts)
+
+
+def _installed_doc_path_problems(root: pathlib.Path) -> list[str]:
+    """E-050: an init-copied doc may only promise paths init itself creates."""
+    sk = _bench_skeleton(root)
+    dirs = set(sk.DIRECTORIES)
+    dests = {dest for _src, dest in sk.TEMPLATE_PAIRS}
+    shipped = {p.name for p in (root / "templates").glob("*.md")}
+    problems: list[str] = []
+    for src, dest in sk.TEMPLATE_PAIRS:
+        if not src.endswith(".md"):
+            continue
+        path = root / "templates" / src
+        if not path.is_file():
+            problems.append(f"templates/{src}: missing — it is installed as "
+                            f"{dest} with no source to copy")
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        base = str(pathlib.PurePosixPath(dest).parent)
+        for name in sorted(set(_TEMPLATE_NAME_RE.findall(text))):
+            if name not in shipped:
+                problems.append(f"templates/{src}: names {name}, which does "
+                                "not ship in templates/ — the reader cannot copy it")
+        for claimed in _TREE_DIR_RE.findall(text):
+            if _resolve_relative(base, claimed) not in dirs:
+                problems.append(f"templates/{src}: the folder tree draws "
+                                f"{claimed}/ — init does not create that directory")
+        for target in _MD_LINK_RE.findall(text):
+            if target.startswith(("http://", "https://", "#", "mailto:", "{")):
+                continue
+            resolved = _resolve_relative(base, target)
+            if resolved in dests:
+                continue
+            if not any(resolved == d or resolved.startswith(d + "/") for d in dirs):
+                problems.append(f"templates/{src}: the link {target} resolves to "
+                                f"{resolved}, which the skeleton does not contain")
+    return problems
+
+
+def _template_inventory_problems(root: pathlib.Path) -> list[str]:
+    """E-050: the documented template inventory equals the shipped one."""
+    sk = _bench_skeleton(root)
+    shipped = {p.name for p in (root / "templates").glob("_template_*.md")}
+    all_shipped = {p.name for p in (root / "templates").glob("*.md")}
+    problems: list[str] = []
+    for rel in _SHORTHAND_DOCS:
+        text = _read_root(root, rel)
+        matches = _TEMPLATE_SHORTHAND_RE.findall(text)
+        if not matches:
+            problems.append(f"{rel}: the templates/ tree comment is gone — the "
+                            "inventory claim cannot be read")
+            continue
+        names: set[str] = set()
+        for families, tail in matches:
+            names |= {f"_template_{fam}.md" for fam in families.split("/")}
+            for token in tail.split("/"):
+                if not any(name.startswith(token) for name in all_shipped):
+                    problems.append(f"{rel}: the templates/ tree comment names "
+                                    f"{token}, which matches no shipped file")
+        if names != shipped:
+            problems.append(
+                f"{rel}: the templates/ tree comment lists {sorted(names)} but "
+                f"the tree ships {sorted(shipped)}")
+
+    # CHECK 8 is the only audit that scans templates at all: its scope is derived
+    # from TEMPLATE_PAIRS — every `_template_*` pair landing under
+    # docs/development/ must be scanned at its plugin path and its installed copy
+    # (a template it never lists is a template whose leaked guidance ships).
+    checker = _read_root(root, "scripts/check-methodology.sh")
+    loop = re.search(r"for _tpl in \\\n(.*?); do", checker, re.DOTALL)
+    if not loop:
+        problems.append("check-methodology.sh: CHECK 8 no longer lists the "
+                        "templates it scans — the hygiene rule is dead code")
+        return problems
+    expected = {src: dest for src, dest in sk.TEMPLATE_PAIRS
+                if src.startswith("_template_") and dest.startswith("docs/development/")}
+    scanned_plugin = set(re.findall(r"METODOLOJI_ROOT\}?/templates/([A-Za-z0-9_.-]+)",
+                                    loop.group(1)))
+    scanned_project = set(re.findall(r"PROJECT_ROOT\}?/([A-Za-z0-9_./-]+)",
+                                     loop.group(1)))
+    if scanned_plugin != set(expected):
+        problems.append("check-methodology.sh: CHECK 8 scans "
+                        f"{sorted(scanned_plugin)} in the plugin but the "
+                        f"shipped development templates are {sorted(expected)}")
+    if scanned_project != set(expected.values()):
+        problems.append("check-methodology.sh: CHECK 8 scans "
+                        f"{sorted(scanned_project)} in the project but init "
+                        f"installs them as {sorted(expected.values())}")
+    return problems
+
+
+def _check_installed_doc_paths() -> str | None:
+    """E-050: init-copied docs promise only paths init creates."""
+    problems = _installed_doc_path_problems(ROOT)
+    return "; ".join(problems) if problems else None
+
+
+def _check_template_inventory_matches_the_shipped_one() -> str | None:
+    """E-050: the documented template inventory equals the shipped one."""
+    problems = _template_inventory_problems(ROOT)
+    return "; ".join(problems) if problems else None
+
+
 def build_checks() -> list[tuple[str, object]]:
     checks: list[tuple[str, object]] = []
     for rel in DOC_FILES:
@@ -3653,6 +3796,10 @@ def build_checks() -> list[tuple[str, object]]:
                    _check_audit_inventory_matches_the_shipped_one))
     checks.append(("documented suite size matches the collected suite (E-049)",
                    _check_documented_test_count_is_honest))
+    checks.append(("init-copied docs promise only paths init creates (E-050)",
+                   _check_installed_doc_paths))
+    checks.append(("documented template inventory equals the shipped one (E-050)",
+                   _check_template_inventory_matches_the_shipped_one))
     checks.append(("pytest suite green (falsifier)", _run_pytest))
     checks.append(("hooks.json in sync with generator", _run_hooks_json_sync))
     return checks
