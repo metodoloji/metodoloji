@@ -12,8 +12,9 @@ could drift silently between the bridge and the engine:
   bridge forwards, so a name the engine no longer knows would fall to the
   `unknown` branch (warn + allow) and open the write gate.
 
-These tests pin both, plus the version-owned manifest joining the agreement set.
-Pure text/JSON reads: no subprocess, no shell, cross-platform.
+These tests pin both, plus the loader-facing package entry (OpenCode ignores
+`exports`, so a root `index.ts` must ship) and the version-owned manifest joining
+the agreement set. Pure text/JSON reads: no subprocess, no shell, cross-platform.
 """
 
 import importlib.util
@@ -124,3 +125,23 @@ def test_the_opencode_manifests_join_the_version_owned_set():
     for rel in (".opencode-plugin/plugin.json", "opencode-plugin/package.json"):
         data = json.loads(_read(rel))
         assert data.get("version") == version, (rel, data.get("version"), version)
+
+
+def test_the_package_entry_is_a_root_index_ts_open_can_load():
+    """OpenCode resolves a plugin directory as `<dir>/index.ts` and ignores
+    `package.json` `exports` — a package with only `src/index.ts` is skipped
+    silently, leaving the write gate OFF. Pin the loader-facing entry (verified
+    against OpenCode v2.0.29)."""
+    entry = PLUGIN / "opencode-plugin" / "index.ts"
+    assert entry.is_file(), "opencode-plugin/index.ts is missing — OpenCode would skip the plugin"
+    body = entry.read_text(encoding="utf-8", errors="replace")
+    assert 'export { default } from "./src/index.ts"' in body, (
+        "index.ts no longer re-exports the Plugin.define default from src/index.ts")
+    pkg = json.loads(_read("opencode-plugin/package.json"))
+    # the file must ship, so the published/npm form carries the same entry
+    assert "index.ts" in pkg.get("files", []), "package.json `files` must ship index.ts"
+    assert pkg.get("exports", {}).get(".") == "./index.ts", (
+        "package.json `exports` must point at the root entry OpenCode loads")
+    # tsconfig must typecheck the entry too
+    tsconfig = json.loads(_read("opencode-plugin/tsconfig.json"))
+    assert "index.ts" in tsconfig.get("include", []), "tsconfig must include the root entry"

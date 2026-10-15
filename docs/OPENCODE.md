@@ -61,10 +61,38 @@ opencode plugin add 'github:metodoloji/metodoloji#main::path:opencode-plugin'
 }
 ```
 
+**Or drop the package into the discovery directory** — no config entry needed:
+
+```
+<project>/.opencode/plugins/metodoloji-opencode-plugin/   ← this package's files
+```
+
 > The Git/`npm` forms install only `opencode-plugin/`. Point
 > `METODOLOJI_PLUGIN_ROOT` at a metodoloji checkout (or install metodoloji for
 > Claude Code / OpenHands) so the bridge can find `hooks/engine/`, otherwise the
 > guard fails closed.
+
+### What OpenCode's loader actually requires
+
+Verified on **OpenCode v2.0.29**: an entry must resolve to a **directory holding
+`index.ts`** (or `index.js`) at its root. That root `index.ts` ships with this
+package (`export { default } from "./src/index.ts"`) because OpenCode **ignores
+`package.json` `exports`/`main`** for a plugin directory: a package with only
+`src/index.ts` is skipped **silently** — no error, no hook, no gate. Keep the
+root `index.ts`.
+
+Two more loader behaviours worth knowing:
+
+- **Config entries must be directories.** A file path (`"./src/index.ts"`) is
+  rejected with `configured plugin path must be a directory`.
+- **On Windows use a relative path** (resolved from the config file) or the
+  `.opencode/plugins/` discovery directory. A bare `C:/…` path is read as a URI
+  scheme and dropped without a warning, and a junction/symlink plugin directory
+  is not always followed.
+
+To confirm the plugin is live, run the server with `--print-logs`; a successful
+load prints `msg="loading plugin" id="…/opencode-plugin/index.ts"`. If no such
+line appears, the guard is **off** for that project.
 
 ---
 
@@ -185,6 +213,7 @@ python -m pytest hooks/engine/tests/test_opencode_runtime.py   # engine-side voc
 
 | Symptom | Cause / fix |
 |---|---|
+| Writes are **never** blocked (the plugin is silently off) | No `msg="loading plugin"` line in `--print-logs`. The plugin directory is missing its root `index.ts`, or the config entry points at a file, or a bare `C:/…` path was dropped. See *What OpenCode's loader actually requires*. |
 | Every write is denied with “no python or missing engine” | Python is not on `PATH`, or the methodology root was not found. Set `METODOLOJI_PLUGIN_ROOT` to the checkout. |
 | `execute.before` did not block a write | Confirm the tool name is `write`/`edit`/`patch` or the shell tool (`shell`); check `docs/OPENCODE.md` gate coverage. `permissionFallback` adds a second layer. |
 | The session never gets context | `session.hook("context")` must be supported by your OpenCode build; the injection is once per session by design. |

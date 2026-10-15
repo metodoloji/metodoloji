@@ -21,6 +21,7 @@ portable skills setup and troubleshooting.
 ## Layout
 
 ```
+index.ts         package entry OpenCode loads (re-exports src/index.ts)
 src/runtime.ts   plugin-root + python discovery, engine spawn, fail-closed texts
 src/map.ts       OpenCode call → engine payload (deliberately thin)
 src/decide.ts    engine JSON → allow/deny/context (+ warning queue)
@@ -28,6 +29,10 @@ src/engine.ts    spawn + interpret in one place
 src/index.ts     Plugin.define + hook registration
 tests/           node:test contract tests (incl. a real engine round-trip)
 ```
+
+> The root `index.ts` is **required**: OpenCode resolves a local plugin directory
+> as `<dir>/index.ts` and ignores `package.json` `exports`. Without it the plugin
+> is skipped silently (no gate at all). Do not delete it.
 
 ## Test
 
