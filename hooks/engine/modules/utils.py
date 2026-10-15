@@ -102,6 +102,94 @@ def _coerce_tool_input(raw) -> dict:
     return out
 
 
+# --- OpenCode tool vocabulary (V2) ------------------------------------------
+# OpenCode (V2) exposes lower-case tool names. They are normalized onto the same
+# internal contract the other runtimes use, so the gate logic stays shared:
+#   write / edit / multiedit        → file_editor  (single `filePath`)
+#   patch (alias `apply_patch`)      → file_editor  (many paths inside `patchText`)
+#   shell | bash                     → terminal     (the shell tool name differs
+#     between OpenCode builds; both spellings are accepted, same as
+#     Write/PowerShell are both file/terminal tools in the Claude branch)
+# Non-write tools (read/glob/grep/webfetch/websearch/question/skill/task/…)
+# normalize to "" so guard's non-gated fast path allows them WITHOUT a warning —
+# a warn on every read would drown the real signal. A name outside this
+# vocabulary keeps the E-010 catch-all ("unknown" → warn), so a future write-ish
+# tool stays visible instead of being silently allowed.
+_OPENCODE_WRITE_TOOLS = {
+    "write": "file_editor", "edit": "file_editor", "multiedit": "file_editor",
+    "patch": "file_editor", "apply_patch": "file_editor",
+}
+_OPENCODE_PATCH_TOOLS = frozenset({"patch", "apply_patch"})
+_OPENCODE_SHELL_TOOLS = {"bash": "terminal", "shell": "terminal"}
+_OPENCODE_READ_TOOLS = {
+    "read", "glob", "grep", "list", "ls", "lsp", "webfetch", "websearch",
+    "question", "skill", "subagent", "task", "execute", "todowrite", "todoread",
+    "revert", "view", "metodoloji_verify", "metodoloji_audit",
+}
+# Key an OpenCode file tool carries its path under. Documented builds use
+# `filePath`; the local `path` spelling is accepted too so a vocabulary shift
+# never silently drops the guard's target (an empty target = allow).
+_OPENCODE_PATH_KEYS = ("path", "filePath", "file_path")
+_OPENCODE_ALL_TOOLS = (
+    frozenset(_OPENCODE_WRITE_TOOLS) | frozenset(_OPENCODE_SHELL_TOOLS)
+    | frozenset(_OPENCODE_READ_TOOLS)
+)
+
+# Patch payload path lines: `*** Add File: p`, `*** Update File: p`,
+# `*** Delete File: p`, and the `*** Move to: p` half of an update/rename.
+_OPENCODE_PATCH_PATH_RE = re.compile(
+    r"(?m)^\*\*\*\s+(?:Add|Update|Delete)\s+File:\s*(.+?)\s*$")
+_OPENCODE_PATCH_MOVE_RE = re.compile(r"(?m)^\*\*\*\s+Move\s+to:\s*(.+?)\s*$")
+
+
+def _opencode_patch_paths(patch_text) -> list[str]:
+    """Every file a `patch` payload touches, in order, de-duplicated.
+
+    A multi-file patch must gate on ALL its targets: taking only the first would
+    open the rest as an unapproved write — the exact class the guard exists to
+    close. `Move to:` contributes the destination of a rename.
+    """
+    if not isinstance(patch_text, str) or not patch_text:
+        return []
+    seen: list[str] = []
+    for m in (*_OPENCODE_PATCH_PATH_RE.finditer(patch_text),
+              *_OPENCODE_PATCH_MOVE_RE.finditer(patch_text)):
+        p = m.group(1).strip()
+        if p and p not in seen:
+            seen.append(p)
+    return seen
+
+
+def _normalize_opencode_tool(raw_name, tool_input: dict) -> str:
+    """Map one OpenCode tool name onto the engine contract (or ""/passthrough).
+
+    Returns the internal tool name: `file_editor`/`terminal` for gated tools,
+    `""` for a known non-gated tool (guard allows, no warning), and the original
+    name for anything else so the E-010 catch-all below marks it `unknown`.
+    """
+    name = str(raw_name or "").lower()
+    if name in _OPENCODE_WRITE_TOOLS:
+        if "path" not in tool_input:
+            for _k in _OPENCODE_PATH_KEYS:
+                if _k in tool_input and tool_input[_k]:
+                    tool_input["path"] = tool_input[_k]
+                    break
+        if name in _OPENCODE_PATCH_TOOLS:
+            paths = _opencode_patch_paths(
+                tool_input.get("patchText") or tool_input.get("patch") or "")
+            if paths:
+                tool_input["paths"] = paths
+                tool_input.setdefault("path", paths[0])
+        return _OPENCODE_WRITE_TOOLS[name]
+    if name in _OPENCODE_SHELL_TOOLS:
+        if "command" not in tool_input and "cmd" in tool_input:
+            tool_input["command"] = tool_input["cmd"]
+        return _OPENCODE_SHELL_TOOLS[name]
+    if name in _OPENCODE_READ_TOOLS:
+        return ""  # non-gated: guard allows without a warning
+    return str(raw_name)  # unknown → the catch-all below marks it "unknown"
+
+
 def normalize_hook_input(json_in: dict) -> dict:
     """Normalize hook input from either Claude Code or OpenHands to a common schema.
 
@@ -109,6 +197,8 @@ def normalize_hook_input(json_in: dict) -> dict:
       tool_input={file_path,content,command,...}
     OpenHands sends: tool_name=file_editor|terminal,
       tool_input={path,content,command,...}
+    OpenCode sends: tool_name=write|edit|patch|shell|read|glob|…,
+      tool_input={path,content,command,patchText,...} — lower-case names (V2).
 
     `PowerShell` is Claude Code's shell tool on Windows (a real session emitted
     `PowerShell(...)` calls on the win32 host). Before this mapping it fell
@@ -148,6 +238,8 @@ def normalize_hook_input(json_in: dict) -> dict:
     elif runtime == "openhands" or tool_name in ("file_editor", "terminal",
                                                         "notebook_editor"):
         pass  # already normalized
+    elif runtime == "opencode" or tool_name in _OPENCODE_ALL_TOOLS:
+        tool_name = _normalize_opencode_tool(tool_name, tool_input)
     elif tool_name in ("", None):
         pass  # no tool info (e.g. Stop/SessionStart payloads) — nothing to map
     else:

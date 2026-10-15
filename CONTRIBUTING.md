@@ -46,7 +46,7 @@ Thank you for your interest in contributing to **Metodoloji**! We welcome contri
 
 ### Hook Engine Modifications
 - The hook engine lives in `hooks/engine/` (`main.py` and `modules/`).
-- Must support dual-runtime execution (**OpenHands** and **Claude Code**).
+- Must support three-runtime execution (**Claude Code**, **OpenHands** and **OpenCode**); the OpenCode adapter is a thin TypeScript bridge over the *same* engine (`opencode-plugin/`), so a decision can never differ between runtimes.
 - Fail-closed dispatch for `pre`/`guard` (a missing engine denies, exit 2); fail-open for `audit` and dispatcher root discovery (`run-hook.sh`). `stop` is report-only and never blocks (loop-safe envelope: `block` + exit 0). Inside the engine, gate strictness is per-config-key (`code_guard`/`quality_gate`/`deploy_guard`).
 - Every engine change must include unit tests in `hooks/engine/tests/`.
 

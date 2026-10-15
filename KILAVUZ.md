@@ -950,7 +950,7 @@ Arşiv bomba koruması (tar+zip): tek dosya ≤512MB, sıkışmış arşiv ≤64
 
 ### 9.9 Girdi normalizasyonu
 
-`normalize_hook_input()`: Claude `Write`/`Edit`/`MultiEdit` → `file_editor` (`file_path` → `path`), `Bash`/`PowerShell` → `terminal` (`cmd` → `command`); OpenHands aynen geçer. Runtime `METODOLOJI_RUNTIME` (`--runtime=` flag) veya ham araç adından anlaşılır. **Bilinen sapma:** tanınmayan araç adı `unknown`'a normalize olur ve guard **uyarır**, deny vermez (bilmediği bir araç çağrıyı hard-bloklamasın diye).
+`normalize_hook_input()`: Claude `Write`/`Edit`/`MultiEdit` → `file_editor` (`file_path` → `path`), `Bash`/`PowerShell` → `terminal` (`cmd` → `command`); OpenHands aynen geçer; OpenCode `write`/`edit`/`patch` → `file_editor` (`filePath` → `path`, `patchText` → `paths`), `shell`/`bash` → `terminal`. Runtime `METODOLOJI_RUNTIME` (`--runtime=` flag) veya ham araç adından anlaşılır. **Bilinen sapma:** tanınmayan araç adı `unknown`'a normalize olur ve guard **uyarır**, deny vermez (bilmediği bir araç çağrıyı hard-bloklamasın diye).
 
 ---
 
@@ -1274,7 +1274,7 @@ sh scripts/check-techdebt.sh      # borç drift/ID/P0/orphan (#6b olarak da koş
 python scripts/check-triggers.py  # trigger/description çakışması (#6f olarak da koşar)
 ```
 
-**# haritası:** #0 gate key · #0b base config proje-adı sızıntısı · #1 motor selfcheck (birleşik `pre` + tekil modlar) · #1b hooks.json byte-identical · #2 manifesto wiring · #2b bridge runtime görünürlüğü (30 workflow + 3 agent-principles) · #2c bridge VERIFY (17 skill) · #3 approved envanter (VERIFIED/ADVISORY-BLOCK + CROSS-MACHINE uyarısı) · #3b code-scope coverage · #4 dokümantatif kayıtlar · #5 motor bütünlüğü (py\_compile) · #5b hard-gate geçerliliği · #5c custom/ statik · #6 development format · #6a `.env` · #6b tech-debt · #6c template kopya kimliği · #6d init marker bütünlüğü · #6d2 command→script referans bütünlüğü · #6d3 plugin sürüm tutarlılığı (`.plugin/plugin.json` ↔ `.plugin/marketplace.json` ↔ `.claude-plugin/plugin.json` ↔ `.claude-plugin/marketplace.json` ↔ `pyproject`) · #6e help catalog bütünlüğü · #6f trigger/description çakışması · #6g namespaced-tool priming token yok.
+**# haritası:** #0 gate key · #0b base config proje-adı sızıntısı · #1 motor selfcheck (birleşik `pre` + tekil modlar) · #1b hooks.json byte-identical · #2 manifesto wiring · #2b bridge runtime görünürlüğü (30 workflow + 3 agent-principles) · #2c bridge VERIFY (17 skill) · #3 approved envanter (VERIFIED/ADVISORY-BLOCK + CROSS-MACHINE uyarısı) · #3b code-scope coverage · #4 dokümantatif kayıtlar · #5 motor bütünlüğü (py\_compile) · #5b hard-gate geçerliliği · #5c custom/ statik · #6 development format · #6a `.env` · #6b tech-debt · #6c template kopya kimliği · #6d init marker bütünlüğü · #6d2 command→script referans bütünlüğü · #6d3 plugin sürüm tutarlılığı (`.plugin/plugin.json` ↔ `.plugin/marketplace.json` ↔ `.claude-plugin/plugin.json` ↔ `.claude-plugin/marketplace.json` ↔ `.opencode-plugin/plugin.json` ↔ `opencode-plugin/package.json` ↔ `pyproject`) · #6e help catalog bütünlüğü · #6f trigger/description çakışması · #6g namespaced-tool priming token yok.
 
 **Tek kayıt doğrulama + envanter:**
 

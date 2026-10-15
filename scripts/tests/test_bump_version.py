@@ -354,7 +354,7 @@ def test_version_owned_site_drift_is_named_per_site(tmp_path):
          "a file the bump writes but the hook no longer stages"),
         (".githooks/pre-commit", hook.replace("commands/init.md", "LICENSE"),
          "a staged file the bump never writes"),
-        (".githooks/pre-commit", hook.replace("The seven files", "The six files"),
+        (".githooks/pre-commit", hook.replace("The nine files", "The eight files"),
          "a stale count in the hook's own comment"),
         ("scripts/check-plugin.sh",
          checker.replace('VERSION_FILES=""',

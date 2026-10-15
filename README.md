@@ -1,6 +1,6 @@
 # metodoloji
 
-![version](https://img.shields.io/badge/version-0.1.52-0b7285?style=flat-square) ![license](https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square) ![python](https://img.shields.io/badge/python-3.11%2B-3776ab?style=flat-square) ![tests](https://img.shields.io/badge/tests-1%2C331-4c1?style=flat-square) ![runtimes](https://img.shields.io/badge/runtimes-OpenHands%20%7C%20Claude%20Code-555?style=flat-square)
+![version](https://img.shields.io/badge/version-0.1.53-0b7285?style=flat-square) ![license](https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square) ![python](https://img.shields.io/badge/python-3.11%2B-3776ab?style=flat-square) ![tests](https://img.shields.io/badge/tests-1%2C331-4c1?style=flat-square) ![runtimes](https://img.shields.io/badge/runtimes-OpenHands%20%7C%20Claude%20Code-555?style=flat-square)
 
 **A methodology plugin that makes your coding agent ask permission — mechanically.**
 
@@ -30,7 +30,8 @@ For **OpenHands** and **Claude Code**: a 6-stage record chain (`E → IR → SP 
 - **A chain that unlocks itself.** `E → IR → SP → S → QR → PR`: research, readiness, sprint, story, quality, production readiness. Each link checks the one before it, on commit and on deploy.
 - **125 skills, 121 TOMLs, 33 BRIDGEs.** PRD, architecture, story, sprint, dev, code review, test/QA, retro and correction workflows for product, game and web/UX projects — customized per skill in up to three TOML layers.
 - **Context that survives sessions.** The blackboard (`write --hot`, run lists, handoffs, canvases) carries focus and pending batons between skills and across windows.
-- **One manifest, two runtimes.** A single `hooks/hooks.json` serves both Claude Code and OpenHands; hook commands self-locate the plugin, and the engine fails closed when it cannot run.
+- **One manifest, two shell runtimes.** A single `hooks/hooks.json` serves both Claude Code and OpenHands; hook commands self-locate the plugin, and the engine fails closed when it cannot run.
+- **Three runtimes, one engine.** OpenCode joins Claude Code and OpenHands through a thin TypeScript bridge (`opencode-plugin/`) that spawns the *same* Python hook engine — a gate cannot disagree with itself across runtimes. See [`docs/OPENCODE.md`](docs/OPENCODE.md).
 - **Declared workflow engine.** Multi-stage processes (`analyze → map → plan → apply → test → done`) run as a deterministic state machine that refuses a stage without evidence.
 
 ## How it works
@@ -81,6 +82,7 @@ Multi-stage processes (`analyze → map → plan → apply → test → done`) r
 |---|---|---|
 | Python | 3.11+ | `tomllib` for the TOML layers; the engine resolves `python3 → python → py` |
 | OpenHands / Claude Code | current | plugin + hook API support |
+| OpenCode | v2 | third runtime — a TypeScript bridge (`opencode-plugin/`) spawns the same Python engine |
 | Git | 2.x | record and commit gating |
 | Shell | POSIX `sh` | Git Bash is enough on Windows |
 
@@ -101,6 +103,17 @@ You don't operate this plugin by hand — you **ask your agent**. Install once, 
 from openhands.sdk.plugin import install_plugin
 install_plugin("github:metodoloji/metodoloji")
 ```
+
+<sub>or OpenCode (V2):</sub>
+
+```jsonc
+// opencode.jsonc — a checkout keeps hooks/engine/ reachable
+{ "plugins": ["./opencode-plugin"] }
+```
+
+> The Git/npm forms install only `opencode-plugin/`; point
+> `METODOLOJI_PLUGIN_ROOT` at a metodoloji checkout so the bridge finds the
+> engine. Details: [`docs/OPENCODE.md`](docs/OPENCODE.md).
 
 **2. Set up your project** (once):
 

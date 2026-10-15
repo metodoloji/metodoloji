@@ -1554,7 +1554,7 @@ if [ "$REFS_OK" -eq 1 ]; then
     echo "[OK]   every script referenced by commands/ exists"
 fi
 
-echo "== 6d3) Plugin version consistency (.claude-plugin ↔ .plugin ↔ pyproject) =="
+echo "== 6d3) Plugin version consistency (.claude-plugin ↔ .plugin ↔ .opencode-plugin ↔ pyproject) =="
 # Stale marketplace caches serve old trees under an unchanged version number,
 # which is exactly how a NEW command met a MISSING script. The functional
 # manifests must agree; a bump that forgets one of them re-creates the skew.

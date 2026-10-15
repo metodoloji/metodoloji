@@ -951,7 +951,7 @@ Archive bomb protection (tar+zip): single file ≤512MB, compressed archive ≤6
 
 ### 9.9 Input normalisation
 
-`normalize_hook_input()`: Claude `Write`/`Edit`/`MultiEdit` → `file_editor` (`file_path` → `path`), `Bash`/`PowerShell` → `terminal` (`cmd` → `command`); OpenHands passes through unchanged. The runtime is inferred from `METODOLOJI_RUNTIME` (the `--runtime=` flag) or the raw tool name. **Known deviation:** an unrecognised tool name normalises to `unknown` and guard **warns**, it does not deny (so an unknown tool cannot hard-block a call).
+`normalize_hook_input()`: Claude `Write`/`Edit`/`MultiEdit` → `file_editor` (`file_path` → `path`), `Bash`/`PowerShell` → `terminal` (`cmd` → `command`); OpenHands passes through unchanged; OpenCode `write`/`edit`/`patch` → `file_editor` (`filePath` → `path`, `patchText` → `paths`), `shell`/`bash` → `terminal`. The runtime is inferred from `METODOLOJI_RUNTIME` (the `--runtime=` flag) or the raw tool name. **Known deviation:** an unrecognised tool name normalises to `unknown` and guard **warns**, it does not deny (so an unknown tool cannot hard-block a call).
 
 ---
 
@@ -1275,7 +1275,7 @@ sh scripts/check-techdebt.sh      # debt drift/ID/P0/orphan (also runs as #6b)
 python scripts/check-triggers.py  # trigger/description collision (also runs as #6f)
 ```
 
-**# map:** #0 gate key · #0b base config project-name leak · #1 engine selfcheck (combined `pre` + individual modes) · #1b hooks.json byte-identical · #2 manifesto wiring · #2b bridge runtime visibility (30 workflow + 3 agent-principles) · #2c bridge VERIFY (17 skills) · #3 approved inventory (VERIFIED/ADVISORY-BLOCK + CROSS-MACHINE warning) · #3b code-scope coverage · #4 documentary records · #5 engine integrity (py\_compile) · #5b hard-gate validity · #5c custom/ static · #6 development format · #6a `.env` · #6b tech-debt · #6c template copy identity · #6d init marker integrity · #6d2 command→script reference integrity · #6d3 plugin version consistency (`.plugin/plugin.json` ↔ `.plugin/marketplace.json` ↔ `.claude-plugin/plugin.json` ↔ `.claude-plugin/marketplace.json` ↔ `pyproject`) · #6e help catalog integrity · #6f trigger/description collision · #6g no namespaced-tool priming tokens.
+**# map:** #0 gate key · #0b base config project-name leak · #1 engine selfcheck (combined `pre` + individual modes) · #1b hooks.json byte-identical · #2 manifesto wiring · #2b bridge runtime visibility (30 workflow + 3 agent-principles) · #2c bridge VERIFY (17 skills) · #3 approved inventory (VERIFIED/ADVISORY-BLOCK + CROSS-MACHINE warning) · #3b code-scope coverage · #4 documentary records · #5 engine integrity (py\_compile) · #5b hard-gate validity · #5c custom/ static · #6 development format · #6a `.env` · #6b tech-debt · #6c template copy identity · #6d init marker integrity · #6d2 command→script reference integrity · #6d3 plugin version consistency (`.plugin/plugin.json` ↔ `.plugin/marketplace.json` ↔ `.claude-plugin/plugin.json` ↔ `.claude-plugin/marketplace.json` ↔ `.opencode-plugin/plugin.json` ↔ `opencode-plugin/package.json` ↔ `pyproject`) · #6e help catalog integrity · #6f trigger/description collision · #6g no namespaced-tool priming tokens.
 
 **Single-record verification + inventory:**
 

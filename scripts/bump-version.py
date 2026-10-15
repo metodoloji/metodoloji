@@ -7,7 +7,8 @@ that owns it, so no second commit has to exist to carry it. The six local
 audits never move into CI either. Two halves, one binary outcome:
 
 * ENFORCE — every manifest check-plugin §6d3 treats as one truth (both
-  plugin.json, both marketplace.json, pyproject.toml) must already agree
+  plugin.json, both marketplace.json, the OpenCode plugin.json + its npm
+  package.json, pyproject.toml) must already agree
   before anything is written; skew exits non-zero with the offending values
   and touches nothing. A stale marketplace cache serving an old tree under an
   unchanged version number is exactly the failure §6d3 names — the bump must
@@ -42,12 +43,17 @@ import versioning  # noqa: E402  (the rule lives in one place, E-013)
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
-# The §6d3 agreement set — these five must share one version, always.
+# The §6d3 agreement set — these seven must share one version, always.
+# The OpenCode package's manifest and its npm `package.json` join the set: a
+# published plugin pinned to a different number than the tree it wraps is the
+# same skew §6d3 exists to catch, one runtime further out.
 MANIFESTS = (
     ".claude-plugin/plugin.json",
     ".claude-plugin/marketplace.json",
     ".plugin/plugin.json",
     ".plugin/marketplace.json",
+    ".opencode-plugin/plugin.json",
+    "opencode-plugin/package.json",
     "pyproject.toml",
 )
 # Visible claims derived from the manifests (updated when found; a missing
@@ -62,12 +68,12 @@ DERIVED = (
 #   * `.githooks/pre-commit` keeps `FILES` — the list it refuses an unstaged
 #     edit in and `git add`s after the bump (a manifest the bump writes but the
 #     hook does not stage is a skewed tree in the very commit that owns the
-#     number), plus a prose count ("The seven files whose version claims");
-#   * `scripts/check-plugin.sh` §6d3 carried a literal second copy of the five
+#     number), plus a prose count ("The nine files whose version claims");
+#   * `scripts/check-plugin.sh` §6d3 carried a literal second copy of the
 #     manifests, so a new manifest's skew would be invisible to the audit that
 #     exists to catch skew;
 #   * `scripts/tests/test_git_hooks.py` and `scripts/tests/test_release_pipeline.py`
-#     each seeded a scratch repo from their own hand-written five-name tuple.
+#     each seeded a scratch repo from their own hand-written name tuple.
 # Nothing measured any of it: the copies agreed by hand, exactly like the
 # skeleton contract E-047 closed one artifact over. `site_problems()` is the
 # measurement, `--manifest-paths` / `--owned-paths` feed the callers that need
@@ -100,7 +106,7 @@ def _version_re(manifest: str) -> re.Pattern[str]:
 
 
 def read_version(root: pathlib.Path) -> str:
-    """The single version all five manifests already agree on (§6d3's set)."""
+    """The single version all manifests already agree on (§6d3's set)."""
     seen: dict[str, str] = {}
     for rel in MANIFESTS:
         path = root / rel
@@ -337,7 +343,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--print-version", action="store_true",
                     help="print the agreed version alone; write nothing (CI tags with it)")
     ap.add_argument("--manifest-paths", action="store_true",
-                    help="print the five manifest paths, one per line (a caller "
+                    help="print the manifest paths, one per line (a caller "
                          "must NOT restate them; E-048)")
     ap.add_argument("--owned-paths", action="store_true",
                     help="print every version-owned path (manifests + derived "

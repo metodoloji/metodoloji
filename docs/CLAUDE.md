@@ -24,6 +24,15 @@ plugin root and dispatch to the same `hooks/engine/` core.
 | PostToolUse audit | Write\|Edit\|MultiEdit\|Bash\|PowerShell\|file_editor\|terminal | fail-open (log-only) | 2s |
 | Stop | — | fail-open (report-only, never blocks) | 5s |
 
+> **A third runtime, one engine.** OpenCode (V2) reaches this same engine through
+> a thin TypeScript bridge (`opencode-plugin/`) that spawns
+> `main.py --runtime=opencode`; no gate decision is reimplemented. Hook map:
+> `ctx.tool.hook("execute.before")` → `pre` (throw = deny),
+> `ctx.tool.hook("execute.after")` → `audit`,
+> `ctx.session.hook("context")` → `session_start` (once per session),
+> `session.idle` → `stop` (report-only), `ctx.permission.hook("evaluate")` →
+> optional fallback deny. See `docs/OPENCODE.md`.
+
 > **One PreToolUse entry, three gates, one process.** `pre` runs
 > guard → quality → deploy in order inside a single engine invocation; the
 > first deny short-circuits and soft-gate warnings accumulate. Each gate keeps

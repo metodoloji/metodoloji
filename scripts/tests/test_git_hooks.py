@@ -169,7 +169,7 @@ def test_unstaged_work_in_a_version_file_is_refused(repo):
 
 
 def test_manifest_skew_is_refused_before_any_write(repo):
-    """§6d3: five manifests, one number — skew is red before a byte is written."""
+    """§6d3: seven manifests, one number — skew is red before a byte is written."""
     (repo / ".plugin" / "plugin.json").write_text(
         json.dumps({"name": "metodoloji", "version": "9.9.9"}), encoding="utf-8")
     _git(repo, "add", "-A")

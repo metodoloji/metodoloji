@@ -1204,7 +1204,9 @@ def guard(json_in: dict) -> dict:
             return {"decision": "allow"}
     elif tool_name in ("file_editor", "notebook_editor"):
         _p = str(tool_input.get("path", "") or "")
-        if not _p.strip():
+        _multi = tool_input.get("paths")
+        _has_multi = isinstance(_multi, list) and any(str(x).strip() for x in _multi)
+        if not _p.strip() and not _has_multi:
             return {"decision": "allow"}
     elif tool_name not in ("terminal", "file_editor", "notebook_editor"):
         return {"decision": "allow"}
@@ -1226,9 +1228,13 @@ def guard(json_in: dict) -> dict:
             }
 
     elif tool_name in ("file_editor", "notebook_editor"):
-        path = tool_input.get("path", "")
-        if path:
-            targets = [path]
+        _paths = tool_input.get("paths")
+        if isinstance(_paths, list) and any(str(x).strip() for x in _paths):
+            targets = [str(x) for x in _paths if str(x).strip()]
+        else:
+            path = tool_input.get("path", "")
+            if path:
+                targets = [path]
 
     # Fast exit: shell/file write with no resolvable targets
     if not targets:

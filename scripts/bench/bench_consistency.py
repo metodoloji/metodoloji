@@ -60,6 +60,7 @@ MANIFESTS = (
     ".plugin/marketplace.json",
     ".claude-plugin/plugin.json",
     ".claude-plugin/marketplace.json",
+    ".opencode-plugin/plugin.json",
 )
 # Every engine module gets the duplicate-top-level-def scan — the guard is
 # only as wide as this tuple, and an unscanned module can silently hide a
@@ -3383,7 +3384,7 @@ def _check_version_owned_sites_agree() -> str | None:
         (".githooks/pre-commit",
          hook.replace("commands/init.md", "LICENSE"),
          "a staged file the bump never writes"),
-        (".githooks/pre-commit", hook.replace("The seven files", "The six files"),
+        (".githooks/pre-commit", hook.replace("The nine files", "The eight files"),
          "a stale count in the hook's own comment"),
         ("scripts/check-plugin.sh",
          checker.replace(
