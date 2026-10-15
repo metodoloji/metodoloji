@@ -3059,6 +3059,26 @@ def _check_board_story_keys_resolve() -> str | None:
     return "; ".join(problems) if problems else None
 
 
+def _shell_tokens(command: str) -> list[str]:
+    """The tokens `for t in $(<command>)` yields, run through a real sh.
+
+    A derivation is part of the artifact, not a private detail of the caller:
+    a Windows python writes CRLF into a pipe, so a pipeline that does not strip
+    CR hands every token but the last a trailing `\r` and the caller's
+    `[ -f "$root/$t" ]` can never match it (measured 2026-10-15: check-plugin
+    §6d read a project holding the FIRST probe as "no skeleton copy found"
+    while §6d3 reported "no version" in four of five manifests). Python's
+    ``splitlines`` would eat the CR and hide exactly this, so the split is on
+    "\n" alone.
+    """
+    body = 'for t in $(%s); do printf "%%s\\n" "$t"; done' % command
+    env = dict(os.environ, PY=sys.executable, PLUGIN_ROOT=str(ROOT))
+    proc = subprocess.run(["sh", "-c", body], cwd=ROOT, capture_output=True,
+                          env=env, timeout=60, stdin=subprocess.DEVNULL)
+    out = (proc.stdout or b"").decode("utf-8", errors="replace")
+    return out.split("\n")[:-1] if out else []
+
+
 def _check_skeleton_contract_declarations_agree() -> str | None:
     """E-047: every shipped restatement of the skeleton contract must agree.
 
@@ -3108,6 +3128,18 @@ def _check_skeleton_contract_declarations_agree() -> str | None:
     if probes.stdout.split() != list(sk.SKELETON_PROBES):
         problems.append(f"--probe-paths prints {probes.stdout.split()} but the "
                         f"module declares {list(sk.SKELETON_PROBES)}")
+    # §6d must READ that list, and the read must survive the shell: a token with
+    # a trailing CR never matches `[ -f ]`, so only the last probe would count.
+    m = re.search(r'"\$PY" "\$PLUGIN_ROOT/bmad/scripts/skeleton\.py" --probe-paths[^)\n]*',
+                  _read("scripts/check-plugin.sh"))
+    if not m:
+        problems.append("§6d no longer asks skeleton.py for the probe set")
+    else:
+        tokens = _shell_tokens(m.group(0))
+        if tokens != list(sk.SKELETON_PROBES):
+            problems.append(f"§6d's probe derivation yields {tokens!r} through a "
+                            f"real shell, not {list(sk.SKELETON_PROBES)!r} "
+                            "(a CR-suffixed token can never match)")
 
     runbook = _read("commands/init.md")
     bootstrap = _read("hooks/scripts/bootstrap.sh")
@@ -3151,6 +3183,123 @@ def _check_skeleton_contract_declarations_agree() -> str | None:
             elif site not in out:
                 problems.append(f"the declaration audit rejects {label} in {site} "
                                 f"without naming the site: {out.strip()[:200]}")
+    return "; ".join(problems) if problems else None
+
+
+def _check_version_owned_sites_agree() -> str | None:
+    """E-048: every shipped restatement of the version-owned set must agree.
+
+    The set decides three things at once — which files the bump rewrites, which
+    the pre-commit hook refuses an unstaged edit in and `git add`s afterwards,
+    and which the plugin audit checks for skew — and it was restated in four
+    places with nothing measuring them: the hook's `FILES` (plus the count in
+    its own comment), §6d3's literal manifest list, and the `MANIFESTS` tuples
+    of the two release tests. Measured 2026-10-15, the rule fires on the shipped
+    tree before the repair: §6d3 carried a second copy and neither derived nor
+    audited the set, and both release tests seeded their scratch repos from a
+    hand-written tuple. This drives the real `--audit-sites` CLI over a mutated
+    copy of each site, and reads §6d3's derivation through a real shell, so a
+    list that only looks right (a CR-suffixed token matches nothing) fails too.
+    """
+    import importlib.util as _importlib_util  # noqa: PLC0415
+
+    script = ROOT / "scripts" / "bump-version.py"
+    spec = _importlib_util.spec_from_file_location("_bench_bump_owned", script)
+    bump = _importlib_util.module_from_spec(spec)
+    spec.loader.exec_module(bump)
+    problems: list[str] = []
+    owned = list(bump.owned_paths())
+
+    shipped = bump.site_problems(ROOT)
+    if shipped:
+        problems.append("the shipped tree already drifts: " + "; ".join(shipped))
+    if "--audit-sites" not in _read("scripts/check-plugin.sh"):
+        problems.append("check-plugin.sh §6d3 does not run the set audit — the "
+                        "rule would be dead code")
+    for name in ("test_version_owned_sites_agree_on_the_shipped_tree",
+                 "test_version_owned_site_drift_is_named_per_site"):
+        if name not in _read("scripts/tests/test_bump_version.py"):
+            problems.append(f"scripts/tests/test_bump_version.py: no {name} — "
+                            "the rule is not falsifiable")
+
+    def _cli(root: pathlib.Path, *args: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [sys.executable, str(root / "scripts" / "bump-version.py"), *args],
+            cwd=str(root), capture_output=True, text=True, encoding="utf-8",
+            errors="replace", timeout=120, stdin=subprocess.DEVNULL)
+
+    ok = _cli(ROOT, "--audit-sites")
+    if ok.returncode != 0:
+        problems.append(f"--audit-sites exits {ok.returncode} on the shipped "
+                        f"tree: {(ok.stdout or '').strip()[:200]}")
+    for flag, expected in (("--manifest-paths", list(bump.MANIFESTS)),
+                           ("--owned-paths", owned)):
+        out = _cli(ROOT, flag).stdout.split()
+        if out != expected:
+            problems.append(f"{flag} prints {out} but the module declares {expected}")
+
+    # §6d3 must READ the manifest list, through a shell, without CR pollution.
+    m = re.search(r'"\$PY" "\$PLUGIN_ROOT/scripts/bump-version\.py" '
+                  r'--manifest-paths[^)\n]*', _read("scripts/check-plugin.sh"))
+    if not m:
+        problems.append("§6d3 no longer asks bump-version.py for the manifest list")
+    else:
+        tokens = [t.replace(str(ROOT) + "/", "").replace("\\", "/")
+                  for t in _shell_tokens(m.group(0))]
+        if tokens != list(bump.MANIFESTS):
+            problems.append(f"§6d3's manifest derivation yields {tokens!r} "
+                            f"through a real shell, not {list(bump.MANIFESTS)!r}")
+
+    hook = _read(".githooks/pre-commit")
+    git_hooks = _read("scripts/tests/test_git_hooks.py")
+    pipeline = _read("scripts/tests/test_release_pipeline.py")
+    checker = _read("scripts/check-plugin.sh")
+    cases = (
+        (".githooks/pre-commit",
+         hook.replace("\nREADME.md commands/init.md", "\ncommands/init.md"),
+         "a file the bump writes but the hook no longer stages"),
+        (".githooks/pre-commit",
+         hook.replace("commands/init.md", "LICENSE"),
+         "a staged file the bump never writes"),
+        (".githooks/pre-commit", hook.replace("The seven files", "The six files"),
+         "a stale count in the hook's own comment"),
+        ("scripts/check-plugin.sh",
+         checker.replace(
+             'VERSION_FILES=""',
+             'VERSION_FILES="$PLUGIN_ROOT/.claude-plugin/plugin.json"', 1),
+         "a restated manifest list in §6d3"),
+        ("scripts/check-plugin.sh", checker.replace(" --audit-sites", ""),
+         "the audit being unhooked"),
+        ("scripts/tests/test_git_hooks.py",
+         git_hooks.replace("MANIFESTS = bump.MANIFESTS",
+                           ("MANIFESTS = (\".claude-plugin/plugin.json\", "
+                            "\".plugin/plugin.json\")"), 1),
+         "a hand-written seed tuple in a release test"),
+    )
+    with tempfile.TemporaryDirectory() as td:
+        base = pathlib.Path(td)
+        for site, mutated, label in cases:
+            if mutated == _read(site):
+                problems.append(f"falsifier setup broken: {label} in {site} "
+                                "could not be injected")
+                continue
+            fixture = base / f"probe{len(list(base.iterdir()))}"
+            # `versioning` rides along: bump-version.py imports its sibling.
+            for rel in ("scripts/bump-version.py", "scripts/versioning.py") + bump.OWNED_SITES:
+                dest = fixture / rel
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                dest.write_bytes((ROOT / rel).read_bytes())
+            (fixture / site).write_text(mutated, encoding="utf-8")
+            proc = _cli(fixture, "--audit-sites")
+            out = (proc.stdout or "") + (proc.stderr or "")
+            if proc.returncode == 0:
+                problems.append(f"the set audit accepts {label} in {site}")
+            elif site not in out:
+                problems.append(f"the set audit rejects {label} in {site} without "
+                                f"naming the site: {out.strip()[:200]}")
+    # The two release tests must seed from the owner, not from a copy.
+    if "bump.MANIFESTS" not in pipeline:
+        problems.append("test_release_pipeline.py does not seed from bump.MANIFESTS")
     return "; ".join(problems) if problems else None
 
 
@@ -3285,6 +3434,8 @@ def build_checks() -> list[tuple[str, object]]:
                    _check_board_story_keys_resolve))
     checks.append(("skeleton contract declarations agree with the script (E-047)",
                    _check_skeleton_contract_declarations_agree))
+    checks.append(("version-owned set agrees across its copies (E-048)",
+                   _check_version_owned_sites_agree))
     checks.append(("pytest suite green (falsifier)", _run_pytest))
     checks.append(("hooks.json in sync with generator", _run_hooks_json_sync))
     return checks

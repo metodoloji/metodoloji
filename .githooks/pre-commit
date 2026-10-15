@@ -34,7 +34,11 @@ MODE="${1:-}"
 # The seven files whose version claims follow the number. Staged edits to them
 # are fine (they are part of this commit); unstaged ones are not — the number
 # must never be written over work that is not in this commit, so refuse and
-# let the author stage it.
+# let the author stage it. This list is a COPY of scripts/bump-version.py's
+# MANIFESTS + DERIVED (the hook is the one caller that must name the files in
+# shell), and the copy is not trusted: `scripts/bump-version.py --audit-sites`,
+# run by check-plugin.sh §6d3, fails when FILES, the count in this sentence or
+# the audit's own manifest list stops matching the owner (E-048).
 FILES=".claude-plugin/plugin.json .claude-plugin/marketplace.json \
 .plugin/plugin.json .plugin/marketplace.json pyproject.toml \
 README.md commands/init.md"

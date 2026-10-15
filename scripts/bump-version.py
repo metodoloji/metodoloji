@@ -57,6 +57,34 @@ DERIVED = (
     "commands/init.md",  # versioned cache example: `.../0.1.5/`
 )
 
+# E-048: the version-owned set above is RESTATED in four shipped places, and
+# this module is the only canonical owner:
+#   * `.githooks/pre-commit` keeps `FILES` — the list it refuses an unstaged
+#     edit in and `git add`s after the bump (a manifest the bump writes but the
+#     hook does not stage is a skewed tree in the very commit that owns the
+#     number), plus a prose count ("The seven files whose version claims");
+#   * `scripts/check-plugin.sh` §6d3 carried a literal second copy of the five
+#     manifests, so a new manifest's skew would be invisible to the audit that
+#     exists to catch skew;
+#   * `scripts/tests/test_git_hooks.py` and `scripts/tests/test_release_pipeline.py`
+#     each seeded a scratch repo from their own hand-written five-name tuple.
+# Nothing measured any of it: the copies agreed by hand, exactly like the
+# skeleton contract E-047 closed one artifact over. `site_problems()` is the
+# measurement, `--manifest-paths` / `--owned-paths` feed the callers that need
+# the set, and `--audit-sites` is the CLI check-plugin.sh §6d3 runs.
+OWNED_SITES = (
+    ".githooks/pre-commit",
+    "scripts/check-plugin.sh",
+    "scripts/tests/test_git_hooks.py",
+    "scripts/tests/test_release_pipeline.py",
+)
+
+_COUNT_WORDS = {
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+    "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11,
+    "twelve": 12,
+}
+
 _JSON_VERSION_RE = re.compile(r'("version"\s*:\s*")([^"]+)(")')
 _TOML_VERSION_RE = re.compile(r'(?m)^version\s*=\s*"([^"]+)"')
 _BADGE_RE = re.compile(r"(version-)(\d+\.\d+\.\d+)(-)")
@@ -192,6 +220,109 @@ def bump(root: pathlib.Path, by: int | None = None, target: str | None = None,
     return old, new
 
 
+def owned_paths() -> tuple[str, ...]:
+    """Every version-owned path: the manifests first, then the derived claims."""
+    return tuple(MANIFESTS) + tuple(DERIVED)
+
+
+def _read_site(repo: pathlib.Path, rel: str) -> str:
+    try:
+        return (repo / rel).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+
+
+def _hook_files(hook: str) -> list[str]:
+    """The paths of the hook's `FILES="…"` assignment (shell continuations joined)."""
+    m = re.search(r'(?ms)^FILES="(.*?)"$', hook)
+    return m.group(1).replace("\\", " ").split() if m else []
+
+
+def _set_diff(declared, canonical) -> str:
+    missing = sorted(set(canonical) - set(declared))
+    extra = sorted(set(declared) - set(canonical))
+    parts = []
+    if missing:
+        parts.append("missing " + ", ".join(missing))
+    if extra:
+        parts.append("unknown " + ", ".join(extra))
+    return " | ".join(parts) if parts else "same names, different multiplicity"
+
+
+def site_problems(root: pathlib.Path | None = None) -> list[str]:
+    """Every shipped restatement of the version-owned set that drifted (E-048).
+
+    The set decides three things at once: which files the bump rewrites, which
+    the hook refuses an unstaged edit in and stages afterwards, and which the
+    plugin audit checks for skew. A copy that lags any of them is a version
+    claim the machine no longer keeps in agreement — the stale-marketplace-tree
+    class §6d3 exists for. The two shell sites must obtain the set from this
+    module (§6d3 additionally runs this audit), the two release tests must seed
+    their scratch repositories from `bump.MANIFESTS`, and the hook's literal
+    list — it runs before every commit and `git add`s by name — is pinned here
+    together with the prose count in its comment.
+    """
+    repo = pathlib.Path(root) if root is not None else ROOT
+    owned = owned_paths()
+    problems: list[str] = []
+
+    hook_rel = ".githooks/pre-commit"
+    hook = _read_site(repo, hook_rel)
+    if not hook:
+        problems.append(f"{hook_rel}: unreadable — the version-owned set it "
+                        "stages cannot be audited")
+    else:
+        files = _hook_files(hook)
+        if set(files) != set(owned):
+            problems.append(
+                f"{hook_rel}: FILES={files} but the version-owned set is "
+                f"{list(owned)} — the bump would write a file the hook neither "
+                f"refuses nor stages ({_set_diff(files, owned)})")
+        if "git add $FILES" not in hook:
+            problems.append(f"{hook_rel}: no longer stages $FILES, so a manifest "
+                            "the bump writes would ride into the commit unstaged")
+        count = re.search(r"The (\w+) files whose version claims", hook)
+        if not count:
+            problems.append(f"{hook_rel}: no 'The <n> files whose version claims' "
+                            "count — the prose that says how big the set is is gone")
+        elif _COUNT_WORDS.get(count.group(1).lower()) != len(owned):
+            problems.append(
+                f"{hook_rel}: the comment says '{count.group(1)} files' but the "
+                f"version-owned set holds {len(owned)}")
+
+    checker_rel = "scripts/check-plugin.sh"
+    checker = _read_site(repo, checker_rel)
+    if not checker:
+        problems.append(f"{checker_rel}: unreadable — §6d3 cannot be audited")
+    else:
+        literal = re.search(r'(?m)^VERSION_FILES="([^"]*)"', checker)
+        if literal and ".json" in literal.group(1):
+            problems.append(
+                f"{checker_rel}: §6d3 carries a second copy of the manifest list "
+                "— read it from bump-version.py --manifest-paths instead")
+        if "--manifest-paths" not in checker:
+            problems.append(f"{checker_rel}: §6d3 no longer derives the manifest "
+                            "list (--manifest-paths)")
+        if "--audit-sites" not in checker:
+            problems.append(
+                f"{checker_rel}: §6d3 no longer runs bump-version.py "
+                "--audit-sites — the set audit is decorative and these copies "
+                "can drift again unnoticed")
+
+    for rel in OWNED_SITES[2:]:
+        text = _read_site(repo, rel)
+        if not text:
+            problems.append(f"{rel}: unreadable — its seed set cannot be audited")
+            continue
+        if re.search(r"(?m)^MANIFESTS\s*=\s*\(", text):
+            problems.append(f"{rel}: declares its own MANIFESTS tuple — seed the "
+                            "scratch repo from bump-version.py (bump.MANIFESTS)")
+        if "bump.MANIFESTS" not in text:
+            problems.append(f"{rel}: seeds the version-owned files from a second "
+                            "copy instead of bump.MANIFESTS")
+    return problems
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--root", default=str(ROOT), help="repository root")
@@ -205,6 +336,16 @@ def main(argv: list[str] | None = None) -> int:
                     help="verify manifest agreement only; write nothing")
     ap.add_argument("--print-version", action="store_true",
                     help="print the agreed version alone; write nothing (CI tags with it)")
+    ap.add_argument("--manifest-paths", action="store_true",
+                    help="print the five manifest paths, one per line (a caller "
+                         "must NOT restate them; E-048)")
+    ap.add_argument("--owned-paths", action="store_true",
+                    help="print every version-owned path (manifests + derived "
+                         "claims), one per line (E-048)")
+    ap.add_argument("--audit-sites", action="store_true",
+                    help="fail when a shipped restatement of the version-owned "
+                         "set (pre-commit hook, check-plugin §6d3, the two "
+                         "release tests) has drifted from this module (E-048)")
     args = ap.parse_args(argv)
     root = pathlib.Path(args.root)
     given = [name for name, value in (("--by", args.by),
@@ -212,6 +353,21 @@ def main(argv: list[str] | None = None) -> int:
                                       ("--set-version", args.set_version))
              if value is not None]
     try:
+        if args.manifest_paths:
+            print("\n".join(MANIFESTS))
+            return 0
+        if args.owned_paths:
+            print("\n".join(owned_paths()))
+            return 0
+        if args.audit_sites:
+            drift = site_problems(root)
+            for problem in drift:
+                print(f"[ERROR] {problem}")
+            if not drift:
+                print("version-owned set agrees across its copies: "
+                      f"{len(MANIFESTS)} manifests + {len(DERIVED)} derived "
+                      "claims — " + ", ".join(OWNED_SITES))
+            return 1 if drift else 0
         if args.print_version:
             # Bare and single-line by contract: the workflow composes `v$out`
             # into a tag name, so anything but the number is a bug (E-011).

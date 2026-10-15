@@ -26,6 +26,7 @@ rewritten history (no fetchable `before`: the range falls back to the newest
 tag — never to the whole retro history).
 """
 
+import importlib.util
 import json
 import os
 import pathlib
@@ -39,8 +40,14 @@ PLUGIN = pathlib.Path(__file__).resolve().parents[2]
 WORKFLOW = PLUGIN / ".github" / "workflows" / "release-numbers.yml"
 STEP = "Verify the numbers and tag every commit this push carried"
 SCRIPTS = ("bump-version.py", "versioning.py")
-MANIFESTS = (".claude-plugin/plugin.json", ".claude-plugin/marketplace.json",
-             ".plugin/plugin.json", ".plugin/marketplace.json", "pyproject.toml")
+# The version-owned set is READ from its owner (E-048): a hand-written tuple
+# here is a copy that drifts the day `scripts/bump-version.py` gains a file —
+# and the scratch repo would then be seeded from a set the hook does not use.
+_bump_spec = importlib.util.spec_from_file_location(
+    "bump_version", PLUGIN / "scripts" / "bump-version.py")
+bump = importlib.util.module_from_spec(_bump_spec)
+_bump_spec.loader.exec_module(bump)
+MANIFESTS = bump.MANIFESTS
 
 _ENV = {**os.environ,
         "GIT_AUTHOR_NAME": "author", "GIT_AUTHOR_EMAIL": "author@example.invalid",

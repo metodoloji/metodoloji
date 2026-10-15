@@ -17,6 +17,8 @@ commits, a new major line only by explicit human declaration.
 import importlib.util
 import json
 import pathlib
+import subprocess
+import sys
 
 import pytest
 
@@ -304,3 +306,75 @@ def test_workflow_is_version_only():
     for forbidden in ("git commit", "bump-version", "--set-version", "--by",
                       "[skip-version]"):
         assert forbidden not in code, f"CI writes or commits: {forbidden}"
+
+
+# --- declaration sites (E-048) -------------------------------------------------
+# The version-owned set decides three things at once: which files the bump
+# rewrites, which `.githooks/pre-commit` refuses an unstaged edit in and
+# `git add`s afterwards, and which check-plugin §6d3 audits for skew. It is
+# restated in four shipped places, `scripts/bump-version.py` is the only
+# canonical owner, and the agreement is a measurement — not a comment.
+
+def _owned_fixture(tmp_path: pathlib.Path) -> pathlib.Path:
+    """A copy of the version-owned contract, so the rule can be driven."""
+    for rel in ("scripts/bump-version.py", "scripts/versioning.py") + bump.OWNED_SITES:
+        dest = tmp_path / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes((PLUGIN / rel).read_bytes())
+    return tmp_path
+
+
+def _site_audit(root: pathlib.Path) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [sys.executable, str(root / "scripts" / "bump-version.py"), "--audit-sites"],
+        cwd=str(root), capture_output=True, text=True, encoding="utf-8",
+        stdin=subprocess.DEVNULL)
+
+
+def test_version_owned_sites_agree_on_the_shipped_tree():
+    assert bump.site_problems(PLUGIN) == []
+    assert bump.owned_paths() == tuple(bump.MANIFESTS) + tuple(bump.DERIVED)
+    for flag, expected in (("--manifest-paths", list(bump.MANIFESTS)),
+                           ("--owned-paths", list(bump.owned_paths()))):
+        r = subprocess.run([sys.executable, str(SCRIPT), flag], cwd=str(PLUGIN),
+                           capture_output=True, text=True, encoding="utf-8",
+                           stdin=subprocess.DEVNULL)
+        assert r.returncode == 0 and r.stdout.split() == expected, (flag, r.stdout)
+    assert _site_audit(PLUGIN).returncode == 0
+
+
+def test_version_owned_site_drift_is_named_per_site(tmp_path):
+    """Each declared site, drifted in turn, must be rejected BY NAME."""
+    hook = (PLUGIN / ".githooks/pre-commit").read_text(encoding="utf-8")
+    checker = (PLUGIN / "scripts/check-plugin.sh").read_text(encoding="utf-8")
+    hooks_test = (PLUGIN / "scripts/tests/test_git_hooks.py").read_text(encoding="utf-8")
+    cases = (
+        (".githooks/pre-commit",
+         hook.replace("\nREADME.md commands/init.md", "\ncommands/init.md"),
+         "a file the bump writes but the hook no longer stages"),
+        (".githooks/pre-commit", hook.replace("commands/init.md", "LICENSE"),
+         "a staged file the bump never writes"),
+        (".githooks/pre-commit", hook.replace("The seven files", "The six files"),
+         "a stale count in the hook's own comment"),
+        ("scripts/check-plugin.sh",
+         checker.replace('VERSION_FILES=""',
+                         'VERSION_FILES="$PLUGIN_ROOT/.claude-plugin/plugin.json"', 1),
+         "a restated manifest list in §6d3"),
+        ("scripts/check-plugin.sh", checker.replace(" --audit-sites", ""),
+         "the audit being unhooked"),
+        ("scripts/tests/test_git_hooks.py",
+         hooks_test.replace("MANIFESTS = bump.MANIFESTS",
+                            'MANIFESTS = (".claude-plugin/plugin.json")', 1),
+         "a hand-written seed tuple in a release test"),
+    )
+    for index, (site, mutated, label) in enumerate(cases):
+        assert mutated != (PLUGIN / site).read_text(encoding="utf-8"), \
+            f"setup broken: could not inject {label} in {site}"
+        root = _owned_fixture(tmp_path / f"case{index}")
+        (root / site).write_text(mutated, encoding="utf-8")
+        problems = bump.site_problems(root)
+        assert problems, f"the rule accepts {label} in {site}"
+        assert any(site in p for p in problems), (label, problems)
+        r = _site_audit(root)
+        assert r.returncode == 1, r.stdout
+        assert site in r.stdout, r.stdout

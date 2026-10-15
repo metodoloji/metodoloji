@@ -17,6 +17,7 @@ still gets caught — by the pipeline, which the last test here refuses to call
 a loophole.
 """
 
+import importlib.util
 import json
 import os
 import pathlib
@@ -28,8 +29,14 @@ import pytest
 PLUGIN = pathlib.Path(__file__).resolve().parents[2]
 HOOK = PLUGIN / ".githooks" / "pre-commit"
 SCRIPTS = ("bump-version.py", "versioning.py")
-MANIFESTS = (".claude-plugin/plugin.json", ".claude-plugin/marketplace.json",
-             ".plugin/plugin.json", ".plugin/marketplace.json", "pyproject.toml")
+# The version-owned set is READ from its owner (E-048): a hand-written tuple
+# here is a copy that drifts the day `scripts/bump-version.py` gains a file —
+# and the scratch repo would then be seeded from a set the hook does not use.
+_bump_spec = importlib.util.spec_from_file_location(
+    "bump_version", PLUGIN / "scripts" / "bump-version.py")
+bump = importlib.util.module_from_spec(_bump_spec)
+_bump_spec.loader.exec_module(bump)
+MANIFESTS = bump.MANIFESTS
 
 _ENV = {**os.environ,
         "GIT_AUTHOR_NAME": "author", "GIT_AUTHOR_EMAIL": "author@example.invalid",
@@ -142,8 +149,7 @@ def test_an_already_correct_tree_is_left_alone(repo):
     """
     _seed_version(repo, "0.1.1")             # hand-bump to the position's number
     _git(repo, "add", "-A")
-    before = {p: (repo / p).read_bytes() for p in (*MANIFESTS, "README.md",
-                                                   "commands/init.md")}
+    before = {p: (repo / p).read_bytes() for p in (*MANIFESTS, *bump.DERIVED)}
     proc = _commit(repo, "hand-bumped already")
     assert "this commit owns" not in proc.stderr + proc.stdout, \
         "the hook must stay silent when the tree already holds the number"
@@ -239,8 +245,8 @@ def test_a_conflicted_merge_is_written_when_the_author_commits_it(repo):
     assert _git(repo, "rev-parse", "HEAD") == before, "the conflict must stop the merge"
     assert _git(repo, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False)
 
-    _git(repo, "checkout", "--ours", "--", *MANIFESTS, "README.md",
-         "commands/init.md")                # resolve: either side is fine
+    _git(repo, "checkout", "--ours", "--", *MANIFESTS, *bump.DERIVED)
+    # resolve: either side is fine
     _git(repo, "add", "-A")
     _commit(repo, "merge side")              # pre-commit: union + itself
     assert _version_at(repo) == "0.1.5"

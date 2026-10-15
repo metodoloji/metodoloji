@@ -1490,7 +1490,11 @@ INIT_MARKER="$PROJECT_ROOT/.metodoloji/initialized"
 # second copy of skeleton.SKELETON_PROBES (with a comment still counting "two
 # template paths") while the session-start hint probes the same set — two
 # copies, nothing measuring that they agreed. Ask the canonical owner instead.
-SKELETON_PROBE_LIST=$("$PY" "$PLUGIN_ROOT/bmad/scripts/skeleton.py" --probe-paths 2>/dev/null || true)
+# `tr -d '\r'` is not cosmetic: a Windows python writes CRLF to a pipe, so
+# command substitution leaves every token but the last with a trailing CR and
+# `[ -f "$PROJECT_ROOT/$f" ]` can never match it — measured 2026-10-15, the
+# probe set read as "not installed" on a project holding the first probe (E-048).
+SKELETON_PROBE_LIST=$("$PY" "$PLUGIN_ROOT/bmad/scripts/skeleton.py" --probe-paths 2>/dev/null | tr -d '\r' || true)
 if [ -z "$SKELETON_PROBE_LIST" ]; then
     echo "[ERROR] cannot read the skeleton probe set (bmad/scripts/skeleton.py --probe-paths)"
     PROBLEMS=$((PROBLEMS + 1))
@@ -1553,7 +1557,19 @@ echo "== 6d3) Plugin version consistency (.claude-plugin ↔ .plugin ↔ pyproje
 # Stale marketplace caches serve old trees under an unchanged version number,
 # which is exactly how a NEW command met a MISSING script. The functional
 # manifests must agree; a bump that forgets one of them re-creates the skew.
-VERSION_FILES="$PLUGIN_ROOT/.claude-plugin/plugin.json $PLUGIN_ROOT/.claude-plugin/marketplace.json $PLUGIN_ROOT/.plugin/plugin.json $PLUGIN_ROOT/.plugin/marketplace.json $PLUGIN_ROOT/pyproject.toml"
+# The list is NOT restated here (E-048): this section carried a literal second
+# copy of bump-version.py's MANIFESTS, so a manifest added to the owner would
+# have had its skew audited by nothing. Ask the owner instead.
+VERSION_FILES=""
+# `tr -d '\r'` for the same Windows reason as the probe set above: without it
+# only the LAST manifest reads back cleanly and the rest report "no version" (E-048).
+for rel in $("$PY" "$PLUGIN_ROOT/scripts/bump-version.py" --manifest-paths 2>/dev/null | tr -d '\r'); do
+    VERSION_FILES="$VERSION_FILES $PLUGIN_ROOT/$rel"
+done
+if [ -z "${VERSION_FILES# }" ]; then
+    echo "[ERROR] cannot read the manifest list (scripts/bump-version.py --manifest-paths)"
+    PROBLEMS=$((PROBLEMS + 1))
+fi
 VERSION_SEEN=""
 VERSION_BAD=0
 for vf in $VERSION_FILES; do
@@ -1572,6 +1588,20 @@ for vf in $VERSION_FILES; do
 done
 if [ "$VERSION_BAD" -eq 0 ]; then
     echo "[OK]   plugin version consistent ($VERSION_SEEN)"
+fi
+
+# The version-owned set decides which files the bump rewrites, which the hook
+# refuses an unstaged edit in and stages, and which this audit checks — so the
+# copies that must restate it (the pre-commit hook's FILES, the two release
+# tests' seed set) are measured against scripts/bump-version.py (E-048).
+OWNED_REPORT=$("$PY" "$PLUGIN_ROOT/scripts/bump-version.py" --audit-sites 2>&1)
+OWNED_RC=$?
+if [ "$OWNED_RC" -eq 0 ]; then
+    echo "[OK]   $OWNED_REPORT"
+else
+    printf '%s\n' "$OWNED_REPORT" | sed 's/^/        /'
+    echo "[ERROR] version-owned set drifted from scripts/bump-version.py"
+    PROBLEMS=$((PROBLEMS + 1))
 fi
 
 echo "== 6e) Help catalog integrity (columns, code collisions, code vocabulary) =="
