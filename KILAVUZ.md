@@ -288,11 +288,14 @@ Kapsam ve # haritası #16'dadır. Exit 0 = HEALTHY; sorun varsa #17'ye geç.
 ```bash
 python -m pytest -q             # 1100+ test: hook motoru, bridge, skill
 sh {metodoloji-root}/scripts/check-custom.sh      # bridge TOML statik denetimi
-sh {metodoloji-root}/scripts/check-plugin.sh      # plugin yapı denetimi (#0–#6f)
+sh {metodoloji-root}/scripts/check-plugin.sh      # plugin yapı denetimi (#0–#6g)
 sh scripts/check-methodology.sh # kayıt format denetimi
+sh scripts/check-techdebt.sh    # borç envanteri denetimi
+python scripts/check-handoff.py # handoff kablolama lint'i
+python scripts/check-triggers.py # trigger/description çakışma denetimi
 ```
 
-CI notu: repo kökünde `.github/workflows/` yoktur — "her push'ta CI koşar" varsayma. Değişiklikten sonra 6 kontrolü yerelde koş (pytest + 4 statik check + handoff lint).
+CI notu: repo kökünde `.github/workflows/` yoktur — "her push'ta CI koşar" varsayma. Değişiklikten sonra 7 kontrolü yerelde koş (pytest + 5 statik check + handoff lint).
 
 ### P2 — Greenfield (boş klasör, önerilen yol)
 
@@ -1261,15 +1264,16 @@ grep 'methodology_warnings' .metodoloji/logs/hook-audit.log
 ## 16. Denetim ve Sağlık Kontrolü
 
 ```bash
-sh {metodoloji-root}/scripts/check-plugin.sh        # #0–#6f tam denetim (0=HEALTHY, 1=sorun)
+sh {metodoloji-root}/scripts/check-plugin.sh        # #0–#6g tam denetim (0=HEALTHY, 1=sorun)
 sh {metodoloji-root}/scripts/check-plugin.sh --negtest
 sh {metodoloji-root}/scripts/check-custom.sh        # bridge TOML #0–#7
 python scripts/check-handoff.py   # handoff wiring lint
 sh scripts/check-methodology.sh   # proje-kayıt formatı (kayıtsız tazede uyarılı exit 0)
 sh scripts/check-techdebt.sh      # borç drift/ID/P0/orphan (#6b olarak da koşar)
+python scripts/check-triggers.py  # trigger/description çakışması (#6f olarak da koşar)
 ```
 
-**# haritası:** #0 gate key · #0b base config proje-adı sızıntısı · #1 motor selfcheck (birleşik `pre` + tekil modlar) · #1b hooks.json byte-identical · #2 manifesto wiring · #2b bridge runtime görünürlüğü (30 workflow + 3 agent-principles) · #2c bridge VERIFY (17 skill) · #3 approved envanter (VERIFIED/ADVISORY-BLOCK + CROSS-MACHINE uyarısı) · #3b code-scope coverage · #4 dokümantatif kayıtlar · #5 motor bütünlüğü (py\_compile) · #5b hard-gate geçerliliği · #5c custom/ statik · #6 development format · #6a `.env` · #6b tech-debt · #6c template kopya kimliği · #6d init marker bütünlüğü · #6d2 command→script referans bütünlüğü · #6d3 plugin sürüm tutarlılığı (`.plugin/plugin.json` ↔ `.plugin/marketplace.json` ↔ `.claude-plugin/plugin.json` ↔ `.claude-plugin/marketplace.json` ↔ `pyproject`) · #6e help catalog bütünlüğü · #6f trigger/description çakışması.
+**# haritası:** #0 gate key · #0b base config proje-adı sızıntısı · #1 motor selfcheck (birleşik `pre` + tekil modlar) · #1b hooks.json byte-identical · #2 manifesto wiring · #2b bridge runtime görünürlüğü (30 workflow + 3 agent-principles) · #2c bridge VERIFY (17 skill) · #3 approved envanter (VERIFIED/ADVISORY-BLOCK + CROSS-MACHINE uyarısı) · #3b code-scope coverage · #4 dokümantatif kayıtlar · #5 motor bütünlüğü (py\_compile) · #5b hard-gate geçerliliği · #5c custom/ statik · #6 development format · #6a `.env` · #6b tech-debt · #6c template kopya kimliği · #6d init marker bütünlüğü · #6d2 command→script referans bütünlüğü · #6d3 plugin sürüm tutarlılığı (`.plugin/plugin.json` ↔ `.plugin/marketplace.json` ↔ `.claude-plugin/plugin.json` ↔ `.claude-plugin/marketplace.json` ↔ `pyproject`) · #6e help catalog bütünlüğü · #6f trigger/description çakışması · #6g namespaced-tool priming token yok.
 
 **Tek kayıt doğrulama + envanter:**
 

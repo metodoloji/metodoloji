@@ -76,6 +76,79 @@ def test_bench_doc_targets_exist():
     )
 
 
+def _audit_inventory_fixture(tmp_path: Path) -> Path:
+    """A copy of the audit inventory's two sides, so the rule can be driven."""
+    for rel in ("README.md", "GUIDE.md", "KILAVUZ.md",
+                "scripts/check-plugin.sh", "scripts/check-custom.sh",
+                "scripts/check-handoff.py", "scripts/check-methodology.sh",
+                "scripts/check-techdebt.sh", "scripts/check-triggers.py"):
+        dest = tmp_path / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes((PLUGIN / rel).read_bytes())
+    return tmp_path
+
+
+def test_documented_audit_inventory_equals_the_shipped_family():
+    """E-049: the docs' audit inventory is derived, not hand-maintained."""
+    bench = _load_bench()
+    assert bench._audit_inventory_problems(PLUGIN) == []
+    assert bench._check_audit_inventory_matches_the_shipped_one() is None
+    # the suite size the verify block states is derived by collecting the suite
+    assert bench._check_documented_test_count_is_honest() is None
+
+
+def test_verify_block_suite_size_claims_are_honest():
+    """A floor is stable; an exact number must be true today (E-049)."""
+    bench = _load_bench()
+    assert bench._test_count_claim_problem("README.md", "# 1,400+ tests", 1443) is None
+    assert bench._test_count_claim_problem("KILAVUZ.md", "# 1,400+ test", 1443) is None
+    for claim, why in (("# 1,331 tests", "an exact number that is not the suite"),
+                       ("# 2,000+ tests", "a floor above the suite"),
+                       ("no claim here", "an unstated suite size")):
+        assert bench._test_count_claim_problem("GUIDE.md", claim, 1443), why
+    # the family is DERIVED — a script added to scripts/ joins it the day it lands
+    globbed = [p for p in (PLUGIN / "scripts").glob("check-*")
+               if p.suffix in (".sh", ".py")]
+    assert bench._audit_family(PLUGIN) == sorted(p.name for p in globbed)
+    assert len(globbed) >= 6
+
+
+def test_audit_inventory_drift_is_named_per_surface(tmp_path):
+    """Each documented claim, drifted in turn, must be rejected BY NAME."""
+    readme = (PLUGIN / "README.md").read_text(encoding="utf-8")
+    guide = (PLUGIN / "GUIDE.md").read_text(encoding="utf-8")
+    kilavuz = (PLUGIN / "KILAVUZ.md").read_text(encoding="utf-8")
+    triggers_line = "python scripts/check-triggers.py   # trigger/description collision audit\n"
+    cases = (
+        ("README.md", readme.replace(triggers_line, ""),
+         "a verify block that omits a shipped audit"),
+        ("README.md", readme.replace("sh scripts/check-custom.sh         # bridge TOML static audit",
+                                     "sh scripts/check-phantom.sh        # bridge TOML static audit"),
+         "a block naming an audit that does not ship"),
+        ("README.md", readme.replace("(#0–#6g)", "(#0–#6f)"),
+         "a range ending one section short"),
+        ("GUIDE.md", guide.replace(
+            "#6e help catalog integrity · #6f trigger/description collision · "
+            "#6g no namespaced-tool priming tokens.",
+            "#6e help catalog integrity · #6f trigger/description collision."),
+         "a '# map:' missing a shipped section"),
+        ("GUIDE.md", guide.replace(
+            "python scripts/check-triggers.py  # trigger/description collision "
+            "(also runs as #6f)\n", ""),
+         "a §16 block that omits a shipped audit"),
+        ("KILAVUZ.md", kilavuz.replace("7 kontrolü yerelde", "6 kontrolü yerelde"),
+         "a stale count claim"),
+    )
+    for index, (rel, mutated, label) in enumerate(cases):
+        assert mutated != (PLUGIN / rel).read_text(encoding="utf-8"), \
+            f"setup broken: could not inject {label} in {rel}"
+        root = _audit_inventory_fixture(tmp_path / f"case{index}")
+        (root / rel).write_text(mutated, encoding="utf-8")
+        problems = _load_bench()._audit_inventory_problems(root)
+        assert problems, f"the rule accepts {label} in {rel}"
+        assert any(rel in p for p in problems), (label, problems)
+
+
 def test_selfcheck_siblings_discovered_by_presence_not_exec_bit():
     """check-plugin.sh must not gate a sibling self-check on the executable bit."""
     text = CHECK_PLUGIN.read_text(encoding="utf-8", errors="replace")

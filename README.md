@@ -1,6 +1,6 @@
 # metodoloji
 
-![version](https://img.shields.io/badge/version-0.1.49-0b7285?style=flat-square) ![license](https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square) ![python](https://img.shields.io/badge/python-3.11%2B-3776ab?style=flat-square) ![tests](https://img.shields.io/badge/tests-1%2C331-4c1?style=flat-square) ![runtimes](https://img.shields.io/badge/runtimes-OpenHands%20%7C%20Claude%20Code-555?style=flat-square)
+![version](https://img.shields.io/badge/version-0.1.50-0b7285?style=flat-square) ![license](https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square) ![python](https://img.shields.io/badge/python-3.11%2B-3776ab?style=flat-square) ![tests](https://img.shields.io/badge/tests-1%2C331-4c1?style=flat-square) ![runtimes](https://img.shields.io/badge/runtimes-OpenHands%20%7C%20Claude%20Code-555?style=flat-square)
 
 **A methodology plugin that makes your coding agent ask permission — mechanically.**
 
@@ -143,15 +143,16 @@ And one clarification: methodology **output** (records, artifacts) is written to
 Every check runs offline, with no credentials:
 
 ```bash
-python -m pytest -q                # 1,331 tests: hook engine, bridges, skills
-sh scripts/check-plugin.sh         # plugin structure audit (#0–#6f)
+python -m pytest -q                # 1,400+ tests: hook engine, bridges, skills
+sh scripts/check-plugin.sh         # plugin structure audit (#0–#6g)
 sh scripts/check-custom.sh         # bridge TOML static audit
 sh scripts/check-methodology.sh    # record format audit
 sh scripts/check-techdebt.sh       # tech-debt inventory audit
 python scripts/check-handoff.py    # handoff wiring lint
+python scripts/check-triggers.py   # trigger/description collision audit
 ```
 
-CI in this repo is **release-numbers only**: `.github/workflows/release-numbers.yml` writes no version and creates no commit — the number is written into the commit that owns it by the committed pre-commit hook (install once per clone: `git config core.hooksPath .githooks`), and the pipeline only verifies each pushed commit's tree against the number its position owns, then publishes `vX.Y.Z`. A wrong number is a red job naming the number it should be, never a bot commit; it never runs tests or audits. The number follows one rule: on the automatic line the patch is the count of commits since the first commit (`0.1.<n>`, absolute — derived from git, so drift is detected instead of papered over), and **a new minor block opens every 100 commits** (`v0.2.0` is position 100, `v0.3.0` is 200 — arithmetic, no release meeting required). Left the line? A major line (`1.0.0`) opens only by explicit human declaration, never by the counter. The history was rebuilt on that rule in E-012: twelve commits had shipped with no number of their own, and the tag that existed by hand sat on the wrong commit. The chain, what each tag means and the one tag that was re-pointed are in [`docs/VERSION-HISTORY.md`](docs/VERSION-HISTORY.md). The six checks stay local: after a change, run them here (in that order: pytest first, then `check-plugin.sh`, then the rest). `check-plugin.sh --negtest` and `check-custom.sh --negtest` additionally prove the gates still catch breakage.
+CI in this repo is **release-numbers only**: `.github/workflows/release-numbers.yml` writes no version and creates no commit — the number is written into the commit that owns it by the committed pre-commit hook (install once per clone: `git config core.hooksPath .githooks`), and the pipeline only verifies each pushed commit's tree against the number its position owns, then publishes `vX.Y.Z`. A wrong number is a red job naming the number it should be, never a bot commit; it never runs tests or audits. The number follows one rule: on the automatic line the patch is the count of commits since the first commit (`0.1.<n>`, absolute — derived from git, so drift is detected instead of papered over), and **a new minor block opens every 100 commits** (`v0.2.0` is position 100, `v0.3.0` is 200 — arithmetic, no release meeting required). Left the line? A major line (`1.0.0`) opens only by explicit human declaration, never by the counter. The history was rebuilt on that rule in E-012: twelve commits had shipped with no number of their own, and the tag that existed by hand sat on the wrong commit. The chain, what each tag means and the one tag that was re-pointed are in [`docs/VERSION-HISTORY.md`](docs/VERSION-HISTORY.md). The seven checks stay local: after a change, run them here (in that order: pytest first, then `check-plugin.sh`, then the rest). `check-plugin.sh --negtest` and `check-custom.sh --negtest` additionally prove the gates still catch breakage.
 
 ## Project layout
 
@@ -182,7 +183,7 @@ The two runbooks are written **for the agent**, not the human: the user makes a 
 
 ## Contributing
 
-Issues and PRs are welcome — across the skills, the hook engine, the workflow kernel and the docs. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and the quality bar (tests + the six checks above, conventional commits).
+Issues and PRs are welcome — across the skills, the hook engine, the workflow kernel and the docs. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and the quality bar (tests + the seven checks above, conventional commits).
 
 ## License
 

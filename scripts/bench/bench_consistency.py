@@ -99,6 +99,38 @@ _BARE_TOML_CLAIM_RE = re.compile(r"(?<![\d.])(\d+)\s+TOMLs", re.IGNORECASE)
 # reader to run or read them (docs/experiments/** keeps its own history).
 _REMOVED_REFS = ("run-promptfoo", "evals/promptfoo")
 
+# E-049: the audit family is DERIVED from scripts/check-*, and the reader-facing
+# inventory of it (the runnable blocks, the `#0–#6N` ranges, the `# map:`, the
+# count sentences) lives in three docs. Those claims are hand-maintained and had
+# drifted in four independent ways when this rule was written.
+_AUDIT_INVENTORY_DOCS = ("README.md", "GUIDE.md", "KILAVUZ.md")
+_AUDIT_BLOCK_ANCHORS = (
+    ("README.md", "## Verify your install"),
+    ("GUIDE.md", "**Step 6 — Install verification"),
+    ("GUIDE.md", "## 16. Auditing"),
+    ("KILAVUZ.md", "**Adım 6 — Kurulum doğrulaması"),
+    ("KILAVUZ.md", "## 16. Denetim"),
+)
+_AUDIT_COUNT_CLAIMS = (("README.md", r"[Tt]he (\w+) checks\b"),
+                       ("GUIDE.md", r"the (\w+) checks locally"),
+                       ("KILAVUZ.md", r"(\d+) kontrolü yerelde"))
+# The verify blocks also state how big the suite is. An EXACT number rots on
+# every test-adding commit (measured 2026-10-15: README claimed 1,331 while the
+# suite collected 1,443 — stale by 112 with nothing noticing), so the honest
+# form is a floor, and the floor is what gets measured.
+_AUDIT_TEST_COUNT_BLOCKS = (("README.md", "## Verify your install"),
+                            ("GUIDE.md", "**Step 6 — Install verification"),
+                            ("KILAVUZ.md", "**Adım 6 — Kurulum doğrulaması"))
+_TEST_COUNT_RE = re.compile(r"#\s*([\d,]+)(\+?)\s+tests?\b")
+_AUDIT_COUNT_SPLIT_RE = re.compile(
+    r"pytest \+ (\d+) static checks? \+ handoff lint|pytest \+ (\d+) statik check \+ handoff lint")
+_AUDIT_RANGE_RE = re.compile(r"#(\d[0-9a-z]*)\s*[–—−]\s*#(\d[0-9a-z]*)")
+_AUDIT_SCRIPT_RE = re.compile(r"check-[a-z]+\.(?:sh|py)")
+_AUDIT_MAP_RE = re.compile(r"(?m)^\*\*# (?:map|haritası):\*\* (.+)$")
+_NUMBER_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+                 "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+                 "eleven": 11, "twelve": 12}
+
 
 def _read(rel: str) -> str:
     return (ROOT / rel).read_text(encoding="utf-8", errors="replace")
@@ -3303,6 +3335,187 @@ def _check_version_owned_sites_agree() -> str | None:
     return "; ".join(problems) if problems else None
 
 
+def _read_root(root: pathlib.Path, rel: str) -> str:
+    try:
+        return (root / rel).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+
+
+def _audit_family(root: pathlib.Path) -> list[str]:
+    """The shipped audit scripts — derived from the tree, never listed by hand."""
+    return sorted(p.name for p in (root / "scripts").glob("check-*")
+                  if p.suffix in (".sh", ".py"))
+
+
+def _audit_section_ids(root: pathlib.Path, script: str) -> list[str]:
+    """The `== N)` section headers a check script emits, in order."""
+    return re.findall(r'(?m)^echo "== ([0-9a-z]+)\)',
+                      _read_root(root, "scripts/" + script))
+
+
+def _fenced_block_after(text: str, anchor: str) -> str | None:
+    """The first ```bash block that follows an anchor phrase."""
+    start = text.find(anchor)
+    if start < 0:
+        return None
+    match = re.search(r"```(?:bash|sh)?\n(.*?)```", text[start:], re.DOTALL)
+    return match.group(1) if match else None
+
+
+def _audit_inventory_problems(root: pathlib.Path) -> list[str]:
+    """E-049: the documented audit inventory must equal the shipped one.
+
+    The audits a reader may run, the section ranges the docs quote and the maps
+    they print are all restatements of what `scripts/check-*` and their
+    `== N)` headers already say — and they were maintained by hand. Measured
+    2026-10-15, four independent drifts were live: the runnable blocks omitted
+    `check-triggers.py` (which ships and runs as §6f), five `#0–#6f` range
+    claims named a range ending one section short of the script's `#6g`, both
+    `# map:` lines omitted `#6g`, and the "six checks stay local" sentences
+    counted a family of seven. This derives both sets from the tree and
+    requires every one of those claims to agree.
+    """
+    problems: list[str] = []
+    family = _audit_family(root)
+    if not family:
+        return ["no shipped scripts/check-* audit found — the family is derived, "
+                "not listed"]
+
+    for rel, anchor in _AUDIT_BLOCK_ANCHORS:
+        block = _fenced_block_after(_read_root(root, rel), anchor)
+        if block is None:
+            problems.append(f"{rel}: no audit block under {anchor!r} — the "
+                            "reader has no list of runnable checks")
+            continue
+        named = sorted(set(_AUDIT_SCRIPT_RE.findall(block)))
+        missing = [a for a in family if a not in named]
+        unknown = [n for n in named if n not in family]
+        if missing:
+            problems.append(f"{rel}: the audit block under {anchor!r} omits "
+                            f"{missing} — they ship and are runnable")
+        if unknown:
+            problems.append(f"{rel}: the audit block under {anchor!r} names "
+                            f"{unknown}, which no script ships")
+
+    for rel in _AUDIT_INVENTORY_DOCS:
+        text = _read_root(root, rel)
+        last_script, last_line = None, -99
+        for lineno, line in enumerate(text.splitlines(), 1):
+            if _AUDIT_SCRIPT_RE.search(line):
+                last_script, last_line = _AUDIT_SCRIPT_RE.search(line).group(0), lineno
+            for claim in _AUDIT_RANGE_RE.finditer(line):
+                before = _AUDIT_SCRIPT_RE.findall(line[:claim.start()])
+                owner = (before[-1] if before
+                         else (last_script if lineno - last_line <= 3 else None))
+                if owner is None:
+                    problems.append(f"{rel}:{lineno}: the range {claim.group(0)} "
+                                    "names no audit script to belong to")
+                    continue
+                ids = _audit_section_ids(root, owner)
+                if not ids:
+                    problems.append(f"{rel}:{lineno}: {owner} emits no '== N)' "
+                                    "section headers to quote")
+                    continue
+                if (claim.group(1), claim.group(2)) != (ids[0], ids[-1]):
+                    problems.append(
+                        f"{rel}:{lineno}: the range {claim.group(0)} claims all of "
+                        f"{owner}, whose sections run #{ids[0]}–#{ids[-1]}")
+
+        # A map is anchored by its CONTENT, not by the nearest script name in
+        # the file: it must equal some shipped audit's section set exactly.
+        shipped_spans = {s: _audit_section_ids(root, s) for s in family}
+        shipped_spans = {s: ids for s, ids in shipped_spans.items() if ids}
+        for match in _AUDIT_MAP_RE.finditer(text):
+            lineno = text[:match.start()].count("\n") + 1
+            mapped = re.findall(r"#([0-9a-z]+)\b", match.group(1))
+            if len(mapped) != len(set(mapped)):
+                problems.append(f"{rel}:{lineno}: the '# map:' repeats a section id")
+            if not any(set(ids) == set(mapped) for ids in shipped_spans.values()):
+                spans = ", ".join(f"{s}: #{ids[0]}–#{ids[-1]}"
+                                  for s, ids in sorted(shipped_spans.items()))
+                problems.append(
+                    f"{rel}:{lineno}: the '# map:' matches no shipped audit's "
+                    f"section set ({len(mapped)} ids) — shipped spans: {spans}")
+
+    # The docs count pytest with the audits ("run the seven checks locally"),
+    # so the claim is the family plus one — and a parenthetical that spells the
+    # split out must add up to the same number.
+    for rel, pattern in _AUDIT_COUNT_CLAIMS:
+        text = _read_root(root, rel)
+        found = re.findall(pattern, text)
+        if not found:
+            problems.append(f"{rel}: no audit-count claim ({pattern!r}) — the "
+                            "sentence that says how big the local set is is gone")
+            continue
+        for value in found:
+            number = _NUMBER_WORDS.get(value.lower())
+            if number is None and value.isdigit():
+                number = int(value)
+            if number != len(family) + 1:
+                problems.append(
+                    f"{rel}: the audit-count claim {value!r} is not the shipped "
+                    f"set ({len(family)} audits + pytest = {len(family) + 1})")
+        for split in _AUDIT_COUNT_SPLIT_RE.finditer(text):
+            spelled = int(split.group(1) or split.group(2))
+            if spelled + 2 != len(family) + 1:
+                problems.append(
+                    f"{rel}: '{split.group(0)}' adds up to {spelled + 2}, not "
+                    f"{len(family) + 1} (pytest + static checks + handoff lint)")
+    return problems
+
+
+def _test_count_claim_problem(rel: str, block: str, collected: int) -> str | None:
+    """The suite-size claim in a verify block, judged against the collected count."""
+    claims = _TEST_COUNT_RE.findall(block)
+    if not claims:
+        return (f"{rel}: the verify block states no suite size — the number a "
+                "reader uses to sanity-check the install is unstated")
+    for raw, plus in claims:
+        number = int(raw.replace(",", ""))
+        if plus and number > collected:
+            return (f"{rel}: the claim '# {raw}+ tests' is above the suite "
+                    f"({collected} collected)")
+        if not plus and number != collected:
+            return (f"{rel}: the claim '# {raw} tests' is not the suite "
+                    f"({collected} collected) — state a floor, or keep the exact "
+                    "number true in the same commit that changes it")
+    return None
+
+
+def _check_documented_test_count_is_honest() -> str | None:
+    """E-049: the '# N tests' claim in each verify block matches the suite.
+
+    The count is DERIVED by collecting the suite (1.3s here), never copied from
+    the docs, so the claim cannot outlive the tree it describes.
+    """
+    proc = subprocess.run([sys.executable, "-m", "pytest", "--collect-only",
+                           "-p", "no:cacheprovider"], cwd=ROOT, capture_output=True,
+                          text=True, encoding="utf-8", errors="replace", timeout=600,
+                          stdin=subprocess.DEVNULL)
+    match = re.search(r"(\d+) tests? collected", proc.stdout or "")
+    if not match:
+        return ("the suite's collected test count could not be derived: "
+                + (proc.stdout or proc.stderr or "").strip()[-200:])
+    collected = int(match.group(1))
+    problems = []
+    for rel, anchor in _AUDIT_TEST_COUNT_BLOCKS:
+        block = _fenced_block_after(_read_root(ROOT, rel), anchor)
+        if block is None:
+            problems.append(f"{rel}: no verify block under {anchor!r}")
+            continue
+        problem = _test_count_claim_problem(rel, block, collected)
+        if problem:
+            problems.append(problem)
+    return "; ".join(problems) if problems else None
+
+
+def _check_audit_inventory_matches_the_shipped_one() -> str | None:
+    """E-049: the documented audit inventory equals the shipped family."""
+    problems = _audit_inventory_problems(ROOT)
+    return "; ".join(problems) if problems else None
+
+
 def build_checks() -> list[tuple[str, object]]:
     checks: list[tuple[str, object]] = []
     for rel in DOC_FILES:
@@ -3436,6 +3649,10 @@ def build_checks() -> list[tuple[str, object]]:
                    _check_skeleton_contract_declarations_agree))
     checks.append(("version-owned set agrees across its copies (E-048)",
                    _check_version_owned_sites_agree))
+    checks.append(("documented audit inventory equals the shipped family (E-049)",
+                   _check_audit_inventory_matches_the_shipped_one))
+    checks.append(("documented suite size matches the collected suite (E-049)",
+                   _check_documented_test_count_is_honest))
     checks.append(("pytest suite green (falsifier)", _run_pytest))
     checks.append(("hooks.json in sync with generator", _run_hooks_json_sync))
     return checks

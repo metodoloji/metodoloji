@@ -288,11 +288,14 @@ The scope and the # map are in #16. Exit 0 = HEALTHY; on problems go to #17.
 ```bash
 python -m pytest -q             # 1100+ tests: hook engine, bridge, skills
 sh {metodoloji-root}/scripts/check-custom.sh      # bridge TOML static audit
-sh {metodoloji-root}/scripts/check-plugin.sh      # plugin structure audit (#0–#6f)
+sh {metodoloji-root}/scripts/check-plugin.sh      # plugin structure audit (#0–#6g)
 sh scripts/check-methodology.sh # record format audit
+sh scripts/check-techdebt.sh    # tech-debt inventory audit
+python scripts/check-handoff.py # handoff wiring lint
+python scripts/check-triggers.py # trigger/description collision audit
 ```
 
-CI note: there is no `.github/workflows/` at the repo root — do not assume "CI runs on every push". After a change, run the 6 checks locally (pytest + 4 static checks + handoff lint).
+CI note: there is no `.github/workflows/` at the repo root — do not assume "CI runs on every push". After a change, run the 7 checks locally (pytest + 5 static checks + handoff lint).
 
 ### P2 — Greenfield (empty folder, recommended path)
 
@@ -1262,15 +1265,16 @@ grep 'methodology_warnings' .metodoloji/logs/hook-audit.log
 ## 16. Auditing and Health Checks
 
 ```bash
-sh {metodoloji-root}/scripts/check-plugin.sh        # full audit #0–#6f (0=HEALTHY, 1=problem)
+sh {metodoloji-root}/scripts/check-plugin.sh        # full audit #0–#6g (0=HEALTHY, 1=problem)
 sh {metodoloji-root}/scripts/check-plugin.sh --negtest
 sh {metodoloji-root}/scripts/check-custom.sh        # bridge TOML #0–#7
 python scripts/check-handoff.py   # handoff wiring lint
 sh scripts/check-methodology.sh   # project record format (warn+exit 0 on a fresh install without records)
 sh scripts/check-techdebt.sh      # debt drift/ID/P0/orphan (also runs as #6b)
+python scripts/check-triggers.py  # trigger/description collision (also runs as #6f)
 ```
 
-**# map:** #0 gate key · #0b base config project-name leak · #1 engine selfcheck (combined `pre` + individual modes) · #1b hooks.json byte-identical · #2 manifesto wiring · #2b bridge runtime visibility (30 workflow + 3 agent-principles) · #2c bridge VERIFY (17 skills) · #3 approved inventory (VERIFIED/ADVISORY-BLOCK + CROSS-MACHINE warning) · #3b code-scope coverage · #4 documentary records · #5 engine integrity (py\_compile) · #5b hard-gate validity · #5c custom/ static · #6 development format · #6a `.env` · #6b tech-debt · #6c template copy identity · #6d init marker integrity · #6d2 command→script reference integrity · #6d3 plugin version consistency (`.plugin/plugin.json` ↔ `.plugin/marketplace.json` ↔ `.claude-plugin/plugin.json` ↔ `.claude-plugin/marketplace.json` ↔ `pyproject`) · #6e help catalog integrity · #6f trigger/description collision.
+**# map:** #0 gate key · #0b base config project-name leak · #1 engine selfcheck (combined `pre` + individual modes) · #1b hooks.json byte-identical · #2 manifesto wiring · #2b bridge runtime visibility (30 workflow + 3 agent-principles) · #2c bridge VERIFY (17 skills) · #3 approved inventory (VERIFIED/ADVISORY-BLOCK + CROSS-MACHINE warning) · #3b code-scope coverage · #4 documentary records · #5 engine integrity (py\_compile) · #5b hard-gate validity · #5c custom/ static · #6 development format · #6a `.env` · #6b tech-debt · #6c template copy identity · #6d init marker integrity · #6d2 command→script reference integrity · #6d3 plugin version consistency (`.plugin/plugin.json` ↔ `.plugin/marketplace.json` ↔ `.claude-plugin/plugin.json` ↔ `.claude-plugin/marketplace.json` ↔ `pyproject`) · #6e help catalog integrity · #6f trigger/description collision · #6g no namespaced-tool priming tokens.
 
 **Single-record verification + inventory:**
 
