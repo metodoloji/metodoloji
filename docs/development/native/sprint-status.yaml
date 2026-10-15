@@ -1,0 +1,36 @@
+# Sprint Status — metodoloji plugin (dogfood board)
+#
+# This board is the living state of the plugin's own sprints. It is the project
+# layer of the methodology the plugin itself ships: records in
+# docs/development/ (IR-*/SP-*) are the frozen gates, this file is what is true
+# right now. CHECK 6 validates the two against each other, and the
+# "# Methodology record:" line below is the pointer it reads — one line per
+# sprint record, oldest first. A new SP record must add its line in the SAME
+# change, otherwise the board quietly stops naming a sprint it tracks
+# (2026-10-01 second-sprint drift).
+#
+# Methodology record: docs/development/SP-001.md
+#
+# project: metodoloji
+# tracking_system: file-system
+# story_location: "docs/development/stories"
+#
+# STATUS DEFINITIONS (story vocabulary is the shipped template's)
+# ==============================================================
+# Story: backlog | ready-for-dev | in-progress | review | done
+# Epic:  backlog | in-progress | done
+
+generated: 2026-10-15
+last_updated: 2026-10-15
+project: metodoloji
+project_key: METODOLOJI
+tracking_system: file-system
+story_location: "docs/development/stories"
+
+development_status:
+  epic-1: in-progress
+  # S-001 — "Measure the change-radar contract instead of describing it".
+  # The implementation and its measurement landed in 043e7ba (E-043 APPROVED,
+  # bench 1.00 at 99/99); the story stays at review because the QR record that
+  # closes it has not been written yet — readiness is not progress.
+  1-1-change-radar-contract-measured: review

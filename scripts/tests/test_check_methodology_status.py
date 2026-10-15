@@ -282,18 +282,25 @@ def test_check6_reads_the_shipped_sprint_status():
     touch this test in the same change (the same drift rule the bench applies
     to doc counts).
 
-    Record-less plugin repo (the board was pruned 2026-10-06): when no shipped
-    board exists, a canonical board with known counts keeps the counting
-    contract running.
+    The plugin repo ships its own board again (SP-001,
+    docs/development/native/sprint-status.yaml): a repo that carries SP records
+    must carry the living state next to them, otherwise CHECK 6's pointer
+    contract and this counter have nothing to agree with. The record-less
+    fallback from the 2026-10-06 pruning stays below for a tree that ships no
+    board at all.
     """
     if SPRINT_STATUS.is_file():
         text = SPRINT_STATUS.read_text(encoding="utf-8")
         keys = re.findall(r"^\s+(\d+-\d+-[a-z][a-z0-9-]*):", text, re.MULTILINE)
         assert keys, "the shipped sprint status must track story keys"
-        # SP-026 closed 2026-09-21 (S-033 TTL enforcement) — no story in-progress; readiness is not progress
+        # SP-001 open: 1-1-change-radar-contract-measured (S-001) sits at review —
+        # the implementation and its measurement landed (043e7ba / E-043
+        # APPROVED), the QR record that closes the story has not, so exactly one
+        # story is at review, none in-progress (readiness is not progress) and
+        # none done.
         assert _count(text, "in-progress") == 0
-        # S-001…S-033 done — exactly thirty-three done stories
-        assert _count(text, "done") == 33
+        assert _count(text, "review") == 1
+        assert _count(text, "done") == 0
         return
     text = ("development_status:\n"
             "  epic-1: in-progress\n"
