@@ -1,7 +1,7 @@
 #!/bin/sh
 # run-hook.sh — Central hook dispatcher across Claude Code, OpenHands Canvas/Local, and CI
 # Discovers the plugin root reliably and routes to bootstrap.sh or hook-entry.sh.
-# Usage: sh run-hook.sh <bootstrap|pre|guard|quality|deploy|audit|stop> [args...]
+# Usage: sh run-hook.sh <bootstrap|pre|guard|quality|deploy|audit|stop|session_start> [args...]
 # NOTE: hooks.json dispatches the combined "pre" mode (guard+quality+deploy
 # in one python process); guard/quality/deploy stay valid for direct use.
 #

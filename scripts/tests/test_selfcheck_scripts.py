@@ -922,3 +922,85 @@ def test_postmortem_template_ships_with_its_install_destination():
         assert re.search(
             r"\|\s*\*\*PM\*\*[^\n]*docs/development/incidents/PM-NNN\.md", text), (
             f"{rel}: the record table does not list the Post-Mortem record")
+
+
+# --- E-051: the engine's dispatch modes, enumerated by hand --------------------
+# `_LAZY_IMPORTS` in main.py is the only owner of the mode set; the tree
+# comments of README/GUIDE/KILAVUZ, the two runbooks' "beyond `pre`" prose,
+# docs/CLAUDE.md's dispatch line and the two shell usage strings all enumerate
+# it by hand. Measured 2026-10-15: README listed 5 of the 7 modes (no `pre` — the
+# mode hooks.json dispatches — and no `session_start`), and run-hook.sh's usage
+# omitted `session_start` while the script routes it to the engine.
+
+def _engine_fixture(tmp_path: Path) -> Path:
+    for rel in ("README.md", "GUIDE.md", "KILAVUZ.md", "docs/CLAUDE.md",
+                "hooks/engine/main.py", "hooks/scripts/hook-entry.sh",
+                "hooks/scripts/run-hook.sh"):
+        dest = tmp_path / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes((PLUGIN / rel).read_bytes())
+    modules = tmp_path / "hooks" / "engine" / "modules"
+    modules.mkdir(parents=True, exist_ok=True)
+    for src in (PLUGIN / "hooks" / "engine" / "modules").glob("*.py"):
+        (modules / src.name).write_bytes(src.read_bytes())
+    return tmp_path
+
+
+def test_engine_mode_lists_match_the_dispatch_map(tmp_path):
+    """E-051: every hand-written mode list equals the engine's dispatch map."""
+    bench = _load_bench()
+    assert bench._engine_mode_problems(PLUGIN) == []
+
+    # Independent derivation (ast, no bench import): README's tree list.
+    import ast as _ast
+    main = (PLUGIN / "hooks" / "engine" / "main.py").read_text(encoding="utf-8")
+    modes: set = set()
+    for node in _ast.parse(main).body:
+        if isinstance(node, _ast.Assign) and any(
+                isinstance(t, _ast.Name) and t.id == "_LAZY_IMPORTS"
+                for t in node.targets):
+            modes = {k.value for k in node.value.keys}
+    assert modes, "main.py no longer declares a literal _LAZY_IMPORTS map"
+    readme = (PLUGIN / "README.md").read_text(encoding="utf-8")
+    listed = re.search(r"hook engine \(main\.py \+ modules/\): ([^\n]+)", readme)
+    assert listed, "README lost its engine line in the project layout"
+    assert set(re.findall(r"[a-z][a-z_]{2,}", listed.group(1))) == modes
+
+    # falsifier 1: the engine gains a mode nobody lists
+    root = _engine_fixture(tmp_path)
+    _rewrite(root / "hooks" / "engine" / "main.py", lambda t: t.replace(
+        '    "stop": ("modules.stop", "stop"),',
+        '    "stop": ("modules.stop", "stop"),\n'
+        '    "doctor": ("modules.audit", "audit"),'))
+    problems = bench._engine_mode_problems(root)
+    assert len(problems) >= 5, problems
+    assert any("README.md" in p and "doctor" in p for p in problems), problems
+
+    # falsifier 2: a list that drops a real mode
+    root = _engine_fixture(tmp_path / "drop")
+    _rewrite(root / "README.md", lambda t: t.replace(
+        ": pre, guard, quality, deploy, audit, stop, session_start", ": guard, quality"))
+    problems = bench._engine_mode_problems(root)
+    assert any("README.md" in p and "pre" in p for p in problems), problems
+
+    # falsifier 3: a doc inventing a mode
+    root = _engine_fixture(tmp_path / "invent")
+    _rewrite(root / "docs" / "CLAUDE.md", lambda t: t.replace(
+        "`stop`/`session_start` modes;", "`stop`/`lint` modes;"))
+    problems = bench._engine_mode_problems(root)
+    assert any("docs/CLAUDE.md" in p and "lint" in p for p in problems), problems
+
+    # falsifier 4: an anchor removed — the claim must not vanish silently
+    root = _engine_fixture(tmp_path / "anchor")
+    _rewrite(root / "hooks" / "scripts" / "run-hook.sh", lambda t: t.replace(
+        "# Usage: sh run-hook.sh <", "# Usage: run-hook.sh <"))
+    problems = bench._engine_mode_problems(root)
+    assert any("run-hook.sh" in p and "gone" in p for p in problems), problems
+
+    # falsifier 5: the map naming a handler that does not exist
+    root = _engine_fixture(tmp_path / "handler")
+    _rewrite(root / "hooks" / "engine" / "main.py", lambda t: t.replace(
+        '"session_start": ("modules.audit", "session_start")',
+        '"session_start": ("modules.audit", "sessionStart")'))
+    problems = bench._engine_mode_problems(root)
+    assert any("sessionStart" in p for p in problems), problems

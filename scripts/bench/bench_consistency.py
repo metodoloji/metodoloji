@@ -198,12 +198,102 @@ def _check_documented_commands(rel: str):
     return run
 
 
-def _check_documented_modes() -> str | None:
-    """docs/CLAUDE.md documents the engine's dispatch modes — they must exist."""
-    documented = ("pre", "guard", "quality", "deploy", "audit", "stop", "session_start")
-    main_src = _read("hooks/engine/main.py")
-    missing = [m for m in documented if f'"{m}"' not in main_src]
-    return f"documented engine modes absent from main.py: {missing}" if missing else None
+# E-051: the engine's dispatch map (`_LAZY_IMPORTS`) is the only owner of the
+# mode set, and eight shipped surfaces enumerate it by hand: the project-layout
+# tree in README, the two runbooks' trees (which name main.py's entry), their
+# "beyond `pre`" prose, docs/CLAUDE.md's dispatch line and the two shell usage
+# strings. Measured 2026-10-15, before this rule: README's tree listed 5 of the
+# 7 modes (omitting `pre` — the mode hooks.json actually dispatches — and
+# `session_start`) and run-hook.sh's usage omitted `session_start` while the
+# script routes it straight to the engine; the only check near the claim
+# hard-coded the list inside this file and asked merely whether each name
+# appeared somewhere in main.py's source, so a new mode, a missing mode and a
+# renamed mode were all invisible.
+# (doc, pattern, names the site legitimately adds, names it legitimately drops)
+# The two legitimate deviations are stated by the sites themselves: the §9
+# sentences say "beyond `pre`", and the dispatcher routes one name that is not
+# an engine mode (`bootstrap` → bootstrap.sh).
+_MODE_LIST_SITES = (
+    ("README.md", r"hook engine \(main\.py \+ modules/\): ([^\n]+)",
+     frozenset(), frozenset()),
+    ("GUIDE.md", r"engine/main\.py\s+# entry \(([^)]+)\)",
+     frozenset(), frozenset()),
+    ("KILAVUZ.md", r"engine/main\.py\s+# giriş \(([^)]+)\)",
+     frozenset(), frozenset()),
+    ("GUIDE.md", r"Beyond `pre`, the modes are: ([^\n]+)",
+     frozenset(), frozenset({"pre"})),
+    ("KILAVUZ.md", r"`pre`'nin ötesinde modlar: ([^\n]+)",
+     frozenset(), frozenset({"pre"})),
+    ("docs/CLAUDE.md", r"`hooks/engine/main\.py` \(([^()]+?) modes;",
+     frozenset(), frozenset()),
+    ("hooks/scripts/hook-entry.sh", r"^# Usage: sh hook-entry\.sh <([^>]+)>",
+     frozenset(), frozenset()),
+    ("hooks/scripts/run-hook.sh", r"^# Usage: sh run-hook\.sh <([^>]+)>",
+     frozenset({"bootstrap"}), frozenset()),
+)
+
+
+def _engine_dispatch_map(src: str) -> dict[str, tuple[str, str]]:
+    """`mode -> (module, handler)` from main.py's `_LAZY_IMPORTS` literal."""
+    for node in ast.parse(src).body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if not any(isinstance(t, ast.Name) and t.id == "_LAZY_IMPORTS"
+                   for t in node.targets):
+            continue
+        if not isinstance(node.value, ast.Dict):
+            return {}
+        mapping: dict[str, tuple[str, str]] = {}
+        for key, value in zip(node.value.keys, node.value.values):
+            if not (isinstance(key, ast.Constant) and isinstance(key.value, str)
+                    and isinstance(value, ast.Tuple)):
+                continue
+            parts = [e.value for e in value.elts if isinstance(e, ast.Constant)]
+            if len(parts) == 2:
+                mapping[key.value] = (parts[0], parts[1])
+        return mapping
+    return {}
+
+
+def _engine_mode_problems(root: pathlib.Path) -> list[str]:
+    """E-051: every list that enumerates the engine's modes equals the map."""
+    mapping = _engine_dispatch_map(_read_root(root, "hooks/engine/main.py"))
+    if not mapping:
+        return ["hooks/engine/main.py: _LAZY_IMPORTS is gone or is no longer a "
+                "literal mode -> (module, handler) map — the mode set cannot be derived"]
+    problems: list[str] = []
+    modes = set(mapping)
+    for mode, (module, handler) in sorted(mapping.items()):
+        rel = "hooks/engine/modules/%s.py" % module.split(".")[-1]
+        try:
+            tree = ast.parse(_read_root(root, rel))
+        except (OSError, SyntaxError) as exc:
+            problems.append(f"{rel}: unreadable ({exc}) — the {mode} handler "
+                            "cannot be verified")
+            continue
+        defines = {n.name for n in tree.body
+                   if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
+        if handler not in defines:
+            problems.append(f"{rel}: defines no top-level {handler}() — "
+                            f"_LAZY_IMPORTS.{mode} points at a handler that is not there")
+    for rel, pattern, extra, dropped in _MODE_LIST_SITES:
+        match = re.search(pattern, _read_root(root, rel), re.MULTILINE)
+        if not match:
+            problems.append(f"{rel}: the mode list matching {pattern!r} is gone — "
+                            "a claim that cannot be read is not a measured claim")
+            continue
+        claimed = set(re.findall(r"[a-z][a-z_]{2,}", match.group(1)))
+        expected = (modes | extra) - dropped
+        if claimed != expected:
+            problems.append(f"{rel}: the mode list {sorted(claimed)} is not "
+                            f"{sorted(expected)}")
+    return problems
+
+
+def _check_engine_mode_lists() -> str | None:
+    """E-051: the documented mode lists equal the engine's dispatch map."""
+    problems = _engine_mode_problems(ROOT)
+    return "; ".join(problems) if problems else None
 
 
 def _check_counts(rel: str):
@@ -3663,7 +3753,7 @@ def build_checks() -> list[tuple[str, object]]:
     checks: list[tuple[str, object]] = []
     for rel in DOC_FILES:
         checks.append((f"documented commands exist: {rel}", _check_documented_commands(rel)))
-    checks.append(("docs/CLAUDE.md documents real engine modes", _check_documented_modes))
+    checks.append(("engine mode lists equal the dispatch map (E-051)", _check_engine_mode_lists))
     for rel in DOC_FILES:
         checks.append((f"count claims agree with the tree: {rel}", _check_counts(rel)))
     checks.append(("count claims agree with the tree: manifests", _check_manifest_counts))
