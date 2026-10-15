@@ -49,7 +49,8 @@ def _run_json(cmd):
     """Run a resolver script and parse its JSON stdout. None on any failure."""
     try:
         out = subprocess.run(cmd, capture_output=True, text=True,
-                             encoding="utf-8", errors="replace", timeout=60)
+                             encoding="utf-8", errors="replace", timeout=60,
+                             stdin=subprocess.DEVNULL)
     except (OSError, subprocess.SubprocessError):
         return None
     if out.returncode != 0 or not out.stdout.strip():

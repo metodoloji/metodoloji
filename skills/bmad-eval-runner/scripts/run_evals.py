@@ -390,6 +390,7 @@ def run_case(case: dict, case_dir: Path, run_dir: Path,
             argv,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            stdin=subprocess.DEVNULL,  # the harness is driven by files, not a TTY
             cwd=str(cwd),
             env=env,
             timeout=timeout,

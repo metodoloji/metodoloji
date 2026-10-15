@@ -400,7 +400,8 @@ def _run_script(script: str, *args: str) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, str(PLUGIN / "scripts" / script), *args],
         capture_output=True, text=True, encoding="utf-8", errors="replace",
-        timeout=60)
+        timeout=60,
+        stdin=subprocess.DEVNULL)  # pytest's fd capture leaves stdin unusable on Windows
 
 
 def test_qr_generator_refuses_a_non_utf8_story(tmp_path):

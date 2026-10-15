@@ -77,7 +77,8 @@ def test_graph_and_radar_gaps_warn_without_failing(tmp_path, capsys, monkeypatch
     monkeypatch.setattr(mod, "PEEK_EXEMPT", {"bmad-next": "terminal"})
     monkeypatch.setattr(mod, "FORWARDERS", {})
     monkeypatch.setattr(mod, "DIGEST_FIRST", ())
-    monkeypatch.setattr(mod, "EXPECTED_LINKS", {"bmad-producer": "link --a x."})
+    monkeypatch.setattr(mod, "EXPECTED_LINKS",
+                        {"bmad-producer": (("x.", "y.", "informs"),)})
     monkeypatch.setattr(mod, "EXPECTED_SUBSCRIPTIONS",
                         {"bmad-producer": (("x.*", "session"),)})
     # 1) peek + post wired, traceability missing → WARNING, exit 0
@@ -93,13 +94,56 @@ def test_graph_and_radar_gaps_warn_without_failing(tmp_path, capsys, monkeypatch
     (producer / "SKILL.md").write_text(
         "peek: handoffs --skill bmad-producer\n"
         "close: mirror --key x --value y --to bmad-next\n"
-        "trace: link --a x.1 --b y.1\n"
+        "trace: link --a x.1 --b y.1 --relation informs\n"
         "watch: subscribe --watcher bmad-producer --pattern \"x.*\" --channel session\n",
         encoding="utf-8")
     assert mod.check() == 0
     out = capsys.readouterr().out
     assert "close-out traces the relay on the graph" in out
     assert "watches its upstreams (x.*)" in out
+
+
+def test_relay_graph_edge_requires_the_full_target_and_relation(tmp_path, capsys, monkeypatch):
+    """E-044: the relay edge is the FULL (source, target, relation) triple, not
+    the source prefix. A close-out that points the graph at the wrong downstream
+    (or ships a relation the runbook never documents) is drift, not a pass — the
+    class the source-only first cut could not see."""
+    mod = _load_lint()
+    producer = tmp_path / "bmad-producer"
+    producer.mkdir()
+    monkeypatch.setattr(mod, "PLUGIN", tmp_path)
+    monkeypatch.setattr(mod, "SKILLS", tmp_path)
+    monkeypatch.setattr(mod, "EXPECTED_POSTS", {"bmad-producer": []})
+    monkeypatch.setattr(mod, "PEEK_EXEMPT", {"bmad-producer": "terminal"})
+    monkeypatch.setattr(mod, "FORWARDERS", {})
+    monkeypatch.setattr(mod, "DIGEST_FIRST", ())
+    monkeypatch.setattr(mod, "EXPECTED_SUBSCRIPTIONS", {})
+    monkeypatch.setattr(mod, "EXPECTED_LINKS",
+                        {"bmad-producer": (("prd.", "ux.", "informs"),)})
+
+    def _write(edge_line):
+        (producer / "SKILL.md").write_text(
+            "peek: handoffs --skill x\n" + edge_line + "\n", encoding="utf-8")
+
+    # right source, wrong target → flagged (missing contract + undeclared edge)
+    _write("trace: link --a prd.acme --b TOTALLY-WRONG.node --relation informs")
+    assert mod.check() == 0
+    out = capsys.readouterr().out
+    assert "close-out graph edge missing" in out
+    assert "undeclared graph edge" in out
+    # right target, wrong relation → flagged on both halves
+    _write("trace: link --a prd.acme --b ux.acme --relation creates")
+    assert mod.check() == 0
+    out = capsys.readouterr().out
+    assert "close-out graph edge missing" in out and "creates" in out
+    # no relation at all → flagged (GUIDE §14 requires one)
+    _write("trace: link --a prd.acme --b ux.acme")
+    assert mod.check() == 0
+    assert "close-out graph edge missing" in capsys.readouterr().out
+    # the full declared edge → green
+    _write("trace: link --a prd.acme --b ux.acme --relation informs")
+    assert mod.check() == 0
+    assert "close-out traces the relay on the graph" in capsys.readouterr().out
 
 
 def test_radar_contract_requires_the_full_pattern_and_channel(tmp_path, capsys, monkeypatch):

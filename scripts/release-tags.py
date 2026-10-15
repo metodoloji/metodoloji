@@ -48,8 +48,11 @@ class TagError(Exception):
 
 
 def _git(root: pathlib.Path, *args: str, check: bool = True) -> str:
+    # stdin=DEVNULL: git reads no stdin here, and an inherited stdio handle
+    # the host cannot duplicate fails the spawn (WinError 6).
     proc = subprocess.run(["git", *args], cwd=root, capture_output=True,
-                          text=True, encoding="utf-8", errors="replace")
+                          text=True, encoding="utf-8", errors="replace",
+                          stdin=subprocess.DEVNULL)
     if check and proc.returncode != 0:
         raise TagError(f"git {' '.join(args)} failed: "
                        f"{(proc.stderr or proc.stdout or '').strip()}")

@@ -41,6 +41,7 @@ def _run(root: Path) -> subprocess.CompletedProcess:
         ["sh", str(root / "scripts" / "check-techdebt.sh")],
         cwd=str(root), capture_output=True, text=True, encoding="utf-8",
         errors="replace", timeout=60,
+        stdin=subprocess.DEVNULL,  # pytest's fd capture leaves stdin unusable on Windows
     )
 
 

@@ -808,9 +808,14 @@ def _check_version_tag_tests_covered() -> str | None:
 def _git_stdout(*args: str) -> tuple[int, str]:
     """(exit code, stdout) for a git call in this repo — never raises."""
     try:
+        # stdin=DEVNULL at EVERY spawn in this file: a child that inherits the
+        # parent's stdio handle cannot be launched when that handle is not
+        # duplicable (WinError 6 on Windows — the class the suite hit when the
+        # gate ran it with no console), and nothing the bench spawns reads
+        # stdin.
         proc = subprocess.run(["git", *args], cwd=ROOT, capture_output=True,
                               text=True, encoding="utf-8", errors="replace",
-                              timeout=60)
+                              timeout=60, stdin=subprocess.DEVNULL)
     except Exception as exc:  # git missing is a failing check, not a crash
         return 1, f"{type(exc).__name__}: {exc}"
     return proc.returncode, (proc.stdout or "")
@@ -1628,7 +1633,8 @@ def _check_techdebt_audit_covers_the_tree() -> str | None:
             if name not in src:
                 problems.append(f"test_check_techdebt.py: no {name}")
     proc = subprocess.run(["sh", str(script)], cwd=ROOT, capture_output=True,
-                          text=True, encoding="utf-8", errors="replace", timeout=60)
+                          text=True, encoding="utf-8", errors="replace", timeout=60,
+                          stdin=subprocess.DEVNULL)
     if proc.returncode != 0 or "STATUS: HEALTHY" not in (proc.stdout or ""):
         tail = (proc.stdout or "").strip().splitlines()[-4:]
         problems.append(f"debt audit not healthy: exit {proc.returncode}: {' | '.join(tail)}")
@@ -1673,7 +1679,8 @@ def _check_record_decode_refusals() -> str | None:
         for argv, needle in cases:
             proc = subprocess.run([sys.executable, *argv], cwd=ROOT,
                                   capture_output=True, text=True,
-                                  encoding="utf-8", errors="replace", timeout=60)
+                                  encoding="utf-8", errors="replace", timeout=60,
+                                  stdin=subprocess.DEVNULL)
             combined = (proc.stdout or "") + (proc.stderr or "")
             if "Traceback" in combined:
                 problems.append(f"{argv[0]} crashed: {combined.strip()[-140:]}")
@@ -1780,7 +1787,8 @@ def _check_engine_decode_refusals() -> str | None:
                                str(ROOT / "scripts" / "check-triggers.py"),
                                "--project-root", td],
                               cwd=ROOT, capture_output=True, text=True,
-                              encoding="utf-8", errors="replace", timeout=60)
+                              encoding="utf-8", errors="replace", timeout=60,
+                              stdin=subprocess.DEVNULL)
         combined = (proc.stdout or "") + (proc.stderr or "")
         if "Traceback" in combined:
             problems.append(f"check-triggers crashed: {combined.strip()[-140:]}")
@@ -2703,7 +2711,8 @@ def _run_pytest() -> str | None:
     """The falsifier: the whole suite must stay green."""
     proc = subprocess.run([sys.executable, "-m", "pytest", "-q"],
                           cwd=ROOT, capture_output=True, text=True,
-                          encoding="utf-8", errors="replace", timeout=900)
+                          encoding="utf-8", errors="replace", timeout=900,
+                          stdin=subprocess.DEVNULL)
     if proc.returncode != 0:
         tail = (proc.stdout or "").strip().splitlines()[-3:]
         return f"pytest exited {proc.returncode}: {' | '.join(tail)}"
@@ -2713,7 +2722,8 @@ def _run_pytest() -> str | None:
 def _run_hooks_json_sync() -> str | None:
     proc = subprocess.run([sys.executable, "scripts/sync-hooks-json.py", "--check"],
                           cwd=ROOT, capture_output=True, text=True,
-                          encoding="utf-8", errors="replace", timeout=120)
+                          encoding="utf-8", errors="replace", timeout=120,
+                          stdin=subprocess.DEVNULL)
     if proc.returncode != 0:
         return f"hooks.json drifted from the generator: {(proc.stdout or '').strip()[:120]}"
     return None
@@ -2809,6 +2819,163 @@ def _check_change_radar_contract_matches() -> str | None:
         for skill in sorted(set(claimed) - set(shipped)):
             problems.append(f"{rel}: change-radar bullet claims `{skill}` "
                             f"which ships no subscription")
+    return "; ".join(problems) if problems else None
+
+
+_EDGE_RE = re.compile(r"link --a (\S+) --b (\S+) --relation (\S+)")
+# The relations the §14 Graph bullet documents for hand-written relay edges.
+# `owns` is the engine's automatic canvas edge and `supersedes` is a re-run
+# marker; neither is ever hand-written on a skill close-out.
+_RELATION_VOCAB = ("informs", "constrains", "validates")
+_GRAPH_DOC_MARKERS = ("Graph (relay traceability)", "Graph (relay izlenebilirliği)")
+
+
+def _shipped_relay_edges() -> dict:
+    """Every surface that hands the relay graph an edge, derived from the tree."""
+    out: dict[str, list] = {}
+    for md in sorted((ROOT / "skills").glob("*/SKILL.md")):
+        blob = md.read_text(encoding="utf-8", errors="replace")
+        for f in sorted(md.parent.rglob("*.md")):
+            if f.name != "SKILL.md":
+                blob += "\n" + f.read_text(encoding="utf-8", errors="replace")
+        edges = _EDGE_RE.findall(blob)
+        if edges:
+            out[md.parent.name] = edges
+    for toml in sorted((ROOT / "custom").glob("*.toml")):
+        edges = _EDGE_RE.findall(toml.read_text(encoding="utf-8", errors="replace"))
+        if edges:
+            out.setdefault(toml.stem, []).extend(edges)
+    return out
+
+
+def _declared_relay_edges() -> dict:
+    """The lint's EXPECTED_LINKS table, loaded from check-handoff.py."""
+    import importlib.util  # noqa: PLC0415
+    spec = importlib.util.spec_from_file_location(
+        "check_handoff_for_bench", ROOT / "scripts" / "check-handoff.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)  # __name__ != "__main__": the CLI block stays shut
+    return mod.EXPECTED_LINKS
+
+
+def _check_relay_graph_edges_match_declared() -> str | None:
+    """E-044: the declared relay graph must equal the graph the tree ships.
+
+    The last blackboard commit shipped the §14 Graph bullet plus an
+    `EXPECTED_LINKS` entry per producing skill — but the entry was a
+    SOURCE-ONLY marker (`"link --a prd."`), so the lint could not see a wrong
+    target or a relation the runbook never documents (`link --a prd.acme --b
+    WRONG --relation nonsense` passed as [OK]). This check is the independent
+    half, the E-043 pattern applied to the graph: it DERIVES every shipped edge
+    from `skills/*/SKILL.md` (plus their steps/) and `custom/*.toml`, then
+    requires `EXPECTED_LINKS` to equal it both ways — a surface that ships an
+    edge without declaring it, and a declaration with no shipped edge, both
+    fail — and it requires every shipped relation to be in the runbooks'
+    documented vocabulary so a hand-written `owns` cannot corrupt the graph.
+    """
+    problems: list[str] = []
+    shipped = _shipped_relay_edges()
+    if not shipped:
+        return ("no surface ships a `link --a … --b … --relation …` edge — "
+                "the relay graph vanished")
+    declared = _declared_relay_edges()
+    for surface, edges in sorted(shipped.items()):
+        want = declared.get(surface)
+        if want is None:
+            problems.append(f"{surface}: ships graph edges {sorted(edges)} but "
+                            f"is not declared in EXPECTED_LINKS")
+            continue
+        for a, b, r in edges:
+            if not any(a.startswith(s) and b.startswith(d) and r == rel
+                       for s, d, rel in want):
+                problems.append(f"{surface}: edge {a} -> {b} ({r}) is not the "
+                                f"declared edge {want}")
+    for surface in sorted(set(declared) - set(shipped)):
+        problems.append(f"EXPECTED_LINKS declares {surface} but the tree ships "
+                        f"no edge for it")
+    for surface, edges in sorted(shipped.items()):
+        for a, b, r in edges:
+            if r not in _RELATION_VOCAB:
+                problems.append(f"{surface}: relation '{r}' is outside the "
+                                f"documented {'|'.join(_RELATION_VOCAB)} vocabulary")
+    for rel in ("GUIDE.md", "KILAVUZ.md"):
+        bullet = next((ln for ln in _read(rel).splitlines()
+                       if any(m in ln for m in _GRAPH_DOC_MARKERS)), None)
+        if bullet is None:
+            problems.append(f"{rel}: no Graph (relay traceability) bullet found")
+        elif not all(v in bullet for v in _RELATION_VOCAB):
+            problems.append(f"{rel}: Graph bullet does not name every shipped "
+                            f"relation ({_RELATION_VOCAB})")
+    return "; ".join(problems) if problems else None
+
+
+# --- E-045: a spawn must hand its child an explicit stdin --------------------
+# The suite was green from a console and red from the gate: `subprocess.run([…])`
+# with no stdin inherits the parent's STD_INPUT_HANDLE, and DuplicateHandle on a
+# stdio handle the host does not have fails the spawn outright (WinError 6 on
+# Windows, raised before the child exists — the child never runs). The repo had
+# patched this site by site as it noticed it; this check makes it an invariant
+# of every shipped python tree, so the next spawn helper cannot reintroduce it.
+SPAWN_ROOTS = ("hooks", "scripts", "bmad", "skills")
+SPAWN_FUNCS = frozenset({"run", "Popen", "call", "check_call", "check_output"})
+
+
+def _spawn_calls_without_stdin(source: str, rel: str) -> list[str]:
+    """``rel:line`` for every ``subprocess.<spawn>(…)`` in *source* with no stdin.
+
+    ``stdin=…`` and ``input=…`` both detach the child from the parent's stdio
+    handle (``input=`` implies ``stdin=PIPE``), so either satisfies the rule. A
+    spawn hidden behind ``**kwargs`` cannot be judged from the call site and is
+    reported rather than passed: an unverifiable spawn is the defect itself.
+    """
+    problems: list[str] = []
+    try:
+        tree = ast.parse(source)
+    except SyntaxError as exc:
+        return [f"{rel}: unparsable ({type(exc).__name__})"]
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        fn = node.func
+        if not isinstance(fn, ast.Attribute) or fn.attr not in SPAWN_FUNCS:
+            continue
+        base = fn.value
+        if not (isinstance(base, ast.Name) and base.id == "subprocess"):
+            continue
+        keywords = {kw.arg for kw in node.keywords}
+        if None in keywords:
+            problems.append(f"{rel}:{node.lineno}: spawn behind **kwargs — "
+                            "stdin cannot be verified from the call site")
+        elif "stdin" not in keywords and "input" not in keywords:
+            problems.append(f"{rel}:{node.lineno}")
+    return problems
+
+
+def _check_every_spawn_hands_stdin() -> str | None:
+    """E-045: no python in this tree spawns a child without an explicit stdin.
+
+    The class is the repo's recurring one (E-037): an artifact that depends on a
+    resource nobody measured — here a launch that depends on the parent's stdio
+    handle. Measured on the pre-fix tree, ten tests failed from a shell with no
+    stdin and none from a console; the difference was the handle, not the code
+    under test. A spawn that cannot start must not be reported as a failed
+    assertion, and a check that only passes on the operator's terminal is not a
+    check.
+    """
+    problems: list[str] = []
+    scanned = 0
+    for root in SPAWN_ROOTS:
+        for path in sorted((ROOT / root).rglob("*.py")):
+            if "__pycache__" in path.parts:
+                continue
+            rel = path.relative_to(ROOT).as_posix()
+            source = path.read_text(encoding="utf-8", errors="replace")
+            if "subprocess." not in source:
+                continue
+            scanned += 1
+            problems.extend(_spawn_calls_without_stdin(source, rel))
+    if scanned == 0:
+        return "no python file spawns a subprocess — the scan found nothing to check"
     return "; ".join(problems) if problems else None
 
 
@@ -2935,6 +3102,10 @@ def build_checks() -> list[tuple[str, object]]:
                    _check_tool_contract_names_the_real_harness_failures))
     checks.append(("documented change radar equals the shipped one (E-043)",
                    _check_change_radar_contract_matches))
+    checks.append(("declared relay graph equals the shipped one (E-044)",
+                   _check_relay_graph_edges_match_declared))
+    checks.append(("every spawn hands its child an explicit stdin (E-045)",
+                   _check_every_spawn_hands_stdin))
     checks.append(("pytest suite green (falsifier)", _run_pytest))
     checks.append(("hooks.json in sync with generator", _run_hooks_json_sync))
     return checks

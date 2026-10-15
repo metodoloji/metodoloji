@@ -664,8 +664,14 @@ def run_and_measure(cmd: str, claim_metric: str | None = None
     are self-contradicting output and fail closed.
     """
     try:
+        # stdin=DEVNULL: the gate is driven by an agent harness with no console
+        # of its own, and a child that inherits a stdio handle the host cannot
+        # duplicate never launches at all (WinError 6 on Windows) — a
+        # measurement that cannot start must not read as a failed experiment.
+        # A measurement script reads files, never the terminal.
         proc = subprocess.run(cmd, shell=True, capture_output=True, text=True,
-                              encoding="utf-8", errors="replace", timeout=600)
+                              encoding="utf-8", errors="replace", timeout=600,
+                              stdin=subprocess.DEVNULL)
     except subprocess.TimeoutExpired as exc:
         raise ValueError(f"measurement run timed out after 600s: {cmd}") from exc
     if proc.returncode != 0:

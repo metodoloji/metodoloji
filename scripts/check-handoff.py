@@ -358,53 +358,60 @@ SHARED_NAMESPACES = {
 
 # Blackboard full-integration (graph + change radar, GUIDE §14): the producing
 # and relay skills below carry one graph edge per close-out
-# (`link --a <run-key> --b <next>` — SKILL.md or its steps/ tree) and one
-# upstream subscription at activation (`subscribe --watcher <self>` — SKILL.md
-# side). WARNING-level, not ERROR: a missing edge degrades traceability but
-# never breaks the chain the way a missing handoff does — and the GDS/WDS
-# verticals migrate later, so failing the whole lint on them would be wrong.
-# Extend these dicts when they migrate.
+# (`link --a <run-key> --b <next-run-key> --relation <rel>` — SKILL.md or its
+# steps/ tree) and one upstream subscription at activation
+# (`subscribe --watcher <self>` — SKILL.md side). WARNING-level, not ERROR: a
+# missing edge degrades traceability but never breaks the chain the way a
+# missing handoff does — and the GDS/WDS verticals migrate later, so failing
+# the whole lint on them would be wrong. Extend these dicts when they migrate.
+#
+# The declared value is the FULL edge — (source prefix, target prefix,
+# relation) — because the first cut checked only the source half
+# (`"link --a prd." in blob`), so a close-out could point the graph at the
+# WRONG downstream, or ship a relation outside the documented
+# informs|constrains|validates vocabulary, and the lint still printed [OK]
+# (E-044; the same class E-043 closed for the radar).
 EXPECTED_LINKS = {
-    "bmad-prd": "link --a prd.",
-    "bmad-ux": "link --a ux.",
-    "bmad-architecture": "link --a architecture.",
-    "bmad-spec": "link --a spec.",
-    "bmad-create-epics-and-stories": "link --a spec.",
-    "bmad-create-story": "link --a epics.",
-    "bmad-check-implementation-readiness": "link --a E-",
-    "bmad-sprint-planning": "link --a IR-",
-    "bmad-quality-record": "link --a story.",
-    "bmad-production-readiness": "link --a QR-",
+    "bmad-prd": (("prd.", "ux.", "informs"),),
+    "bmad-ux": (("ux.", "architecture.", "informs"),),
+    "bmad-architecture": (("architecture.", "spec.", "constrains"),),
+    "bmad-spec": (("spec.", "epics.", "informs"),),
+    "bmad-create-epics-and-stories": (("spec.", "epics.", "informs"),),
+    "bmad-create-story": (("epics.", "story.", "informs"),),
+    "bmad-check-implementation-readiness": (("E-", "IR-", "informs"),),
+    "bmad-sprint-planning": (("IR-", "SP-", "informs"),),
+    "bmad-quality-record": (("story.", "QR-", "validates"),),
+    "bmad-production-readiness": (("QR-", "PR-", "validates"),),
     # WDS pipeline (linear phases — links only, no subscriptions: the 16-slot
     # global subscription cap is reserved for the bmad change radar, and a
     # strict pipeline already carries its radar in the per-phase baton).
     # Terminal wds-7-design-system writes no run key, so it carries no edge
     # (same rule as the bmad-code-review terminal).
-    "wds-0-project-setup": "link --a wds.setup.",
-    "wds-0-alignment-signoff": "link --a wds.signoff.",
-    "wds-1-project-brief": "link --a wds.brief.",
-    "wds-2-trigger-mapping": "link --a wds.trigger.",
-    "wds-3-scenarios": "link --a wds.scenario.",
-    "wds-4-ux-design": "link --a wds.ux.",
-    "wds-5-agentic-development": "link --a wds.dev.",
-    "wds-8-product-evolution": "link --a wds.evolve.",
+    "wds-0-project-setup": (("wds.setup.", "wds.signoff.", "informs"),),
+    "wds-0-alignment-signoff": (("wds.signoff.", "wds.brief.", "informs"),),
+    "wds-1-project-brief": (("wds.brief.", "wds.trigger.", "informs"),),
+    "wds-2-trigger-mapping": (("wds.trigger.", "wds.scenario.", "informs"),),
+    "wds-3-scenarios": (("wds.scenario.", "wds.ux.", "informs"),),
+    "wds-4-ux-design": (("wds.ux.", "wds.dev.", "informs"),),
+    "wds-5-agentic-development": (("wds.dev.", "wds.asset.", "informs"),),
+    "wds-8-product-evolution": (("wds.evolve.", "wds.brief.", "informs"),),
     # GDS game vertical (close-outs live in custom/<skill>.toml [workflow]
     # on_complete — the lint blob covers the bridge TOMLs, so TOML edges
     # count. Feeders, dev variants and governance post no graph edge
     # (bmad-side symmetry: a feeder adds evidence, it does not open a run).
     # Terminal gds-dev-story writes no review key (gds-code-review carries no
     # mirror), so it carries no edge — same rule as the bmad/wds terminals.
-    "gds-domain-research": "link --a gds.research.",
-    "gds-brainstorm-game": "link --a gds.brainstorm.",
-    "gds-create-game-brief": "link --a gds.brief.",
-    "gds-create-narrative": "link --a gds.narrative.",
-    "gds-gdd": "link --a gds.gdd.",
-    "gds-ux": "link --a gds.ux.",
-    "gds-prd": "link --a gds.prd.",
-    "gds-game-architecture": "link --a gds.architecture.",
-    "gds-check-implementation-readiness": "link --a gds.ir.",
-    "gds-sprint-planning": "link --a gds.sp.",
-    "gds-create-story": "link --a gds.story.",
+    "gds-domain-research": (("gds.research.", "gds.brief.", "informs"),),
+    "gds-brainstorm-game": (("gds.brainstorm.", "gds.brief.", "informs"),),
+    "gds-create-game-brief": (("gds.brief.", "gds.gdd.", "informs"),),
+    "gds-create-narrative": (("gds.narrative.", "gds.gdd.", "informs"),),
+    "gds-gdd": (("gds.gdd.", "gds.ux.", "informs"),),
+    "gds-ux": (("gds.ux.", "gds.architecture.", "informs"),),
+    "gds-prd": (("gds.prd.", "gds.architecture.", "informs"),),
+    "gds-game-architecture": (("gds.architecture.", "gds.ir.", "informs"),),
+    "gds-check-implementation-readiness": (("gds.ir.", "gds.sp.", "informs"),),
+    "gds-sprint-planning": (("gds.sp.", "gds.story.", "informs"),),
+    "gds-create-story": (("gds.story.", "gds.dev.", "informs"),),
 }
 # The change radar (GUIDE/KILAVUZ §14): every subscribing skill watches a fixed
 # set of upstream patterns on ONE channel. The value is the FULL contract —
@@ -441,6 +448,35 @@ def actual_subscriptions(text: str) -> set:
     """Every (watcher, pattern, channel) a SKILL.md ships, as the radar sees
     it — the read side the contract is checked against."""
     return set(_SUBSCRIBE_RE.findall(text))
+
+
+# The exact graph-edge CLI a surface hands the relay (GUIDE §14). Anchored end
+# to end — including `--relation` — so a bare `link --a … --b …` without the
+# relation the runbook requires is not silently counted as a traced relay.
+_EDGE_RE = re.compile(r"link --a (\S+) --b (\S+) --relation (\S+)")
+
+
+def actual_edges(blob: str) -> set:
+    """Every (source, target, relation) graph edge a surface ships, as the lint
+    sees it — the read side the declared relay graph is checked against."""
+    return set(_EDGE_RE.findall(blob))
+
+
+def _edge_satisfied(declared: tuple, actual: set) -> bool:
+    """Is a declared (src-prefix, dst-prefix, relation) met by some shipped edge?
+
+    Prefix, not equality: the shipped node is a placeholder (`prd.<slug>`), so
+    the contract pins the namespace and the relation, not the placeholder text.
+    """
+    src, dst, rel = declared
+    return any(a.startswith(src) and b.startswith(dst) and r == rel
+               for a, b, r in actual)
+
+
+def _edge_declared(edge: tuple, declared) -> bool:
+    a, b, r = edge
+    return any(a.startswith(src) and b.startswith(dst) and r == rel
+               for src, dst, rel in declared)
 
 
 # Reasons whose READ side is mandatory, not decorative. A router is the
@@ -647,11 +683,22 @@ def check() -> int:
                   f"(harmless, informational)")
         if skill in EXPECTED_LINKS:
             # The edge may live in a steps/ file (IR, epics), so scan the blob.
-            if EXPECTED_LINKS[skill] not in blob:
+            # The contract is the FULL edge — source, target AND relation: a
+            # source-only check let a wrong downstream (or an undocumented
+            # relation) pass as [OK] (E-044).
+            want = EXPECTED_LINKS[skill]
+            got = actual_edges(blob)
+            missing = [e for e in want if not _edge_satisfied(e, got)]
+            undeclared = sorted(e for e in got if not _edge_declared(e, want))
+            if missing:
                 print(f"[WARNING] {skill}: close-out graph edge missing "
-                      f"('{EXPECTED_LINKS[skill]}…') — trace the relay with "
-                      f"'link --a <run-key> --b <next>'")
-            else:
+                      f"{[f'{s}* -> {d}* ({r})' for s, d, r in missing]} — trace "
+                      f"the relay with 'link --a <run-key> --b <next-run-key> "
+                      f"--relation <informs|constrains|validates>'")
+            if undeclared:
+                print(f"[WARNING] {skill}: undeclared graph edge {undeclared} — "
+                      f"update EXPECTED_LINKS or fix the link")
+            if not (missing or undeclared):
                 print(f"[OK]   {skill}: close-out traces the relay on the graph")
         if skill in EXPECTED_SUBSCRIPTIONS:
             # Subscriptions are activation-side (SKILL.md), never steps/. The
@@ -916,9 +963,12 @@ def negtest() -> int:
     assert broken != orig, "negtest premise gone: bmad-ux posts nowhere"
     try:
         skill.write_text(broken, encoding="utf-8")
+        # stdin=DEVNULL: the negtest re-runs this script; the probe must not
+        # inherit a stdio handle the host cannot duplicate (WinError 6).
         r = subprocess.run([sys.executable, str(Path(__file__).resolve())],
                            capture_output=True, text=True, encoding="utf-8",
-                           timeout=60, cwd=str(PLUGIN))
+                           timeout=60, cwd=str(PLUGIN),
+                           stdin=subprocess.DEVNULL)
         if r.returncode == 1 and "bmad-ux" in r.stdout:
             print("  [OK] wiring break caught, exit=1")
         else:

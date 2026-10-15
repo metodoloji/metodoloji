@@ -137,8 +137,11 @@ def _mklink(link, target):
     if os.name == "nt" and target.is_dir():
         import subprocess
         try:
+            # stdin=DEVNULL: mklink reads nothing, and an inherited stdio
+            # handle the host cannot duplicate fails the spawn (WinError 6).
             proc = subprocess.run(["cmd", "/c", "mklink", "/J",
-                                   str(link), str(target)], capture_output=True)
+                                   str(link), str(target)], capture_output=True,
+                                  stdin=subprocess.DEVNULL)
         except OSError:
             return False
         return proc.returncode == 0 and link.exists()

@@ -306,6 +306,7 @@ def run_query_once(query: str, skill_name: str, description: str,
             argv,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,  # the harness is driven by files, not a TTY
             cwd=str(stage_dir),
             env=env,
             timeout=timeout,

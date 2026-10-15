@@ -440,7 +440,8 @@ def test_bench_free_zone_symlink_escape(monkeypatch, tmp_path):
             pytest.skip("symlink creation unavailable")
         try:
             proc = subprocess.run(["cmd", "/c", "mklink", "/J", str(link),
-                                   str(tmp_path / "scratch")], capture_output=True)
+                                   str(tmp_path / "scratch")], capture_output=True,
+                                  stdin=subprocess.DEVNULL)
         except OSError as exc:  # a host that cannot spawn cannot link
             pytest.skip(f"junction fallback unavailable: {exc}")
         if proc.returncode != 0 or not link.exists():

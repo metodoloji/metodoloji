@@ -24,6 +24,7 @@ def _run(project_root: Path) -> subprocess.CompletedProcess:
         [sys.executable, str(SCRIPT), "--project-root", str(project_root)],
         capture_output=True, text=True, encoding="utf-8", errors="replace",
         timeout=60,
+        stdin=subprocess.DEVNULL,  # pytest's fd capture leaves stdin unusable on Windows
     )
 
 

@@ -621,6 +621,84 @@ def test_change_radar_bullet_matches_the_shipped_subscriptions():
     assert bench._check_change_radar_contract_matches() is None
 
 
+def test_relay_graph_edges_match_the_declared_table():
+    """E-044: the declared relay graph must equal the graph the tree ships.
+
+    `EXPECTED_LINKS` once carried a source-only marker (`link --a prd.`), so the
+    lint could not see a wrong target or an undocumented relation. Independent
+    derivation here (regex over skills + custom TOMLs, no bench import), then the
+    bench check is pinned to keep owning it.
+    """
+    edge_re = re.compile(r"link --a (\S+) --b (\S+) --relation (\S+)")
+    shipped: dict[str, list] = {}
+    for md in sorted((PLUGIN / "skills").glob("*/SKILL.md")):
+        blob = md.read_text(encoding="utf-8", errors="replace")
+        for f in sorted(md.parent.rglob("*.md")):
+            if f.name != "SKILL.md":
+                blob += "\n" + f.read_text(encoding="utf-8", errors="replace")
+        edges = edge_re.findall(blob)
+        if edges:
+            shipped[md.parent.name] = edges
+    for toml in sorted((PLUGIN / "custom").glob("*.toml")):
+        edges = edge_re.findall(toml.read_text(encoding="utf-8", errors="replace"))
+        if edges:
+            shipped.setdefault(toml.stem, []).extend(edges)
+    assert shipped, "no relay graph edge ships — the graph vanished"
+    spec = importlib.util.spec_from_file_location(
+        "check_handoff_edges", PLUGIN / "scripts" / "check-handoff.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    declared = mod.EXPECTED_LINKS
+    for surface, edges in sorted(shipped.items()):
+        want = declared.get(surface)
+        assert want is not None, f"{surface} ships graph edges but is undeclared"
+        for a, b, r in edges:
+            assert any(a.startswith(s) and b.startswith(d) and r == rel
+                       for s, d, rel in want), \
+                f"{surface}: edge {a} -> {b} ({r}) is not the declared edge {want}"
+            assert r in ("informs", "constrains", "validates"), \
+                f"{surface}: relation '{r}' outside the documented vocabulary"
+    assert set(declared) == set(shipped), (
+        f"declared-only {sorted(set(declared) - set(shipped))}; "
+        f"shipped-only {sorted(set(shipped) - set(declared))}")
+    bench = _load_bench()
+    assert bench._check_relay_graph_edges_match_declared() is None
+
+
+def test_every_spawn_hands_its_child_an_explicit_stdin():
+    """E-045: a spawn that inherits the parent's stdio handle never launches.
+
+    `python -m pytest` under the gate runs with no stdin of its own, and
+    `subprocess.run([\u2026])` hands the child the parent's STD_INPUT_HANDLE \u2014 a
+    handle the host then cannot duplicate, so the spawn dies with WinError 6
+    BEFORE the child exists and the test reports a failed assertion for a
+    process that never ran. The repo had already applied the remedy (DEVNULL)
+    at thirty call sites with a comment naming this failure; twenty sites were
+    still unprotected, including the bench's own pytest falsifier and the
+    gate's measurement runner. Before the fix, `python -m pytest scripts/tests`
+    with stdin closed failed ten tests; after it the same command is green. The
+    rule is now an invariant: the check is driven red on a bare spawn, green on
+    both accepted forms, and the shipped tree is pinned clean.
+    """
+    bench = _load_bench()
+    bare = 'subprocess.run(["git", "status"], capture_output=True)'
+    assert bench._spawn_calls_without_stdin(bare, "x.py") == ["x.py:1"]
+    for accepted in ('subprocess.run(cmd, stdin=subprocess.DEVNULL)',
+                     'subprocess.run(cmd, input=text)'):
+        assert bench._spawn_calls_without_stdin(accepted, "x.py") == []
+    hidden = bench._spawn_calls_without_stdin("subprocess.run(**kw)", "x.py")
+    assert hidden and "**kwargs" in hidden[0], hidden
+    assert bench._check_every_spawn_hands_stdin() is None
+    # the sites that were unprotected stay protected (the falsifier's own paths)
+    for rel in ("scripts/bench/bench_consistency.py",
+                "scripts/tests/test_check_techdebt.py",
+                "scripts/tests/test_check_triggers.py",
+                "scripts/tests/test_record_generators.py",
+                "skills/bmad-research-experiment/scripts/run_experiment.py"):
+        text = (PLUGIN / rel).read_text(encoding="utf-8", errors="replace")
+        assert "subprocess.DEVNULL" in text, f"{rel} lost its explicit stdin"
+
+
 def test_activation_compliance_rule_is_wired_and_audited():
     """check-custom.sh §2b must own the rule and ship a negtest stage for it."""
     text = (PLUGIN / "scripts" / "check-custom.sh").read_text(

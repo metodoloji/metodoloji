@@ -38,6 +38,7 @@ def _run_command(cmd: list[str], timeout: int = 30) -> tuple[int, str, str]:
         result = subprocess.run(
             cmd, capture_output=True, text=True, encoding="utf-8",
             errors="replace", timeout=timeout,
+            stdin=subprocess.DEVNULL,  # the linter reads no stdin (WinError 6)
         )
         return result.returncode, result.stdout, result.stderr
     except FileNotFoundError:
