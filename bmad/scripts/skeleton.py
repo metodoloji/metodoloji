@@ -27,12 +27,16 @@ import datetime as _dt
 import json
 import os
 import pathlib
+import re
 import shutil
 import sys
 
 # The skeleton contract, in one place: commands/init.md documents it, this
-# script executes it, check-plugin.sh §6d verifies its outcome. Keep the three
-# in step — §6d probes the same two template paths as SKELETON_PROBES.
+# script executes it, check-plugin.sh §6d verifies its outcome — and every
+# restatement of the constants below (the runbook's directory list and template
+# table, the session-start probe loop) is measured against them by
+# declaration_problems() / --audit-declarations, so "keep them in step" is a
+# check and not a request (E-047).
 DIRECTORIES = (
     "docs/experiments",
     "docs/development/stories",
@@ -67,6 +71,29 @@ SKELETON_PROBES = (
     "docs/development/stories/_template_S.md",
 )
 
+# E-047: the contract above is DECLARED in three shipped places besides this
+# one, and this module is the only canonical owner:
+#   * `commands/init.md` lists the directories and the template table a reader
+#     trusts (step 2/3) and promised the runbook and the script "can never
+#     drift" — while nothing measured it;
+#   * `hooks/scripts/bootstrap.sh` probes the same three paths at SessionStart
+#     and said "keep the two in step";
+#   * `scripts/check-plugin.sh` §6d carried a literal second copy of the probe
+#     set (and a stale comment counting "two template paths").
+# Drift there is silent by construction: a probe set that gains a path here
+# leaves the session hint advertising a FULL init on a project whose (new)
+# skeleton exists, and leaves §6d reporting ERROR on a healthy skeleton that
+# lacks the old trio — the mailjs 2026-09-23 shape, one level up. The copies
+# cannot be removed everywhere (bootstrap.sh is a per-session hot path and must
+# not spawn a second interpreter), so the agreement is measured instead:
+# `declaration_problems()` is that measurement and `--audit-declarations` is
+# its CLI (run by check-plugin.sh §6d, driven by the bench).
+DECLARATION_SITES = (
+    "commands/init.md",
+    "hooks/scripts/bootstrap.sh",
+    "scripts/check-plugin.sh",
+)
+
 MARKER_REL = ".metodoloji/initialized"
 
 
@@ -93,6 +120,133 @@ def resolve_project_root(explicit: str | None) -> pathlib.Path:
         if value and value.strip():
             return pathlib.Path(value).expanduser().resolve()
     return pathlib.Path.cwd().resolve()
+
+
+def _read_site(plugin: pathlib.Path, rel: str) -> str:
+    try:
+        return (plugin / rel).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+
+
+def _runbook_block(text: str, start: str, end: str) -> str:
+    """The runbook region between two phrases (empty when either is gone)."""
+    begin = text.find(start)
+    if begin < 0:
+        return ""
+    begin += len(start)
+    stop = text.find(end, begin)
+    return text[begin:] if stop < 0 else text[begin:stop]
+
+
+def _declared_directories(runbook: str) -> list[str]:
+    """The directory bullets of the init runbook's step 2 (backticked, trailing /).
+
+    Scoped to the step: the same document legitimately mentions `docs/bmad/`
+    ("do not create it in the target project"), which is not a skeleton
+    directory and must not read as one.
+    """
+    block = _runbook_block(runbook, "The installer creates these directories",
+                           "The installer copies these templates")
+    return [p.rstrip("/") for p in re.findall(r"`([A-Za-z0-9_./-]+/)`", block)]
+
+
+def _declared_template_pairs(runbook: str) -> list[tuple[str, str]]:
+    """The `templates/<src>` → `<dest>` rows of the init runbook's step 3."""
+    block = _runbook_block(runbook, "The installer copies these templates",
+                           "The init marker is written by")
+    return re.findall(
+        r"`\{metodoloji-root\}/templates/([^`]+)`\s*(?:→|->)\s*`([^`]+)`", block)
+
+
+def _loop_tokens(text: str, pattern: str) -> list[str]:
+    """The whitespace-separated list of a `for <var> in <list>; do` loop."""
+    match = re.search(pattern, text)
+    return match.group(1).split() if match else []
+
+
+def _pair_diff(declared: dict[str, str], canonical: dict[str, str]) -> str:
+    missing = sorted(set(canonical) - set(declared))
+    extra = sorted(set(declared) - set(canonical))
+    moved = [f"{src}: {declared[src]} != {canonical[src]}"
+             for src in sorted(set(declared) & set(canonical))
+             if declared[src] != canonical[src]]
+    parts = []
+    if missing:
+        parts.append("undocumented " + ", ".join(missing))
+    if extra:
+        parts.append("documented-only " + ", ".join(extra))
+    if moved:
+        parts.append("wrong destination " + "; ".join(moved))
+    return " | ".join(parts) if parts else "different rows"
+
+
+def declaration_problems(plugin: pathlib.Path | None = None) -> list[str]:
+    """Every shipped restatement of the skeleton contract that drifted (E-047).
+
+    The declared sides are the init runbook (directories + template table), the
+    session-start probe loop, and §6d of the plugin audit — compared against
+    this module's DIRECTORIES / TEMPLATE_PAIRS / SKELETON_PROBES. §6d must also
+    spend no second copy of the probe set AND must actually run this audit, so a
+    fix that stops calling it is caught instead of going decorative.
+    """
+    root = pathlib.Path(plugin) if plugin is not None else plugin_root()
+    problems: list[str] = []
+
+    runbook = _read_site(root, "commands/init.md")
+    if not runbook:
+        problems.append("commands/init.md: unreadable — the declared directory "
+                        "list and template table cannot be audited")
+    else:
+        declared_dirs = _declared_directories(runbook)
+        if set(declared_dirs) != set(DIRECTORIES):
+            problems.append(
+                "commands/init.md: documented directories differ from "
+                "skeleton.DIRECTORIES — documented-only %s, canonical-only %s"
+                % (sorted(set(declared_dirs) - set(DIRECTORIES)) or "none",
+                   sorted(set(DIRECTORIES) - set(declared_dirs)) or "none"))
+        declared_pairs = _declared_template_pairs(runbook)
+        if len(declared_pairs) != len(set(declared_pairs)):
+            problems.append("commands/init.md: the template table repeats a row")
+        elif dict(declared_pairs) != dict(TEMPLATE_PAIRS):
+            problems.append(
+                "commands/init.md: documented template table differs from "
+                "skeleton.TEMPLATE_PAIRS — %s"
+                % _pair_diff(dict(declared_pairs), dict(TEMPLATE_PAIRS)))
+
+    bootstrap = _read_site(root, "hooks/scripts/bootstrap.sh")
+    if not bootstrap:
+        problems.append("hooks/scripts/bootstrap.sh: unreadable — the "
+                        "session-start probe set cannot be audited")
+    else:
+        probes = _loop_tokens(bootstrap, r"for _f in ([^;]+); do")
+        if set(probes) != set(SKELETON_PROBES):
+            problems.append(
+                "hooks/scripts/bootstrap.sh: SessionStart probes %s but "
+                "skeleton.SKELETON_PROBES is %s — the hint and the installer "
+                "would disagree about what an installed skeleton looks like"
+                % (sorted(probes) or "nothing", list(SKELETON_PROBES)))
+
+    audit = _read_site(root, "scripts/check-plugin.sh")
+    if not audit:
+        problems.append("scripts/check-plugin.sh: unreadable — §6d cannot be "
+                        "audited")
+    else:
+        section = _runbook_block(audit, "== 6d) Init marker integrity",
+                                 "== 6d2)")
+        if "--audit-declarations" not in audit:
+            problems.append(
+                "scripts/check-plugin.sh: §6d no longer runs "
+                "skeleton.py --audit-declarations — the declaration audit is "
+                "decorative and these copies can drift again unnoticed")
+        literal = [t for t in _loop_tokens(section, r"for \w+ in ([^;]+); do")
+                   if "_template" in t]
+        if literal:
+            problems.append(
+                "scripts/check-plugin.sh: §6d carries a second copy of the "
+                "probe set (%s) — read it from skeleton.py --probe-paths "
+                "instead of restating it" % ", ".join(literal))
+    return problems
 
 
 def read_marker(project_root: pathlib.Path) -> dict:
@@ -259,10 +413,31 @@ def main() -> int:
                        help="Report skeleton + marker state (default when no action)")
     group.add_argument("--install", action="store_true",
                        help="Create directories, copy missing templates, write the marker")
+    group.add_argument("--probe-paths", action="store_true",
+                       help="Print the installed-skeleton probe paths (one per line): "
+                            "the set a caller must NOT restate (E-047)")
+    group.add_argument("--audit-declarations", action="store_true",
+                       help="Fail when a shipped restatement of this contract "
+                            "(init runbook, session-start probe, check-plugin §6d) "
+                            "has drifted from this module (E-047)")
     parser.add_argument("--force", action="store_true",
                         help="With --install: replace existing template copies and the marker")
     parser.add_argument("--json", action="store_true", help="Machine-readable output")
     args = parser.parse_args()
+
+    if args.probe_paths:
+        print("\n".join(SKELETON_PROBES))
+        return 0
+    if args.audit_declarations:
+        drift = declaration_problems()
+        for problem in drift:
+            print(f"[ERROR] {problem}")
+        if not drift:
+            print("declaration sites agree with the contract in this module: "
+                  f"{len(DIRECTORIES)} directories, {len(TEMPLATE_PAIRS)} template "
+                  f"pairs, {len(SKELETON_PROBES)} probes — "
+                  + ", ".join(DECLARATION_SITES))
+        return 1 if drift else 0
 
     project_root = resolve_project_root(args.project_root)
     if args.install:

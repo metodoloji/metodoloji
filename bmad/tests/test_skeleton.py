@@ -14,6 +14,7 @@ silently, and the status output is honest about which side is missing.
 
 import importlib.util
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -178,3 +179,66 @@ def test_cli_status_binary_marker_reports_unreadable_not_crash(tmp_path):
     data = json.loads(r.stdout)
     assert any("unreadable" in p for p in data["problems"])
     assert r.returncode in (0, 1)  # never an unhandled crash
+
+
+# --- declaration sites (E-047) -------------------------------------------------
+# The contract is restated in commands/init.md (directory list + template
+# table), hooks/scripts/bootstrap.sh (SessionStart probe) and check-plugin.sh
+# §6d — which used to carry a literal third copy of SKELETON_PROBES. skeleton.py
+# is the only canonical owner and "keep them in step" is now a measurement.
+
+def _declaration_fixture(tmp_path: Path) -> Path:
+    """A copy of the plugin's skeleton contract, so the rule can be driven."""
+    for rel in ("bmad/scripts/skeleton.py",) + sk.DECLARATION_SITES:
+        dest = tmp_path / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes((PLUGIN / rel).read_bytes())
+    return tmp_path
+
+
+def test_declarations_agree_on_the_shipped_tree():
+    assert sk.declaration_problems(PLUGIN) == []
+    r = _run(["--audit-declarations"])
+    assert r.returncode == 0, r.stdout
+    assert "declaration sites agree" in r.stdout
+    assert _run(["--probe-paths"]).stdout.split() == list(sk.SKELETON_PROBES)
+
+
+def test_declaration_drift_is_named_per_site(tmp_path):
+    """Each declared site, drifted in turn, must be rejected BY NAME."""
+    runbook = (PLUGIN / "commands/init.md").read_text(encoding="utf-8")
+    bootstrap = (PLUGIN / "hooks/scripts/bootstrap.sh").read_text(encoding="utf-8")
+    checker = (PLUGIN / "scripts/check-plugin.sh").read_text(encoding="utf-8")
+    cases = (
+        ("commands/init.md", runbook.replace("   - `scratch/`", ""),
+         "a dropped directory"),
+        ("commands/init.md", runbook.replace(
+            "`{metodoloji-root}/templates/README.md` → `docs/development/README.md`",
+            "`{metodoloji-root}/templates/README.md` → `docs/development/README-x.md`"),
+         "a moved template destination"),
+        ("hooks/scripts/bootstrap.sh", re.sub(
+            r"for _f in [^;]+; do",
+            "for _f in docs/experiments/_template.md; do", bootstrap),
+         "a narrowed probe set"),
+        ("scripts/check-plugin.sh", checker.replace(
+            "SKELETON_PRESENT=0",
+            "SKELETON_PRESENT=0\nfor f in docs/experiments/_template.md; do :; done", 1),
+         "a restated probe set"),
+        ("scripts/check-plugin.sh", checker.replace(" --audit-declarations", ""),
+         "the audit being unhooked"),
+    )
+    for index, (site, mutated, label) in enumerate(cases):
+        assert mutated != (PLUGIN / site).read_text(encoding="utf-8"), \
+            f"setup broken: could not inject {label} in {site}"
+        root = _declaration_fixture(tmp_path / f"case{index}")
+        (root / site).write_text(mutated, encoding="utf-8")
+        problems = sk.declaration_problems(root)
+        assert problems, f"the rule accepts {label} in {site}"
+        assert any(site in p for p in problems), (label, problems)
+        r = subprocess.run(
+            [sys.executable, str(root / "bmad" / "scripts" / "skeleton.py"),
+             "--audit-declarations"],
+            capture_output=True, text=True, encoding="utf-8", cwd=str(root),
+            stdin=subprocess.DEVNULL)
+        assert r.returncode == 1, r.stdout
+        assert site in r.stdout, r.stdout

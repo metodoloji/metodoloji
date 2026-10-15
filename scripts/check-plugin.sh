@@ -1486,8 +1486,17 @@ echo "== 6d) Init marker integrity (skeleton installed ⇔ .metodoloji/initializ
 # regression); a marker with no skeleton means the marker is stale and init
 # would short-circuit over a missing skeleton. Both are drift.
 INIT_MARKER="$PROJECT_ROOT/.metodoloji/initialized"
+# The probe set is NOT restated here (E-047): this section carried a literal
+# second copy of skeleton.SKELETON_PROBES (with a comment still counting "two
+# template paths") while the session-start hint probes the same set — two
+# copies, nothing measuring that they agreed. Ask the canonical owner instead.
+SKELETON_PROBE_LIST=$("$PY" "$PLUGIN_ROOT/bmad/scripts/skeleton.py" --probe-paths 2>/dev/null || true)
+if [ -z "$SKELETON_PROBE_LIST" ]; then
+    echo "[ERROR] cannot read the skeleton probe set (bmad/scripts/skeleton.py --probe-paths)"
+    PROBLEMS=$((PROBLEMS + 1))
+fi
 SKELETON_PRESENT=0
-for f in docs/experiments/_template.md docs/development/_template_IR.md docs/development/stories/_template_S.md; do
+for f in $SKELETON_PROBE_LIST; do
     if [ -f "$PROJECT_ROOT/$f" ]; then SKELETON_PRESENT=1; break; fi
 done
 if [ "$SKELETON_PRESENT" -eq 1 ] && [ ! -f "$INIT_MARKER" ]; then
@@ -1504,6 +1513,20 @@ else
     else
         echo "[OK]   init not required yet (no skeleton, no marker)"
     fi
+fi
+
+# Every other shipped restatement of the same contract — the init runbook's
+# directory list and template table, the session-start probe loop — must still
+# agree with bmad/scripts/skeleton.py, which is the only canonical owner (the
+# probe set above is derived from it precisely so it cannot drift again).
+DECLARATION_REPORT=$("$PY" "$PLUGIN_ROOT/bmad/scripts/skeleton.py" --audit-declarations 2>&1)
+DECLARATION_RC=$?
+if [ "$DECLARATION_RC" -eq 0 ]; then
+    echo "[OK]   $DECLARATION_REPORT"
+else
+    printf '%s\n' "$DECLARATION_REPORT" | sed 's/^/        /'
+    echo "[ERROR] skeleton contract declarations drifted from bmad/scripts/skeleton.py"
+    PROBLEMS=$((PROBLEMS + 1))
 fi
 
 echo "== 6d2) Command→script reference integrity (commands/*.md ↔ bmad/scripts/*.py) =="

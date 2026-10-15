@@ -3059,6 +3059,101 @@ def _check_board_story_keys_resolve() -> str | None:
     return "; ".join(problems) if problems else None
 
 
+def _check_skeleton_contract_declarations_agree() -> str | None:
+    """E-047: every shipped restatement of the skeleton contract must agree.
+
+    The init contract is declared in four places and only `bmad/scripts/
+    skeleton.py` is canonical: the init runbook lists the directories and the
+    template table a reader trusts (and promised the runbook and the script
+    "can never drift"), the session-start hint probes a literal copy of
+    `SKELETON_PROBES`, and `check-plugin.sh` §6d carried a third copy while its
+    comment still counted "two template paths". Nothing measured any of it.
+    Drift is silent by construction and lands where a user looks: a probe set
+    that grows leaves the hint advertising a FULL init on a project whose
+    skeleton exists, and leaves §6d red on a healthy skeleton missing the old
+    trio. This drives the rule (`--audit-declarations`) through a copy of the
+    script on each mutated site, so every copy must stay honest.
+    """
+    import importlib.util as _importlib_util  # noqa: PLC0415
+
+    script = ROOT / "bmad" / "scripts" / "skeleton.py"
+    spec = _importlib_util.spec_from_file_location("_bench_skeleton_contract", script)
+    sk = _importlib_util.module_from_spec(spec)
+    spec.loader.exec_module(sk)
+    problems: list[str] = []
+
+    shipped = sk.declaration_problems(ROOT)
+    if shipped:
+        problems.append("the shipped tree already drifts: " + "; ".join(shipped))
+    if "--audit-declarations" not in _read("scripts/check-plugin.sh"):
+        problems.append("check-plugin.sh §6d does not run the declaration audit — "
+                        "the rule would be dead code")
+    for name in ("test_declarations_agree_on_the_shipped_tree",
+                 "test_declaration_drift_is_named_per_site"):
+        if name not in _read("bmad/tests/test_skeleton.py"):
+            problems.append(f"bmad/tests/test_skeleton.py: no {name} — "
+                            "the rule is not falsifiable")
+
+    def _cli(root: pathlib.Path, *args: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [sys.executable, str(root / "bmad" / "scripts" / "skeleton.py"), *args],
+            cwd=str(root), capture_output=True, text=True, encoding="utf-8",
+            errors="replace", timeout=120, stdin=subprocess.DEVNULL)
+
+    ok = _cli(ROOT, "--audit-declarations")
+    if ok.returncode != 0:
+        problems.append(f"--audit-declarations exits {ok.returncode} on the "
+                        f"shipped tree: {(ok.stdout or '').strip()[:200]}")
+    probes = _cli(ROOT, "--probe-paths")
+    if probes.stdout.split() != list(sk.SKELETON_PROBES):
+        problems.append(f"--probe-paths prints {probes.stdout.split()} but the "
+                        f"module declares {list(sk.SKELETON_PROBES)}")
+
+    runbook = _read("commands/init.md")
+    bootstrap = _read("hooks/scripts/bootstrap.sh")
+    checker = _read("scripts/check-plugin.sh")
+    cases = (
+        ("commands/init.md", runbook.replace("   - `scratch/`", ""),
+         "a dropped directory"),
+        ("commands/init.md", runbook.replace(
+            "`{metodoloji-root}/templates/README.md` → `docs/development/README.md`",
+            "`{metodoloji-root}/templates/README.md` → `docs/development/README-x.md`"),
+         "a moved template destination"),
+        ("hooks/scripts/bootstrap.sh", re.sub(
+            r"for _f in [^;]+; do",
+            "for _f in docs/experiments/_template.md; do", bootstrap),
+         "a narrowed probe set"),
+        ("scripts/check-plugin.sh", checker.replace(
+            "SKELETON_PRESENT=0",
+            "SKELETON_PRESENT=0\nfor f in docs/experiments/_template.md; do :; done", 1),
+         "a restated probe set"),
+        ("scripts/check-plugin.sh", checker.replace(" --audit-declarations", ""),
+         "the audit being unhooked"),
+    )
+    with tempfile.TemporaryDirectory() as td:
+        base = pathlib.Path(td)
+        for site, mutated, label in cases:
+            original = _read(site)
+            if mutated == original:
+                problems.append(f"falsifier setup broken: {label} in {site} "
+                                "could not be injected")
+                continue
+            fixture = base / f"probe{len(list(base.iterdir()))}"
+            for rel in ("bmad/scripts/skeleton.py",) + sk.DECLARATION_SITES:
+                dest = fixture / rel
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                dest.write_bytes((ROOT / rel).read_bytes())
+            (fixture / site).write_text(mutated, encoding="utf-8")
+            proc = _cli(fixture, "--audit-declarations")
+            out = (proc.stdout or "") + (proc.stderr or "")
+            if proc.returncode == 0:
+                problems.append(f"the declaration audit accepts {label} in {site}")
+            elif site not in out:
+                problems.append(f"the declaration audit rejects {label} in {site} "
+                                f"without naming the site: {out.strip()[:200]}")
+    return "; ".join(problems) if problems else None
+
+
 def build_checks() -> list[tuple[str, object]]:
     checks: list[tuple[str, object]] = []
     for rel in DOC_FILES:
@@ -3188,6 +3283,8 @@ def build_checks() -> list[tuple[str, object]]:
                    _check_every_spawn_hands_stdin))
     checks.append(("every board story key resolves to a story record (E-046)",
                    _check_board_story_keys_resolve))
+    checks.append(("skeleton contract declarations agree with the script (E-047)",
+                   _check_skeleton_contract_declarations_agree))
     checks.append(("pytest suite green (falsifier)", _run_pytest))
     checks.append(("hooks.json in sync with generator", _run_hooks_json_sync))
     return checks

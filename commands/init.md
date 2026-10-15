@@ -15,7 +15,7 @@ probe further):
    Claude Code — do not depend on them, do not echo them to "verify".)
 2. Fixed checkout `~/.claude/plugins/marketplaces/metodoloji/`
 3. Versioned cache `~/.claude/plugins/cache/metodoloji/metodoloji/*`
-   (newest first; e.g. `.../0.1.47/` on Claude Code v2.1.x)
+   (newest first; e.g. `.../0.1.48/` on Claude Code v2.1.x)
 4. OpenHands install directory `~/.openhands/plugins/installed/metodoloji/`
 
 (An old `~/.claude/plugins/cache/yunusgungor/metodoloji/*` path appears in
@@ -72,7 +72,13 @@ wasted work and makes the chain look like it re-initializes the project.
    `--force` to replace copies and rewrite the marker deliberately).
    `{metodoloji-root}/bmad/scripts/skeleton.py --status` reports the state without changing anything. Steps
    2–3 below describe what that run does — check them against the script's
-   summary rather than hand-copying files, so the two can never drift.
+   summary rather than hand-copying files. Those two lists are the DECLARED side
+   of the same contract (the script executes it, `check-plugin.sh` §6d verifies
+   its outcome), so they are not held in step by hand:
+   `{metodoloji-root}/bmad/scripts/skeleton.py --audit-declarations` fails when a
+   directory, a template destination or the probe set below stops matching the
+   script, and §6d runs it on every audit — the listed contract and the executed
+   one cannot drift unnoticed.
 
 2. The installer creates these directories (skip if they exist):
    - `docs/experiments/` — Mode A experiment records (E-NNN.md)

@@ -75,8 +75,12 @@ mkdir -p "$WS/.metodoloji/logs"
 # /root/mailjs) read "run /metodoloji:init once" at every session start and
 # never ran it — the skeleton stayed absent through PRD → architecture →
 # spec → epics. skeleton.py is the same install, runnable in any harness.
-# Skeleton probes (skeleton.py SKELETON_PROBES — keep the two in step): any ONE
-# present proves the skeleton was installed. A skeleton WITHOUT the marker is a
+# Skeleton probes (skeleton.py SKELETON_PROBES — keep the two in step; this
+# copy stays in the hot path on purpose, because the agreement is MEASURED, not
+# requested: check-plugin.sh §6d runs
+# `python3 "$SYNCED/bmad/scripts/skeleton.py" --audit-declarations` on every
+# audit, and that fails when this loop and the installer stop probing the same
+# paths — E-047): any ONE present proves the skeleton was installed. A skeleton WITHOUT the marker is a
 # broken init, not a missing one: the mailjs OpenHands session (2026-09-23) had
 # every template in place but no marker, so every session read "Record skeleton
 # not installed" and re-advertised a FULL init although only the one-byte marker
