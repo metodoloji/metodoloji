@@ -24,11 +24,13 @@ from __future__ import annotations
 
 import ast
 import csv
+import os
 import pathlib
 import re
 import shlex
 import subprocess
 import sys
+import tempfile
 import tomllib
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -2979,6 +2981,84 @@ def _check_every_spawn_hands_stdin() -> str | None:
     return "; ".join(problems) if problems else None
 
 
+BOARD_CANDIDATES = (
+    "docs/development/native/sprint-status.yaml",
+    "bmad-output/implementation-artifacts/sprint-status.yaml",
+    "_bmad-output/implementation-artifacts/sprint-status.yaml",
+    ".metodoloji/sprint-status.yaml",
+)
+
+
+def _shipped_board() -> pathlib.Path | None:
+    """The canonical-first sprint board this tree ships (None = none ships)."""
+    for rel in BOARD_CANDIDATES:
+        p = ROOT / rel
+        if p.is_file():
+            return p
+    return None
+
+
+def _check_board_story_keys_resolve() -> str | None:
+    """E-046: every sprint-board story key must name a story that exists.
+
+    Every engine chain gate walks story FILES and looks outward, so a board key
+    with no story behind it is invisible to all of them: measured 2026-10-15, a
+    board carrying `9-9-ghost-story-that-does-not-exist` drew no issue and no
+    mention from `check-methodology.sh` — the only trace was an in-progress count
+    one too high, i.e. a nudge to verify records for work that does not exist.
+    The check derives the board's keys from the tree, asks the ENGINE to resolve
+    them (one rule, never a second copy of it), and then drives the audit script
+    against a project whose board carries a phantom key, where it must name it.
+    """
+    problems: list[str] = []
+    board = _shipped_board()
+    if board is None:
+        return None  # a project with no board has no keys to resolve
+    board_text = board.read_text(encoding="utf-8", errors="replace")
+    keys = re.findall(r"^[ \t]+(\d+-\d+-[a-z][a-z0-9-]*):", board_text, re.MULTILINE)
+    if not keys:
+        return (f"{board.relative_to(ROOT).as_posix()}: no story entries — "
+                "the board tracks nothing")
+    sys.path.insert(0, str(ROOT / "hooks" / "engine"))
+    try:
+        from modules import guard  # noqa: PLC0415
+    except Exception as exc:  # a check that cannot load the rule is a failing check
+        return f"cannot load the engine: {type(exc).__name__}: {exc}"
+
+    unresolved = guard.board_story_keys_without_records(str(ROOT))
+    if unresolved:
+        problems.append(f"board keys no story record declares: {unresolved}")
+
+    # The rule must fire whatever the shipped board happens to hold, so it is
+    # driven against a phantom both in-process and through the audit script.
+    ghost = "9-9-ghost-story-that-does-not-exist"
+    with tempfile.TemporaryDirectory() as td:
+        proj = pathlib.Path(td) / "proj"
+        (proj / "docs" / "development" / "native").mkdir(parents=True)
+        (proj / "docs" / "development" / "native" / "sprint-status.yaml").write_text(
+            "# Sprint status — phantom probe\n"
+            "# Methodology record: docs/development/SP-001.md\n"
+            "development_status:\n"
+            "  epic-1: in-progress\n"
+            f"  {ghost}: in-progress\n", encoding="utf-8")
+        if guard.board_story_keys_without_records(str(proj)) != [ghost]:
+            problems.append("the engine does not report a phantom board key in a fixture")
+        env = dict(os.environ, OPENHANDS_PROJECT_DIR=proj.as_posix(),
+                   METODOLOJI_PLUGIN_ROOT=str(ROOT))
+        proc = subprocess.run(["sh", str(ROOT / "scripts" / "check-methodology.sh")],
+                              cwd=str(ROOT), capture_output=True, text=True,
+                              encoding="utf-8", errors="replace", timeout=120,
+                              env=env, stdin=subprocess.DEVNULL)
+        out = (proc.stdout or "") + (proc.stderr or "")
+        if ghost not in out:
+            problems.append("check-methodology.sh does not name a board key that "
+                            "has no story record")
+        elif not re.search(r"ISSUE:.*" + re.escape(ghost), out):
+            problems.append("the audit mentions the phantom board key without "
+                            "raising it as an issue")
+    return "; ".join(problems) if problems else None
+
+
 def build_checks() -> list[tuple[str, object]]:
     checks: list[tuple[str, object]] = []
     for rel in DOC_FILES:
@@ -3106,6 +3186,8 @@ def build_checks() -> list[tuple[str, object]]:
                    _check_relay_graph_edges_match_declared))
     checks.append(("every spawn hands its child an explicit stdin (E-045)",
                    _check_every_spawn_hands_stdin))
+    checks.append(("every board story key resolves to a story record (E-046)",
+                   _check_board_story_keys_resolve))
     checks.append(("pytest suite green (falsifier)", _run_pytest))
     checks.append(("hooks.json in sync with generator", _run_hooks_json_sync))
     return checks

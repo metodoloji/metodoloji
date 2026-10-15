@@ -20,6 +20,16 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # Resolve from the standard env vars like the hook engine does.
 PROJECT_ROOT="${OPENHANDS_PROJECT_DIR:-${CLAUDE_PROJECT_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}}"
 
+# Python interpreter for the engine-backed check. CHECK 6 resolves the board's
+# story keys through the ENGINE's own vocabulary (hooks/engine/modules/guard.py)
+# instead of a second copy of the declared-label rule: two copies is exactly how
+# the story-key grammar drifted apart before (E-028). An empty PY degrades to a
+# named warning, never to a silent pass.
+PY=
+for cand in python3 python py; do
+    if command -v "$cand" >/dev/null 2>&1; then PY="$cand"; break; fi
+done
+
 FIX_MODE=false
 VERBOSE=false
 
@@ -348,6 +358,48 @@ if [ -n "$SPRINT_STATUS" ] && [ -f "$SPRINT_STATUS" ]; then
                 log_issue "sprint record $f is named in no '# Methodology record:' line — the board forgot a sprint"
         done
     fi
+
+    # ── Board story keys must resolve to a story record ──
+    # The comment opening this check has always promised this hunt ("stories in
+    # sprint-status that lack methodology records"); the counting never did it.
+    # Every engine gate walks story FILES and looks outward, so a key with no
+    # story behind it is invisible to all of them: measured 2026-10-15 on a board
+    # carrying `9-9-ghost-story-that-does-not-exist`, this script printed the key
+    # nowhere and the only trace was an in-progress count one too high — a nudge
+    # to verify records for work that does not exist. Resolution is the engine's
+    # (`guard.board_story_keys_without_records`), so the declared-label rule here
+    # is the same one the write-time gate applies: a prose mention cannot pass.
+    BOARD_KEYS=""
+    BOARD_STATUS="ok"
+    if [ -n "$PY" ] && [ -d "$METODOLOJI_ROOT/hooks/engine/modules" ]; then
+        BOARD_KEYS=$("$PY" - "$PROJECT_ROOT" \
+            "$METODOLOJI_ROOT/hooks/engine" <<'PY'
+import sys
+
+sys.path.insert(0, sys.argv[2])
+from modules import guard  # noqa: E402
+
+for key in guard.board_story_keys_without_records(sys.argv[1]):
+    print(key)
+PY
+        ) || BOARD_STATUS="error"
+    else
+        BOARD_STATUS="no-engine"
+    fi
+    case "$BOARD_STATUS" in
+        error)
+            log_issue "board story keys could not be resolved (the engine call failed) — chain completeness is unverified" ;;
+        no-engine)
+            log_warn "board story keys not resolved — no python interpreter (\$PY) or no engine at $METODOLOJI_ROOT/hooks/engine" ;;
+        *)
+            if [ -z "$BOARD_KEYS" ]; then
+                log_ok "every sprint board story key resolves to a story record"
+            else
+                for key in $BOARD_KEYS; do
+                    log_issue "sprint-status.yaml names story '$key' but no story record declares it — the board tracks work that does not exist (write the story, or drop the line)"
+                done
+            fi ;;
+    esac
 else
     log_warn "No sprint-status.yaml found — chain cannot be validated"
 fi

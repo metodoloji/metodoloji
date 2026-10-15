@@ -542,3 +542,85 @@ def test_check6c_shipped_sprint_status_names_every_sprint_record():
     named = [p.rsplit("/", 1)[-1] for p in pointers]
     assert len(named) == len(set(named)), f"duplicate pointer lines: {named}"
     assert named == records, f"board names {named}, records on disk {records}"
+
+
+def test_check6_board_keys_must_resolve_to_a_story_record(tmp_path):
+    """E-046: a board key with no story behind it is work that does not exist.
+
+    Every engine chain gate walks story FILES and looks outward, so a phantom
+    board key is invisible to all of them: on a board carrying
+    `9-9-ghost-story-with-no-record` the gates returned nothing and the audit
+    printed the key nowhere — the only trace was an in-progress count one too
+    high, i.e. a nudge to go verify records for a story that is not there. CHECK
+    6's opening comment had promised this hunt since the counting was written.
+    The resolution vocabulary is the ENGINE's, so a key resolves when a story
+    file carries it or when a record DECLARES it — a prose mention does not.
+    """
+    import importlib.util
+    import sys
+
+    sys.path.insert(0, str(PLUGIN / "hooks" / "engine"))
+    from modules import guard
+
+    spec = importlib.util.spec_from_file_location(
+        "check6_board_bench", PLUGIN / "scripts" / "bench" / "bench_consistency.py")
+    bench = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(bench)
+
+    ghost = "9-9-ghost-story-with-no-record"
+    board = ("development_status:\n"
+             "  epic-1: in-progress\n"
+             "  1-1-real-story: review\n"
+             f"  {ghost}: in-progress\n")
+    native_story = "# Story: 1-1-real-story\n\n- **Status:** review\n"
+
+    def _project(name, files, board_body=board):
+        root = tmp_path / name
+        (root / "docs" / "development" / "native").mkdir(parents=True)
+        (root / "docs" / "development" / "stories").mkdir(parents=True)
+        if board_body is not None:
+            (root / "docs" / "development" / "native"
+             / "sprint-status.yaml").write_text(board_body, encoding="utf-8")
+        for rel, text in files.items():
+            path = root / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8")
+        return root
+
+    # The phantom is reported; the story with a file behind it is not.
+    assert guard.board_story_keys_without_records(str(_project("phantom", {
+        "docs/development/native/1-1-real-story.md": native_story,
+    }))) == [ghost]
+
+    # A record that DECLARES the key resolves it (the engine's own vocabulary).
+    assert guard.board_story_keys_without_records(str(_project("declared", {
+        "docs/development/native/1-1-real-story.md": native_story,
+        "docs/development/stories/S-001.md":
+            "# Methodology Record: S-001\n\n| Field | Value |\n|---|---|\n"
+            f"| Story | {ghost} |\n",
+    }))) == []
+
+    # A native file carrying the key resolves it without any declaration.
+    assert guard.board_story_keys_without_records(str(_project("native", {
+        "docs/development/native/1-1-real-story.md": native_story,
+        f"docs/development/native/{ghost}.md":
+            "# Story\n\n- **Status:** in-progress\n",
+    }))) == []
+
+    # A prose mention is NOT a record (the 2026-10-01 looseness, kept closed).
+    assert guard.board_story_keys_without_records(str(_project("mention", {
+        "docs/development/native/1-1-real-story.md": native_story,
+        "docs/development/stories/S-001.md":
+            "# Methodology Record: S-001\n\n| Field | Value |\n|---|---|\n"
+            "| Story | S-001 |\n\n"
+            f"Regression note: {ghost} was renamed last sprint.\n",
+    }))) == [ghost]
+
+    # No board: there is nothing to resolve.
+    assert guard.board_story_keys_without_records(
+        str(_project("no-board", {}, None))) == []
+
+    # The shipped tree resolves, and the bench check owns the rule (it also
+    # drives the audit script against the phantom fixture).
+    assert guard.board_story_keys_without_records(str(PLUGIN)) == []
+    assert bench._check_board_story_keys_resolve() is None

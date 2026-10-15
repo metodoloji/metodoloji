@@ -16,6 +16,7 @@ from .utils import (is_code_target, is_free, norm_path, normalize_hook_input,
                     dod_issues, _VERIFY_FIELD_RE)
 from .bash_targets import extract_bash_targets, extract_bash_targets_ex
 from . import plan as plan_mod
+from . import state as state_mod
 
 # Import gate script — deferred: sys.exit at module level kills the entire process
 # (including audit which doesn't need the gate). Instead, gate is loaded lazily
@@ -1850,6 +1851,73 @@ def _find_done_stories_without_ir(root: str) -> list[str]:
             continue
         missing.append(_story_key_of(content, story_file))
     return missing
+
+
+def _board_key_identity(content: str, path: pathlib.Path) -> str:
+    """A story file's own identity for board-key resolution.
+
+    Deliberately NOT ``_story_key_of``'s last fallback (an ``N-N-slug`` anywhere
+    in the body): a METHODOLOGY record names its subject by label, so a slug in
+    its prose is a mention, not an identity. Measured while closing E-046 — a
+    record whose regression note named a since-renamed story resolved that
+    board key by itself, and the phantom read as covered. The story gate keeps
+    the wider precedence because it validates story files, where a draft may
+    carry its key only in the body.
+    """
+    m = _STORY_KEY_FIELD_RE.search(content)
+    if m:
+        return m.group(1).strip()
+    return extract_story_key_from_content(content) or path.stem
+
+
+def board_story_keys_without_records(root: str) -> list[str]:
+    """Sprint-board story keys that resolve to no story record.
+
+    Every chain rule in this module starts from a story FILE
+    (``_iter_story_files``) and looks outward, so a key the board carries with
+    no story behind it is invisible to all of them. Measured 2026-10-15 on a
+    board carrying ``9-9-ghost-story-that-does-not-exist``: the gates returned
+    nothing, ``check-methodology.sh`` never printed the key, and the only trace
+    was an in-progress count one too high — a nudge to go verify records for a
+    story that does not exist. CHECK 6's opening comment had promised this hunt
+    ("stories in sprint-status that lack methodology records") since the
+    counting was written; nothing implemented it.
+
+    A key resolves when a story file is NAMED by it (``_board_key_identity``: the
+    explicit field, the title, else the filename) or when a record DECLARES it —
+    the vocabulary the write-time gates use, where a prose mention deliberately
+    does not count (``_record_covers_story``).
+    """
+    from .config import MAX_STORY_COUNT  # noqa: PLC0415 — same bound as the gate
+
+    summary = state_mod.sprint_summary(root)
+    if not summary.get("found"):
+        return []  # no board: there are no keys to resolve
+    keys: list[str] = sorted(summary.get("stories", {}))
+    if not keys:
+        return []
+    wanted = {k.lower() for k in keys}
+    resolved: set[str] = set()
+    seen = 0
+    for story_file in _iter_story_files(root):
+        seen += 1
+        if seen > MAX_STORY_COUNT:  # Bounds check (MEDIUM #11)
+            break
+        try:
+            content = _chain_text(story_file)
+        except OSError:
+            continue
+        identity = _board_key_identity(content, story_file).lower()
+        if identity in wanted:
+            resolved.add(identity)
+        if story_file.stem.lower() in wanted:
+            resolved.add(story_file.stem.lower())
+        for candidate in keys:
+            if candidate.lower() in resolved:
+                continue
+            if _record_covers_story(content, story_file, candidate, candidate):
+                resolved.add(candidate.lower())
+    return [k for k in keys if k.lower() not in resolved]
 
 
 def _check_all_stories_quality(root: str, blocked_action: str) -> dict:
