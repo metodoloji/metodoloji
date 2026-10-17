@@ -20,7 +20,7 @@ python3 {metodoloji-root}/bmad/scripts/workflow.py complete --slug <slug> \
 
 - `status` gives the full position (completed stages, flags, blocker, total stages).
 - `history` shows the transition trail (`enter` / `complete` / `block` / `resume` / `done`).
-- `list` shows every run; a single run may omit `--slug` on `status`/`next`/`resume`/`history`.
+- `list` shows every run **with its derived evidence verdict** (E-058) — pick the run to continue by whether its foundation still holds, not by its status string; a single run may omit `--slug` on `status`/`next`/`resume`/`history`.
 - Every command prints JSON and exits **0** on success, **1** on a refusal.
 
 ## Evidence discipline
@@ -38,6 +38,23 @@ Handle it as follows:
 `--force` skips the check. It exists for a knowingly overridden step (for example evidence that
 genuinely cannot exist in this environment). When you use it, you **must** tell the user which
 stage was forced and why — a silent `--force` makes the whole process worthless.
+
+A completion is a claim about the workspace, so it is dated and re-checked (E-056): completing an
+`artifact` stage records the predicate that satisfied it, and every read re-derives
+`CURRENT | STALE | UNKNOWN` against the artifact on disk. `status` and `next` carry an `evidence`
+block (`stale_evidence` names the completed stages whose artifact no longer holds), the session
+advisory prints `FOUNDATION MOVED: …`, and `complete` refuses to advance onto a **STALE**
+foundation — re-complete the broken stage, or `--force` knowingly. `UNKNOWN` (a completion
+recorded before witnesses existed, or an artifact that cannot be read) never blocks. An edit that
+keeps the declared tokens stays `CURRENT`, so a tracked artifact may still be edited by later
+stages.
+
+That re-derivation is **bounded** (E-058) because it runs on the session edge: at most 200 glob
+matches are scanned, and no candidate wider than 4 MiB is read. A match found inside the budget
+answers exactly as before; an artifact past it answers `UNKNOWN` with the reason (`cannot be
+re-derived within the read budget`) and the remedy — split the artifact, or narrow the path
+pattern. The bound can never produce a `STALE`, and accepting a stage is not bounded (the artifact
+you just produced is read once, so a large deliverable can still complete).
 
 ## Branches and flags
 

@@ -1,6 +1,6 @@
 # Bayat Bağlam (Stale Context) — Tam Araştırma ve Düzeltme Planı
 
-> **Durum:** **UYGULANDI (P0–P7).** Bu dosya araştırma çıktısıdır; uygulaması §9'daki kayıt zinciriyle yapıldı — güncel durum için §12'ye bak.
+> **Durum:** **UYGULANDI (P0–P7 + F-13 takibi).** Bu dosya araştırma çıktısıdır; uygulaması §9'daki kayıt zinciriyle yapıldı — güncel durum için §12 (board düzlemi) ve §13 (workflow kanıt düzlemi, F-13) bölümlerine bak.
 > **Tetikleyici:** bir LinkedIn yorumu — *"The failure mode we hit most isn't lost context, it's stale context. Yesterday's decision is still in the handoff file, and the agent obeys it after the code has already moved on. Our fix was dating every recorded decision to a commit, so a handoff can say 'this no longer applies' instead of just repeating the past."*
 > **Ölçüm tarihi:** 2026-10-16, metodoloji dogfood reposu (48 E kaydı, `.metodoloji/blackboard.json` canlı board).
 > **Kapanış:** 2026-10-16 — E-052 (baseline, REJECTED, measured=1.0) → E-053 (fix, APPROVED, measured=0.0) → IR-002 → SP-005 → S-002 → QR-017; TD-016 ödendi (`docs/development/tech-debt.md`). Değişiklik land edildi (`d715318`, v0.1.55); E-053 landed commit **öncesi** kirli ağaca tarihlendiği için tazelik düzlemi onu haklı olarak `STALE` gösterir — landed durumda yeniden ölçüm **E-054** (APPROVED + CURRENT) ve E-053 `Re-Measured-By: E-054` ile süpersede (CASCADE_INVALIDATION).
@@ -129,7 +129,7 @@ Her bulgu: **iddia → kanıt (file:line) → sonuç → şiddet**.
 
 - `.metodoloji/relay-note.state` (digest + ts) — throttle durumu; tazelikle ilgisi yok ama kalıcı bir "en son ne duyurdum" hafızası (F-10).
 - `bmad/workflow/*.state.json` + `events.jsonl` (`bmad/workflow/store.py:12-14`) — çalışma zamanı durumu; `_check_evidence` `artifact`/`command exit 0`/`note` kabul eder (`engine.py:354-421`) ve **evidence'ın ne zaman/kimin tarafından üretildiğine dair kod-durumu bağı yoktur**: bir `artifact` kanıtı, artefakt dosyası değiştikten sonra da "kanıt" sayılmaya devam eder.
-- **Sonuç:** freshness açığı yalnız board'da değil; kayıt dışı üç ayrı kalıcı durumda da aynı.
+- **Sonuç:** freshness açığı yalnız board'da değil; kayıt dışı üç ayrı kalıcı durumda da aynı. **Kapanış (17.10.2026):** `artifact` kanıtı sahiplenildi — E-055 (baseline, measured=1.0) → E-056 (fix, measured=0.0); ayrıntı §13. `command` kanıtı ve `relay-note.state` hâlâ işaretli.
 
 ### F-14 — Provenance katmanında da üçüncü hâl yok: "doğrulanamadı" yerine "FORGED" (YÜKSEK)
 
@@ -401,7 +401,7 @@ F-08'in süresi dolmayan uyarıları P2'de raporlanır ama otomatik eskime yine 
 - **Ölçümü yeniden icat etmek yok.** Witness bir *çapa*dır; yeni bir gate, yeni bir metrik dili veya yeni bir onay yolu değil.
 - **Yaş bilgisini silmek yok.** Yaş raporlanmaya devam eder (`stale` listesi, `(Nm ago)`), ama geçerlilik ondan **türetilmez**.
 - **İmzayı zayıflatmak yok.** `gate_token` aynen kalır; `Witness:` onun yerine geçmez, yanına eklenir.
-- **Tüm kalıcı durumlar (F-13) aynı anda düzeltilmez.** `bmad/workflow` evidence'ı ve `relay-note.state` ayrı kayıtlar gerektirir; bu plan onları **işaretler**, sahiplenmez.
+- **Tüm kalıcı durumlar (F-13) aynı anda düzeltilmez.** `bmad/workflow` kanıt düzleminin `artifact` yarısı sonraki iterasyonda sahiplenildi (§13, E-055 → E-056); `command` kanıtı (yeniden koşturmadan doğrulanamaz) ve `relay-note.state` (tazelik değil, throttle hafızası) hâlâ **işaretli**, sahiplenilmemiş. `command` kanıtı için doğru şekil, onu da bir kod-durumu witness'ına bağlamaktır — ayrı bir kayıt gerektirir.
 
 ---
 
@@ -421,4 +421,35 @@ F-08'in süresi dolmayan uyarıları P2'de raporlanır ama otomatik eskime yine 
 | F-10 throttle yaşı yok sayıyor | C-1 | ORTA | P2 (bilgi) |
 | F-11 canlı 11 bayat baton | C-1, C-3 | KRİTİK | P0 → P2 |
 | F-14 provenance'da "doğrulanamadı" = "FORGED?" | C-6 | YÜKSEK | P4 |
-| F-13 workflow evidence / relay state | C-2 | ORTA | işaretlendi (kapsam dışı) |
+| F-13 workflow evidence / relay state | C-2 | ORTA | workflow `artifact` kanıtı: **E-055 → E-056**, sertleştirme **E-057 → E-058** (§13); `command` kanıtı, `relay-note.state` ve kök dışı yollar hâlâ işaretli |
+
+---
+
+## 13. F-13 takibi — workflow kanıt düzlemi (uygulandı, 17.10.2026)
+
+E-053 planı bu sınıfı **işaretlemiş, sahiplenmemişti** (§10): board düzlemi tazelik kazandı, ama `bmad/workflow` kanıtı aynı açığı taşımaya devam etti. Sonraki iterasyonda `artifact` yarısı ölçülüp kapatıldı.
+
+**Arıza (ölçülen):** workflow çekirdeği bir aşamanın kanıtını **yalnızca `complete` anında bir kez** kontrol eder; sonrasında run kaydı aşamayı `completed` sayar ve `next` ondan ileriye hesaplamaya devam eder. Kod durumu ilerlediğinde (artifact silindi, token kaldırıldı, glob eşleşmesi gitti) temel çökmüştür ama ajan onu hâlâ "yapılmış iş" olarak devralır. Bu, F-01/F-02'nin board'daki hâlinin bir kat üstüdür.
+
+**Ölçüm:** `scripts/bench/bench_workflow_evidence.py` — her trial kendi throwaway projesini `create → complete → status/next_stage` ile sürer, iki okuma yüzeyini sınar, oracle modülü import etmez (`pathlib.glob` + `str.count`), 8 stale + 8 current trial, `--baseline` kendi negtest'i.
+
+| Kayıt | Rol | Sonuç |
+|---|---|---|
+| **E-055** | baseline (fix'siz çekirdek) | `stale_evidence_rate=1.0` — **REJECTED** |
+| **E-056** | fix | `stale_evidence_rate=0.0`, `false_alarm_rate=0.0` — **APPROVED + VERIFIED** |
+
+**Tasarım (E-053 doktrininin aynısı, kanıt düzlemine):**
+
+1. **Tamamlanma bir witness taşır:** `artifact` aşaması tamamlanırken onu karşılayan yüklem (`path`, `contains`, `min`) run state'ine yazılır (`state["evidence"][stage_id]`).
+2. **Verdict saklanmaz, türetilir:** `bmad/workflow/evidence.py::verify` her okumada artifact'ı yeniden okur.
+3. **Üç değerli:** `CURRENT | STALE | UNKNOWN` — witness'sız eski tamamlanma `UNKNOWN` (asla sessiz `CURRENT`), okunamayan artifact `UNKNOWN` (yanlış `STALE` değil).
+4. **Yüklem-duyarlı, digest-duyarlı değil:** iddia "bu artifact beyan edilen token'ları taşıyor"dur; token'ları koruyan bir düzenleme `CURRENT` kalır. Digest tabanlı bir tasarım, takip edilen artifact'a sonraki aşamada eklenen her satırı "bayat" sayardı — bench'in eşleştirilmiş yanlış-alarm kontrolü (`rewritten-with-token`, `glob-other-match`) tam olarak bunu reddeder.
+5. **Tek türetme, çok yüzey:** `_check_evidence` (tamamlama) ve tüm okuma yüzeyleri aynı eşleştiriciyi çağırır (`evidence.artifact_matches`); `status`/`next` `evidence` bloğu + `stale_evidence` taşır, SessionStart uyarısı `FOUNDATION MOVED: …` basar, `complete` **STALE** bir temele ilerlemeyi reddeder (`--force` geçersiz kılar, `UNKNOWN` asla engellemez).
+
+**Kabul (ölçülen):** bayat kanıt teslimi 0/8; yanlış alarm 0/8; `--baseline` hâlâ 1.0 (bench kendi kırmızısını üretebiliyor); `pytest bmad/tests/test_workflow.py` 119 test yeşil; `check-methodology.sh` yeşil (yalnız E-052/E-055 REJECTED uyarıları, ikisi de bilinçli baseline).
+
+**Kayıt zinciri:** E-055 → E-056 → IR-003 → SP-006 → S-003 → QR-018 (`bmad/tests/test_workflow.py`, `scripts/bench/bench_workflow_evidence.py`).
+
+**Sertleştirme (E-058, 17.10.2026):** aynı düzlemde kalan iki açık ölçüldü ve kapatıldı — E-057 baseline (`stale_evidence_rate=0.3333`, `unbounded_read_rate=1.0`, REJECTED) → E-058 (0.0 / 0.0, APPROVED + VERIFIED). (1) **Envanter yüzeyi** (`list`): operatörün run seçtiği yüzey hiçbir verdict taşımıyordu, yani temeli çökmüş run sağlıklı gibi listeleniyordu → artık `status`/`next` ile aynı türetilmiş bloğu taşır. (2) **Okuma bütçesi**: yeniden türetme oturum kenarında koştuğu halde sınırsızdı (her aday tamamen okunuyor, her glob eşleşmesi taranıyordu) → artık aday başına 4 MiB / 200 aday bütçesi var, bütçe içinde bulunan eşleşme **aynen** cevaplanır ve yalnız negatif taraf gerekçeli `UNKNOWN`'a düşer, yani bütçe asla `STALE` uyduramaz; aşama **tamamlama** okuması sınırsız kalır (operatörün az önce ürettiği artifact bir kez okunur). Bu, E-056'nın "envanter yüzeyi run başına artifact okuması ödememeli" gerekçesiyle açık bıraktığı boşluğu kapatır: bütçe, o okumayı karşılanabilir kılar.
+
+**Bilinçli kalan (hâlâ işaretli):** `command` kanıtı ("bu argv 0 döndü") yeniden koşturmadan doğrulanamaz — doğru şekil onu bir kod-durumu witness'ına bağlamaktır (ayrı kayıt); `relay-note.state` tazelik değil throttle hafızasıdır; `history` sınıflandırılmaz (geçiş izi workspace hakkında bir iddia değildir); workflow tamamlanmasının blackboard aynası verdict taşımaz (yazma anında taze olduğu için orada gözlemlenebilir bir boşluk yoktur); ve proje kökünün **dışına** çıkan artifact yolları (`../…` ya da mutlak yol) ne ölçülü ne de kısıtlanmış durumda — ayrı bir kayıt bekliyor.

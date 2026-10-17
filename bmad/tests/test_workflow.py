@@ -12,7 +12,8 @@ _ROOT = Path(__file__).resolve().parents[2]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from bmad.workflow import advisory, engine, spec as spec_mod, store as store_mod  # noqa: E402
+from bmad.workflow import (advisory, engine, evidence as evidence_mod,  # noqa: E402
+                           spec as spec_mod, store as store_mod)
 from bmad.scripts import workflow as wf_cli  # noqa: E402
 
 BUILTIN = _ROOT / "bmad" / "workflow" / "builtin" / "seo-visibility.json"
@@ -1093,3 +1094,300 @@ def test_read_events_binary_log_returns_empty(tmp_path):
     _seed_binary(store_mod.paths(root)["events"])
     assert store_mod.read_events(root) == []
 
+
+
+# --- evidence freshness (E-056) -----------------------------------------------
+# A completion is a claim about the workspace. The kernel used to check the
+# claim once, at `complete`, and then deliver the stage as done forever; E-055
+# measured that at stale_evidence_rate 1.0. These tests pin the derived verdict,
+# the three-valued vocabulary (UNKNOWN never degrades to CURRENT), the predicate
+# sensitivity (an edit that keeps the tokens stays CURRENT), and the refusal.
+
+def _evidence_spec(pattern: str = "log.md") -> dict:
+    return {
+        "id": "ev",
+        "title": "evidence demo",
+        "start": "a",
+        "stages": [
+            {"id": "a", "title": "A",
+             "evidence": {"kind": "artifact", "path": pattern,
+                          "contains": ["A1"], "min": 1},
+             "next": [{"to": "b"}]},
+            {"id": "b", "title": "B", "requires": ["a"],
+             "evidence": {"kind": "note"},
+             "next": [{"to": "done"}]},
+            {"id": "done", "title": "Done", "terminal": True},
+        ],
+    }
+
+
+def _complete_a(tmp_path, spec: dict | None = None) -> tuple[str, dict]:
+    spec = spec or _evidence_spec()
+    root = str(tmp_path)
+    engine.create(root, spec)
+    _write(tmp_path / "log.md", "A1\n")
+    assert engine.complete(root, spec["id"], "a")["ok"]
+    return root, spec
+
+
+def test_status_is_current_while_the_artifact_still_carries_evidence(tmp_path):
+    root, spec = _complete_a(tmp_path)
+    st = engine.status(root, spec["id"])
+    assert st["evidence"]["a"]["verdict"] == "CURRENT"
+    assert st["stale_evidence"] == []
+    assert st["evidence_health"]["total"] == 1
+
+
+def test_removing_the_declared_token_makes_the_completion_stale(tmp_path):
+    root, spec = _complete_a(tmp_path)
+    _write(tmp_path / "log.md", "nothing here\n")
+    st = engine.status(root, spec["id"])
+    assert st["evidence"]["a"]["verdict"] == "STALE"
+    assert st["stale_evidence"] == ["a"]
+    assert "no candidate matching" in st["evidence"]["a"]["reason"]
+
+
+def test_deleted_artifact_is_stale_not_current(tmp_path):
+    root, spec = _complete_a(tmp_path)
+    (tmp_path / "log.md").unlink()
+    st = engine.status(root, spec["id"])
+    assert st["evidence"]["a"]["verdict"] == "STALE"
+
+
+def test_evidence_is_predicate_sensitive_not_digest_sensitive(tmp_path):
+    """An edit that keeps the declared tokens stays CURRENT.
+
+    This is the paired control that rejects a "the file changed ⇒ stale"
+    design, which would stale a stage every time a later stage appends to the
+    artifact the run tracks.
+    """
+    root, spec = _complete_a(tmp_path)
+    _write(tmp_path / "log.md", "A1\nmore findings, still A1\n")
+    assert engine.status(root, spec["id"])["evidence"]["a"]["verdict"] == "CURRENT"
+
+
+def test_status_and_next_agree_because_one_derivation_feeds_both(tmp_path):
+    root, spec = _complete_a(tmp_path)
+    (tmp_path / "log.md").unlink()
+    from_status = engine.status(root, spec["id"])["evidence"]["a"]["verdict"]
+    from_next = engine.next_stage(root, spec["id"])["evidence"]["a"]["verdict"]
+    assert from_status == from_next == "STALE"
+
+
+def test_glob_evidence_stays_current_while_another_match_has_the_token(tmp_path):
+    spec = _evidence_spec(pattern="logs/*.md")
+    root = str(tmp_path)
+    engine.create(root, spec)
+    _write(tmp_path / "logs" / "a.md", "A1\n")
+    _write(tmp_path / "logs" / "b.md", "A1\n")
+    assert engine.complete(root, spec["id"], "a")["ok"]
+    (tmp_path / "logs" / "a.md").unlink()
+    assert engine.status(root, spec["id"])["evidence"]["a"]["verdict"] == "CURRENT"
+
+
+def test_glob_evidence_with_no_satisfying_match_is_stale(tmp_path):
+    spec = _evidence_spec(pattern="logs/*.md")
+    root = str(tmp_path)
+    engine.create(root, spec)
+    _write(tmp_path / "logs" / "a.md", "A1\n")
+    assert engine.complete(root, spec["id"], "a")["ok"]
+    _write(tmp_path / "logs" / "a.md", "gone\n")
+    assert engine.status(root, spec["id"])["stale_evidence"] == ["a"]
+
+
+def test_legacy_completion_without_witness_reads_unknown_never_current(tmp_path):
+    root, spec = _complete_a(tmp_path)
+    path = Path(store_mod.state_path(root, spec["id"]))
+    state = json.loads(path.read_text(encoding="utf-8"))
+    state.pop("evidence", None)  # a run recorded before E-056
+    path.write_text(json.dumps(state), encoding="utf-8")
+    st = engine.status(root, spec["id"])
+    assert st["evidence"]["a"]["verdict"] == "UNKNOWN"
+    assert st["stale_evidence"] == []
+    # UNKNOWN is not a refusal: a legacy run stays advanceable.
+    assert engine.complete(root, spec["id"], "b", note="ok")["ok"] is True
+
+
+def test_complete_refuses_to_advance_on_a_stale_foundation(tmp_path):
+    root, spec = _complete_a(tmp_path)
+    (tmp_path / "log.md").unlink()
+    refused = engine.complete(root, spec["id"], "b", note="done")
+    assert refused["ok"] is False
+    assert refused["stale_evidence"] == ["a"]
+    assert "no longer holds" in refused["error"]
+    assert "--force" in refused["error"]
+
+
+def test_force_still_overrides_the_stale_foundation_refusal(tmp_path):
+    root, spec = _complete_a(tmp_path)
+    (tmp_path / "log.md").unlink()
+    assert engine.complete(root, spec["id"], "b", note="done", force=True)["ok"] is True
+
+
+def test_requires_less_spec_treats_the_completed_chain_as_the_foundation(tmp_path):
+    spec = _evidence_spec()
+    del spec["stages"][1]["requires"]
+    root, spec = _complete_a(tmp_path, spec)
+    (tmp_path / "log.md").unlink()
+    assert engine.complete(root, spec["id"], "b", note="done")["ok"] is False
+
+
+def test_unreadable_artifact_reads_unknown_not_stale(tmp_path, monkeypatch):
+    _write(tmp_path / "log.md", "A1\n")
+
+    def _boom(self, *args, **kwargs):
+        raise OSError("locked")
+
+    monkeypatch.setattr(Path, "read_text", _boom)
+    verdict, detail = evidence_mod.classify(
+        str(tmp_path), {"kind": "artifact", "path": "log.md",
+                        "contains": ["A1"], "min": 1})
+    assert verdict == "UNKNOWN"
+    assert "cannot be read" in detail["reason"]
+
+
+def test_witness_is_recorded_only_for_artifact_evidence():
+    assert evidence_mod.witness_for({"evidence": {"kind": "note"}}) is None
+    assert evidence_mod.witness_for(
+        {"evidence": {"kind": "command", "argv": ["pytest"]}}) is None
+    w = evidence_mod.witness_for({"evidence": {"kind": "artifact", "path": "log.md",
+                                               "contains": ["A1"], "min": 2}})
+    assert w["path"] == "log.md" and w["min"] == 2 and w["contains"] == ["A1"]
+
+
+def test_foundation_is_the_declared_requires_or_the_completed_chain():
+    assert evidence_mod.foundation_of({"completed": ["a", "z"]},
+                                      {"requires": ["a"]}) == ["a"]
+    assert evidence_mod.foundation_of({"completed": ["a", "z"]}, {}) == ["a", "z"]
+
+
+def test_advisory_flags_a_moved_foundation(tmp_path):
+    root, spec = _complete_a(tmp_path)
+    (tmp_path / "log.md").unlink()
+    line = advisory.peek(root)
+    assert "FOUNDATION MOVED" in line
+    assert "'a'" in line
+
+
+def test_cli_status_and_next_carry_the_evidence_verdict(tmp_path, capsys):
+    root, spec = _complete_a(tmp_path)
+    (tmp_path / "log.md").unlink()
+    assert wf_cli.main(["--project-root", root, "status",
+                        "--slug", spec["id"]]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["stale_evidence"] == ["a"]
+    assert wf_cli.main(["--project-root", root, "next", "--slug", spec["id"]]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["evidence"]["a"]["verdict"] == "STALE"
+
+
+# --- evidence read budget + inventory surface (E-058) -------------------------
+# The re-derivation read runs on the session edge, so it is bounded: at most
+# MAX_CANDIDATES glob matches are scanned and no candidate past
+# MAX_ARTIFACT_BYTES is read. A match inside the budget stays exact; anything
+# skipped turns the answer into UNKNOWN — never a false STALE. The COMPLETION
+# path stays unbounded (it reads the artifact the operator just produced).
+
+def _bound_spec(pattern: str = "log.md") -> dict:
+    return {
+        "id": "bound",
+        "title": "bound demo",
+        "start": "a",
+        "stages": [
+            {"id": "a", "title": "A",
+             "evidence": {"kind": "artifact", "path": pattern,
+                          "contains": ["A1"], "min": 1},
+             "next": [{"to": "done"}]},
+            {"id": "done", "title": "Done", "terminal": True},
+        ],
+    }
+
+
+def _touch(path: Path, when: float) -> None:
+    os.utime(path, (when, when))
+
+
+def test_completion_stays_unbounded_while_the_verdict_is_bounded(tmp_path, monkeypatch):
+    """A big artifact can still complete; re-deriving it answers UNKNOWN."""
+    monkeypatch.setattr(evidence_mod, "MAX_ARTIFACT_BYTES", 8)
+    spec = _bound_spec()
+    root = str(tmp_path)
+    engine.create(root, spec)
+    _write(tmp_path / "log.md", "A1 and more text well past the bound\n")
+    assert engine.complete(root, spec["id"], "a")["ok"] is True
+    st = engine.status(root, spec["id"])
+    assert st["evidence"]["a"]["verdict"] == "UNKNOWN"
+    assert "read budget" in st["evidence"]["a"]["reason"]
+    # UNKNOWN is not a refusal, and the stage is not named as stale.
+    assert st["stale_evidence"] == []
+
+
+def test_a_candidate_past_the_byte_budget_never_produces_a_false_stale(tmp_path, monkeypatch):
+    """One oversized candidate plus one clean miss must read UNKNOWN, not STALE."""
+    monkeypatch.setattr(evidence_mod, "MAX_ARTIFACT_BYTES", 8)
+    spec = _bound_spec(pattern="logs/*.md")
+    root = str(tmp_path)
+    engine.create(root, spec)
+    _write(tmp_path / "logs" / "small.md", "nothing\n")
+    (_write(tmp_path / "logs" / "big.md", "x" * 64 + "\n"))  # oversized, no token
+    assert engine.complete(root, spec["id"], "a", force=True)["ok"] is True
+    st = engine.status(root, spec["id"])
+    assert st["evidence"]["a"]["verdict"] == "UNKNOWN"
+    assert "byte read budget" in st["evidence"]["a"]["reason"]
+
+
+def test_the_scan_budget_stops_the_walk_and_reports_it(tmp_path, monkeypatch):
+    monkeypatch.setattr(evidence_mod, "MAX_CANDIDATES", 1)
+    spec = _bound_spec(pattern="logs/*.md")
+    root = str(tmp_path)
+    engine.create(root, spec)
+    _write(tmp_path / "logs" / "old.md", "A1\n")
+    _write(tmp_path / "logs" / "new.md", "no token\n")
+    _touch(tmp_path / "logs" / "old.md", 1_000_000_000)
+    _touch(tmp_path / "logs" / "new.md", 2_000_000_000)  # newest-first reaches it
+    assert engine.complete(root, spec["id"], "a")["ok"] is True
+    st = engine.status(root, spec["id"])
+    assert st["evidence"]["a"]["verdict"] == "UNKNOWN"
+    assert "scan budget" in st["evidence"]["a"]["reason"]
+
+
+def test_a_match_inside_the_budget_stays_exact(tmp_path, monkeypatch):
+    """A partial scan that FOUND the evidence answers CURRENT, not UNKNOWN."""
+    monkeypatch.setattr(evidence_mod, "MAX_CANDIDATES", 2)
+    spec = _bound_spec(pattern="logs/*.md")
+    root = str(tmp_path)
+    engine.create(root, spec)
+    _write(tmp_path / "logs" / "old.md", "A1\n")
+    _write(tmp_path / "logs" / "middle.md", "A1\n")
+    _write(tmp_path / "logs" / "new.md", "no token\n")
+    _touch(tmp_path / "logs" / "old.md", 1_000_000_000)
+    _touch(tmp_path / "logs" / "middle.md", 2_000_000_000)
+    _touch(tmp_path / "logs" / "new.md", 3_000_000_000)
+    assert engine.complete(root, spec["id"], "a")["ok"] is True
+    assert engine.status(root, spec["id"])["evidence"]["a"]["verdict"] == "CURRENT"
+
+
+def test_the_inventory_surface_carries_the_verdict(tmp_path):
+    root, spec = _complete_a(tmp_path)
+    listed = {r["slug"]: r for r in engine.list_runs(root)["runs"]}[spec["id"]]
+    assert listed["evidence"]["a"]["verdict"] == "CURRENT"
+    assert listed["evidence_health"]["total"] == 1
+    assert listed["stale_evidence"] == []
+
+
+def test_the_inventory_surface_names_a_broken_foundation(tmp_path):
+    root, spec = _complete_a(tmp_path)
+    (tmp_path / "log.md").unlink()
+    listed = {r["slug"]: r for r in engine.list_runs(root)["runs"]}[spec["id"]]
+    assert listed["stale_evidence"] == ["a"]
+    assert listed["evidence"]["a"]["verdict"] == "STALE"
+
+
+def test_the_inventory_surface_survives_a_run_whose_spec_is_gone(tmp_path):
+    root, spec = _complete_a(tmp_path)
+    store_mod.paths(root)
+    spec_file = Path(store_mod.paths(root)["specs"]) / f"{spec['id']}.json"
+    spec_file.unlink()
+    listed = {r["slug"]: r for r in engine.list_runs(root)["runs"]}[spec["id"]]
+    # The witness — not the spec — is the claim, so it is still classified.
+    assert listed["evidence"]["a"]["verdict"] == "CURRENT"

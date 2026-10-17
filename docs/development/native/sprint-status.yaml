@@ -11,6 +11,8 @@
 #
 # Methodology record: docs/development/SP-001.md
 # Methodology record: docs/development/SP-005.md
+# Methodology record: docs/development/SP-006.md
+# Methodology record: docs/development/SP-007.md
 #
 # project: metodoloji
 # tracking_system: file-system
@@ -22,7 +24,7 @@
 # Epic:  backlog | in-progress | done
 
 generated: 2026-10-15
-last_updated: 2026-10-15
+last_updated: 2026-10-17
 project: metodoloji
 project_key: METODOLOJI
 tracking_system: file-system
@@ -40,3 +42,16 @@ development_status:
   # P0–P7 landed under E-053 (APPROVED, bench stale_delivery_rate 0.0 with a
   # paired false_alarm_rate 0.0); CLOSED by QR-017.
   2-1-stale-context-freshness-plane: done
+  epic-3: done
+  # S-003 — "Derive whether a completed stage's evidence still holds". The same
+  # class one plane over (E-053 plan §10's F-13): the workflow kernel checked a
+  # stage's evidence once and delivered the completion forever. E-055 measured
+  # the baseline red (stale_evidence_rate 1.0, REJECTED) and E-056 landed the
+  # fix (0.0 with a paired false_alarm_rate 0.0); CLOSED by QR-018.
+  3-1-workflow-evidence-freshness: done
+  epic-4: done
+  # S-004 — "Bound the evidence re-derivation, and list a run by its derived
+  # verdict". E-057 measured the baseline red (stale_evidence_rate 0.3333 with
+  # unbounded_read_rate 1.0, REJECTED) and E-058 landed the fix (0.0 / 0.0, with
+  # a paired false_alarm_rate 0.0); CLOSED by QR-019.
+  4-1-evidence-read-budget: done

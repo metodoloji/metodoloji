@@ -298,10 +298,15 @@ def test_check6_reads_the_shipped_sprint_status():
         # APPROVED), the QR record that closes the story has not, so exactly one
         # story is at review and none in-progress (readiness is not progress).
         # SP-005 done: 2-1-stale-context-freshness-plane (S-002) landed under
-        # E-053 (APPROVED) and is CLOSED by QR-017 — exactly one story is done.
+        # E-053 (APPROVED) and is CLOSED by QR-017.
+        # SP-006 done: 3-1-workflow-evidence-freshness (S-003) landed under
+        # E-056 (APPROVED, baseline E-055 REJECTED) and is CLOSED by QR-018.
+        # SP-007 done: 4-1-evidence-read-budget (S-004) landed under E-058
+        # (APPROVED, baseline E-057 REJECTED) and is CLOSED by QR-019 —
+        # exactly three stories are done.
         assert _count(text, "in-progress") == 0
         assert _count(text, "review") == 1
-        assert _count(text, "done") == 1
+        assert _count(text, "done") == 3
         return
     text = ("development_status:\n"
             "  epic-1: in-progress\n"

@@ -9,13 +9,12 @@ preconditions are unmet — those are hard refusals, not warnings.
 
 from __future__ import annotations
 
-import glob
-import os
 import pathlib
 import subprocess
 import sys
 import time
 
+from . import evidence as evidence_mod
 from . import spec as spec_mod
 from . import store
 
@@ -159,6 +158,7 @@ def status(project_root: str, slug: str) -> dict:
         return _missing_or_corrupt(project_root, slug)
     current = state.get("current")
     stage = spec_mod.stage_by_id(spec, current) if (spec and current) else None
+    health = evidence_mod.verify(project_root, state, spec)
     return {
         "ok": True,
         "slug": slug,
@@ -170,6 +170,13 @@ def status(project_root: str, slug: str) -> dict:
         "stage": stage,
         "artifact": spec.get("artifact") if spec else None,
         "total_stages": len(spec.get("stages", [])) if spec else 0,
+        # E-056: a recorded completion is a claim about the workspace, so the
+        # two read surfaces carry whether it still holds — derived here, never
+        # stored. `evidence` is keyed by stage id; `stale_evidence` names the
+        # completed stages whose artifact no longer satisfies its predicate.
+        "evidence": health["stages"],
+        "evidence_health": health["tally"],
+        "stale_evidence": health["stale"],
     }
 
 
@@ -185,8 +192,14 @@ def next_stage(project_root: str, slug: str) -> dict:
         completed=set(state.get("completed", [])),
         ctx=state.get("flags", {}),
     ) if (spec and current) else {"decision": "blocked", "reason": "no current stage"}
+    # E-056: `next` is the surface an agent drives a run from, so it must not
+    # present the computed step as if the completed foundation still held.
+    health = evidence_mod.verify(project_root, state, spec)
     return {"ok": True, "slug": slug, "status": state.get("status"),
-            "current": current, "stage": stage, "after": decision}
+            "current": current, "stage": stage, "after": decision,
+            "evidence": health["stages"],
+            "evidence_health": health["tally"],
+            "stale_evidence": health["stale"]}
 
 
 def list_runs(project_root: str) -> dict:
@@ -199,12 +212,22 @@ def list_runs(project_root: str) -> dict:
                          "error": "state file unreadable — repair or remove it, do not re-create over it"})
             continue
         state = store.read_state(project_root, slug)
+        # E-058: the inventory is a READ SURFACE — an operator picks the run to
+        # continue from it, so a run whose foundation moved must not be listed
+        # as merely "completed". The verdict is derived on a bounded read
+        # (evidence.verify -> artifact_matches(bounded=True)), which is what
+        # makes classifying every run here affordable.
+        health = evidence_mod.verify(project_root, state,
+                                     store.load_spec(project_root, slug))
         runs.append({
             "slug": slug,
             "status": state.get("status"),
             "current": state.get("current"),
             "completed": len(state.get("completed", [])),
             "updated_at": state.get("updated_at"),
+            "evidence": health["stages"],
+            "evidence_health": health["tally"],
+            "stale_evidence": health["stale"],
         })
     return {"ok": True, "runs": runs}
 
@@ -255,6 +278,20 @@ def complete(project_root: str, slug: str, stage_id: str, *,
     if unmet and not force:
         return _fail(f"stage '{stage_id}' requires {unmet} first", unmet=unmet)
 
+    # E-056: an advance must not rest on evidence the workspace has moved past.
+    # Derived on every attempt (never stored). UNKNOWN is deliberately NOT a
+    # refusal — a legacy run with no witness stays advanceable — while a
+    # completed stage whose predicate no longer holds (STALE) is, and --force
+    # remains the kernel's documented escape hatch.
+    health = evidence_mod.verify(project_root, state, spec)
+    foundation = evidence_mod.foundation_of(state, stage)
+    broken = [s for s in health["stale"] if s in foundation]
+    if broken and not force:
+        return _fail(
+            f"stage '{stage_id}' rests on evidence that no longer holds: "
+            f"{broken} — re-complete it or pass --force",
+            stale_evidence=broken)
+
     ok, detail = _check_evidence(project_root, stage, spec, note)
     if not ok and not force:
         return _fail(f"evidence for '{stage_id}' is not satisfied: {detail}",
@@ -265,6 +302,13 @@ def complete(project_root: str, slug: str, stage_id: str, *,
     if stage_id not in completed:
         completed.append(stage_id)
     state["completed"] = completed
+
+    # Date the completion to the predicate that satisfied it (E-056). Stored,
+    # because the spec can be edited afterwards; the VERDICT is still derived
+    # from the artifact on every read.
+    witness = evidence_mod.witness_for(stage)
+    if witness:
+        state.setdefault("evidence", {})[stage_id] = witness
 
     # Write bridge key for the completed stage (not the target) so the
     # blackboard methodology relay sees methodology.last_* keys.
@@ -319,7 +363,8 @@ def complete(project_root: str, slug: str, stage_id: str, *,
     store.write_state(project_root, slug, state)
     return {"ok": True, "slug": slug, "completed": completed,
             "next": decision, "status": state["status"],
-            "current": state.get("current")}
+            "current": state.get("current"),
+            "evidence_health": evidence_mod.verify(project_root, state, spec)["tally"]}
 
 
 def block(project_root: str, slug: str, reason: str) -> dict:
@@ -357,34 +402,17 @@ def _check_evidence(project_root: str, stage: dict, spec: dict,
     ev = stage.get("evidence") or {}
     kind = ev.get("kind")
     if kind == "artifact":
-        raw_path = str(ev.get("path", ""))
-        full_pattern = os.path.join(project_root, raw_path)
-        if any(ch in raw_path for ch in ("*", "?", "[")):
-            matches = [p for p in glob.glob(full_pattern, recursive=True) if os.path.isfile(p)]
-            if not matches:
-                return False, f"artifact not found: {raw_path}"
-            candidate_paths = sorted(matches, key=lambda p: (os.path.getmtime(p), p), reverse=True)
-        else:
-            if not os.path.isfile(full_pattern):
-                return False, f"artifact not found: {raw_path}"
-            candidate_paths = [full_pattern]
-
-        contains = [str(t) for t in (ev.get("contains") or [])]
-        minimum = int(ev.get("min", 1))
-        if not contains:
-            return True, f"artifact {raw_path} ok"
-
-        for cand in candidate_paths:
-            try:
-                text = pathlib.Path(cand).read_text(encoding="utf-8", errors="replace")
-            except OSError:
-                continue
-            hits = sum(text.count(tok) for tok in contains)
-            if hits >= minimum:
-                return True, f"artifact {os.path.basename(cand)} ok"
-
-        return False, (f"artifact {raw_path} has no candidate matching "
-                       f"{contains} (need >= {minimum})")
+        # E-056: ONE matcher, shared with the re-derivation the read surfaces
+        # run — a second copy would be a second opinion on the same predicate.
+        # The check and the witness are the same code, so a completion cannot
+        # be recorded under a predicate the plane would later score differently.
+        found, found_detail = evidence_mod.artifact_matches(
+            project_root, str(ev.get("path", "")),
+            [str(t) for t in (ev.get("contains") or [])], ev.get("min", 1),
+            bounded=False)  # E-058: accepting a stage reads its artifact once
+        # None = cannot establish (unreadable artifact): fail-explicit, the
+        # same refusal the missing-file case gets — never a silent pass.
+        return (found is True), found_detail
     if kind == "command":
         argv = [str(a) for a in (ev.get("argv") or [])]
         if not argv:

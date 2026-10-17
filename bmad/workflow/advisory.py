@@ -15,11 +15,13 @@ the place the agent looks first (session start) shows it.
 
 from __future__ import annotations
 
+from . import evidence as evidence_mod
 from . import spec as spec_mod
 from . import store
 
 # Bounded by design: one session-edge line, never a run inventory dump.
 MAX_RUNS = 2
+MAX_BROKEN_FOUNDATION = 2  # E-056: bounded, like everything else on this line
 _TITLE_LEN = 70
 
 
@@ -44,7 +46,7 @@ def _evidence_hint(stage: dict) -> str:
     return "none (end marker)"
 
 
-def _describe(slug: str, state: dict, spec: dict) -> str:
+def _describe(slug: str, state: dict, spec: dict, project_root: str = "") -> str:
     current = state.get("current")
     status = state.get("status")
     completed = list(state.get("completed", []))
@@ -74,6 +76,24 @@ def _describe(slug: str, state: dict, spec: dict) -> str:
     else:
         parts.append("with no current stage")
 
+    # E-056: the session edge is where stale context gets obeyed, so a run whose
+    # completed stage no longer carries its evidence must not read as a clean
+    # position. Report-only (like the board plane at `freshness = warn`): the
+    # kernel refuses the advance at `complete`, and this line says why before
+    # the agent plans its next move.
+    if project_root:
+        try:
+            broken = evidence_mod.verify(project_root, state, spec)["stale"]
+        except Exception:
+            broken = []
+        if broken:
+            shown = ", ".join(f"'{s}'" for s in broken[:MAX_BROKEN_FOUNDATION])
+            extra = (f" (+{len(broken) - MAX_BROKEN_FOUNDATION} more)"
+                     if len(broken) > MAX_BROKEN_FOUNDATION else "")
+            parts.append(f"FOUNDATION MOVED: completed {shown}{extra} no longer "
+                         f"carries its evidence — re-complete it, do not trust "
+                         f"the position above")
+
     artifact = (spec or {}).get("artifact")
     if artifact:
         parts.append(f"tracked in {artifact}")
@@ -89,7 +109,8 @@ def peek(project_root: str, limit: int = MAX_RUNS) -> str:
             if not state or state.get("status") == "completed":
                 continue
             runs.append((slug, state))
-        lines = [_describe(slug, state, store.load_spec(project_root, slug))
+        lines = [_describe(slug, state, store.load_spec(project_root, slug),
+                           project_root)
                  for slug, state in runs[:max(1, limit)]]
     except Exception:
         return ""
