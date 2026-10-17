@@ -1462,9 +1462,14 @@ def test_a_candidate_past_the_byte_budget_never_produces_a_false_stale(tmp_path,
     spec = _bound_spec(pattern="logs/*.md")
     root = str(tmp_path)
     engine.create(root, spec)
+    # E-071: the witness must be a GENUINE one — `--force` now records that it
+    # was forced, which would answer UNKNOWN before the budget is ever consulted
+    # and stop exercising the read path this test is about.
+    _write(tmp_path / "logs" / "small.md", "A1\n")
+    assert engine.complete(root, spec["id"], "a")["ok"] is True
+    # The satisfying candidate loses the token, and another one is oversized.
     _write(tmp_path / "logs" / "small.md", "nothing\n")
-    (_write(tmp_path / "logs" / "big.md", "x" * 64 + "\n"))  # oversized, no token
-    assert engine.complete(root, spec["id"], "a", force=True)["ok"] is True
+    _write(tmp_path / "logs" / "big.md", "x" * 64 + "\n")
     st = engine.status(root, spec["id"])
     assert st["evidence"]["a"]["verdict"] == "UNKNOWN"
     assert "byte read budget" in st["evidence"]["a"]["reason"]
@@ -1873,6 +1878,76 @@ def test_the_cli_classifies_only_the_answered_run(tmp_path, monkeypatch, capsys)
     assert out["ok"] and out["slug"] == "only"
     # One derivation for one answer: the resolver adds none.
     assert seen["n"] == 1
+
+
+# --- a forced completion records that it was forced (E-071) --------------------
+
+def test_a_forced_artifact_completion_reads_unknown_and_does_not_block(tmp_path):
+    """`--force` satisfied nothing, so it must not read as a workspace fault."""
+    root = str(tmp_path)
+    spec = _artifact_field_spec()
+    assert engine.create(root, spec)["ok"] is True
+    _write(Path(root) / "log.md", "# no token here\n")
+    assert engine.complete(root, spec["id"], "a")["ok"] is False
+    assert engine.complete(root, spec["id"], "a", force=True)["ok"] is True
+    st = engine.status(root, spec["id"])
+    assert st["evidence"]["a"]["verdict"] == "UNKNOWN"
+    assert "--force" in st["evidence"]["a"]["reason"]
+    # Not a workspace fault: nothing lands in stale_evidence, so the run is not
+    # locked into forcing every later stage too.
+    assert st["stale_evidence"] == []
+    assert engine.next_stage(root, spec["id"])["evidence"]["a"]["verdict"] == "UNKNOWN"
+    assert engine.complete(root, spec["id"], "b", note="proceeded")["ok"] is True
+
+
+def test_a_forced_command_completion_reads_unknown_not_current(tmp_path):
+    """A command that exited 3 against rc 0 was never a passed suite."""
+    root = tmp_path / "proj"
+    root.mkdir()
+    _write(root / "app.py", "VALUE = 1\n")
+    if _git(str(root), "init", "-q").returncode != 0:
+        pytest.skip("git unavailable on this host")
+    ident = ["-c", "user.email=t@example.invalid", "-c", "user.name=t"]
+    _git(str(root), *ident, "add", "-A")
+    if _git(str(root), *ident, "commit", "-q", "-m", "init").returncode != 0:
+        pytest.skip("git cannot commit on this host")
+    spec = {
+        "id": "cmd-forced", "title": "t", "start": "c",
+        "stages": [{"id": "c", "title": "Run",
+                     "evidence": {"kind": "command",
+                                  "argv": [sys.executable, "-c",
+                                           "import sys; sys.exit(3)"], "rc": 0},
+                     "next": [{"to": "done"}]},
+                    {"id": "done", "title": "Done", "terminal": True}],
+    }
+    assert engine.create(str(root), spec)["ok"] is True
+    assert engine.complete(str(root), "cmd-forced", "c", force=True)["ok"] is True
+    entry = engine.status(str(root), "cmd-forced")["evidence"]["c"]
+    assert entry["verdict"] == "UNKNOWN"
+    assert entry["verdict"] != "CURRENT"
+    assert "--force" in entry["reason"]
+
+
+def test_a_genuine_completion_is_still_current_without_a_forced_marker(tmp_path):
+    root = str(tmp_path)
+    spec = _artifact_field_spec()
+    engine.create(root, spec)
+    _write(Path(root) / "log.md", "A1\n")
+    assert engine.complete(root, spec["id"], "a")["ok"] is True
+    st = engine.status(root, spec["id"])
+    assert st["evidence"]["a"]["verdict"] == "CURRENT"
+    state = json.loads(Path(store_mod.state_path(root, spec["id"])).read_text(encoding="utf-8"))
+    assert "forced" not in (state.get("evidence") or {})["a"]
+
+
+def test_unsatisfied_evidence_is_still_refused_without_force(tmp_path):
+    root = str(tmp_path)
+    spec = _artifact_field_spec()
+    engine.create(root, spec)
+    _write(Path(root) / "log.md", "# no token here\n")
+    got = engine.complete(root, spec["id"], "a")
+    assert got["ok"] is False and "not satisfied" in got["error"]
+    assert json.loads(Path(store_mod.state_path(root, spec["id"])).read_text(encoding="utf-8"))["completed"] == []
 
 
 def test_create_refuses_a_declared_artifact_outside_the_root(tmp_path):

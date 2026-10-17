@@ -371,8 +371,16 @@ def complete(project_root: str, slug: str, stage_id: str, *,
     # Date the completion to the predicate that satisfied it (E-056). Stored,
     # because the spec can be edited afterwards; the VERDICT is still derived
     # from the artifact on every read.
+    # E-070: a completion accepted with `--force` satisfied NOTHING, so the
+    # witness must say so. Recorded without that marker it was indistinguishable
+    # from a real one, and the plane then either blamed the workspace for the
+    # kernel's own claim (STALE, which also blocked the next advance on it) or
+    # vouched for a command that never passed (CURRENT).
     witness = evidence_mod.witness_for(stage, project_root=project_root)
     if witness:
+        if not ok:
+            witness["forced"] = True
+            witness["forced_detail"] = detail
         state.setdefault("evidence", {})[stage_id] = witness
 
     # Write bridge key for the completed stage (not the target) so the

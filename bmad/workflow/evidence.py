@@ -334,6 +334,19 @@ def classify(project_root: str, witness: dict, *,
     make every classified stage pay a subprocess.
     """
     w = witness if isinstance(witness, dict) else {}
+    if w.get("forced"):
+        # E-070: `--force` accepted the stage without its evidence, so the
+        # witness records what was DECLARED, not what happened. Nothing can be
+        # re-derived from it — and it must not be reported as a workspace fault
+        # (STALE, which also blocks the next advance) or as satisfied (CURRENT).
+        # Checked before the kind split: a forced command witness has no result
+        # worth comparing, and a forced artifact one has no satisfied predicate.
+        why = str(w.get("forced_detail") or "the evidence was not satisfied")
+        return UNKNOWN, {
+            "reason": (f"completed with --force ({why}) — nothing was established, "
+                       f"so nothing can be re-derived; re-complete the stage on "
+                       f"real evidence to date it"),
+            "path": str(w.get("path", "")), "detail": ""}
     kind = w.get("kind")
     if kind == COMMAND:
         return _classify_command(project_root, w, code_state_now)

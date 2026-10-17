@@ -18,6 +18,7 @@
 # Methodology record: docs/development/SP-010.md
 # Methodology record: docs/development/SP-011.md
 # Methodology record: docs/development/SP-012.md
+# Methodology record: docs/development/SP-013.md
 #
 # project: metodoloji
 # tracking_system: file-system
@@ -99,3 +100,12 @@ development_status:
   # by QR-024. No native draft, so the board key is declared in the story as its
   # native-shaped alias.
   9-1-slug-resolve-names-only: done
+  epic-10: done
+  # S-010 — "Record what a forced completion actually established". `--force`
+  # existed for evidence the environment cannot prove, but the witness it left
+  # was derived from the spec: E-070 measured the two lies (artifact -> STALE,
+  # which also blocked the next advance on the kernel's own claim; command ->
+  # CURRENT, vouching for a suite that never passed) and E-071 marked the record
+  # (0.0 / 0.0 with a clean control); CLOSED by QR-025. No native draft, so the
+  # board key is declared in the story as its native-shaped alias.
+  10-1-forced-completion-honest: done

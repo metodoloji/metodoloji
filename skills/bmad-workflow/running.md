@@ -70,6 +70,14 @@ opened — the run then reads as having no spec, and `complete` says so. If a ru
 `total_stages: 0`, its definition moved out of the project or its state was edited; re-create the
 run with `create --spec`, do not hand-fix the state.
 
+`--force` bypasses the evidence check, and what it leaves behind now says so (E-071): the completed
+stage's record is marked as forced, so every surface answers `UNKNOWN` — naming the force and what
+it overrode — instead of `STALE` (which would blame the workspace and block your next advance) or
+`CURRENT` (which would vouch that a command passed when it exited non-zero). UNKNOWN never blocks,
+so forcing one stage does not lock the run into forcing every later one; re-complete the stage on
+real evidence when you can produce it. The gate itself is unchanged: without `--force` the same
+missing evidence is still refused.
+
 Commands that take no `--slug` (`status`, `next`, `resume`, `history`) resolve the run from the
 stored names first (E-069): one run ⇒ that run, several ⇒ the CLI asks you for `--slug`. The
 lookup reads no evidence, so it costs nothing and cannot derive a verdict for a run you did not

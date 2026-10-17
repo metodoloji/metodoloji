@@ -145,6 +145,29 @@ arithmetic (a name question needs ZERO artifact reads), not something the
 implementation defines. `--baseline` installs the pre-fix resolver verbatim, so
 both trees run real code.
 
+And a FORCED completion is scored, because `--force` exists for work the
+environment cannot prove — and the plane recorded it as if it had:
+
+    forced_claim_rate   ⇔ a completion accepted with `--force` delivered a verdict
+                          about evidence that was never satisfied. Two shapes,
+                          both real: an `artifact` stage whose token is missing
+                          reads STALE (the plane blames the workspace and, worse,
+                          blocks the next advance on its own unverified claim),
+                          and a `command` stage whose argv exits 3 when rc 0 was
+                          declared reads CURRENT (the plane vouches for a run
+                          that never passed). The honest answer is UNKNOWN naming
+                          the force: nothing was established, so nothing can be
+                          re-derived.
+    forced_control_rate ⇔ the paired control: a GENUINE completion still answers
+                          CURRENT on every surface, and the same unsatisfied
+                          evidence is still REFUSED without `--force`. Must be 0.0
+                          on BOTH trees — a fix that turned every completion into
+                          UNKNOWN would be worthless.
+
+`--baseline` strips the forced marker from the recorded witness, because that is
+exactly the state the unfixed tree wrote; the surfaces then classify it with real
+code, so the recorded red is not a model of a delivery, it is the old record.
+
 Trial verdicts:
 
     stale_evidence_rate = a completed stage delivered as satisfied while the
@@ -171,6 +194,10 @@ Trial verdicts:
                                                                     (the defect)
     slug_resolve_control_rate = a slug resolution that answered wrongly
                                                                       (control)
+    forced_claim_rate = a `--force` completion delivered as CURRENT or STALE
+                                                                    (the defect)
+    forced_control_rate = a genuine completion not delivered as CURRENT, or an
+                          unforced refusal that was accepted               (control)
     false_alarm_rate    = a satisfied stage delivered as anything but CURRENT
                           (noise; also fails a "mark everything UNKNOWN" non-fix)
 
@@ -839,6 +866,109 @@ def _slug_resolve_trial(tmp: pathlib.Path, label: str, slugs: list[str]) -> dict
             "chosen": chosen, "expected": expected}
 
 
+# --- forced completions: the claim nobody established (E-070) -------------------
+# `--force` is the kernel's documented escape hatch for evidence the environment
+# genuinely cannot produce. What it recorded, though, was a witness identical to
+# a satisfied one — so the plane later either blamed the workspace (STALE, and
+# blocked the next advance on it) or vouched for a command that never ran
+# (CURRENT). A forced completion must say that it was forced.
+
+def _forced_artifact_spec() -> dict:
+    return {
+        "id": "forced-artifact", "title": "forced artifact", "start": "a",
+        "stages": [
+            {"id": "a", "title": "A",
+             "evidence": {"kind": "artifact", "path": _ARTIFACT,
+                          "contains": ["FINDING"], "min": 1},
+             "next": [{"to": "b"}]},
+            {"id": "b", "title": "B", "evidence": {"kind": "note"},
+             "next": [{"to": "done"}]},
+            {"id": "done", "title": "Done", "terminal": True},
+        ],
+    }
+
+
+def _forced_command_spec() -> dict:
+    return {
+        "id": "forced-command", "title": "forced command", "start": "c",
+        "stages": [
+            {"id": "c", "title": "Run the suite",
+             "evidence": {"kind": "command",
+                          "argv": [sys.executable, "-c",
+                                   "import sys; sys.exit(3)"], "rc": 0},
+             "next": [{"to": "done"}]},
+            {"id": "done", "title": "Done", "terminal": True},
+        ],
+    }
+
+
+def _prepare_forced_run(tmp: pathlib.Path, name: str, kind: str):
+    """A run whose stage completed on evidence that was NOT satisfied.
+
+    `artifact`: the file exists without the declared token. `command`: the argv
+    exits 3 where rc 0 was declared — and the project is a git work tree, because
+    a command witness is dated to a tracked code state and that dating is part of
+    what makes the false CURRENT reachable.
+    """
+    root = tmp / name
+    root.mkdir(parents=True)
+    if kind == "command":
+        _write(root, "app.py", "V = 1\n")
+        _git(root, "init", "-q")
+        _commit(root, "init")
+        spec = _forced_command_spec()
+        stage = "c"
+    else:
+        _write(root, _ARTIFACT, "# analysis without the token\n")
+        spec = _forced_artifact_spec()
+        stage = "a"
+    if not engine.create(str(root), spec).get("ok"):
+        raise RuntimeError(f"{name}: create failed")
+    if not engine.complete(str(root), spec["id"], stage, force=True).get("ok"):
+        raise RuntimeError(f"{name}: forced complete refused")
+    if BASELINE:
+        # The unfixed tree wrote a witness with no forced marker; strip it so the
+        # surfaces classify the OLD record with real code.
+        path = pathlib.Path(store_mod.state_path(str(root), spec["id"]))
+        data = json.loads(path.read_text(encoding="utf-8"))
+        for witness in (data.get("evidence") or {}).values():
+            witness.pop("forced", None)
+            witness.pop("forced_detail", None)
+        path.write_text(json.dumps(data), encoding="utf-8")
+    return str(root), spec["id"], stage
+
+
+def _forced_verdicts(root: str, slug: str, stage: str) -> dict[str, str | None]:
+    """The verdict each surface delivers for the forced completion (never None)."""
+    status = engine.status(root, slug)
+    nxt = engine.next_stage(root, slug)
+    row = _row_for(root, slug)
+
+    def _of(result: dict) -> str | None:
+        verdict = ((result.get("evidence") or {}).get(stage) or {}).get("verdict")
+        return str(verdict).upper() if verdict else None
+
+    return {"status": _of(status), "next": _of(nxt), "list": _of(row)}
+
+
+def _run_forced_control(tmp: pathlib.Path, name: str = "forced-control") -> dict[str, bool]:
+    """A genuine completion still reads CURRENT, and an unforced refusal stands."""
+    root = tmp / name
+    root.mkdir(parents=True)
+    _write(root, _ARTIFACT, "# analysis without the token\n")
+    spec = _forced_artifact_spec()
+    if not engine.create(str(root), spec).get("ok"):
+        raise RuntimeError(f"{name}: create failed")
+    # The gate must still refuse the unsatisfied evidence when nobody forces it.
+    refused = engine.complete(str(root), spec["id"], "a")
+    _write(root, _ARTIFACT, "# analysis\nFINDING 1\n")
+    if not engine.complete(str(root), spec["id"], "a").get("ok"):
+        raise RuntimeError(f"{name}: genuine complete refused")
+    surfaces = _forced_verdicts(str(root), spec["id"], "a")
+    return {**{k: v != "CURRENT" for k, v in surfaces.items()},
+            "gate": bool(refused.get("ok"))}
+
+
 def _past_candidate_cap(root: pathlib.Path) -> None:
     """Bury the satisfying candidate under more matches than the scan bound.
 
@@ -900,6 +1030,7 @@ def measure() -> dict:
     afield = afield_n = afield_accepted = afield_gate_n = 0
     afield_control = afield_control_n = 0
     slug_reads = slug_reads_n = slug_wrong = slug_wrong_n = 0
+    forced = forced_n = forced_control = forced_control_n = 0
     slug_status_reads = 0
     evidence_mod.artifact_matches = _counted_matches
     try:
@@ -1017,6 +1148,23 @@ def measure() -> dict:
                 slug_wrong += 1
                 lines.append(f"  CONTROL slug-{label}: resolved to "
                              f"{trial['chosen']!r}, expected {trial['expected']!r}")
+        # Bucket 8: a forced completion must not deliver a claim it never made.
+        for label, kind in (("forced-artifact", "artifact"),
+                            ("forced-command", "command")):
+            root, slug, stage = _prepare_forced_run(tmp, label, kind)
+            for surface, delivered in _forced_verdicts(root, slug, stage).items():
+                forced_n += 1
+                if delivered != "UNKNOWN":
+                    forced += 1
+                    lines.append(f"  FORCED {label}/{surface}: a completion "
+                                 f"accepted with --force delivered as "
+                                 f"{delivered or 'no verdict'}")
+        for surface, failed in _run_forced_control(tmp).items():
+            forced_control_n += 1
+            if failed:
+                forced_control += 1
+                lines.append(f"  CONTROL forced-control/{surface}: a genuine "
+                             f"completion or the unforced refusal changed")
         for surface, missing in _run_artifact_field_control(tmp).items():
             afield_control_n += 1
             if missing:
@@ -1029,7 +1177,8 @@ def measure() -> dict:
     if (not stale_n or not current_n or not unbounded_n or not escape_n
             or not storage_n or not control_n or not silence_n or not held_n
             or not afield_n or not afield_gate_n or not afield_control_n
-            or not slug_reads_n or not slug_wrong_n):
+            or not slug_reads_n or not slug_wrong_n
+            or not forced_n or not forced_control_n):
         raise RuntimeError("fixture produced no trials — build broken")
     return {"leaks": leaks, "stale_n": stale_n,
             "false_alarms": false_alarms, "current_n": current_n,
@@ -1045,6 +1194,8 @@ def measure() -> dict:
             "afield_control": afield_control, "afield_control_n": afield_control_n,
             "slug_reads": slug_reads, "slug_reads_n": slug_reads_n,
             "slug_wrong": slug_wrong, "slug_wrong_n": slug_wrong_n,
+            "forced": forced, "forced_n": forced_n,
+            "forced_control": forced_control, "forced_control_n": forced_control_n,
             "slug_status_reads": slug_status_reads,
             "lines": lines}
 
@@ -1118,6 +1269,7 @@ def main() -> int:
           f"artifact_field_gate={r['afield_gate_n']} "
           f"artifact_field_control={r['afield_control_n']} "
           f"slug_resolve={r['slug_reads_n']} slug_resolve_control={r['slug_wrong_n']} "
+          f"forced={r['forced_n']} forced_control={r['forced_control_n']} "
           f"surfaces=status+next+list"
           + (" mode=baseline(pre-fix delivery)" if BASELINE else ""))
     print(f"stale_evidence_rate={r['leaks'] / r['stale_n']:.4f} "
@@ -1150,6 +1302,10 @@ def main() -> int:
           f"({r['slug_reads']}/{r['slug_reads_n']})")
     print(f"slug_resolve_control_rate={r['slug_wrong'] / r['slug_wrong_n']:.4f} "
           f"({r['slug_wrong']}/{r['slug_wrong_n']})")
+    print(f"forced_claim_rate={r['forced'] / r['forced_n']:.4f} "
+          f"({r['forced']}/{r['forced_n']})")
+    print(f"forced_control_rate={r['forced_control'] / r['forced_control_n']:.4f} "
+          f"({r['forced_control']}/{r['forced_control_n']})")
     return 0
 
 
