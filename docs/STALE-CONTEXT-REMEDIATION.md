@@ -3,7 +3,7 @@
 > **Durum:** **UYGULANDI (P0–P7).** Bu dosya araştırma çıktısıdır; uygulaması §9'daki kayıt zinciriyle yapıldı — güncel durum için §12'ye bak.
 > **Tetikleyici:** bir LinkedIn yorumu — *"The failure mode we hit most isn't lost context, it's stale context. Yesterday's decision is still in the handoff file, and the agent obeys it after the code has already moved on. Our fix was dating every recorded decision to a commit, so a handoff can say 'this no longer applies' instead of just repeating the past."*
 > **Ölçüm tarihi:** 2026-10-16, metodoloji dogfood reposu (48 E kaydı, `.metodoloji/blackboard.json` canlı board).
-> **Kapanış:** 2026-10-16 — E-052 (baseline, REJECTED, measured=1.0) → E-053 (fix, APPROVED, measured=0.0) → IR-002 → SP-005 → S-002 → QR-017; TD-016 ödendi (`docs/development/tech-debt.md`).
+> **Kapanış:** 2026-10-16 — E-052 (baseline, REJECTED, measured=1.0) → E-053 (fix, APPROVED, measured=0.0) → IR-002 → SP-005 → S-002 → QR-017; TD-016 ödendi (`docs/development/tech-debt.md`). Değişiklik land edildi (`d715318`, v0.1.55); E-053 landed commit **öncesi** kirli ağaca tarihlendiği için tazelik düzlemi onu haklı olarak `STALE` gösterir — landed durumda yeniden ölçüm **E-054** (APPROVED + CURRENT) ve E-053 `Re-Measured-By: E-054` ile süpersede (CASCADE_INVALIDATION).
 
 ---
 
