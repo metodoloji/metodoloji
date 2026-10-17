@@ -71,6 +71,80 @@ state carries (its `spec_file`):
                            an in-root spec and a matching slug, all three
                            surfaces deliver the run's own shape.
 
+And COMMAND evidence is scored, because a stage whose proof is "this argv exited
+0" is the one claim in the plane that cannot be re-derived by looking — and the
+plane used to say nothing about it at all:
+
+    command_silence_rate ⇔ a completed `command` stage whose TRACKED CODE STATE has
+                           moved since the command ran was delivered without a
+                           verdict (or as CURRENT). Nothing distinguishes "the
+                           suite passed against this code" from "the suite
+                           passed forty commits ago" unless the completion is
+                           dated, so the trial changes the tracked tree (a new
+                           commit in one fixture, a dirty edit of a tracked file
+                           in the other) and demands the honest UNKNOWN with the
+                           reason. The fixture's own project is a git work tree,
+                           which is the code-state oracle the board plane already
+                           dates its decisions to (E-053/E-054).
+    command_hold_rate    ⇔ the paired control: a command completion whose tracked
+                           code state is UNCHANGED must answer CURRENT — it fails
+                           a "mark every command UNKNOWN" non-fix, which would
+                           make the verdict worthless. (Baseline 3/3: the
+                           unfixed plane answers nothing at all, so the control
+                           fails there too, by silence.)
+
+And the SPEC's own declared `artifact` field is scored, because it is the one
+pointer the session edge repeats to the agent — "tracked in X" — and a spec can
+name a file the run does not own:
+
+    artifact_field_escape_rate   ⇔ an out-of-root `artifact` was DELIVERED as the
+                                   run's tracking location: `status.artifact`
+                                   resolved outside the root, or the session
+                                   advisory said "tracked in <path>". The agent
+                                   obeys the line, so the plane must not hand
+                                   over a path it does not own.
+    artifact_field_accepted_rate ⇔ `create` accepted a spec whose declared
+                                   `artifact` resolves outside the root. The
+                                   write that plants such a pointer must be
+                                   refused, naming the cause.
+    artifact_field_control_rate  ⇔ the paired control: an in-root `artifact` is
+                                   still delivered verbatim by both surfaces.
+                                   Must be 0.0 on BOTH trees — a containment
+                                   applied too eagerly would stop naming the
+                                   run's own durable file.
+
+The fixed tree is measured through REAL code: the run is created from a spec
+with no `artifact`, and the SAVED copy is then given one — precisely what an
+older tree, a hand edit, or a spec authored elsewhere leaves behind, so the read
+side must handle that shape whether or not the write side now refuses it.
+`--baseline` MODELS the pre-fix delivery for this bucket (the recorded 1.0/1.0
+was measured on the unfixed tree; no unfixed path remains to call), like the
+delivery and gate buckets and unlike the storage bucket, which restores the old
+loader and runs it.
+
+And the NAME question is scored, because the CLI answers "which run did the
+operator mean?" by DERIVING EVIDENCE for every run:
+
+    slug_resolve_read_rate    ⇔ resolving a slug (or refusing to resolve an
+                                ambiguous one) derived at least one evidence
+                                verdict. A name question is answered by the
+                                FILENAMES the store already lists; classifying
+                                every run to answer it puts the whole evidence
+                                plane (bounded artifact reads, one code-state
+                                probe) behind a lookup, and then classifies the
+                                answered run a second time when `status` runs.
+    slug_resolve_control_rate ⇔ the resolution returned the WRONG answer (one
+                                run must resolve to it; two or more must stay
+                                ambiguous; none must stay unresolved). Must be
+                                0.0 on BOTH trees: a resolver that got cheap by
+                                answering "no single run" would be useless.
+
+The read counter is a WRAPPER around the plane's one matcher
+(`artifact_matches`), installed for the duration of a trial: the expectation is
+arithmetic (a name question needs ZERO artifact reads), not something the
+implementation defines. `--baseline` installs the pre-fix resolver verbatim, so
+both trees run real code.
+
 Trial verdicts:
 
     stale_evidence_rate = a completed stage delivered as satisfied while the
@@ -83,6 +157,20 @@ Trial verdicts:
                                                                     (the defect)
     storage_escape_rate = a run's spec read from outside the project root
                                                                     (the defect)
+    command_silence_rate= a command completion at a moved code state delivered
+                          with no verdict, or as CURRENT            (the defect)
+    command_hold_rate   = a command completion at an unchanged code state NOT
+                          delivered as CURRENT                      (control)
+    artifact_field_escape_rate = an out-of-root declared `artifact` delivered as
+                          the run's tracking location                 (the defect)
+    artifact_field_accepted_rate = `create` accepting an out-of-root declared
+                          `artifact`                                 (the defect)
+    artifact_field_control_rate = an in-root declared `artifact` NOT delivered
+                          as the run's tracking location             (control)
+    slug_resolve_read_rate = a slug resolution that derived an evidence verdict
+                                                                    (the defect)
+    slug_resolve_control_rate = a slug resolution that answered wrongly
+                                                                      (control)
     false_alarm_rate    = a satisfied stage delivered as anything but CURRENT
                           (noise; also fails a "mark everything UNKNOWN" non-fix)
 
@@ -107,6 +195,7 @@ import json
 import os
 import pathlib
 import shutil
+import subprocess
 import sys
 import tempfile
 
@@ -114,8 +203,8 @@ _PLUGIN = pathlib.Path(__file__).resolve().parents[2]
 if str(_PLUGIN) not in sys.path:
     sys.path.insert(0, str(_PLUGIN))
 
-from bmad.workflow import (engine, evidence as evidence_mod,  # noqa: E402
-                           store as store_mod)
+from bmad.workflow import (advisory as advisory_mod, engine,  # noqa: E402
+                           evidence as evidence_mod, store as store_mod)
 
 # Pre-fix delivery semantics: the read surfaces carried no evidence dimension,
 # so a completed stage could only arrive as satisfied. See the module docstring.
@@ -477,6 +566,279 @@ def _run_storage_control(tmp: pathlib.Path, name: str = "storage-control") -> di
     }
 
 
+# --- the command bucket: a result dated to the code state it was run against --
+# "this argv exited 0" cannot be re-derived by looking, so the only useful honest
+# answer is a comparison: is the TRACKED code state still the one the command was
+# recorded against? A `dirty` move edits a tracked file without committing, so the
+# two fixtures cover both halves of the fingerprint (the commit and the dirty set).
+
+def _git(root: pathlib.Path, *args: str) -> None:
+    proc = subprocess.run(["git", *args], cwd=root, capture_output=True, text=True,
+                          encoding="utf-8", errors="replace",
+                          stdin=subprocess.DEVNULL, timeout=60)
+    if proc.returncode != 0:
+        raise RuntimeError(f"git {' '.join(args)} failed: "
+                           f"{(proc.stderr or proc.stdout).strip()[:160]}")
+
+
+def _commit(root: pathlib.Path, message: str) -> None:
+    ident = ["-c", "user.email=bench@example.invalid", "-c", "user.name=bench"]
+    _git(root, *ident, "add", "-A")
+    _git(root, *ident, "commit", "-q", "-m", message)
+
+
+def _command_spec() -> dict:
+    return {
+        "id": "cmd-demo",
+        "title": "command evidence demo",
+        "start": "check",
+        "stages": [
+            {"id": "check", "title": "Run the suite",
+             "evidence": {"kind": "command",
+                          "argv": [sys.executable, "-c", "print('ok')"], "rc": 0},
+             "next": [{"to": "ship"}]},
+            {"id": "ship", "title": "Ship",
+             "evidence": {"kind": "note"}, "next": [{"to": "done"}]},
+            {"id": "done", "title": "Done", "terminal": True},
+        ],
+    }
+
+
+def _command_cases() -> list[str]:
+    """How the tracked code state moves after the command is recorded."""
+    return ["committed-change", "dirty-edit"]
+
+
+def _prepare_command_run(tmp: pathlib.Path, name: str, movement: str):
+    """A git work tree whose `check` stage completed on a command, then moved."""
+    root = tmp / name
+    root.mkdir(parents=True)
+    _write(root, "app.py", "VALUE = 1\n")
+    _git(root, "init", "-q")
+    _commit(root, "init")
+    spec = _command_spec()
+    created = engine.create(str(root), spec)
+    if not created.get("ok"):
+        raise RuntimeError(f"{name}: create failed: {created}")
+    done = engine.complete(str(root), spec["id"], "check")
+    if not done.get("ok"):
+        raise RuntimeError(f"{name}: complete refused: {done}")
+    _write(root, "app.py", "VALUE = 2  # the suite would run against this now\n")
+    if movement == "committed-change":
+        _commit(root, "move the code on")
+    return root, spec["id"]
+
+
+def _command_verdicts(root: str, slug: str, stage: str = "check") -> dict[str, str | None]:
+    """The verdict each surface delivered for the completed command stage."""
+    if BASELINE:
+        # Pre-fix semantics: `verify` SKIPPED command stages entirely, so every
+        # surface delivered the completion with no verdict dimension at all.
+        return {name: None for name in ("status", "next", "list")}
+    status = engine.status(root, slug)
+    nxt = engine.next_stage(root, slug)
+    row = _row_for(root, slug)
+
+    def _of(result: dict) -> str | None:
+        entry = (result.get("evidence") or {}).get(stage) or {}
+        verdict = entry.get("verdict")
+        return str(verdict).upper() if verdict else None
+
+    return {"status": _of(status), "next": _of(nxt), "list": _of(row)}
+
+
+def _run_command_control(tmp: pathlib.Path, name: str = "command-control"):
+    """A command completion whose tracked code state did NOT move."""
+    root = tmp / name
+    root.mkdir(parents=True)
+    _write(root, "app.py", "VALUE = 1\n")
+    _git(root, "init", "-q")
+    _commit(root, "init")
+    spec = _command_spec()
+    engine.create(str(root), spec)
+    if not engine.complete(str(root), spec["id"], "check").get("ok"):
+        raise RuntimeError(f"{name}: complete refused")
+    return str(root), spec["id"]
+
+
+# --- the declared-artifact bucket: the pointer the session edge repeats --------
+# A spec's top-level `artifact` is its durable source of truth: the session
+# advisory tells the agent "tracked in <it>". A pointer outside the project is
+# therefore not a style question — it is a location the agent will read and
+# write, named by a file the run does not own.
+_DECLARED_ARTIFACT = "docs/notes.md"  # inside the run's project (the control)
+
+
+def _artifact_field_cases() -> list[tuple[str, object]]:
+    """(label, declared) — the spec's `artifact` names a file the run does not own."""
+    return [
+        ("dotdot-sibling", lambda r: f"../{_OUTSIDE}"),
+        ("dotdot-middle", lambda r: f"docs/../../{_OUTSIDE}"),
+        ("absolute-path", lambda r: str(r.parent / _OUTSIDE)),
+    ]
+
+
+def _artifact_field_spec(declared: str | None) -> dict:
+    spec = _spec()
+    spec["id"] = "artifact-field-demo"
+    if declared is not None:
+        spec["artifact"] = declared
+    return spec
+
+
+def _prepare_artifact_field_run(tmp: pathlib.Path, name: str, declared: str):
+    """A run whose SAVED spec copy declares an out-of-root `artifact`.
+
+    The copy is edited AFTER `create` on purpose: that is the shape an older
+    tree, a hand edit or a spec authored outside this kernel leaves behind, and
+    the read surfaces must handle it whether or not the write side refuses it
+    today. Both trees are therefore measured through real code, no simulation.
+    """
+    root = tmp / name
+    root.mkdir(parents=True)
+    (tmp / _OUTSIDE).write_text("# outside\n", encoding="utf-8")
+    spec = _artifact_field_spec(None)
+    if not engine.create(str(root), spec).get("ok"):
+        raise RuntimeError(f"{name}: create failed")
+    _write(root, _ARTIFACT, "# analysis\nFINDING 1\n")
+    if not engine.complete(str(root), spec["id"], "analyze").get("ok"):
+        raise RuntimeError(f"{name}: complete refused")
+    copy = pathlib.Path(store_mod.paths(str(root))["specs"]) / f"{spec['id']}.json"
+    data = json.loads(copy.read_text(encoding="utf-8"))
+    data["artifact"] = declared
+    copy.write_text(json.dumps(data), encoding="utf-8")
+    return str(root), spec["id"]
+
+
+def _resolves_outside(root: str, path: str) -> bool:
+    """Lexical+real answer, computed WITHOUT the module under test."""
+    base = pathlib.Path(root).resolve()
+    probe = pathlib.Path(path)
+    target = probe if probe.is_absolute() else (pathlib.Path(root) / probe)
+    try:
+        target = target.resolve()
+    except OSError:
+        return True
+    return target != base and base not in target.parents
+
+
+def _artifact_field_delivered(root: str, slug: str, declared: str) -> dict[str, bool]:
+    """True per surface when the pointer was handed over as the run's own."""
+    if BASELINE:
+        # Pre-fix delivery: both surfaces repeated the pointer verbatim, because
+        # nothing asked where it resolved. Modelled — the recorded baseline (1.0)
+        # was measured on the unfixed tree, and no unfixed path remains to call.
+        return {"status": True, "advisory": True}
+    status = engine.status(root, slug)
+    field = status.get("artifact")
+    line = advisory_mod.peek(root)
+    return {
+        # the peek hands the agent the path as `artifact`
+        "status": bool(field) and _resolves_outside(root, str(field)),
+        # the session edge says "tracked in <that path>"
+        "advisory": f"tracked in {declared}" in line,
+    }
+
+
+def _run_artifact_field_gate_trial(tmp: pathlib.Path, name: str, declared: str) -> bool:
+    """Does `create` accept a spec whose declared `artifact` escapes the root?"""
+    if BASELINE:
+        # Pre-fix: there was no gate check at all, so the spec was accepted.
+        return True
+    root = tmp / name
+    root.mkdir(parents=True)
+    spec = _artifact_field_spec(declared)
+    return bool(engine.create(str(root), spec).get("ok"))
+
+
+def _run_artifact_field_control(tmp: pathlib.Path, name: str = "artifact-field-control"):
+    """An in-root `artifact` must still be delivered verbatim (no over-refusal)."""
+    root = tmp / name
+    root.mkdir(parents=True)
+    spec = _artifact_field_spec(_DECLARED_ARTIFACT)
+    if not engine.create(str(root), spec).get("ok"):
+        raise RuntimeError(f"{name}: create refused a legitimate spec")
+    _write(root, _ARTIFACT, "# analysis\nFINDING 1\n")
+    if not engine.complete(str(root), spec["id"], "analyze").get("ok"):
+        raise RuntimeError(f"{name}: complete refused")
+    status = engine.status(str(root), spec["id"])
+    line = advisory_mod.peek(str(root))
+    return {
+        "status": status.get("artifact") != _DECLARED_ARTIFACT,
+        "advisory": f"tracked in {_DECLARED_ARTIFACT}" not in line,
+    }
+
+
+# --- the name question: does resolving a slug derive evidence? ------------------
+# The CLI's "no --slug given" path asks WHICH run, and the only thing it needs is
+# a filename. The pre-fix resolver went through the inventory, which derives a
+# verdict for every run (bounded artifact reads plus a shared code-state probe) —
+# and then `status` classified the answered run again.
+_REAL_MATCHES = evidence_mod.artifact_matches
+_READS = {"n": 0}
+
+
+def _counted_matches(*args, **kwargs):
+    """Count artifact matches actually performed (the plane's one choke point)."""
+    _READS["n"] += 1
+    return _REAL_MATCHES(*args, **kwargs)
+
+
+def _legacy_resolve(project_root: str, slug: str | None = None) -> str | None:
+    """The pre-fix resolver verbatim (E-068): classify the inventory, take a row."""
+    if slug:
+        return slug
+    runs = engine.list_runs(project_root).get("runs", [])
+    return runs[0]["slug"] if len(runs) == 1 else None
+
+
+def _install_prefix_resolver() -> None:
+    """`--baseline` runs the OLD resolution, not a model of it."""
+    engine.resolve_slug = _legacy_resolve
+
+
+def _resolver():
+    """The resolver the CLI calls: the fixed one when it ships, else the legacy."""
+    return getattr(engine, "resolve_slug", _legacy_resolve)
+
+
+def _slug_resolve_cases() -> list[tuple[str, list[str]]]:
+    """(label, slugs) — one run (resolves) and three (must stay ambiguous)."""
+    return [("single-run", ["r1"]), ("ambiguous", ["r1", "r2", "r3"])]
+
+
+def _prepare_slug_project(tmp: pathlib.Path, name: str, slugs: list[str]):
+    """A project whose every run has a completed ARTIFACT stage to classify."""
+    root = tmp / name
+    root.mkdir(parents=True)
+    _write(root, _ARTIFACT, "# analysis\nFINDING 1\n")
+    spec = _spec()
+    for slug in slugs:
+        if not engine.create(str(root), spec, slug=slug).get("ok"):
+            raise RuntimeError(f"{name}: create '{slug}' failed")
+        done = engine.complete(str(root), slug, "analyze")
+        if not done.get("ok"):
+            raise RuntimeError(f"{name}: complete '{slug}' refused: {done}")
+    return str(root)
+
+
+def _slug_resolve_trial(tmp: pathlib.Path, label: str, slugs: list[str]) -> dict[str, object]:
+    """Reads performed by the RESOLUTION alone, and whether it answered right."""
+    root = _prepare_slug_project(tmp, f"slug-{label}", slugs)
+    expected = slugs[0] if len(slugs) == 1 else None
+    _READS["n"] = 0
+    chosen = _resolver()(root)
+    reads = _READS["n"]
+    _READS["n"] = 0
+    # What the CLI then does with the answer: one run's worth of classification.
+    if chosen:
+        engine.status(root, chosen)
+    status_reads = _READS["n"]
+    return {"reads": reads, "status_reads": status_reads,
+            "wrong": (chosen != expected),
+            "chosen": chosen, "expected": expected}
+
+
 def _past_candidate_cap(root: pathlib.Path) -> None:
     """Bury the satisfying candidate under more matches than the scan bound.
 
@@ -534,6 +896,12 @@ def measure() -> dict:
     leaks = stale_n = false_alarms = current_n = 0
     unbounded = unbounded_n = escape = escape_n = accepted = accepted_n = 0
     storage = storage_n = control = control_n = 0
+    silence = silence_n = held = held_n = 0
+    afield = afield_n = afield_accepted = afield_gate_n = 0
+    afield_control = afield_control_n = 0
+    slug_reads = slug_reads_n = slug_wrong = slug_wrong_n = 0
+    slug_status_reads = 0
+    evidence_mod.artifact_matches = _counted_matches
     try:
         # Bucket 1: delivery (stale vs current).
         for expected_stale, (label, pattern, create, mutate) in itertools.chain(
@@ -597,10 +965,71 @@ def measure() -> dict:
                 control += 1
                 lines.append(f"  CONTROL storage-control/{surface}: a legitimate "
                              f"run stopped resolving its own spec")
+        # Bucket 5: command evidence, dated to the tracked code state.
+        for label in _command_cases():
+            root, slug = _prepare_command_run(tmp, f"command-{label}", label)
+            for surface, delivered in _command_verdicts(str(root), slug).items():
+                silence_n += 1
+                if delivered != "UNKNOWN":
+                    silence += 1
+                    lines.append(f"  COMMAND {label}/{surface}: a command at a "
+                                 f"moved code state delivered as "
+                                 f"{delivered or 'no verdict'}")
+        root, slug = _run_command_control(tmp)
+        for surface, delivered in _command_verdicts(root, slug).items():
+            held_n += 1
+            if delivered != "CURRENT":
+                held += 1
+                lines.append(f"  CONTROL command-control/{surface}: an unchanged "
+                             f"code state delivered as "
+                             f"{delivered or 'no verdict'}")
+        # Bucket 6: the spec's declared `artifact` field must stay in the root.
+        for label, declared in _artifact_field_cases():
+            name = f"afield-{label}"
+            pattern = declared(tmp / name)
+            root, slug = _prepare_artifact_field_run(tmp, name, pattern)
+            for surface, delivered in _artifact_field_delivered(
+                    root, slug, pattern).items():
+                afield_n += 1
+                if delivered:
+                    afield += 1
+                    lines.append(f"  AFIELD {label}/{surface}: an out-of-root "
+                                 f"`artifact` was delivered as the run's "
+                                 f"tracking location")
+            gate_name = f"afield-gate-{label}"
+            afield_gate_n += 1
+            if _run_artifact_field_gate_trial(tmp, gate_name,
+                                              declared(tmp / gate_name)):
+                afield_accepted += 1
+                lines.append(f"  AFIELD {label}/create: the gate accepted a spec "
+                             f"whose declared `artifact` resolves outside the root")
+        # Bucket 7: resolving a NAME must not derive evidence.
+        for label, slugs in _slug_resolve_cases():
+            trial = _slug_resolve_trial(tmp, label, slugs)
+            slug_reads_n += 1
+            slug_status_reads += int(trial["status_reads"])
+            if int(trial["reads"]) > 0:
+                slug_reads += 1
+                lines.append(f"  SLUG   {label}/resolve: a name question derived "
+                             f"{trial['reads']} evidence verdict(s)")
+            slug_wrong_n += 1
+            if trial["wrong"]:
+                slug_wrong += 1
+                lines.append(f"  CONTROL slug-{label}: resolved to "
+                             f"{trial['chosen']!r}, expected {trial['expected']!r}")
+        for surface, missing in _run_artifact_field_control(tmp).items():
+            afield_control_n += 1
+            if missing:
+                afield_control += 1
+                lines.append(f"  CONTROL artifact-field-control/{surface}: an "
+                             f"in-root `artifact` stopped being delivered")
     finally:
+        evidence_mod.artifact_matches = _REAL_MATCHES
         shutil.rmtree(tmp, ignore_errors=True)
     if (not stale_n or not current_n or not unbounded_n or not escape_n
-            or not storage_n or not control_n):
+            or not storage_n or not control_n or not silence_n or not held_n
+            or not afield_n or not afield_gate_n or not afield_control_n
+            or not slug_reads_n or not slug_wrong_n):
         raise RuntimeError("fixture produced no trials — build broken")
     return {"leaks": leaks, "stale_n": stale_n,
             "false_alarms": false_alarms, "current_n": current_n,
@@ -609,7 +1038,25 @@ def measure() -> dict:
             "accepted": accepted, "accepted_n": accepted_n,
             "storage": storage, "storage_n": storage_n,
             "control": control, "control_n": control_n,
+            "silence": silence, "silence_n": silence_n,
+            "held": held, "held_n": held_n,
+            "afield": afield, "afield_n": afield_n,
+            "afield_accepted": afield_accepted, "afield_gate_n": afield_gate_n,
+            "afield_control": afield_control, "afield_control_n": afield_control_n,
+            "slug_reads": slug_reads, "slug_reads_n": slug_reads_n,
+            "slug_wrong": slug_wrong, "slug_wrong_n": slug_wrong_n,
+            "slug_status_reads": slug_status_reads,
             "lines": lines}
+
+
+def _git_available() -> bool:
+    """The command bucket dates a completion to a git work tree, so it needs git."""
+    try:
+        proc = subprocess.run(["git", "--version"], capture_output=True, text=True,
+                              stdin=subprocess.DEVNULL, timeout=30)
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return proc.returncode == 0
 
 
 def _install_prefix_loader() -> None:
@@ -646,6 +1093,11 @@ def main() -> int:
     BASELINE = "--baseline" in sys.argv[1:]
     if BASELINE:
         _install_prefix_loader()
+        _install_prefix_resolver()
+    if not _git_available():
+        print("BENCH ERROR: the command bucket needs `git` (the code-state oracle)",
+              file=sys.stderr)
+        return 1
     if _SHIPPED_BYTES is not None and _SHIPPED_BYTES > _DECLARED_BYTES:
         print(f"BENCH ERROR: the shipped byte bound ({_SHIPPED_BYTES}) is wider "
               f"than this bench declares ({_DECLARED_BYTES}) — widen the "
@@ -661,7 +1113,12 @@ def main() -> int:
     print(f"trials: stale={r['stale_n']} current={r['current_n']} "
           f"unbounded={r['unbounded_n']} escape={r['escape_n']} "
           f"gate={r['accepted_n']} storage={r['storage_n']} "
-          f"storage_control={r['control_n']} surfaces=status+next+list"
+          f"storage_control={r['control_n']} command={r['silence_n']} "
+          f"command_control={r['held_n']} artifact_field={r['afield_n']} "
+          f"artifact_field_gate={r['afield_gate_n']} "
+          f"artifact_field_control={r['afield_control_n']} "
+          f"slug_resolve={r['slug_reads_n']} slug_resolve_control={r['slug_wrong_n']} "
+          f"surfaces=status+next+list"
           + (" mode=baseline(pre-fix delivery)" if BASELINE else ""))
     print(f"stale_evidence_rate={r['leaks'] / r['stale_n']:.4f} "
           f"({r['leaks']}/{r['stale_n']})")
@@ -675,8 +1132,24 @@ def main() -> int:
           f"({r['storage']}/{r['storage_n']})")
     print(f"storage_control_rate={r['control'] / r['control_n']:.4f} "
           f"({r['control']}/{r['control_n']})")
+    print(f"command_silence_rate={r['silence'] / r['silence_n']:.4f} "
+          f"({r['silence']}/{r['silence_n']})")
+    print(f"command_hold_rate={r['held'] / r['held_n']:.4f} "
+          f"({r['held']}/{r['held_n']})")
     print(f"false_alarm_rate={r['false_alarms'] / r['current_n']:.4f} "
           f"({r['false_alarms']}/{r['current_n']})")
+    print(f"artifact_field_escape_rate={r['afield'] / r['afield_n']:.4f} "
+          f"({r['afield']}/{r['afield_n']})")
+    print(f"artifact_field_accepted_rate="
+          f"{r['afield_accepted'] / r['afield_gate_n']:.4f} "
+          f"({r['afield_accepted']}/{r['afield_gate_n']})")
+    print(f"artifact_field_control_rate="
+          f"{r['afield_control'] / r['afield_control_n']:.4f} "
+          f"({r['afield_control']}/{r['afield_control_n']})")
+    print(f"slug_resolve_read_rate={r['slug_reads'] / r['slug_reads_n']:.4f} "
+          f"({r['slug_reads']}/{r['slug_reads_n']})")
+    print(f"slug_resolve_control_rate={r['slug_wrong'] / r['slug_wrong_n']:.4f} "
+          f"({r['slug_wrong']}/{r['slug_wrong_n']})")
     return 0
 
 

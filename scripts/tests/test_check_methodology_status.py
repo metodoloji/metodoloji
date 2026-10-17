@@ -306,11 +306,17 @@ def test_check6_reads_the_shipped_sprint_status():
         # SP-008 done: 5-1-evidence-root-containment (S-005) landed under E-060
         # (APPROVED, baseline E-059 REJECTED) and is CLOSED by QR-020.
         # SP-009 done: 6-1-storage-spec-containment (S-006) landed under E-062
-        # (APPROVED, baseline E-061 REJECTED) and is CLOSED by QR-021 —
-        # exactly five stories are done.
+        # (APPROVED, baseline E-061 REJECTED) and is CLOSED by QR-021.
+        # SP-010 done: 7-1-command-evidence-dating (S-007) landed under E-064
+        # (APPROVED, baseline E-063 REJECTED) and is CLOSED by QR-022.
+        # SP-011 done: 8-1-declared-artifact-containment (S-008) landed under
+        # E-067 (APPROVED, baseline E-066 REJECTED) and is CLOSED by QR-023.
+        # SP-012 done: 9-1-slug-resolve-names-only (S-009) landed under E-069
+        # (APPROVED, baseline E-068 REJECTED) and is CLOSED by QR-024 —
+        # exactly eight stories are done.
         assert _count(text, "in-progress") == 0
         assert _count(text, "review") == 1
-        assert _count(text, "done") == 5
+        assert _count(text, "done") == 8
         return
     text = ("development_status:\n"
             "  epic-1: in-progress\n"

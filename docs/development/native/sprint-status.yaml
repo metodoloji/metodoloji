@@ -15,6 +15,9 @@
 # Methodology record: docs/development/SP-007.md
 # Methodology record: docs/development/SP-008.md
 # Methodology record: docs/development/SP-009.md
+# Methodology record: docs/development/SP-010.md
+# Methodology record: docs/development/SP-011.md
+# Methodology record: docs/development/SP-012.md
 #
 # project: metodoloji
 # tracking_system: file-system
@@ -69,3 +72,30 @@ development_status:
   # REJECTED) and E-062 landed the containment (0.0 / 0.0, with a paired
   # false_alarm_rate 0.0); CLOSED by QR-021.
   6-1-storage-spec-containment: done
+  epic-7: done
+  # S-007 — "Date a command completion to the code state it ran in". The last
+  # named piece of the plan's F-13: E-063 measured the baseline red
+  # (command_silence_rate 1.0 — the plane delivered a completed command stage
+  # with no verdict at all, and its paired control failed by the same silence)
+  # and E-064 landed the dating (0.0 / 0.0, with a paired false_alarm_rate 0.0);
+  # CLOSED by QR-022. It has no native draft, so the board key is declared in
+  # the story as its native-shaped alias (S-007's Board key line).
+  7-1-command-evidence-dating: done
+  epic-8: done
+  # S-008 — "Deliver a run's declared artifact only inside its own project". The
+  # last pointer the plane handed over unasked: E-066 measured the baseline red
+  # (artifact_field_escape_rate 1.0 on both read surfaces — the spec's own
+  # artifact is never OPENED, only repeated, which is why the two read/resolve
+  # containment planes walked past it) and E-067 landed the containment
+  # (0.0 / 0.0 / 0.0, with a clean control); CLOSED by QR-023. No native draft,
+  # so the board key is declared in the story as its native-shaped alias.
+  8-1-declared-artifact-containment: done
+  epic-9: done
+  # S-009 — "Resolve a run's name from the store's names". The CLI's default path
+  # (status/next/resume/history with no --slug) answered a NAME question through
+  # the inventory, which derives a verdict per run — E-068 measured it
+  # (slug_resolve_read_rate 1.0: 1 derivation for a single-run project, 3 for an
+  # ambiguous one) and E-069 removed it (0.0 with the answers unchanged); CLOSED
+  # by QR-024. No native draft, so the board key is declared in the story as its
+  # native-shaped alias.
+  9-1-slug-resolve-names-only: done

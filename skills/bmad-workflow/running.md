@@ -70,6 +70,34 @@ opened — the run then reads as having no spec, and `complete` says so. If a ru
 `total_stages: 0`, its definition moved out of the project or its state was edited; re-create the
 run with `create --spec`, do not hand-fix the state.
 
+Commands that take no `--slug` (`status`, `next`, `resume`, `history`) resolve the run from the
+stored names first (E-069): one run ⇒ that run, several ⇒ the CLI asks you for `--slug`. The
+lookup reads no evidence, so it costs nothing and cannot derive a verdict for a run you did not
+ask about; naming the run explicitly is the only thing that classifies it.
+
+A spec may also declare a top-level `artifact` — the run's durable source of truth — and that
+pointer is repeated back to you (`status.artifact`, and "tracked in <it>" in the session line), so
+it obeys the same boundary (E-067): only a path that resolves inside the project is delivered. An
+outside one arrives as `artifact: null` with an `artifact_note` naming what the spec declares and
+the root, and the session line says the same thing instead of naming a location to track — fix the
+spec, or the run's own `artifact` stays withheld. `create` refuses such a spec outright, before
+anything is written; a run an older tree already saved keeps working, its read surfaces just
+report the outside pointer.
+
+A `command` completion ("this argv exited 0") cannot be re-derived by looking, so it is dated
+too (E-064): completing it records the **tracked code state** it ran in — the commit HEAD names
+plus a digest of the tracked working-tree changes — and every read compares that with the state in
+force. Unchanged answers `CURRENT`; a new commit or a dirty edit of a tracked file answers
+`UNKNOWN` naming both states. A command is never `STALE` and never blocks an advance: a look
+cannot falsify `exit 0`, so the surface reports what it can compare instead of pretending to
+falsify. Where the state cannot be established at all (not a git work tree, no commit yet, git
+missing) the answer is `UNKNOWN` with the reason, and a completion recorded before this dating
+says `re-complete the stage to date it` — re-run the command and complete again, since the
+kernel will not re-execute a command on your behalf. Only **tracked** files are in the
+fingerprint, which every reason string says; an untracked file a command read can change without
+moving the verdict. The probe costs one bounded git call per read pass, shared across a `list`
+that classifies several runs and skipped entirely when no run has a command witness.
+
 ## Branches and flags
 
 A conditional edge reads a flag. For a verify stage that loops back when something regressed:

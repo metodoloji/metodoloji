@@ -15,6 +15,7 @@ the place the agent looks first (session start) shows it.
 
 from __future__ import annotations
 
+from . import engine as engine_mod
 from . import evidence as evidence_mod
 from . import spec as spec_mod
 from . import store
@@ -46,7 +47,7 @@ def _evidence_hint(stage: dict) -> str:
     return "none (end marker)"
 
 
-def _describe(slug: str, state: dict, spec: dict, project_root: str = "") -> str:
+def _describe(slug: str, state: dict, spec: dict, project_root: str) -> str:
     current = state.get("current")
     status = state.get("status")
     completed = list(state.get("completed", []))
@@ -94,9 +95,14 @@ def _describe(slug: str, state: dict, spec: dict, project_root: str = "") -> str
                          f"carries its evidence — re-complete it, do not trust "
                          f"the position above")
 
-    artifact = (spec or {}).get("artifact")
-    if artifact:
-        parts.append(f"tracked in {artifact}")
+    # E-067: this line is context an agent obeys, so the declared pointer is
+    # delivered only when the run owns it — otherwise the sentence says what the
+    # spec declares and that it is outside, which is the honest half.
+    field = engine_mod.declared_artifact(project_root, spec)
+    if field["artifact"]:
+        parts.append(f"tracked in {field['artifact']}")
+    elif field["artifact_note"]:
+        parts.append(f"{field['artifact_note']} — fix the spec")
     return "; ".join(parts)
 
 

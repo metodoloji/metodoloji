@@ -48,11 +48,12 @@ def _builtin_dir() -> str:
 
 
 def _resolve_slug(root: str, slug: str | None) -> str | None:
-    """Explicit slug, or the single existing run; None when ambiguous/absent."""
-    if slug:
-        return slug
-    runs = engine.list_runs(root).get("runs", [])
-    return runs[0]["slug"] if len(runs) == 1 else None
+    """Explicit slug, or the single existing run; None when ambiguous/absent.
+
+    Delegates to the kernel: a name question is answered from names, never by
+    classifying every run (E-068).
+    """
+    return engine.resolve_slug(root, slug)
 
 
 def _load_spec_arg(args) -> dict:

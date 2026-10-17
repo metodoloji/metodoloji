@@ -1247,13 +1247,22 @@ def test_unreadable_artifact_reads_unknown_not_stale(tmp_path, monkeypatch):
     assert "cannot be read" in detail["reason"]
 
 
-def test_witness_is_recorded_only_for_artifact_evidence():
+def test_witness_records_artifact_predicates_and_dated_commands(tmp_path):
+    # A `note` is a statement, not a claim: no witness at all (rule 5).
     assert evidence_mod.witness_for({"evidence": {"kind": "note"}}) is None
-    assert evidence_mod.witness_for(
-        {"evidence": {"kind": "command", "argv": ["pytest"]}}) is None
+    # A `command` IS dated now (E-064) — E-063 measured that leaving it
+    # unwitnessed delivered a green suite as satisfied forever.
+    root, _spec = _git_project(tmp_path)
+    cmd = evidence_mod.witness_for(
+        {"evidence": {"kind": "command", "argv": ["pytest"], "rc": 0}},
+        project_root=root)
+    assert cmd["kind"] == "command" and cmd["argv"] == ["pytest"] and cmd["rc"] == 0
+    assert cmd["code_state"] and "." in cmd["code_state"]
     w = evidence_mod.witness_for({"evidence": {"kind": "artifact", "path": "log.md",
                                                "contains": ["A1"], "min": 2}})
     assert w["path"] == "log.md" and w["min"] == 2 and w["contains"] == ["A1"]
+    # The predicate witness carries no code state: it is re-derived from the file.
+    assert "code_state" not in w
 
 
 def test_foundation_is_the_declared_requires_or_the_completed_chain():
@@ -1280,6 +1289,130 @@ def test_cli_status_and_next_carry_the_evidence_verdict(tmp_path, capsys):
     assert wf_cli.main(["--project-root", root, "next", "--slug", spec["id"]]) == 0
     out = json.loads(capsys.readouterr().out)
     assert out["evidence"]["a"]["verdict"] == "STALE"
+
+
+# --- command evidence, dated to a code state (E-064) --------------------------
+# A command's result cannot be re-derived by looking, so the plane compares the
+# TRACKED code state the command was recorded against with the one in force now.
+# Unchanged answers CURRENT; moved answers UNKNOWN naming both states; an oracle
+# that cannot answer at all answers UNKNOWN with the reason. NEVER STALE — a look
+# cannot falsify "this argv exited 0" — so the dating never blocks an advance.
+
+def _git(project_root, *args):
+    return subprocess.run(["git", *args], cwd=project_root, capture_output=True,
+                          text=True, encoding="utf-8", errors="replace",
+                          stdin=subprocess.DEVNULL, timeout=60)
+
+
+def _git_project(tmp_path):
+    """A project root that is a git work tree with one commit."""
+    root = tmp_path / "proj"
+    root.mkdir(parents=True, exist_ok=True)
+    _write(root / "app.py", "VALUE = 1\n")
+    if _git(root, "init", "-q").returncode != 0:
+        pytest.skip("git unavailable on this host")
+    ident = ["-c", "user.email=t@example.invalid", "-c", "user.name=t"]
+    _git(root, *ident, "add", "-A")
+    if _git(root, *ident, "commit", "-q", "-m", "init").returncode != 0:
+        pytest.skip("git cannot commit on this host")
+    return str(root), _command_spec()
+
+
+def _command_spec() -> dict:
+    return {
+        "id": "cmd-demo", "title": "command demo", "start": "check",
+        "stages": [
+            {"id": "check", "title": "Run the suite",
+             "evidence": {"kind": "command",
+                          "argv": [sys.executable, "-c", "print('ok')"], "rc": 0},
+             "next": [{"to": "ship"}]},
+            {"id": "ship", "title": "Ship",
+             "evidence": {"kind": "note"}, "next": [{"to": "done"}]},
+            {"id": "done", "title": "Done", "terminal": True},
+        ],
+    }
+
+
+def _completed_command_run(tmp_path):
+    root, spec = _git_project(tmp_path)
+    assert engine.create(root, spec)["ok"]
+    assert engine.complete(root, spec["id"], "check")["ok"] is True
+    return root, spec
+
+
+def test_an_unchanged_code_state_answers_current(tmp_path):
+    root, spec = _completed_command_run(tmp_path)
+    st = engine.status(root, spec["id"])
+    assert st["evidence"]["check"]["verdict"] == "CURRENT"
+    assert "tracked code state" in st["evidence"]["check"]["reason"]
+    assert st["evidence_health"]["total"] == 1
+
+
+def test_a_dirty_edit_of_a_tracked_file_moves_the_code_state(tmp_path):
+    """HEAD stands; the working tree is part of the fingerprint."""
+    root, spec = _completed_command_run(tmp_path)
+    _write(Path(root) / "app.py", "VALUE = 2\n")
+    st = engine.status(root, spec["id"])
+    assert st["evidence"]["check"]["verdict"] == "UNKNOWN"
+    assert "moved since this command was recorded" in st["evidence"]["check"]["reason"]
+    # A command's outcome is never FALSIFIED by a look, so it is never STALE and
+    # it never blocks the advance (the kernel's own refusal list is unaffected).
+    assert st["stale_evidence"] == []
+    assert engine.complete(root, spec["id"], "ship", note="shipped")["ok"] is True
+
+
+def test_a_new_commit_moves_the_code_state(tmp_path):
+    root, spec = _completed_command_run(tmp_path)
+    ident = ["-c", "user.email=t@example.invalid", "-c", "user.name=t"]
+    _git(root, *ident, "add", "-A")
+    assert _git(root, *ident, "commit", "-q", "-m", "moved").returncode == 0
+    listed = {r["slug"]: r for r in engine.list_runs(root)["runs"]}[spec["id"]]
+    assert listed["evidence"]["check"]["verdict"] == "UNKNOWN"
+    assert "moved since this command was recorded" in listed["evidence"]["check"]["reason"]
+
+
+def test_a_command_witness_without_a_code_state_reads_unknown(tmp_path):
+    legacy = {"kind": "command", "argv": ["pytest"], "rc": 0}
+    verdict, detail = evidence_mod.classify(str(tmp_path), legacy)
+    assert verdict == "UNKNOWN"
+    assert "before completions were dated" in detail["reason"]
+    undatable = {**legacy, "code_state": None}
+    verdict, detail = evidence_mod.classify(str(tmp_path), undatable)
+    assert verdict == "UNKNOWN"
+    assert "no code state could be established" in detail["reason"]
+    assert verdict != "STALE"
+
+
+def test_a_code_state_that_cannot_be_read_answers_unknown_not_current(tmp_path):
+    """No git work tree (or no commit): the oracle fails open to UNKNOWN."""
+    assert evidence_mod.code_state(str(tmp_path)) is None
+    verdict, detail = evidence_mod.classify(
+        str(tmp_path), {"kind": "command", "argv": ["pytest"], "rc": 0,
+                        "code_state": "deadbeef.0123456789ab"})
+    assert verdict == "UNKNOWN"
+    assert "cannot be established here" in detail["reason"]
+
+
+def test_an_inventory_read_probes_the_code_state_once(tmp_path, monkeypatch):
+    """E-058's doctrine applied to the new probe: one bounded call per read pass."""
+    root, first = _git_project(tmp_path)
+    assert engine.create(root, first)["ok"]
+    assert engine.complete(root, first["id"], "check")["ok"] is True
+    second = {**_command_spec(), "id": "cmd-second"}
+    assert engine.create(root, second)["ok"]
+    assert engine.complete(root, "cmd-second", "check")["ok"] is True
+    calls = {"n": 0}
+    real = evidence_mod.code_state
+
+    def counted(project_root):
+        calls["n"] += 1
+        return real(project_root)
+
+    monkeypatch.setattr(evidence_mod, "code_state", counted)
+    runs = engine.list_runs(root)["runs"]
+    assert len(runs) == 2
+    assert all(r["evidence_health"]["total"] >= 1 for r in runs)
+    assert calls["n"] == 1, "the inventory must share ONE probe across its runs"
 
 
 # --- evidence read budget + inventory surface (E-058) -------------------------
@@ -1620,3 +1753,140 @@ def test_containment_is_one_implementation_shared_by_both_planes():
     assert evidence_mod.root_of is paths_mod.root_of
     assert paths_mod.outside(paths_mod.root_of(str(_ROOT)), str(_ROOT / "README.md")) is False
     assert paths_mod.outside(paths_mod.root_of(str(_ROOT / "bmad")), str(_ROOT)) is True
+
+
+# --- the declared `artifact` field (E-067) -------------------------------------
+# The spec's top-level pointer is never opened — it is REPEATED to the agent
+# (`status.artifact`, "tracked in <it>" at the session edge), which is why it
+# escaped both containment planes until now.
+
+def _artifact_field_spec(declared: str | None = None, slug: str = "artifact-demo") -> dict:
+    spec = _spec()
+    spec["id"] = slug
+    if declared is not None:
+        spec["artifact"] = declared
+    return spec
+
+
+def _completed_artifact_field_run(root: str, declared: str | None = None) -> dict:
+    spec = _artifact_field_spec(declared)
+    assert engine.create(root, spec)["ok"] is True
+    _write(Path(root) / "log.md", "A1\n")
+    assert engine.complete(root, spec["id"], "a")["ok"] is True
+    return spec
+
+
+def test_an_out_of_root_declared_artifact_is_not_delivered(tmp_path):
+    """A hand-edited / older-tree spec copy still declares it; the read refuses."""
+    root = str(tmp_path)
+    spec = _completed_artifact_field_run(root)
+    copy = Path(store_mod.paths(root)["specs"]) / f"{spec['id']}.json"
+    data = json.loads(copy.read_text(encoding="utf-8"))
+    data["artifact"] = "../outside-notes.md"
+    copy.write_text(json.dumps(data), encoding="utf-8")
+    st = engine.status(root, spec["id"])
+    assert st["artifact"] is None
+    assert "../outside-notes.md" in st["artifact_note"]
+    assert "outside the project root" in st["artifact_note"]
+    line = advisory.peek(root)
+    assert "tracked in ../outside-notes.md" not in line
+    assert "outside the project root" in line
+
+
+def test_an_in_root_declared_artifact_is_delivered_unchanged(tmp_path):
+    root = str(tmp_path)
+    spec = _completed_artifact_field_run(root, "docs/notes.md")
+    st = engine.status(root, spec["id"])
+    assert st["artifact"] == "docs/notes.md"
+    assert st["artifact_note"] == ""
+    assert "tracked in docs/notes.md" in advisory.peek(root)
+
+
+def test_no_declared_artifact_reports_none_rather_than_a_guess(tmp_path):
+    root = str(tmp_path)
+    spec = _completed_artifact_field_run(root)
+    st = engine.status(root, spec["id"])
+    assert st["artifact"] is None and st["artifact_note"] == ""
+    assert "tracked in" not in advisory.peek(root)
+
+
+# --- resolving a slug: a name question, not an evidence one (E-068) -----------
+
+def _three_artifact_runs(root: str) -> None:
+    """Three runs, each with a completed artifact stage anything would classify."""
+    _write(Path(root) / "log.md", "A1\n")
+    for slug in ("r1", "r2", "r3"):
+        assert engine.create(root, _spec(), slug=slug)["ok"] is True
+        assert engine.complete(root, slug, "a")["ok"] is True
+
+
+def _count_matches(monkeypatch) -> dict:
+    """Count every artifact match the plane performs (its one choke point)."""
+    seen = {"n": 0}
+    real = evidence_mod.artifact_matches
+
+    def counted(*args, **kwargs):
+        seen["n"] += 1
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(evidence_mod, "artifact_matches", counted)
+    return seen
+
+
+def test_resolve_slug_answers_from_names_without_classifying(tmp_path, monkeypatch):
+    root = str(tmp_path)
+    _three_artifact_runs(root)
+    seen = _count_matches(monkeypatch)
+    assert engine.resolve_slug(root) is None  # three runs: still ambiguous
+    assert seen["n"] == 0
+    assert engine.resolve_slug(root, "r1") == "r1"
+    assert seen["n"] == 0
+
+
+def test_resolve_slug_names_the_single_run_and_stays_ambiguous_otherwise(tmp_path):
+    root = str(tmp_path)
+    assert engine.resolve_slug(root) is None  # nothing to resolve
+    assert engine.create(root, _spec(), slug="only")["ok"] is True
+    assert engine.resolve_slug(root) == "only"  # one name: that name
+    assert engine.create(root, _spec(), slug="second")["ok"] is True
+    assert engine.resolve_slug(root) is None
+
+
+def test_resolve_slug_counts_a_corrupt_run_as_a_name(tmp_path):
+    """The inventory listed one row per state file — corrupt ones included."""
+    root = str(tmp_path)
+    _write(Path(store_mod.state_path(root, "broken")), "{not json")
+    assert engine.resolve_slug(root) == "broken"
+    assert engine.create(root, _spec(), slug="good")["ok"] is True
+    assert engine.resolve_slug(root) is None  # two names, one of them unreadable
+    assert "corrupt" in engine.status(root, "broken")["error"]
+
+
+def test_the_cli_classifies_only_the_answered_run(tmp_path, monkeypatch, capsys):
+    root = str(tmp_path)
+    _write(Path(root) / "log.md", "A1\n")
+    assert engine.create(root, _spec(), slug="only")["ok"] is True
+    assert engine.complete(root, "only", "a")["ok"] is True
+    seen = _count_matches(monkeypatch)
+    assert wf_cli.main(["--project-root", root, "status"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["ok"] and out["slug"] == "only"
+    # One derivation for one answer: the resolver adds none.
+    assert seen["n"] == 1
+
+
+def test_create_refuses_a_declared_artifact_outside_the_root(tmp_path):
+    root = tmp_path / "proj"
+    root.mkdir()
+    outside = tmp_path / "outside-notes.md"
+    _write(outside, "# not this run's\n")
+    for declared in ("../outside-notes.md", "docs/../../outside-notes.md",
+                     str(outside)):
+        got = engine.create(str(root), _artifact_field_spec(declared),
+                            slug=f"bad-{len(declared)}", force=True)
+        assert got["ok"] is False
+        assert "outside the project root" in got["error"]
+    # Nothing was planted: the refusal happens before the spec copy is written.
+    assert not list((root / ".metodoloji" / "workflow" / "specs").glob("*.json"))
+    # ... and an in-root pointer is still accepted (no over-refusal).
+    assert engine.create(str(root), _artifact_field_spec("docs/notes.md"))["ok"] is True

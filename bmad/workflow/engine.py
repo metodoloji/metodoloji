@@ -9,12 +9,14 @@ preconditions are unmet — those are hard refusals, not warnings.
 
 from __future__ import annotations
 
+import os
 import pathlib
 import subprocess
 import sys
 import time
 
 from . import evidence as evidence_mod
+from . import paths as paths_mod
 from . import spec as spec_mod
 from . import store
 
@@ -58,6 +60,54 @@ def _history_line(stage: str, event: str, detail: str = "") -> str:
     return f"{int(_now())}|{stage}|{event}|{detail}"[:300]
 
 
+def resolve_slug(project_root: str, slug: str | None = None) -> str | None:
+    """Which run the operator meant: the explicit name, or the project's only one.
+
+    A question about NAMES is answered from the names the store already lists
+    (:func:`store.list_slugs`). It used to be answered through the inventory,
+    which derives an evidence verdict for every run it describes — bounded
+    artifact reads, a code-state probe, a spec parse — so the CLI paid for the
+    whole evidence plane to learn a filename, and then `status` classified the
+    answered run a second time (E-068). The store lists a run per state file,
+    corrupt ones included, so the inventory's own one-row-per-file count is what
+    this keeps; only the verdicts are dropped.
+
+    None means "no single run to resolve": no runs at all, or several. That is
+    the same answer the inventory produced, and the CLI's refusal is unchanged.
+    """
+    if slug:
+        return slug
+    slugs = store.list_slugs(project_root)
+    return slugs[0] if len(slugs) == 1 else None
+
+
+def declared_artifact(project_root: str, spec: dict) -> dict:
+    """The spec's declared `artifact`, delivered only when the run owns it.
+
+    The top-level `artifact` names the run's durable source of truth and is the
+    one spec field the read surfaces hand over verbatim — `status.artifact`
+    returns it and the session advisory says "tracked in <it>". That makes it a
+    pointer an agent ACTS on, not documentation: E-060 stopped the plane from
+    READING an outside artifact and E-062 stopped it from RESOLVING an outside
+    spec, and this is the third way a spec can name a file the run does not own
+    — by handing the pointer over (E-067, measured by E-066).
+
+    A contained pointer is delivered unchanged. An outside one is not delivered
+    at all: `artifact` is None and `artifact_note` names what the spec declares
+    and why it was withheld, so nothing is hidden and nothing is trusted.
+    """
+    declared = str((spec or {}).get("artifact") or "").strip()
+    if not declared:
+        return {"artifact": None, "artifact_note": ""}
+    root_real = paths_mod.root_of(project_root)
+    if paths_mod.outside(root_real, os.path.join(str(project_root), declared)):
+        return {"artifact": None,
+                "artifact_note": (f"spec 'artifact' resolves outside the project "
+                                  f"root: {declared} — a run's artifact lives "
+                                  f"inside {root_real}")}
+    return {"artifact": declared, "artifact_note": ""}
+
+
 # --- create / load ------------------------------------------------------------
 
 def create(project_root: str, spec: dict, *, slug: str | None = None,
@@ -66,6 +116,11 @@ def create(project_root: str, spec: dict, *, slug: str | None = None,
     problems = spec_mod.validate(spec)
     if problems:
         return _fail("spec is invalid", problems=problems)
+    # E-067: the write that PLANTS an out-of-root pointer is refused here, the
+    # same asymmetry the evidence plane keeps (gate refuses, view reports).
+    outside_artifact = declared_artifact(project_root, spec)
+    if outside_artifact["artifact_note"]:
+        return _fail(outside_artifact["artifact_note"], artifact=outside_artifact)
     slug = (slug or spec_mod.spec_id(spec)).strip()
     if state_is_corrupt(project_root, slug):
         # E-008: read_state degrades a corrupt file to {} (the documented
@@ -159,6 +214,7 @@ def status(project_root: str, slug: str) -> dict:
     current = state.get("current")
     stage = spec_mod.stage_by_id(spec, current) if (spec and current) else None
     health = evidence_mod.verify(project_root, state, spec)
+    artifact = declared_artifact(project_root, spec)
     return {
         "ok": True,
         "slug": slug,
@@ -168,7 +224,10 @@ def status(project_root: str, slug: str) -> dict:
         "flags": state.get("flags", {}),
         "blocked": state.get("blocked"),
         "stage": stage,
-        "artifact": spec.get("artifact") if spec else None,
+        # E-067: the declared durable pointer, confined like everything else this
+        # plane hands over — an outside one arrives as None plus the reason.
+        "artifact": artifact["artifact"],
+        "artifact_note": artifact["artifact_note"],
         "total_stages": len(spec.get("stages", [])) if spec else 0,
         # E-056: a recorded completion is a claim about the workspace, so the
         # two read surfaces carry whether it still holds — derived here, never
@@ -204,6 +263,7 @@ def next_stage(project_root: str, slug: str) -> dict:
 
 def list_runs(project_root: str) -> dict:
     runs = []
+    probe = evidence_mod.CodeStateProbe(project_root)
     for slug in store.list_slugs(project_root):
         if state_is_corrupt(project_root, slug):
             # A corrupt state file used to appear as a ghost row of nulls,
@@ -217,8 +277,13 @@ def list_runs(project_root: str) -> dict:
         # as merely "completed". The verdict is derived on a bounded read
         # (evidence.verify -> artifact_matches(bounded=True)), which is what
         # makes classifying every run here affordable.
+        # E-064: `command` witnesses are dated to the tracked code state, and the
+        # inventory classifies EVERY run — so the pass shares ONE probe instead
+        # of running the oracle once per row (the probe is lazy: a project whose
+        # completions are all artifacts pays nothing).
         health = evidence_mod.verify(project_root, state,
-                                     store.load_spec(project_root, slug))
+                                     store.load_spec(project_root, slug),
+                                     code_state_now=probe)
         runs.append({
             "slug": slug,
             "status": state.get("status"),
@@ -306,7 +371,7 @@ def complete(project_root: str, slug: str, stage_id: str, *,
     # Date the completion to the predicate that satisfied it (E-056). Stored,
     # because the spec can be edited afterwards; the VERDICT is still derived
     # from the artifact on every read.
-    witness = evidence_mod.witness_for(stage)
+    witness = evidence_mod.witness_for(stage, project_root=project_root)
     if witness:
         state.setdefault("evidence", {})[stage_id] = witness
 
