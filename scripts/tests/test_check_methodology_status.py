@@ -302,11 +302,15 @@ def test_check6_reads_the_shipped_sprint_status():
         # SP-006 done: 3-1-workflow-evidence-freshness (S-003) landed under
         # E-056 (APPROVED, baseline E-055 REJECTED) and is CLOSED by QR-018.
         # SP-007 done: 4-1-evidence-read-budget (S-004) landed under E-058
-        # (APPROVED, baseline E-057 REJECTED) and is CLOSED by QR-019 —
-        # exactly three stories are done.
+        # (APPROVED, baseline E-057 REJECTED) and is CLOSED by QR-019.
+        # SP-008 done: 5-1-evidence-root-containment (S-005) landed under E-060
+        # (APPROVED, baseline E-059 REJECTED) and is CLOSED by QR-020.
+        # SP-009 done: 6-1-storage-spec-containment (S-006) landed under E-062
+        # (APPROVED, baseline E-061 REJECTED) and is CLOSED by QR-021 —
+        # exactly five stories are done.
         assert _count(text, "in-progress") == 0
         assert _count(text, "review") == 1
-        assert _count(text, "done") == 3
+        assert _count(text, "done") == 5
         return
     text = ("development_status:\n"
             "  epic-1: in-progress\n"

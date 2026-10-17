@@ -40,6 +40,18 @@ Design rules (E-056, carrying E-053's doctrine onto this plane):
    the negative side degrades, so the bound can never invent a STALE. The
    COMPLETION path is deliberately unbounded: accepting a stage reads the
    artifact the operator just produced, once.
+8. **The read never leaves the project root (E-060).** A run's evidence is a
+   claim about ITS OWN project, so an `artifact` path that resolves outside
+   :func:`root_of` — a `..` traversal, an absolute path, a symlink out — is not
+   re-derived at all: the read surfaces answer UNKNOWN ("outside the project
+   root") and the completion path refuses, naming the cause. Containment lives
+   HERE, in the one matcher, for the same reason the matcher itself is shared
+   (E-056): a second check in spec validation or in each caller would be a
+   second opinion on the same predicate, and a witness already stored — written
+   by an older tree, or edited by hand — would still be read by whoever did not
+   think to duplicate it. Refusing the WRITE is the completion path's job (it is
+   a gate); reporting "cannot establish" is the READ path's job (it is a view),
+   so the two surfaces keep the asymmetry E-058 gave them.
 """
 
 from __future__ import annotations
@@ -50,6 +62,11 @@ import pathlib
 import time
 
 from . import spec as spec_mod
+# Containment lives in ONE module both planes call (E-062). `root_of` is
+# re-exported because this module's rule 8 documents it as the boundary of the
+# evidence read.
+from .paths import outside as _outside  # noqa: F401  (used below)
+from .paths import root_of  # noqa: F401  (documented re-export)
 
 CURRENT = "CURRENT"
 STALE = "STALE"
@@ -96,11 +113,22 @@ def artifact_matches(project_root: str, path_pattern: str,
     :data:`MAX_ARTIFACT_BYTES` is read. A match found inside the budget answers
     True exactly as before; when no match was found, anything that was skipped
     makes the answer None instead of False.
+
+    Containment (rule 8) is applied on both sides of the glob: a DECLARED path
+    that leaves the root is refused before anything is read, and a candidate
+    that resolves outside it (a symlink, or a glob prefix that traverses) is
+    skipped and counted, so a skipped candidate turns the negative answer into
+    None exactly like the read budget does — the plane reports what it could not
+    establish, never a STALE it did not verify.
     """
     raw_path = str(path_pattern or "").strip()
     if not raw_path:
         return False, "artifact evidence has no path"
+    root_real = root_of(project_root)
     full_pattern = os.path.join(project_root, raw_path)
+    if _outside(root_real, full_pattern):
+        return None, (f"artifact path is outside the project root: {raw_path} — "
+                      f"evidence may only name an artifact inside {root_real}")
     if any(ch in raw_path for ch in _GLOB_CHARS):
         matches = [p for p in globmod.glob(full_pattern, recursive=True)
                    if os.path.isfile(p)]
@@ -127,7 +155,13 @@ def artifact_matches(project_root: str, path_pattern: str,
 
     unreadable = 0
     oversized = 0
+    escaped = 0
     for cand in candidates:
+        if _outside(root_real, cand):
+            # Symlinks and traversing glob prefixes land here. Counting them
+            # keeps the negative answer honest (rule 8 + rule 7's asymmetry).
+            escaped += 1
+            continue
         if bounded:
             try:
                 if os.path.getsize(cand) > MAX_ARTIFACT_BYTES:
@@ -157,6 +191,10 @@ def artifact_matches(project_root: str, path_pattern: str,
                       f"{MAX_ARTIFACT_BYTES}-byte read budget — the evidence "
                       f"cannot be re-derived within budget (split the artifact, "
                       f"or narrow the path pattern)")
+    if escaped:
+        return None, (f"artifact {raw_path}: {escaped} candidate(s) are outside "
+                      f"the project root {root_real} — not read (evidence may "
+                      f"only name artifacts inside it)")
     if unreadable == len(candidates):
         return None, f"artifact {raw_path} cannot be read (cannot establish its evidence)"
     return False, (f"artifact {raw_path} has no candidate matching {tokens} "

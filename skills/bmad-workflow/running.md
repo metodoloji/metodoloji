@@ -56,6 +56,20 @@ re-derived within the read budget`) and the remedy — split the artifact, or na
 pattern. The bound can never produce a `STALE`, and accepting a stage is not bounded (the artifact
 you just produced is read once, so a large deliverable can still complete).
 
+The read is also **confined to the project root** (E-060): a run's evidence is a claim about its
+own project, so a path that resolves outside the root (`../…`, `docs/../../…`, an absolute path,
+or a symlink pointing out) is never opened. The read surfaces answer `UNKNOWN` naming the root,
+and `complete` refuses such a stage outright — write the evidence inside the project, or the
+stage cannot be accepted at all. Nothing is read on your behalf outside the tree you are working
+in.
+
+The same boundary governs the kernel's own storage (E-062): the run's workflow definition is
+resolved only from inside the project, so a `--slug` is a name (every filename built from it goes
+through one sanitizer) and a state whose recorded `spec_file` points outside the root is not
+opened — the run then reads as having no spec, and `complete` says so. If a run suddenly reports
+`total_stages: 0`, its definition moved out of the project or its state was edited; re-create the
+run with `create --spec`, do not hand-fix the state.
+
 ## Branches and flags
 
 A conditional edge reads a flag. For a verify stage that loops back when something regressed:

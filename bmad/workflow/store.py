@@ -21,7 +21,26 @@ import json
 import os
 import time
 
+from .paths import outside, root_of
+
 _DEFAULT_DIR = os.path.join(".metodoloji", "workflow")
+
+
+def safe_slug(slug: str) -> str:
+    """The ONE sanitizer every filename built from a slug must go through.
+
+    A slug reaches the kernel from the CLI (or from the spec id), so it must be
+    treated as a string the operator wrote, not as a path. Letters, digits and
+    `.` `_` `-` survive; every separator or drive marker becomes `_` — which is
+    what makes a traversal impossible rather than merely unlikely, since a `..`
+    is then left with no separator to follow.
+
+    E-008 extracted this rule for the STATE file; E-062 found the spec path and
+    the stored `spec_file` still building filenames from raw input, so the rule
+    now has one name and every caller uses it (a second copy is how the two
+    paths disagreed in the first place).
+    """
+    return "".join(ch if (ch.isalnum() or ch in "._-") else "_" for ch in str(slug))
 
 
 def paths(project_root: str) -> dict:
@@ -37,14 +56,13 @@ def paths(project_root: str) -> dict:
 def state_path(project_root: str, slug: str) -> str:
     """The run's state file — THE one path every reader must agree on (E-008).
 
-    The slug is sanitized to [alnum._-] (everything else becomes `_`) so a
-    slug with a space or slash cannot escape the base dir. The corrupt-state
-    detector must build its probe path with THIS function: a raw-slug probe
-    checks a file that never exists, so a corrupt run is reported as missing
-    (`no workflow ...`) while `list` names it corrupt.
+    The slug is sanitized through :func:`safe_slug` so a slug with a space or
+    slash cannot escape the base dir. The corrupt-state detector must build its
+    probe path with THIS function: a raw-slug probe checks a file that never
+    exists, so a corrupt run is reported as missing (`no workflow ...`) while
+    `list` names it corrupt.
     """
-    safe = "".join(ch if (ch.isalnum() or ch in "._-") else "_" for ch in slug)
-    return os.path.join(paths(project_root)["base"], f"{safe}.state.json")
+    return os.path.join(paths(project_root)["base"], f"{safe_slug(slug)}.state.json")
 
 
 # Internal name kept: read_state/write_state and any existing readers use it.
@@ -173,8 +191,13 @@ def list_slugs(project_root: str) -> list[str]:
 
 
 def save_spec(project_root: str, spec: dict) -> str:
-    """Copy a workflow definition into the project so the run is reproducible."""
-    dest = os.path.join(paths(project_root)["specs"], f"{spec['id']}.json")
+    """Copy a workflow definition into the project so the run is reproducible.
+
+    The id is already refused outside `[a-z0-9._-]` by `spec.validate`, so this
+    sanitization is the same belt-and-braces E-008 asked of the state path: the
+    file this writes must be reachable by the sanitized name every reader uses.
+    """
+    dest = os.path.join(paths(project_root)["specs"], f"{safe_slug(spec['id'])}.json")
     lock = _acquire_lock(paths(project_root)["lock"])
     try:
         _atomic_write(dest, json.dumps(spec, ensure_ascii=False, indent=2))
@@ -184,9 +207,26 @@ def save_spec(project_root: str, spec: dict) -> str:
 
 
 def load_spec(project_root: str, slug: str) -> dict:
-    """Read the project-local spec copy from {slug} or from the state's spec id."""
+    """Read the run's spec — from the project's own copy, and only from inside it.
+
+    Two candidates, both confined to the project root (E-062): the spec file the
+    slug names, and the `spec_file` the state recorded. The slug goes through
+    :func:`safe_slug` first — E-008 sanitized the state path but this one joined
+    the RAW slug, so `../../../../loaded` used to read a JSON file beside the
+    project and hand it to every read surface as the run's workflow definition.
+    The stored path is checked, not sanitized: it is a real path the kernel wrote
+    itself, so what matters is that it still resolves inside the root (an older
+    tree, or a hand edit, can leave one that does not).
+
+    Fail-open stays fail-open: an unresolvable spec is `{}`, which the callers
+    already report as "no spec" — the refusal names the missing spec, and nothing
+    outside the project is ever read.
+    """
     base = paths(project_root)["specs"]
-    for candidate in (os.path.join(base, f"{slug}.json"),):
+    root_real = root_of(project_root)
+    for candidate in (os.path.join(base, f"{safe_slug(slug)}.json"),):
+        if outside(root_real, candidate):
+            continue
         try:
             with open(candidate, encoding="utf-8") as fh:
                 return json.load(fh)
@@ -194,7 +234,7 @@ def load_spec(project_root: str, slug: str) -> dict:
             continue
     state = read_state(project_root, slug)
     spec_file = state.get("spec_file")
-    if spec_file:
+    if spec_file and not outside(root_real, str(spec_file)):
         try:
             with open(spec_file, encoding="utf-8") as fh:
                 return json.load(fh)

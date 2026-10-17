@@ -13,6 +13,8 @@
 # Methodology record: docs/development/SP-005.md
 # Methodology record: docs/development/SP-006.md
 # Methodology record: docs/development/SP-007.md
+# Methodology record: docs/development/SP-008.md
+# Methodology record: docs/development/SP-009.md
 #
 # project: metodoloji
 # tracking_system: file-system
@@ -55,3 +57,15 @@ development_status:
   # unbounded_read_rate 1.0, REJECTED) and E-058 landed the fix (0.0 / 0.0, with
   # a paired false_alarm_rate 0.0); CLOSED by QR-019.
   4-1-evidence-read-budget: done
+  epic-5: done
+  # S-005 — "Confine the evidence read to the project root". E-059 measured the
+  # baseline red (escape_read_rate 1.0 with escape_accepted_rate 1.0, REJECTED)
+  # and E-060 landed the containment (0.0 / 0.0, with a paired false_alarm_rate
+  # 0.0); CLOSED by QR-020.
+  5-1-evidence-root-containment: done
+  epic-6: done
+  # S-006 — "Resolve a run's spec only from inside its own project". E-061
+  # measured the baseline red (storage_escape_rate 0.8333 with a clean control,
+  # REJECTED) and E-062 landed the containment (0.0 / 0.0, with a paired
+  # false_alarm_rate 0.0); CLOSED by QR-021.
+  6-1-storage-spec-containment: done

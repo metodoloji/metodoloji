@@ -3,6 +3,7 @@ evidence-gated completion, and the CLI — the contract the SEO scenario rides."
 
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -1391,3 +1392,231 @@ def test_the_inventory_surface_survives_a_run_whose_spec_is_gone(tmp_path):
     listed = {r["slug"]: r for r in engine.list_runs(root)["runs"]}[spec["id"]]
     # The witness — not the spec — is the claim, so it is still classified.
     assert listed["evidence"]["a"]["verdict"] == "CURRENT"
+
+
+# --- the read never leaves the project root (E-060) ---------------------------
+# A run's evidence is a claim about ITS OWN project, so an artifact path that
+# resolves outside the project root is never read. The completion gate refuses
+# it (a gate refuses, and names the cause); every read surface answers UNKNOWN
+# instead — never CURRENT, which would mean the outside file was read and
+# turned into a verdict, and never STALE, which would mean it was read and
+# turned into a definite negative. Containment lives in the one matcher
+# (evidence.artifact_matches), so the witness and the re-derivation cannot
+# disagree about it.
+
+def _escape_spec(declared: str, slug: str = "escape") -> dict:
+    return {
+        "id": slug,
+        "title": "escape demo",
+        "start": "a",
+        "stages": [
+            {"id": "a", "title": "A",
+             "evidence": {"kind": "artifact", "path": declared,
+                          "contains": ["A1"], "min": 1},
+             "next": [{"to": "done"}]},
+            {"id": "done", "title": "Done", "terminal": True},
+        ],
+    }
+
+
+def _plant_outside(tmp_path):
+    """The artifact the run must NOT read: a sibling of the project root."""
+    outside = tmp_path.parent / f"{tmp_path.name}-outside.md"
+    _write(outside, "A1 — this file belongs to nobody's run\n")
+    return outside
+
+
+def test_a_declared_path_leaving_the_root_is_refused_at_completion(tmp_path):
+    root = str(tmp_path)
+    outside = _plant_outside(tmp_path)
+    spellings = [f"../{outside.name}", str(outside),
+                 f"docs/../../{outside.name}"]
+    for i, declared in enumerate(spellings):
+        spec = _escape_spec(declared, slug=f"escape-{i}")
+        engine.create(root, spec)
+        res = engine.complete(root, spec["id"], "a")
+        assert res["ok"] is False
+        assert "outside the project root" in res["error"]
+        # Refused BEFORE the witness is written: nothing claims the outside file.
+        assert store_mod.read_state(root, spec["id"]).get("evidence", {}) == {}
+
+
+def test_an_out_of_root_witness_reads_unknown_not_current_or_stale(tmp_path):
+    """A stored witness naming an outside file (an older tree, a hand edit)."""
+    root = str(tmp_path)
+    outside = _plant_outside(tmp_path)
+    spec = _escape_spec(f"../{outside.name}")
+    engine.create(root, spec)
+    assert engine.complete(root, spec["id"], "a", force=True)["ok"] is True
+    st = engine.status(root, spec["id"])
+    assert st["evidence"]["a"]["verdict"] == "UNKNOWN"
+    assert "outside the project root" in st["evidence"]["a"]["reason"]
+    # UNKNOWN is not staleness: the plane cannot establish the claim, so it does
+    # not name the stage as broken and does not block an advance.
+    assert st["stale_evidence"] == []
+
+
+def test_the_inventory_and_the_advisory_report_the_same_unknown(tmp_path):
+    root = str(tmp_path)
+    outside = _plant_outside(tmp_path)
+    spec = _escape_spec(f"../{outside.name}")
+    engine.create(root, spec)
+    assert engine.complete(root, spec["id"], "a", force=True)["ok"] is True
+    listed = {r["slug"]: r for r in engine.list_runs(root)["runs"]}[spec["id"]]
+    assert listed["evidence"]["a"]["verdict"] == "UNKNOWN"
+    assert listed["stale_evidence"] == []
+    assert "FOUNDATION MOVED" not in advisory.peek(root)
+
+
+def _link_dir(link: Path, target: Path) -> bool:
+    """Point ``link`` at ``target`` however this host allows, else False."""
+    try:
+        os.symlink(target, link, target_is_directory=True)
+        return True
+    except (OSError, NotImplementedError):
+        pass
+    if os.name == "nt":
+        # A junction needs no privilege on Windows and `realpath` resolves it
+        # like any other link, so the containment check is exercised on the
+        # platform most likely to lack the symlink privilege.
+        try:
+            proc = subprocess.run(["cmd", "/c", "mklink", "/J",
+                                   str(link), str(target)],
+                                  capture_output=True, text=True,
+                                  stdin=subprocess.DEVNULL)
+            return proc.returncode == 0 and link.exists()
+        except OSError:
+            return False
+    return False
+
+
+def test_a_linked_candidate_outside_the_root_is_not_read(tmp_path):
+    """The DECLARED path is inside the root; the glob reaches outside it."""
+    root = tmp_path / "proj"
+    root.mkdir()
+    away = tmp_path / "away"
+    _write(away / "x.md", "A1\n")
+    if not _link_dir(root / "logs", away):
+        pytest.skip("no symlink/junction support on this host")
+    spec = _escape_spec("logs/*.md")
+    engine.create(str(root), spec)
+    res = engine.complete(str(root), spec["id"], "a")
+    assert res["ok"] is False
+    assert "outside the project root" in res["error"]
+    # And the re-derivation agrees, from the same matcher.
+    assert engine.complete(str(root), spec["id"], "a", force=True)["ok"] is True
+    st = engine.status(str(root), spec["id"])
+    assert st["evidence"]["a"]["verdict"] == "UNKNOWN"
+    assert "outside the project root" in st["evidence"]["a"]["reason"]
+
+
+def test_containment_does_not_disturb_in_root_resolution(tmp_path):
+    """A nested in-root glob still completes and still reads CURRENT."""
+    root = tmp_path / "proj"
+    root.mkdir()
+    _write(root / "deep" / "nested" / "log.md", "A1\n")
+    spec = _escape_spec("deep/**/*.md")
+    engine.create(str(root), spec)
+    assert engine.complete(str(root), spec["id"], "a")["ok"] is True
+    assert engine.status(str(root), spec["id"])["evidence"]["a"]["verdict"] == "CURRENT"
+
+
+# --- the storage plane resolves the run's own spec (E-062) --------------------
+# A slug and a stored `spec_file` are STRINGS until the kernel makes them a
+# filename, and both were turned into paths raw: `load_spec` joined the slug
+# without the sanitizer `state_path` uses (E-008's seam, one filename over), and
+# it opened the state's `spec_file` wherever it pointed. The spec decides which
+# stages exist and where the run goes, so reading an outside one silently
+# replaces the run's definition on every surface. Both now go through the same
+# sanitizer and the same containment helper the evidence plane calls.
+
+def _storage_spec(map_title: str, map_next: str, *, brief_kind: str = "note") -> dict:
+    """A run whose current stage's title and next stage come from the spec."""
+    return {
+        "id": "demo", "title": "storage demo", "start": "analyze",
+        "stages": [
+            {"id": "analyze", "title": "Analyze",
+             "evidence": {"kind": "artifact", "path": "logs/analysis.md",
+                          "contains": ["FINDING"], "min": 1},
+             "next": [{"to": "brief"}]},
+            {"id": "brief", "title": "Brief",
+             "evidence": {"kind": brief_kind, "path": "logs/analysis.md",
+                          "contains": ["OUTSIDE-TOKEN"], "min": 1},
+             "next": [{"to": "map"}]},
+            {"id": "map", "title": map_title,
+             "evidence": {"kind": "note"}, "next": [{"to": map_next}]},
+            {"id": map_next, "title": "End", "terminal": True},
+        ],
+    }
+
+
+def _plant_outside_spec(tmp_path) -> Path:
+    """A spec beside the project root — four levels up from the specs dir."""
+    outside = tmp_path / "loaded.json"
+    _write(outside, json.dumps(_storage_spec("OUTSIDE MAP", "outside-done",
+                                             brief_kind="artifact")))
+    return outside
+
+
+def test_the_spec_path_is_built_from_the_sanitized_slug(tmp_path):
+    root = tmp_path / "proj"
+    root.mkdir()
+    _plant_outside_spec(tmp_path)
+    assert store_mod.load_spec(str(root), "../../../../loaded") == {}
+    # The sanitized spelling, planted INSIDE the specs dir, is what is read.
+    specs = Path(store_mod.paths(str(root))["specs"])
+    _write(specs / f"{store_mod.safe_slug('../../../../loaded')}.json",
+           json.dumps({"id": "inside", "title": "inside spec"}))
+    assert store_mod.load_spec(str(root), "../../../../loaded")["id"] == "inside"
+
+
+def test_a_crafted_slug_reads_the_runs_own_spec(tmp_path):
+    root = tmp_path / "proj"
+    root.mkdir()
+    _plant_outside_spec(tmp_path)
+    crafted = "../../../../loaded"
+    engine.create(str(root), _storage_spec("MAP", "done"), slug=crafted)
+    _write(root / "logs" / "analysis.md", "FINDING 1\n")
+    assert engine.complete(str(root), crafted, "analyze")["ok"] is True
+    assert engine.complete(str(root), crafted, "brief", note="brief produced")["ok"] is True
+    st = engine.status(str(root), crafted)
+    assert st["total_stages"] == len(_storage_spec("MAP", "done")["stages"])
+    assert st["stage"]["title"] == "MAP"  # not "OUTSIDE MAP"
+    assert engine.next_stage(str(root), crafted)["after"]["stage"] == "done"
+    # The inventory addresses a run by its sanitized filename, so the traversal
+    # was never reachable there — pinned so a later change cannot lose it.
+    row = {r["slug"]: r for r in engine.list_runs(str(root))["runs"]}[
+        store_mod.safe_slug(crafted)]
+    assert row["evidence_health"]["total"] == 1  # the unwitnessed `brief` is a note stage
+
+
+def test_a_stored_spec_file_outside_the_root_is_not_read(tmp_path):
+    root = tmp_path / "proj"
+    root.mkdir()
+    outside = _plant_outside_spec(tmp_path)
+    # A slug with no spec file of its own: the stored spec_file is the only
+    # candidate left, which is where an older tree or a hand edit lands.
+    engine.create(str(root), _storage_spec("MAP", "done"), slug="orphan")
+    path = Path(store_mod.state_path(str(root), "orphan"))
+    state = json.loads(path.read_text(encoding="utf-8"))
+    state["spec_file"] = str(outside)
+    path.write_text(json.dumps(state), encoding="utf-8")
+    assert store_mod.load_spec(str(root), "orphan") == {}
+    st = engine.status(str(root), "orphan")
+    assert st["total_stages"] == 0 and st["stage"] is None
+    assert engine.next_stage(str(root), "orphan")["after"]["decision"] == "blocked"
+
+
+def test_an_in_root_spec_file_is_still_read(tmp_path):
+    """The containment must not refuse the path the kernel itself wrote."""
+    root = tmp_path / "proj"
+    root.mkdir()
+    engine.create(str(root), _storage_spec("MAP", "done"), slug="orphan")
+    assert store_mod.load_spec(str(root), "orphan")["id"] == "demo"
+
+
+def test_containment_is_one_implementation_shared_by_both_planes():
+    from bmad.workflow import paths as paths_mod
+    assert evidence_mod.root_of is paths_mod.root_of
+    assert paths_mod.outside(paths_mod.root_of(str(_ROOT)), str(_ROOT / "README.md")) is False
+    assert paths_mod.outside(paths_mod.root_of(str(_ROOT / "bmad")), str(_ROOT)) is True
