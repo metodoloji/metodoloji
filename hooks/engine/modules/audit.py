@@ -403,24 +403,83 @@ def session_start(json_in: dict) -> dict:
     # fail-open: a missing or corrupt board leaves just the fixed sentence.
     try:
         from . import blackboard as bb
+        from . import freshness as fr
+        # `[freshness] unknown_policy = "silent"` counts UNKNOWNs without
+        # announcing them: a legacy corpus with no witnesses would otherwise
+        # repeat "unverifiable" on every surface of every session. STALE is
+        # never silenced — that is the defect itself.
+        announce_unknown = fr.unknown_policy() != "silent"
         waiting = bb.pending_handoff_channels(root)
         if waiting:
-            waiting_s = "; ".join(
-                f"{s} ({n}): {n} unclaimed signal(s) from completed upstream "
-                f"runs — a run finished its work but nobody picked up the "
-                f"baton; peek `{_plugin_cmd('bmad/scripts/blackboard.py', 'handoffs', '--skill', s)}`, then consume its "
-                f"handoff channel with "
-                f"`{_plugin_cmd('bmad/scripts/blackboard.py', 'consume', '--channel', 'handoff.' + s)}`"
-                for s, n in waiting.items())
-            context += f" PROACTIVE — hand-off waiting: {waiting_s}."
+            # The count is the routing seam; the DERIVED verdict is what makes
+            # the nudge honest (E-053). A signal the code moved past is no
+            # longer "nobody picked up the baton" — it may be work that no
+            # longer applies, and the sentence has to say which it is instead
+            # of repeating yesterday's decision in the present tense (F-01/F-02).
+            try:
+                detail = bb.pending_handoff_freshness(root)
+            except Exception:
+                detail = {}
+            parts = []
+            for s, n in waiting.items():
+                info = detail.get(s) or {}
+                stale = list(info.get("stale_keys") or [])
+                unknown = list(info.get("unknown_keys") or []) if announce_unknown else []
+                peek_cmd = _plugin_cmd('bmad/scripts/blackboard.py', 'handoffs', '--skill', s)
+                consume_cmd = _plugin_cmd('bmad/scripts/blackboard.py', 'consume',
+                                          '--channel', 'handoff.' + s)
+                if stale:
+                    # Only a STALE verdict rewrites the sentence: the code has
+                    # moved past these claims, so announcing them as "work
+                    # nobody picked up" is the exact defect E-052 measured.
+                    labels = {str(item.get("key")): str(item.get("label"))
+                              for item in (info.get("freshness") or [])}
+                    shown = " ".join(f"{k} ({labels.get(k, fr.STALE)})"
+                                     for k in (stale + unknown)[:5])
+                    unknown_count = len(info.get("unknown_keys") or [])
+                    parts.append(
+                        f"{s} ({n}: {info.get('current', 0)} current, "
+                        f"{len(stale)} stale, {unknown_count} unknown) — NO LONGER "
+                        f"VALID WORK: {shown}; verify with `{peek_cmd}`, then "
+                        f"retire it "
+                        f"(`{_plugin_cmd('bmad/scripts/blackboard.py', 'handoff-retire', '--retire', '<key>', '--reason', '<why>')}`) "
+                        f"or consume the channel with `{consume_cmd}`")
+                    continue
+                legacy = (
+                    f"{s} ({n}): {n} unclaimed signal(s) from completed "
+                    f"upstream runs — a run finished its work but nobody "
+                    f"picked up the baton; peek `{peek_cmd}`, then consume its "
+                    f"handoff channel with `{consume_cmd}`")
+                if unknown:
+                    # UNKNOWN is not stale: the claim simply cannot be dated
+                    # here (no record, no git). It stays delivered as work and
+                    # is FLAGGED, so a session knows the anchor is missing
+                    # instead of mistaking silence for verification.
+                    legacy += (f" NOTE: {len(unknown)} of them carry no "
+                               f"code-state anchor (UNKNOWN: {', '.join(unknown[:3])}) "
+                               f"— verify before obeying ("
+                               f"`{_plugin_cmd('bmad/scripts/blackboard.py', 'witness', '--target', '<key>')}`)")
+                parts.append(legacy)
+            context += f" PROACTIVE — hand-off waiting: {'; '.join(parts)}."
         # Chain progress: when methodology run keys exist on the board,
         # surface how far the relay progressed so the session grounds in
         # live state instead of a static chain reminder. Empty board →
         # nothing appended (keeps the fixed sentence for fresh projects).
-        progress = bb.compact_context(root).get("methodology", {})
+        # Each stage carries its DERIVED freshness label, so a relay position
+        # whose scope moved on reads as such (F-03: the most durable surface
+        # used to be the least checked one).
+        compact = bb.compact_context(root)
+        progress = compact.get("methodology", {})
         if progress:
-            chain_s = "; ".join(f"{stage}: {val[:60]}"
-                                for stage, val in progress.items())
+            verdicts = compact.get("methodology_freshness", {}) or {}
+            chain_s = "; ".join(
+                f"{stage}: {val[:60]}"
+                + (f" [{verdicts[stage]['label']}]"
+                   if verdicts.get(stage, {}).get("verdict") not in (None, fr.CURRENT)
+                   and (verdicts[stage]['verdict'] != fr.UNKNOWN
+                        or announce_unknown)
+                   else "")
+                for stage, val in progress.items())
             context += f" Chain progress — {chain_s}."
         # Graph peek (blackboard full-integration P1): the hot run's
         # neighborhood grounds a resumed session in what the run is wired
@@ -458,7 +517,7 @@ def session_start(json_in: dict) -> dict:
             first = str(scope_alerts[0].get("text", ""))[:160]
             more = f" (+{len(scope_alerts) - 1} older)" if len(scope_alerts) > 1 else ""
             context += f" SCOPE DEBT — {first}{more}."
-        # Subscription-plane delivery announcement (BLACKBOARD.md §5: "session
+        # Subscription-plane delivery announcement (the engine's contract: "session
         # → injected at session start"). The engine invariants bar the session
         # edge from consuming (announce-only: never consume, never mutate), so
         # the edge surfaces the routed alerts and the addressed watcher clears

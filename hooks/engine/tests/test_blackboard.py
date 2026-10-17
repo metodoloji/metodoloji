@@ -1215,7 +1215,7 @@ def test_audit_does_not_feed_watching_canvas(tmp_path, monkeypatch):
 def test_stop_ignores_canvas_and_announces_stop_alerts(tmp_path, monkeypatch):
     # Faz 4 + §5 delivery surface: canvas focus stays out of the report, but
     # stop-channel alerts are the stop edge's OWN delivery channel — surfaced
-    # read-only (BLACKBOARD.md §5 "stop → surfaced at stop"), still
+    # read-only (the engine's contract "stop → surfaced at stop"), still
     # unconsumed: alerts stay on the board for the addressed watcher's CLI.
     audit_mod, stop_mod, config_mod = _engine(monkeypatch, str(tmp_path))
     monkeypatch.setattr(config_mod, "hook_gate_mode", lambda key: "hard")
@@ -2593,7 +2593,7 @@ def test_owner_rerun_replaces_owns_edge(root):
 
 # --- session edges announce their delivery channels (never consume) ----------
 def test_session_start_announces_session_channel_alerts(tmp_path, monkeypatch):
-    """BLACKBOARD.md §5: 'session → surfaced at session start'. The edge
+    """The engine's contract: 'session → surfaced at session start'. The edge
     announces read-only; the watcher clears with consume --channel session."""
     import modules.audit as audit_mod
     monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
@@ -2607,7 +2607,7 @@ def test_session_start_announces_session_channel_alerts(tmp_path, monkeypatch):
 
 
 def test_stop_announces_stop_channel_alerts(tmp_path, monkeypatch):
-    """BLACKBOARD.md §5: 'stop → surfaced at stop'. Report-only; the
+    """The engine's contract: 'stop → surfaced at stop'. Report-only; the
     producer clears the channel itself."""
     stop_mod = _stop_engine(tmp_path, monkeypatch)
     bb.post_alert(tmp_path, "stop", "risk", "NFR unconfirmed")
@@ -2739,7 +2739,9 @@ def test_cli_doctor_panel_and_json(tmp_path):
     assert "focus     hot: k" in r.stdout
     r = _run_cli(str(tmp_path), "doctor", "--json")
     j = json.loads(r.stdout)
-    assert j["ok"] is True and j["checks"]["snapshot"]["version"] == 3
+    # v4 adds the freshness planes (witness / retired) — an in-place upgrade
+    # (both planes default empty, so no replay is needed).
+    assert j["ok"] is True and j["checks"]["snapshot"]["version"] == 4
 
 
 def test_v1_snapshot_upgrade_keeps_data(root):

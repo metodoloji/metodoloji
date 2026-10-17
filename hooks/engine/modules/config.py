@@ -119,42 +119,81 @@ _HOOKS_CACHE: dict | None = None
 _HOOKS_CACHE_KEY: tuple | None = None
 
 
-def _read_hooks_section() -> dict:
-    """Parse the [hooks] section once per (path, mtime_ns, size)."""
+# One parser for every table of custom/config.toml: a second reader would be
+# a second opinion about what the file says. Cached per (section, path,
+# mtime_ns, size); switching the path (tests, a temp config) is itself a cache
+# miss, so no caller has to remember to clear anything.
+_SECTION_CACHE: dict[str, tuple[tuple, dict]] = {}
+
+
+def _read_config_section(section: str) -> dict:
+    """Parse one `[<section>]` table of custom/config.toml (cached)."""
     global _HOOKS_CACHE, _HOOKS_CACHE_KEY
     try:
         st = _HOOKS_CFG.stat()
         key = (str(_HOOKS_CFG), st.st_mtime_ns, st.st_size)
     except OSError:
         return {}
-    if _HOOKS_CACHE is not None and _HOOKS_CACHE_KEY == key:
-        return _HOOKS_CACHE
-    parsed: dict[str, str] = {}
-    try:
-        text = _HOOKS_CFG.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        # Missing OR not valid UTF-8: there is no override to apply, so the
-        # defaults win. That keeps the decision path ALIVE and fail-closed
-        # (code_guard stays "hard") — a crash here would leave the hook with NO
-        # decision, which a runner may read as an allow (E-006/E-007 doctrine).
-        text = ""
-    in_hooks = False
-    for line in text.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("[hooks]"):
-            in_hooks = True
-            continue
-        if in_hooks and stripped.startswith("[") and not stripped.startswith("[hooks]"):
-            break
-        if in_hooks and "=" in stripped:
-            k, _, v = stripped.partition("=")
-            k = k.strip()
-            # Strip a trailing # comment and surrounding quotes.
-            v = v.split("#", 1)[0].strip().strip('"').strip("'")
-            parsed[k] = v
-    _HOOKS_CACHE = parsed
-    _HOOKS_CACHE_KEY = key
-    return parsed
+    cached = _SECTION_CACHE.get(section)
+    if cached is not None and cached[0] == key:
+        parsed = cached[1]
+    else:
+        parsed: dict[str, str] = {}
+        try:
+            text = _HOOKS_CFG.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            # Missing OR not valid UTF-8: there is no override to apply, so the
+            # defaults win. That keeps the decision path ALIVE and fail-closed
+            # (code_guard stays "hard") — a crash here would leave the hook with
+            # NO decision, which a runner may read as an allow (E-006/E-007).
+            text = ""
+        header = f"[{section}]"
+        inside = False
+        for line in text.splitlines():
+            stripped = line.strip()
+            # A comment line is prose, not a setting: without this, a comment
+            # that happens to contain '=' inside the table parsed as a key
+            # (the freshness table's own explanatory block did exactly that).
+            if stripped.startswith("#"):
+                continue
+            if stripped.startswith(header):
+                inside = True
+                continue
+            if inside and stripped.startswith("[") and not stripped.startswith(header):
+                break
+            if inside and "=" in stripped:
+                k, _, v = stripped.partition("=")
+                # Strip a trailing # comment and surrounding quotes.
+                parsed[k.strip()] = v.split("#", 1)[0].strip().strip('"').strip("'")
+        if len(_SECTION_CACHE) >= 8:
+            _SECTION_CACHE.clear()
+        _SECTION_CACHE[section] = (key, parsed)
+    if section == "hooks":
+        # Kept in sync for the callers that reset the legacy pair to force a
+        # re-read (tests, bench_consistency): the globals still describe the
+        # [hooks] parse they always described.
+        _HOOKS_CACHE, _HOOKS_CACHE_KEY = parsed, key
+    return dict(parsed)
+
+
+def _read_hooks_section() -> dict:
+    """Parse the [hooks] section once per (path, mtime_ns, size)."""
+    return _read_config_section("hooks")
+
+
+# --- [freshness] table (E-053, plan §5.5) ------------------------------------
+# The three knobs the freshness plane exposes. Defaults are the shipping
+# behavior: scope-sensitive classification on, UNKNOWN warned about, and a
+# bounded changed-file set.
+_FRESHNESS_DEFAULTS = {"scope_digest": "true", "unknown_policy": "warn",
+                       "max_digest_files": "2000"}
+_VALID_FRESHNESS_KEYS = frozenset(_FRESHNESS_DEFAULTS)
+
+
+def freshness_setting(key: str) -> str:
+    """One `[freshness]` value, or its published default when absent."""
+    value = _read_config_section("freshness").get(key, "").strip()
+    return value if value else _FRESHNESS_DEFAULTS.get(key, "")
 
 
 def _hook_gate_value(gate_key: str, *args) -> str:
@@ -190,59 +229,96 @@ _VALID_HOOKS_KEYS = frozenset({
     "code_guard",
     "stop_guard",
     "blackboard",
+    # Freshness plane (E-053): how a claim whose code state moved is treated.
+    #   "off"  → no witness is written and no verdict is derived (pre-E-053
+    #            behavior; the board keeps working, it just cannot say stale)
+    #   "warn" → derived and REPORTED everywhere, writes still allowed
+    #   "deny" → an APPROVED record whose scope moved no longer unlocks code
+    # Read live per-call by modules/freshness.py:mode().
+    "freshness",
 })
 
 
-def _validate_hooks_config() -> tuple[bool, str]:
-    """Validate [hooks] section in custom/config.toml (MEDIUM #9 / ISSUE #68).
-    
-    Checks that all keys in [hooks] are recognized. Invalid keys raise error.
+def _validate_config_section(section: str, valid_keys: frozenset) -> tuple[bool, str]:
+    """Validate one config table against its recognized keys (MEDIUM #9).
+
+    Checks that all keys inside `[<section>]` are recognized, so a typo
+    (`code_gard = "hard"`) is reported instead of silently doing nothing.
     Returns (is_valid, error_message).
     """
     try:
         text = _HOOKS_CFG.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
-        # Missing OR not valid UTF-8: there is no [hooks] block to police and
-        # the gate defaults still govern (fail-closed) — nothing to report.
+        # Missing OR not valid UTF-8: there is no block to police and the
+        # defaults still govern (fail-closed) — nothing to report.
         return True, ""  # Config file doesn't exist yet
-    
-    in_hooks = False
+
+    header = f"[{section}]"
+    inside = False
     invalid_keys = []
     line_no = 0
-    
+
     for line in text.splitlines():
         line_no += 1
         stripped = line.strip()
-        
+
         # Skip empty lines and comments
         if not stripped or stripped.startswith("#"):
             continue
-        
-        # Check for [hooks] section start
-        if stripped.startswith("[hooks]"):
-            in_hooks = True
+
+        # Check for the section start
+        if stripped.startswith(header):
+            inside = True
             continue
-        
+
         # Check for other sections
-        if stripped.startswith("[") and not stripped.startswith("[hooks]"):
-            in_hooks = False
+        if stripped.startswith("[") and not stripped.startswith(header):
+            inside = False
             continue
-        
-        # Validate keys in [hooks] section
-        if in_hooks and "=" in stripped:
+
+        # Validate keys in this section
+        if inside and "=" in stripped:
             key, _, _ = stripped.partition("=")
             key = key.strip()
-            
-            if key not in _VALID_HOOKS_KEYS:
+
+            if key not in valid_keys:
                 invalid_keys.append((line_no, key))
-    
+
     if invalid_keys:
-        error_msg = f"Invalid [hooks] keys in {_HOOKS_CFG}: "
-        error_parts = [f"line {line}: '{key}' (valid: {', '.join(sorted(_VALID_HOOKS_KEYS))})"
+        error_msg = f"Invalid {header} keys in {_HOOKS_CFG}: "
+        error_parts = [f"line {line}: '{key}' (valid: {', '.join(sorted(valid_keys))})"
                       for line, key in invalid_keys[:3]]
         error_msg += "; ".join(error_parts)
         return False, error_msg
-    
+
+    return True, ""
+
+
+def _validate_hooks_config() -> tuple[bool, str]:
+    """Validate [hooks] section in custom/config.toml (MEDIUM #9 / ISSUE #68)."""
+    return _validate_config_section("hooks", _VALID_HOOKS_KEYS)
+
+
+def _validate_freshness_config() -> tuple[bool, str]:
+    """Validate [freshness] section in custom/config.toml (E-053)."""
+    ok, error = _validate_config_section("freshness", _VALID_FRESHNESS_KEYS)
+    if not ok:
+        return ok, error
+    policy = freshness_setting("unknown_policy")
+    if policy not in ("warn", "silent", "deny"):
+        return False, (f"Invalid [freshness] unknown_policy '{policy}' in "
+                       f"{_HOOKS_CFG}: valid values are warn, silent, deny")
+    raw = freshness_setting("max_digest_files")
+    try:
+        if int(raw) < 1:
+            raise ValueError(raw)
+    except ValueError:
+        return False, (f"Invalid [freshness] max_digest_files '{raw}' in "
+                       f"{_HOOKS_CFG}: expected a positive integer")
+    digest = freshness_setting("scope_digest").lower()
+    if digest not in ("true", "false", "on", "off", "yes", "no"):
+        return False, (f"Invalid [freshness] scope_digest '{digest}' in "
+                       f"{_HOOKS_CFG}: expected true|false")
     return True, ""
 
 
@@ -319,7 +395,15 @@ FREE_PREFIXES = (
 # bmad/tests/ is test tooling, not methodology content: the gate's own tests
 # cannot sit behind experiment approval (circularity — the gate could never be
 # tested without the gate's permission). bmad/ workflows stay gated.
-PLUGIN_FREE_PREFIXES = ("hooks/", "scripts/", "skills/", "custom/", "bmad/tests/")
+#
+# opencode-plugin/ is the third runtime's source tree (the same kind of surface
+# as hooks//scripts//skills/ — it just arrived later) and .githooks//.github/
+# plus assets/ are this repository's own automation and launch surface. E-053's
+# dogfood run of check-plugin §3b measured them as "edited files outside every
+# approved scope": the check had never run inside this repo (F-05), so the
+# omission was invisible. With the check live, the free zone has to name them.
+PLUGIN_FREE_PREFIXES = ("hooks/", "scripts/", "skills/", "custom/", "bmad/tests/",
+                        "opencode-plugin/", ".githooks/", ".github/", "assets/")
 
 INFRA_FILES = {"scripts/check-methodology.sh"}
 # The gate script is DELIBERATELY not listed under its project-relative
@@ -371,8 +455,12 @@ _KEY_ACCESS_IN_CONTENT = re.compile(
 
 
 # NEW: Validate config on module load (MEDIUM #9 / ISSUE #68)
-# Checks [hooks] section for invalid keys at import time
+# Checks the [hooks] and [freshness] tables for invalid keys/values at import
+# time. Both are gated policy (the second one decides how a claim whose code
+# state moved is treated), so a typo must be visible rather than silent.
 _config_valid, _config_error = _validate_hooks_config()
+if _config_valid:
+    _config_valid, _config_error = _validate_freshness_config()
 if not _config_valid:
     import sys
     sys.stderr.write(f"metodoloji: config error: {_config_error}\n")

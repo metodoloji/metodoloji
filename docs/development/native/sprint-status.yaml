@@ -10,6 +10,7 @@
 # (2026-10-01 second-sprint drift).
 #
 # Methodology record: docs/development/SP-001.md
+# Methodology record: docs/development/SP-005.md
 #
 # project: metodoloji
 # tracking_system: file-system
@@ -34,3 +35,8 @@ development_status:
   # bench 1.00 at 99/99); the story stays at review because the QR record that
   # closes it has not been written yet — readiness is not progress.
   1-1-change-radar-contract-measured: review
+  epic-2: done
+  # S-002 — "Date every recorded decision to a code state (the freshness plane)".
+  # P0–P7 landed under E-053 (APPROVED, bench stale_delivery_rate 0.0 with a
+  # paired false_alarm_rate 0.0); CLOSED by QR-017.
+  2-1-stale-context-freshness-plane: done

@@ -288,7 +288,7 @@ The scope and the # map are in #16. Exit 0 = HEALTHY; on problems go to #17.
 ```bash
 python -m pytest -q             # 1100+ tests: hook engine, bridge, skills
 sh {metodoloji-root}/scripts/check-custom.sh      # bridge TOML static audit
-sh {metodoloji-root}/scripts/check-plugin.sh      # plugin structure audit (#0–#6g)
+sh {metodoloji-root}/scripts/check-plugin.sh      # plugin structure audit (#0–#6h)
 sh scripts/check-methodology.sh # record format audit
 sh scripts/check-techdebt.sh    # tech-debt inventory audit
 python scripts/check-handoff.py # handoff wiring lint
@@ -564,7 +564,7 @@ Suggested order: pytest first (engine behaviour), then check-plugin (the widest 
 Negative tests (proof the gates actually work):
 
 ```bash
-sh {metodoloji-root}/scripts/check-plugin.sh --negtest   # 9 stages: .env/.gitignore, 2 BRIDGE removals (#2b), #1b hooks.json, #6c template, #6d marker, #6e help catalog, #6g priming token, #3 forged-token → all caught and restored
+sh {metodoloji-root}/scripts/check-plugin.sh --negtest   # 10 stages: .env/.gitignore, 2 BRIDGE removals (#2b), #1b hooks.json, #6c template, #6d marker, #6e help catalog, #6g priming token, #3 forged-token, #6h raw-plane freshness read → all caught and restored
 sh {metodoloji-root}/scripts/check-custom.sh --negtest   # 4 tests: #3 hard-gate + #7 bridge drift ×2 (#2.3 removal + "bolum N.N" injection) + #2b bare activation step
 ```
 
@@ -1266,7 +1266,7 @@ grep 'methodology_warnings' .metodoloji/logs/hook-audit.log
 ## 16. Auditing and Health Checks
 
 ```bash
-sh {metodoloji-root}/scripts/check-plugin.sh        # full audit #0–#6g (0=HEALTHY, 1=problem)
+sh {metodoloji-root}/scripts/check-plugin.sh        # full audit #0–#6h (0=HEALTHY, 1=problem)
 sh {metodoloji-root}/scripts/check-plugin.sh --negtest
 sh {metodoloji-root}/scripts/check-custom.sh        # bridge TOML #0–#7
 python scripts/check-handoff.py   # handoff wiring lint
@@ -1275,7 +1275,7 @@ sh scripts/check-techdebt.sh      # debt drift/ID/P0/orphan (also runs as #6b)
 python scripts/check-triggers.py  # trigger/description collision (also runs as #6f)
 ```
 
-**# map:** #0 gate key · #0b base config project-name leak · #1 engine selfcheck (combined `pre` + individual modes) · #1b hooks.json byte-identical · #2 manifesto wiring · #2b bridge runtime visibility (30 workflow + 3 agent-principles) · #2c bridge VERIFY (17 skills) · #3 approved inventory (VERIFIED/ADVISORY-BLOCK + CROSS-MACHINE warning) · #3b code-scope coverage · #4 documentary records · #5 engine integrity (py\_compile) · #5b hard-gate validity · #5c custom/ static · #6 development format · #6a `.env` · #6b tech-debt · #6c template copy identity · #6d init marker integrity · #6d2 command→script reference integrity · #6d3 plugin version consistency (`.plugin/plugin.json` ↔ `.plugin/marketplace.json` ↔ `.claude-plugin/plugin.json` ↔ `.claude-plugin/marketplace.json` ↔ `.opencode-plugin/plugin.json` ↔ `opencode-plugin/package.json` ↔ `pyproject`) · #6e help catalog integrity · #6f trigger/description collision · #6g no namespaced-tool priming tokens.
+**# map:** #0 gate key · #0b base config project-name leak · #1 engine selfcheck (combined `pre` + individual modes) · #1b hooks.json byte-identical · #2 manifesto wiring · #2b bridge runtime visibility (30 workflow + 3 agent-principles) · #2c bridge VERIFY (17 skills) · #3 approved inventory (VERIFIED/ADVISORY-BLOCK + CROSS-MACHINE warning) · #3b code-scope coverage · #4 documentary records · #5 engine integrity (py\_compile) · #5b hard-gate validity · #5c custom/ static · #6 development format · #6a `.env` · #6b tech-debt · #6c template copy identity · #6d init marker integrity · #6d2 command→script reference integrity · #6d3 plugin version consistency (`.plugin/plugin.json` ↔ `.plugin/marketplace.json` ↔ `.claude-plugin/plugin.json` ↔ `.claude-plugin/marketplace.json` ↔ `.opencode-plugin/plugin.json` ↔ `opencode-plugin/package.json` ↔ `pyproject`) · #6e help catalog integrity · #6f trigger/description collision · #6g no namespaced-tool priming tokens · #6h freshness contract (witness producer ↔ verdict consumers, derived from the tree).
 
 **Single-record verification + inventory:**
 

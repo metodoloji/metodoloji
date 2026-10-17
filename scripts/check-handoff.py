@@ -488,7 +488,7 @@ BOARD_GROUNDED_REASONS = ("router", "reporter")
 # Guest contributors (`bmad-advanced-elicitation`, `bmad-eval-runner`) are called
 # *inside* another skill's session and need only the invoking run's focus, not a
 # whole orientation: they ground with ONE bounded read — `read --context`, the
-# compact summary docs/BLACKBOARD.md calls its bounded-context contract.
+# compact summary the board module calls its bounded-context contract.
 BOARD_GROUNDED_GUESTS = ("contributor",)
 # The grounding is ONE call: orient.py wraps the board context (focus +
 # liveness, waiting batons with age, chain progress, record inventory) that the
@@ -645,7 +645,7 @@ def check() -> int:
                           f"(read-only, via '{BOARD_GROUNDED_MARKER}')")
                 elif reason in BOARD_GROUNDED_GUESTS and RAW_BOARD_READ in text:
                     # A guest inherits the invoking run's focus with one bounded
-                    # read (docs/BLACKBOARD.md's bounded-context contract).
+                    # read (the board's bounded-context contract).
                     print(f"[OK]   {skill}: {reason} inherits the invoking run's "
                           f"context with one bounded read ('{RAW_BOARD_READ}')")
                 elif activation_body(text):
@@ -840,7 +840,7 @@ def check_bounded_board_reads() -> int:
     digest-first surface may not spell `read --context` at all, because that is
     precisely the read its step 1 already carries. Two deliberate exceptions,
     neither of them the pair: a guest contributor that only needs the invoking
-    run's focus keeps the single bounded `read --context` (docs/BLACKBOARD.md),
+    run's focus keeps the single bounded `read --context` (the board module),
     and a front door may keep the bare baton listing as its fallback for when
     the digest could not run (the relay position then degrades to "unknown"
     rather than costing a second read).
@@ -866,6 +866,185 @@ def check_bounded_board_reads() -> int:
     if not problems:
         print("[OK]   board reads are bounded: no activation spells the raw pair, "
               "and no digest-first surface re-reads the context")
+    return problems
+
+
+# --- freshness contract (E-053 / P7) ------------------------------------------
+# The witness producer must exist, every verdict consumer must come through the
+# single derivation, and no surface may read the RAW alert plane (whose entries
+# carry no verdict). All three sets are DERIVED from the tree by AST — the list
+# is never hand-maintained, so a new surface is checked the moment it lands
+# (E-049's doctrine), and deleting a surface's freshness read turns this red.
+VERDICT_VOCAB = ("CURRENT", "STALE", "UNKNOWN", "RETIRED")
+_WITNESS_EVENTS = ('"event": "witness"', '"event": "retire"')
+_RAW_PLANE = '"alerts"'
+
+
+def _freshness_scan_paths() -> list:
+    """Every shipped module that may carry a verdict surface."""
+    engine = PLUGIN / "hooks" / "engine"
+    return (sorted((engine / "modules").glob("*.py"))
+            + [engine / "main.py"]
+            + [PLUGIN / "bmad" / "scripts" / "blackboard.py",
+               PLUGIN / "skills" / "bmad-research-experiment" / "scripts" / "run_experiment.py"])
+
+
+def _module_functions(source: str) -> list:
+    """(module, name, body-lines, line) for every function in the source.
+
+    Nested functions are listed under their own name too: a helper that builds
+    a claim shape is as much a surface as the function that calls it.
+    """
+    import ast
+    lines = source.splitlines()
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return []
+    out = []
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            end = getattr(node, "end_lineno", None) or node.lineno
+            out.append((node.name, lines[node.lineno - 1:end], node.lineno))
+    return out
+
+
+def _uses_freshness(source: str) -> bool:
+    """Does this module obtain its verdicts from the plane?
+
+    Accepts the module alias (`fr.STALE`, `bb.fr.mode()`) or a direct import —
+    the point is that the verdicts come FROM freshness, not that a particular
+    spelling was used.
+    """
+    return bool(re.search(r"\b(?:fr|freshness)\.\w+", source)) or bool(
+        re.search(r"^\s*(?:from\s+\.?\s*import\s+freshness"
+                  r"|import\s+freshness\b)", source, re.MULTILINE))
+
+
+def _mentions_verdict(source: str) -> list:
+    """Names of the functions whose CODE touches a verdict (AST, not prose)."""
+    import ast
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return []
+    out = []
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        for inner in ast.walk(node):
+            hit = False
+            if isinstance(inner, ast.Constant) and inner.value == "verdict":
+                hit = True
+            elif isinstance(inner, ast.Attribute) and inner.attr == "verdict":
+                hit = True
+            if hit:
+                out.append(node.name)
+                break
+    return out
+
+
+def _code_constants(source: str) -> list:
+    """(line, value) for every verdict literal in CODE (docstrings excluded)."""
+    import ast
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return []
+    docstrings = set()
+    for node in ast.walk(tree):
+        body = getattr(node, "body", None)
+        if (isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef,
+                              ast.AsyncFunctionDef)) and body):
+            first = body[0]
+            if (isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant)
+                    and isinstance(first.value.value, str)):
+                docstrings.add(id(first.value))
+    out = []
+    for node in ast.walk(tree):
+        if (isinstance(node, ast.Constant) and isinstance(node.value, str)
+                and node.value in VERDICT_VOCAB and id(node) not in docstrings):
+            out.append((node.lineno, node.value))
+    return out
+
+
+def check_freshness_contract() -> int:
+    """The freshness plane's producer/consumer contract, derived from the tree.
+
+    Four mechanical questions:
+      1. Is there a WRITER? (a `witness`/`retire` event producer)
+      2. Is the verdict VOCABULARY defined once? A literal `"STALE"` outside
+         freshness.py is a second definition waiting to drift.
+      3. Does every module that speaks about a verdict obtain it FROM the
+         plane? A surface that builds one of its own is the "second opinion"
+         the doctrine forbids.
+      4. Does any surface read the RAW alert plane? Entries there carry no
+         verdict at all, so a reader of it can only deliver live work — the
+         exact defect E-052 measured.
+
+    Everything is derived, never listed: a surface added tomorrow is checked
+    on the next run, and removing a freshness read turns this red.
+    """
+    problems = 0
+    sources: dict = {}
+    for path in _freshness_scan_paths():
+        if not path.is_file():
+            continue
+        try:
+            sources[path] = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+
+    # 1. A writer must exist (a read plane with no producer is a dead plane).
+    producers = []
+    for path, source in sources.items():
+        for name, body, line in _module_functions(source):
+            text = "\n".join(body)
+            if any(ev in text for ev in _WITNESS_EVENTS):
+                producers.append(f"{path.name}:{name}")
+    if not producers:
+        print("[ERROR] freshness: no witness/retire producer in the tree — the "
+              "plane stores nothing, so every verdict would read UNKNOWN")
+        problems += 1
+
+    consumers = []
+    for path, source in sources.items():
+        if path.name == "freshness.py":
+            continue
+
+        # 2. One vocabulary: the verdict literals live in freshness.py alone.
+        for line, value in _code_constants(source):
+            print(f"[ERROR] freshness: {path.name}:{line} spells the verdict "
+                  f"literal {value!r} — use freshness.{value} (the plane's own "
+                  f"constant) so the vocabulary has ONE definition")
+            problems += 1
+
+        # 3. A module that speaks about a verdict must obtain it from the plane.
+        #    "Speaks" is read from the AST — a docstring that names the concept
+        #    is prose, not a surface (utils.py mentions it exactly that way).
+        speaks = _mentions_verdict(source)
+        if speaks and not _uses_freshness(source):
+            print(f"[ERROR] freshness: {path.name} carries a verdict "
+                  f"({', '.join(speaks[:3])}) without obtaining it from the "
+                  f"freshness module — a surface that derives its own verdict "
+                  f"is a second source of truth")
+            problems += 1
+        elif speaks:
+            consumers.extend(f"{path.name}:{name}" for name in speaks)
+
+        # 4. No surface may read the raw alert plane instead of the annotated one.
+        for name, body, line in _module_functions(source):
+            text = "\n".join(body)
+            if path.name != "blackboard.py" and _RAW_PLANE in text and "read_board" in text:
+                print(f"[ERROR] freshness: {path.name}:{name} (line {line}) reads "
+                      f"the raw alert plane — those entries carry no verdict; "
+                      f"go through pending_handoffs/pending_handoff_channels/"
+                      f"recent_handoffs (the annotated accessors)")
+                problems += 1
+
+    if not problems:
+        print(f"[OK]   freshness contract: {len(producers)} producer(s), "
+              f"{len(consumers)} verdict consumer(s), no raw-plane reader")
     return problems
 
 
@@ -954,6 +1133,36 @@ def check_forwarders() -> int:
     return problems
 
 
+def negtest_freshness() -> int:
+    """Break the contract the freshness check derives and require it to go red.
+
+    The violation planted is the measured defect itself: a surface reading the
+    RAW alert plane, whose entries carry no verdict, so it can only deliver a
+    claim as live work. Restored byte-exact in `finally`.
+    """
+    victim = PLUGIN / "hooks" / "engine" / "modules" / "stop.py"
+    orig = victim.read_bytes()
+    try:
+        text = orig.decode("utf-8")
+        planted = text.replace(
+            "from .blackboard import pending_alerts",
+            "from .blackboard import read_board, pending_alerts", 1)
+        planted = planted.replace(
+            "        stop_alerts = pending_alerts(root, \"stop\")",
+            "        stop_alerts = [a for a in read_board(root)[\"alerts\"] "
+            "if a.get('channel') == 'stop']", 1)
+        assert planted != text, "negtest premise gone: stop.py stop-channel peek changed"
+        victim.write_text(planted, encoding="utf-8")
+        rc = check_freshness_contract()
+        if rc == 0:
+            print("  [ERROR] raw-plane read NOT caught by the freshness contract")
+            return 1
+        print("  [OK] raw-plane read caught, problems>0")
+    finally:
+        victim.write_bytes(orig)
+    return 0
+
+
 def negtest() -> int:
     skill = SKILLS / "bmad-ux" / "SKILL.md"
     orig = skill.read_text(encoding="utf-8")
@@ -977,6 +1186,9 @@ def negtest() -> int:
             return 1
     finally:
         skill.write_text(orig, encoding="utf-8")
+    rc = negtest_freshness()
+    if rc != 0:
+        return rc
     print("[OK] check-handoff negtest passed")
     return 0
 
@@ -1037,6 +1249,9 @@ def runtime_check(project_root: str) -> int:
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="handoff wiring lint (+ live-board check)")
     ap.add_argument("--negtest", action="store_true")
+    ap.add_argument("--freshness-only", action="store_true",
+                    help="run ONLY the witness producer/consumer contract "
+                         "(E-053); check-plugin.sh §6h calls this")
     ap.add_argument("--runtime", action="store_true",
                     help="also inspect the live board event log")
     ap.add_argument("--project-root", default=".",
@@ -1044,6 +1259,8 @@ if __name__ == "__main__":
     ns = ap.parse_args()
     if ns.negtest:
         sys.exit(negtest())
+    if ns.freshness_only:
+        sys.exit(1 if check_freshness_contract() else 0)
     rc = check()
     if ns.runtime:
         rc = runtime_check(ns.project_root) or rc

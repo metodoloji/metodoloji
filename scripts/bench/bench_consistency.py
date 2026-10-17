@@ -38,7 +38,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 # Live prose docs (historical records excluded on purpose — see module docstring).
 # Every entry MUST exist, or it contributes only FileNotFoundError noise (five
 # "failures" per missing file) that hides the real signal — the exact shape of
-# the E-001 audit. docs/BLACKBOARD.md was pruned (the code is canonical —
+# the E-001 audit. The old canvas doc was pruned (the code is canonical —
 # KILAVUZ.md §14) and docs/USAGE-GUIDE.md is not in the tree; the live
 # reader-facing set is the README documentation table plus the engine summary.
 # scripts/tests/test_selfcheck_scripts.py pins this list against the tree.
@@ -51,7 +51,7 @@ DOC_FILES = (
     "KILAVUZ.md",
 )
 # The stop-semantics and canvas-feed claims live in the runbooks/guides, not
-# only in README.md; docs/BLACKBOARD.md (the old canvas home) is pruned.
+# only in README.md; the old canvas home was pruned.
 STOP_DOCS = ("README.md", "docs/CLAUDE.md", "AGENT-GUIDE.md")
 CANVAS_DOCS = ("KILAVUZ.md", "GUIDE.md")
 # Machine-readable manifests that repeat the same public counts.
@@ -72,6 +72,7 @@ ENGINE_MODULES = (
     "hooks/engine/modules/bash_targets.py",
     "hooks/engine/modules/blackboard.py",
     "hooks/engine/modules/config.py",
+    "hooks/engine/modules/freshness.py",
     "hooks/engine/modules/guard.py",
     "hooks/engine/modules/mirror.py",
     "hooks/engine/modules/plan.py",

@@ -567,10 +567,60 @@ def hypothesis_claim(hypothesis: str) -> tuple[str, str]:
     raise ValueError("record 'Hypothesis' line must look like 'H-001: \"metric >= 0.90\"'")
 
 
+# --- Witness: the code state an approval is true against (E-053) ---------------
+# The gate's token proves a record was not tampered with; it says nothing about
+# whether the decision still applies to the code. `Witness:` dates the approval
+# to the commit (and dirty tree) it was measured against, and the commit token
+# is BOUND into the HMAC — so editing the Witness line after approval is a
+# forgery, exactly like editing the measurement command.
+WITNESS_FIELD = "Witness"
+WITNESS_COMMIT_RE = re.compile(r"commit=([0-9a-f]{7,40}|none)")
+WITNESS_TREE_RE = re.compile(r"tree=([0-9a-f]{4,64}|none)")
+WITNESS_SCOPE_RE = re.compile(r"scope=([0-9a-f]{4,64}|none)")
+
+
+def _freshness_module():
+    """The engine's freshness module, or None in a standalone install."""
+    try:
+        import modules.freshness as _fr  # noqa: WPS433 (lazy: optional engine)
+        return _fr
+    except Exception:
+        return None
+
+
+def witness_commit(record_text: str) -> str:
+    """The commit the record's Witness line names ('' when it carries none)."""
+    value = record_fields(record_text).get(WITNESS_FIELD, "")
+    m = WITNESS_COMMIT_RE.search(value)
+    if not m:
+        return ""
+    return "" if m.group(1) == "none" else m.group(1)
+
+
+def witness_line(root: str | None, scope: str = "") -> str | None:
+    """The Witness line for a measurement taken NOW, or None when unknown.
+
+    Records the commit HEAD, the dirty-tree digest and the scope digest the
+    decision is being measured against. `none` where the code state cannot be
+    established — an honest `none` reads as UNKNOWN downstream, never as fresh.
+    """
+    fr = _freshness_module()
+    if fr is None or not root:
+        return None
+    try:
+        commit = fr.head(root)
+        if commit is None:
+            return f"commit=none tree=none scope={fr.scope_digest(scope) or 'none'}"
+        return (f"commit={commit or 'none'} tree={fr.tree_digest(root) or 'none'} "
+                f"scope={fr.scope_digest(scope) or 'none'}")
+    except Exception:
+        return None
+
+
 def gate_token(claim: str, measured: float, did: str, secret: bytes,
                cmd: str | None = None, scope: str | None = None,
-               plan_hash: str | None = None) -> str:
-    """GATE-OK token: HMAC-SHA256(secret, 'GATE-OK|did|claim|measured[|cmd_sha256][|scope][|plan_sha256]').
+               plan_hash: str | None = None, witness: str | None = None) -> str:
+    """GATE-OK token: HMAC-SHA256(secret, 'GATE-OK|did|claim|measured[|cmd_sha256][|scope][|plan_sha256][|witness]').
 
     Secret-gated: without the key the token cannot be reproduced, so a forged
     APPROVED record cannot pass --verify (unlike the old sha1(claim|measured)
@@ -587,6 +637,10 @@ def gate_token(claim: str, measured: float, did: str, secret: bytes,
     approval goes through --amend-plan and is legitimate. Verify accepts records
     whose token carries NO plan binding (pre-E-065 approvals) via the legacy
     path — never the reverse.
+    witness: the commit the approval was measured against (E-053). When given,
+    the token binds to the WITNESS COMMIT, so re-dating an approval to a newer
+    commit after the fact (to make it look fresh) breaks the token. Records
+    approved before the Witness line existed verify via the legacy path.
     """
     payload = f"GATE-OK|{did}|{claim}|{measured}"
     if cmd is not None:
@@ -595,6 +649,8 @@ def gate_token(claim: str, measured: float, did: str, secret: bytes,
         payload += "|" + hashlib.sha256(" ".join(sorted(parse_scope(scope))).encode("utf-8")).hexdigest()
     if plan_hash is not None:
         payload += "|" + plan_hash
+    if witness is not None:
+        payload += "|witness=" + witness
     mac = hmac.new(secret, payload.encode("utf-8"), hashlib.sha256).hexdigest()
     return f"GATE-OK-{did}-{mac[:32]}"
 
@@ -1216,6 +1272,12 @@ def main() -> int:
         print(f"[DRY-RUN]   Measurement command will be written: {args.run}")
         if _dry_plan_hash is not None:
             print(f"[DRY-RUN]   Final plan hash will bind the token: {_dry_plan_hash[:16]}…")
+        _dry_witness = witness_line(
+            _derive_project_root(args.record, args.project_root),
+            fields.get("Code Scope", ""))
+        if _dry_witness:
+            print(f"[DRY-RUN]   Witness will be written (and bound into the "
+                  f"token): {_dry_witness}")
         if passed:
             tok = gate_token(claim, val, did, secret, args.run)
             print(f"[DRY-RUN]   Decision will be: APPROVED — {hid}: {summary}")
@@ -1242,10 +1304,20 @@ def main() -> int:
     # The line is materialized so the binding is inspectable; --verify
     # re-derives it from the record body and refuses a doctored one.
     plan_hash = _plan.final_plan_hash(text) if _plan is not None else None
+    # E-053: date the decision to the CODE STATE it was measured against. The
+    # commit is bound into the token below, so an old approval cannot be
+    # re-dated afterwards to look fresh (that is a forgery, not a repair).
+    w_line = witness_line(_derive_project_root(args.record, args.project_root),
+                          fields.get("Code Scope", ""))
+    w_commit = ""
+    if w_line:
+        lines = upsert(lines, f"- **{WITNESS_FIELD}:**", w_line)
+        m_w = WITNESS_COMMIT_RE.search(w_line)
+        w_commit = "" if (not m_w or m_w.group(1) == "none") else m_w.group(1)
 
     if passed:
         tok = gate_token(claim, val, did, secret, args.run, fields.get("Code Scope", ""),
-                         plan_hash)
+                         plan_hash, w_commit or None)
         lines = upsert(lines, "- **Decision:**", f"APPROVED — {hid}: {summary}")
         lines = upsert(lines, "- **Gate Evidence:**", f'measured={val} claim="{claim}" {tok}')
         lines = upsert(lines, "- **Next Step:**", "Proceed to Code")
@@ -1362,26 +1434,52 @@ def verify(path: str) -> int:
         # one-way, so the never-wider rule holds (a plan-bound token cannot
         # verify as legacy, but a legacy token is not forgeable into a plan
         # context: new approvals ALWAYS carry the plan binding).
-        new_tok = any(gate_token(claim, measured, did, s, cmd_field, scope_field,
-                                 plan_hash_now if _plan is not None else None) == tok
-                      for s in secrets) if cmd_field else False
-        pre_plan_tok = any(gate_token(claim, measured, did, s, cmd_field, scope_field) == tok
-                           for s in secrets) if cmd_field else False
-        cmd_only_tok = any(gate_token(claim, measured, did, s, cmd_field) == tok
-                           for s in secrets) if cmd_field else False
-        legacy_ok = any(gate_token(claim, measured, did, s) == tok for s in secrets)
-        if not new_tok and pre_plan_tok and not recorded_plan_hash:
-            # Pre-E-065 approval (no Final Plan Hash line): accepted as-is —
-            # re-measurement under the current gate re-binds the plan.
-            new_tok = True
-        if new_tok:
-            ok = True
-        elif cmd_field and cmd_only_tok:
-            ok = True  # pre-scope-binding approval — re-measure to bind scope
-        elif cmd_field:
-            ok = False  # field present but doesn't match new-style token => forged/downgrade
+        # Witness binding (E-053): an approval is dated to the code state it was
+        # measured against, and that commit is inside the HMAC — so re-dating an
+        # old approval to a newer commit (to make it look fresh) breaks the
+        # token. Acceptance is one-way like the plan binding: a token signed
+        # WITH a witness verifies only when the Witness line still names it,
+        # while a pre-witness token keeps verifying without one. A Witness line
+        # whose token only matches WITHOUT it was added after approval.
+        recorded_witness = witness_commit(text)
+        witness_arg = recorded_witness or None
+        planned = plan_hash_now if _plan is not None else None
+
+        def _tok_matches(*, use_plan: bool, use_scope: bool, use_witness: bool) -> bool:
+            return any(
+                gate_token(claim, measured, did, s,
+                           cmd_field or None,
+                           scope_field if use_scope else None,
+                           planned if use_plan else None,
+                           witness_arg if use_witness else None) == tok
+                for s in secrets)
+
+        if not cmd_field:
+            # Pre-command-field record: the legacy token is the only shape it can carry.
+            ok = any(gate_token(claim, measured, did, s) == tok for s in secrets)
+        elif recorded_witness:
+            # The approval is witness-bound: accept the plan-bound or plan-less
+            # witness token. A token that only matches WITHOUT the witness means
+            # the Witness line was added after approval — a re-dating attempt.
+            ok = (_tok_matches(use_plan=True, use_scope=True, use_witness=True)
+                  or _tok_matches(use_plan=False, use_scope=True, use_witness=True))
+            if not ok and (_tok_matches(use_plan=True, use_scope=True, use_witness=False)
+                           or _tok_matches(use_plan=False, use_scope=True, use_witness=False)
+                           or _tok_matches(use_plan=False, use_scope=False, use_witness=False)):
+                print(f"FORGED: {path} carries a Witness line the gate token does not "
+                      f"cover — it was added or rewritten after approval (re-measure "
+                      f"in a new record; never re-date an old approval).")
+                return 1
         else:
-            ok = legacy_ok
+            plan_bound = _tok_matches(use_plan=True, use_scope=True, use_witness=False)
+            scope_bound = _tok_matches(use_plan=False, use_scope=True, use_witness=False)
+            cmd_only = _tok_matches(use_plan=False, use_scope=False, use_witness=False)
+            if plan_bound or (scope_bound and not recorded_plan_hash):
+                ok = True
+            elif cmd_only:
+                ok = True  # pre-scope-binding approval — re-measure to bind scope
+            else:
+                ok = False  # field present but doesn't match any token shape
         if ok:
             # The token is genuine, but rule 4 (sample size) and rule 1 (metric
             # identity) are mechanically enforced here: a record that confesses a
@@ -1403,23 +1501,22 @@ def verify(path: str) -> int:
                 return 2
             print(f"VERIFIED: {path} — APPROVED genuine (token {tok}). Code may proceed.")
             return 0
-        # Everything above parsed and matched EXCEPT the HMAC itself, so this
-        # is either tampering or — just as likely in a multi-machine setup — a
-        # record approved under a key outside this machine's trust ring. Keys
-        # outside the repo mean the token cannot be re-derived here, so
-        # --verify reports unknown provenance as FORGED by design. Distinguish
-        # the two for the operator: importing the approving machine's key
-        # (--import-key, BMAD_PEER_GATE_KEY env var) makes the record verify
-        # without any re-measurement; the Re-Measured-By marker remains the
-        # key-free remedy (check-plugin.sh §3).
+        # Three states, not two (E-053 / F-14): everything above parsed and
+        # matched EXCEPT the HMAC, and from here the two readings are
+        # indistinguishable — a key outside this machine's trust ring (normal on
+        # a teammate's record) or tampering here. The engine used to print
+        # "FORGED" for both, which is a forgery ACCUSATION the evidence does not
+        # support; UNKNOWN is the honest verdict, with the two remedies that
+        # resolve it. Structural impossibilities (missing evidence, claim
+        # mismatch, doctored plan or witness line) keep the FORGED stamp above.
         print(
-            f"FORGED: token {tok} does not match the record's claim/measured/cmd/plan "
-            f"under any of this machine's trusted keys ({len(secrets)} in the ring). "
-            f"If this record was APPROVED on another machine of yours, import that "
-            f"machine's key: --import-key (key via BMAD_PEER_GATE_KEY, label via "
-            f"BMAD_PEER_LABEL) — the record then verifies here without re-measurement. "
-            f"Otherwise re-measure it under this machine's key with a 'Re-Measured-By: "
-            f"E-XXX' marker. If it was approved here, the record was tampered with."
+            f"UNVERIFIABLE: token {tok} is well-formed but re-derives under none "
+            f"of this machine's trusted keys ({len(secrets)} in the ring) — either "
+            f"it was APPROVED on another machine (import that key: --import-key, "
+            f"key via BMAD_PEER_GATE_KEY, label via BMAD_PEER_LABEL; every record "
+            f"it signed then verifies here without re-measurement) or the record "
+            f"was tampered with HERE. Re-measure it under this machine's key with "
+            f"a 'Re-Measured-By: E-XXX' marker to tell the two apart."
         )
         return 1
     if "REJECTED" in decision:

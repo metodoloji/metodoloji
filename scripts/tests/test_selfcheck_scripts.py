@@ -7,7 +7,7 @@ Two false positives made the self-audit cry wolf on a healthy tree:
    invoked through ``sh``, so the test was always false: §6b skipped itself and
    forced the whole audit to exit 1 on a clean checkout.
 2. ``bench_consistency.py`` listed two docs that no longer exist
-   (``docs/BLACKBOARD.md`` was pruned — the code is canonical; ``docs/USAGE-GUIDE.md``
+   (the old canvas doc was pruned — the code is canonical; ``docs/USAGE-GUIDE.md``
    is not in the tree), so five checks per missing file failed as
    ``FileNotFoundError`` noise and buried the real signal.
 
@@ -125,12 +125,14 @@ def test_audit_inventory_drift_is_named_per_surface(tmp_path):
         ("README.md", readme.replace("sh scripts/check-custom.sh         # bridge TOML static audit",
                                      "sh scripts/check-phantom.sh        # bridge TOML static audit"),
          "a block naming an audit that does not ship"),
-        ("README.md", readme.replace("(#0–#6g)", "(#0–#6f)"),
+        ("README.md", readme.replace("(#0–#6h)", "(#0–#6g)"),
          "a range ending one section short"),
         ("GUIDE.md", guide.replace(
             "#6e help catalog integrity · #6f trigger/description collision · "
-            "#6g no namespaced-tool priming tokens.",
-            "#6e help catalog integrity · #6f trigger/description collision."),
+            "#6g no namespaced-tool priming tokens · #6h freshness contract "
+            "(witness producer ↔ verdict consumers, derived from the tree).",
+            "#6e help catalog integrity · #6f trigger/description collision · "
+            "#6g no namespaced-tool priming tokens."),
          "a '# map:' missing a shipped section"),
         ("GUIDE.md", guide.replace(
             "python scripts/check-triggers.py  # trigger/description collision "

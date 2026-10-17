@@ -288,7 +288,7 @@ Kapsam ve # haritası #16'dadır. Exit 0 = HEALTHY; sorun varsa #17'ye geç.
 ```bash
 python -m pytest -q             # 1100+ test: hook motoru, bridge, skill
 sh {metodoloji-root}/scripts/check-custom.sh      # bridge TOML statik denetimi
-sh {metodoloji-root}/scripts/check-plugin.sh      # plugin yapı denetimi (#0–#6g)
+sh {metodoloji-root}/scripts/check-plugin.sh      # plugin yapı denetimi (#0–#6h)
 sh scripts/check-methodology.sh # kayıt format denetimi
 sh scripts/check-techdebt.sh    # borç envanteri denetimi
 python scripts/check-handoff.py # handoff kablolama lint'i
@@ -563,7 +563,7 @@ Sıra önerisi: önce pytest (motor davranışı), sonra check-plugin (en geniş
 Negatif testler (kapıların gerçekten çalıştığının kanıtı):
 
 ```bash
-sh {metodoloji-root}/scripts/check-plugin.sh --negtest   # 9 aşama: .env/.gitignore, 2 BRIDGE sökme (#2b), #1b hooks.json, #6c template, #6d marker, #6e help catalog, #6g priming token, #3 sahte-token → hepsi yakalanıp restore edilir
+sh {metodoloji-root}/scripts/check-plugin.sh --negtest   # 10 aşama: .env/.gitignore, 2 BRIDGE sökme (#2b), #1b hooks.json, #6c template, #6d marker, #6e help catalog, #6g priming token, #3 sahte-token, #6h ham-uyarı düzlemi okuma → hepsi yakalanıp restore edilir
 sh {metodoloji-root}/scripts/check-custom.sh --negtest   # 4 test: #3 hard-gate + #7 bridge drift ×2 (#2.3 silme + "bolum N.N" enjeksiyonu) + #2b çıplak aktivasyon adımı
 ```
 
@@ -1265,7 +1265,7 @@ grep 'methodology_warnings' .metodoloji/logs/hook-audit.log
 ## 16. Denetim ve Sağlık Kontrolü
 
 ```bash
-sh {metodoloji-root}/scripts/check-plugin.sh        # #0–#6g tam denetim (0=HEALTHY, 1=sorun)
+sh {metodoloji-root}/scripts/check-plugin.sh        # #0–#6h tam denetim (0=HEALTHY, 1=sorun)
 sh {metodoloji-root}/scripts/check-plugin.sh --negtest
 sh {metodoloji-root}/scripts/check-custom.sh        # bridge TOML #0–#7
 python scripts/check-handoff.py   # handoff wiring lint
@@ -1274,7 +1274,7 @@ sh scripts/check-techdebt.sh      # borç drift/ID/P0/orphan (#6b olarak da koş
 python scripts/check-triggers.py  # trigger/description çakışması (#6f olarak da koşar)
 ```
 
-**# haritası:** #0 gate key · #0b base config proje-adı sızıntısı · #1 motor selfcheck (birleşik `pre` + tekil modlar) · #1b hooks.json byte-identical · #2 manifesto wiring · #2b bridge runtime görünürlüğü (30 workflow + 3 agent-principles) · #2c bridge VERIFY (17 skill) · #3 approved envanter (VERIFIED/ADVISORY-BLOCK + CROSS-MACHINE uyarısı) · #3b code-scope coverage · #4 dokümantatif kayıtlar · #5 motor bütünlüğü (py\_compile) · #5b hard-gate geçerliliği · #5c custom/ statik · #6 development format · #6a `.env` · #6b tech-debt · #6c template kopya kimliği · #6d init marker bütünlüğü · #6d2 command→script referans bütünlüğü · #6d3 plugin sürüm tutarlılığı (`.plugin/plugin.json` ↔ `.plugin/marketplace.json` ↔ `.claude-plugin/plugin.json` ↔ `.claude-plugin/marketplace.json` ↔ `.opencode-plugin/plugin.json` ↔ `opencode-plugin/package.json` ↔ `pyproject`) · #6e help catalog bütünlüğü · #6f trigger/description çakışması · #6g namespaced-tool priming token yok.
+**# haritası:** #0 gate key · #0b base config proje-adı sızıntısı · #1 motor selfcheck (birleşik `pre` + tekil modlar) · #1b hooks.json byte-identical · #2 manifesto wiring · #2b bridge runtime görünürlüğü (30 workflow + 3 agent-principles) · #2c bridge VERIFY (17 skill) · #3 approved envanter (VERIFIED/ADVISORY-BLOCK + CROSS-MACHINE uyarısı) · #3b code-scope coverage · #4 dokümantatif kayıtlar · #5 motor bütünlüğü (py\_compile) · #5b hard-gate geçerliliği · #5c custom/ statik · #6 development format · #6a `.env` · #6b tech-debt · #6c template kopya kimliği · #6d init marker bütünlüğü · #6d2 command→script referans bütünlüğü · #6d3 plugin sürüm tutarlılığı (`.plugin/plugin.json` ↔ `.plugin/marketplace.json` ↔ `.claude-plugin/plugin.json` ↔ `.claude-plugin/marketplace.json` ↔ `.opencode-plugin/plugin.json` ↔ `opencode-plugin/package.json` ↔ `pyproject`) · #6e help catalog bütünlüğü · #6f trigger/description çakışması · #6g namespaced-tool priming token yok · #6h tazelik sözleşmesi (witness üreticisi ↔ verdict tüketicileri, ağaçtan türetilir).
 
 **Tek kayıt doğrulama + envanter:**
 

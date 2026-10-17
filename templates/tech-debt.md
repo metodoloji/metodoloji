@@ -3,7 +3,7 @@
 > This file tracks technical debt accumulated in the project and the repayment plan.
 > A time-box should be reserved for technical debt in every sprint.
 
-**Last updated:** 2026-10-03 (E-061 — TD-014 deepened to a single-board derivation)
+**Last updated:** 2026-10-16 (E-053 — TD-016 paid: declared-but-unbound mechanisms)
 
 > **2026-08-26 — SkillOpt tech-debt integration completed.** With 12 commits (957e5c2..8f2eb93),
 > all debt in all 6 manifests was paid (TD-001/002/003/010/011/012), the SkillOpt `techdebt` task
@@ -21,6 +21,13 @@
 > reports a planted probe in the live repo while `pytest -k scope` stays green. Active debt: **0**.
 > Deleted-instance-artifact note (SP-003 retro Action 4) re-checked 2026-10-03: `scripts/tests` is green
 > (0 failures) against the current tree, so the note no longer reproduces and no TD-016 was opened.
+>
+> **2026-10-16 — E-053 (stale-context remediation) closure.** TD-016 paid: the dead declarations the
+> audit found (AlertKind members nobody wrote, `guard.cascade_warnings` declared and never returned,
+> `invalidate_verify_cache` called from nowhere, live surfaces citing the pruned canvas doc) are now
+> either bound to a producer/consumer or gone, and each closure is pinned by the checks that would
+> have caught it (bench_consistency alert-taxonomy rule, `{metodoloji-root}/scripts/check-handoff.py --freshness-only` = §6h,
+> negtest stage 10). Active debt: **0**.
 
 ---
 
@@ -65,6 +72,7 @@
 | TD-013 | Tighten gates to hard (`code_guard`/`quality_gate`/`deploy_guard` in `custom/config.toml [hooks]`) | Flipped all three to `"hard"` (`stop_guard` stays `"soft"`); evidence E-014 40/40 + E-015 36/36 + E-016 44/44 + E-017 54/54 + E-018 59/59 and 4 live rehearsals (code DENY, QR-less commit DENY, PR-less deploy DENY, own-commit ALLOW); `docs/CLAUDE.md` toml block synced; road here: S-006 (AC tables), S-007 (orphan), S-008 (status), S-009 (Check-2) | 2026-09-19 | SP-002 | QR-005 |
 | TD-014 | Split-brain in hand-off diagnostics (replay vs snapshot) | Hybrid fix: waiting + stale from the folded snapshot, consumed from the event replay, poster sender persisted into snapshot alerts; evidence E-019 36/36 (ghost/cap/deleted-log agreement, sender attribution, stale flags, robustness, delegation, history) + 795 suite incl. 2 migrated stale-path tests. Deepened 2026-10-03 (E-061): the hybrid's replay is gone — `consumed` now folds into the same board (persisted plane, v3 migration) so no rotated/lost log can stage a divergence; bench 35/35 board_single_source_validity | 2026-09-19 | SP-004 | QR-011 |
 | TD-015 | The scope-coverage guard tests read the *live* plugin working tree (`git -C <plugin-root> diff/ls-files` + its `docs/experiments/`), so any uncommitted edit read as a scope miss and the suite could not testify for a change made in the same session | Fixture repo: `_scope_repo()` builds a real git repo (baseline commit + deterministic edit set + an APPROVED record with a genuine token for a bench-local key) and every scope test points at it; 7 tests de-live-treed (4 planted probes in the real repo, 3 root reads). Evidence E-058 35/35 (20 mirror verdicts, 10 commit-time surfaces, 5 hermeticity incl. `pytest -k scope` green while an out-of-scope probe is planted in the live repo); the full engine suite is green on a dirty tree | 2026-09-28 | SP-004 | QR-016 |
+| TD-016 | Declared-but-unbound mechanisms (the F-06/F-07/F-09 class of E-053): `AlertKind` members with no writer, `guard.cascade_warnings` declared and never returned, `invalidate_verify_cache` never called from anywhere (the engine is cold-started per call, so a cross-call cache cannot exist), and live surfaces citing the pruned canvas doc as their design source | Bind or delete, each closure pinned by the check that would have caught it: lifecycle alert kinds are written through `AlertKind` and the taxonomy is derived by `bench_consistency.py`; `cascade_warnings` is returned and surfaced as a CASCADE INVALIDATION warning derived from `freshness.superseded_by`; `invalidate_verify_cache` and its version counter are deleted and the cache is documented as per-call with the mtime+size key as its own invalidation; dead doc references removed. Evidence E-053: `{metodoloji-root}/scripts/check-handoff.py --freshness-only` (= check-plugin §6h) 2 producers / 18 consumers / no raw-plane reader, §6h negtest stage 10 red-capable, dead-name grep empty | 2026-10-16 | SP-005 | QR-017 |
 ---
 
 ## Technical Debt Categories

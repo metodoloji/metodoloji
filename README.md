@@ -1,6 +1,6 @@
 # metodoloji
 
-![version](https://img.shields.io/badge/version-0.1.54-0b7285?style=flat-square) ![license](https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square) ![python](https://img.shields.io/badge/python-3.11%2B-3776ab?style=flat-square) ![tests](https://img.shields.io/badge/tests-1%2C331-4c1?style=flat-square) ![runtimes](https://img.shields.io/badge/runtimes-OpenHands%20%7C%20Claude%20Code-555?style=flat-square)
+![version](https://img.shields.io/badge/version-0.1.55-0b7285?style=flat-square) ![license](https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square) ![python](https://img.shields.io/badge/python-3.11%2B-3776ab?style=flat-square) ![tests](https://img.shields.io/badge/tests-1%2C331-4c1?style=flat-square) ![runtimes](https://img.shields.io/badge/runtimes-OpenHands%20%7C%20Claude%20Code-555?style=flat-square)
 
 **A methodology plugin that makes your coding agent ask permission — mechanically.**
 
@@ -157,7 +157,7 @@ Every check runs offline, with no credentials:
 
 ```bash
 python -m pytest -q                # 1,400+ tests: hook engine, bridges, skills
-sh scripts/check-plugin.sh         # plugin structure audit (#0–#6g)
+sh scripts/check-plugin.sh         # plugin structure audit (#0–#6h)
 sh scripts/check-custom.sh         # bridge TOML static audit
 sh scripts/check-methodology.sh    # record format audit
 sh scripts/check-techdebt.sh       # tech-debt inventory audit

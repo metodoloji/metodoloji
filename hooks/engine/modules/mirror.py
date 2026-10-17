@@ -195,22 +195,44 @@ def pending_note(project_root: str | None, to: str = "", *, limit: int = 3) -> s
         return None
     try:
         from . import blackboard as bb
+        from . import freshness as fr
         if to:
-            hits = [h for h in bb.recent_handoffs(project_root, limit=limit + 4)
+            hits = [h for h in bb.recent_handoffs(project_root, limit=limit + 4,
+                                                 with_freshness=True)
                     if h["skill"] == str(to).strip()]
         else:
-            hits = bb.recent_handoffs(project_root, limit=limit + 4)
+            hits = bb.recent_handoffs(project_root, limit=limit + 4,
+                                      with_freshness=True)
         if not hits:
             return None
         hits = hits[:limit]
-        parts = [f"{h['skill']} ← {h['from']} ({h['age_s'] // 60}m ago)"
-                 if h.get("from") else f"{h['skill']} ({h['age_s'] // 60}m ago)"
-                 for h in hits]
+        parts = []
+        for h in hits:
+            label = (f"{h['skill']} ← {h['from']} ({h['age_s'] // 60}m ago)"
+                     if h.get("from") else f"{h['skill']} ({h['age_s'] // 60}m ago)")
+            verdict = str(h.get("verdict") or fr.CURRENT).upper()
+            if verdict != fr.CURRENT:
+                label += f" [{verdict}]"
+            parts.append(label)
         s = ", ".join(parts)
+        stale = any(str(h.get("verdict") or fr.CURRENT).upper() == fr.STALE
+                    for h in hits)
         from .utils import plugin_script_cmd as _plugin_cmd
-        tail = (" — peek "
-                f"`{_plugin_cmd('bmad/scripts/blackboard.py', 'handoffs', '--skill', '<skill>')}`, "
-                "consume the channel, then proceed")
+        if stale:
+            # The relay's own third answer: a baton the code moved past is no
+            # longer valid work, so re-announcing it verbatim made every reader
+            # obey yesterday's decision (E-052 measured 1.0 of these delivered
+            # as live). Retire it, or consume it once the claim is re-checked.
+            tail = (" — STALE means the code has already moved past the claim: it "
+                    "is no longer valid work; verify with "
+                    f"`{_plugin_cmd('bmad/scripts/blackboard.py', 'handoffs', '--skill', '<skill>')}`, "
+                    "then retire it "
+                    f"(`{_plugin_cmd('bmad/scripts/blackboard.py', 'handoff-retire', '--retire', '<key>', '--reason', '<why>')}`) "
+                    "or consume the channel once it is re-posted")
+        else:
+            tail = (" — peek "
+                    f"`{_plugin_cmd('bmad/scripts/blackboard.py', 'handoffs', '--skill', '<skill>')}`, "
+                    "consume the channel, then proceed")
         if to:
             note = (f"PROACTIVE relay: a hand-off addressed to you ({to}) is still "
                     f"unclaimed: {s}{tail}.")

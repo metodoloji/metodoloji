@@ -296,11 +296,12 @@ def test_check6_reads_the_shipped_sprint_status():
         # SP-001 open: 1-1-change-radar-contract-measured (S-001) sits at review —
         # the implementation and its measurement landed (043e7ba / E-043
         # APPROVED), the QR record that closes the story has not, so exactly one
-        # story is at review, none in-progress (readiness is not progress) and
-        # none done.
+        # story is at review and none in-progress (readiness is not progress).
+        # SP-005 done: 2-1-stale-context-freshness-plane (S-002) landed under
+        # E-053 (APPROVED) and is CLOSED by QR-017 — exactly one story is done.
         assert _count(text, "in-progress") == 0
         assert _count(text, "review") == 1
-        assert _count(text, "done") == 0
+        assert _count(text, "done") == 1
         return
     text = ("development_status:\n"
             "  epic-1: in-progress\n"

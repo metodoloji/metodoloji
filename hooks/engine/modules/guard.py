@@ -311,15 +311,41 @@ def _orphan_story_reason(content: str) -> str:
     )
 
 
-def _validate_story_experiment_refs(content: str, root: str = "") -> tuple[bool, str]:
+def _superseded_by(root: str, exp_id: str) -> str:
+    """The record that re-measured `exp_id` (`Re-Measured-By`), or ''.
+
+    Read through modules/freshness.py — the plane that already owns this
+    question for the board — so a story and a baton can never disagree about
+    whether a decision was superseded.
+    """
+    try:
+        from . import freshness as fr
+        return fr.superseded_by(root, exp_id) or ""
+    except Exception:
+        return ""
+
+
+def _cascade_warning(exp_id: str, superseded_by: str) -> str:
+    """One advisory line: this story cites a decision a newer record replaced."""
+    return (f"CASCADE INVALIDATION: {exp_id} was re-measured by "
+            f"{superseded_by} — the decision is no longer the operative one; "
+            f"re-point the AC at {superseded_by} or retire {exp_id} "
+            f"explicitly.")
+
+
+def _validate_story_experiment_refs(content: str, root: str = "") -> tuple[bool, str, list]:
     """Validate that all experiment_refs in a story file point to approved records.
 
     Also validates that a story file has at least 1 AC with an experiment reference.
-    
-    NEW: Check if experiment records have been recently revised. If so, mark downstream
-    as potentially stale (HIGH #6 / ISSUE #12: Rollback/cascade invalidation)
 
-    Returns (is_valid, reason).
+    Cascade invalidation (E-053): a story AC citing an APPROVED record that a
+    newer record has re-measured (`- **Re-Measured-By:** E-NNN`) is citing a
+    decision that is no longer the operative one. That is not a validity
+    failure — the record was genuine — so it comes back as a WARNING beside the
+    verdict, derived from modules/freshness.py (the same single source every
+    other surface reads), never as a second opinion computed here.
+
+    Returns (is_valid, reason, cascade_warnings).
     """
     if not root:
         root = repo_root({})
@@ -347,14 +373,14 @@ def _validate_story_experiment_refs(content: str, root: str = "") -> tuple[bool,
         # gate denies. Refs that DO exist are always strictly validated
         # below, regardless of gate mode (an unapproved/missing experiment
         # reference must never pass).
-        return True, ""
+        return True, "", []
 
     recs_dir = pathlib.Path(root) / "docs" / "experiments"
     if not recs_dir.is_dir():
-        return False, "experiment_refs found but docs/experiments/ directory missing"
+        return False, "experiment_refs found but docs/experiments/ directory missing", []
 
-    cascade_warnings = []  # NEW: Collect cascade invalidation warnings
-    
+    cascade_warnings: list[str] = []
+
     for ref in refs:
         exp_id = ref.get("id", "")
         status = ref.get("status", "")
@@ -365,14 +391,14 @@ def _validate_story_experiment_refs(content: str, root: str = "") -> tuple[bool,
                 f"Experiment {exp_id} has status '{status}' — "
                 f"ACs linked to this experiment cannot be implemented. "
                 f"Mark linked ACs as [HYPOTHESIS] or get experiment approval first."
-            )
+            ), []
         # Check if the experiment record exists and is verified
         exp_file = recs_dir / f"{exp_id}.md"
         if not exp_file.exists():
             return False, (
                 f"Experiment record {exp_id}.md not found in docs/experiments/. "
                 f"Create the experiment record before implementing linked ACs."
-            )
+            ), []
         rc, _ = verify_record(str(exp_file))
         if rc != 0:
             return False, (
@@ -380,8 +406,11 @@ def _validate_story_experiment_refs(content: str, root: str = "") -> tuple[bool,
                 f"Run: {_plugin_script_cmd(
                     'skills/bmad-research-experiment/scripts/run_experiment.py',
                     '--verify', '--record', str(exp_file))}"
-            )
-        
+            ), []
+        superseded = _superseded_by(root, exp_id)
+        if superseded:
+            cascade_warnings.append(_cascade_warning(exp_id, superseded))
+
     # Also validate AC experiment references
     for ac_exp_ref in actual_ac_exp_refs:
         exp_id = ac_exp_ref
@@ -390,15 +419,19 @@ def _validate_story_experiment_refs(content: str, root: str = "") -> tuple[bool,
             return False, (
                 f"AC references Experiment {exp_id} but record not found in docs/experiments/. "
                 f"Create the experiment record before implementing this AC."
-            )
+            ), []
         rc, _ = verify_record(str(exp_file))
         if rc != 0:
             return False, (
                 f"AC references Experiment {exp_id} which is not verified (rc={rc}). "
                 f"Get experiment approval first."
-            )
+            ), []
+        superseded = _superseded_by(root, exp_id)
+        if superseded:
+            cascade_warnings.append(_cascade_warning(exp_id, superseded))
 
-    return True, ""
+    # One line per superseded record, whatever cited it how many times.
+    return True, "", list(dict.fromkeys(cascade_warnings))
 
 
 # --- AC Metadata Validation ---
@@ -1011,66 +1044,197 @@ def _validate_methodology_chain(content: str, rel_path: str, root: str = "") -> 
 
 
 # Verified-scope cache: find_approved runs gate.verify (HMAC) over every
-# record per call. Cache per (mtime_ns, size) so repeated writes in a session
-# don't re-verify unchanged records. Bounded (128 entries); rc=3 (key
-# missing) is never cached — it would stick after --init-secret.
-# NEW: Time-based expiry to prevent TOCTOU issues (MEDIUM #8 / ISSUE #67)
-# NEW: Version-keyed invalidation to handle file deletion/recreation (PHASE 1 #3)
-_VERIFY_CACHE: dict[str, tuple[tuple[int, int], int, str, float, int]] = {}  # Added version field
-_VERIFY_CACHE_TTL_SECONDS = 300  # 5 minutes
-_VERIFY_CACHE_VERSION = 0  # Global version, incremented when cache invalidated
+# record per call. Cache per (mtime_ns, size) so the SAME call does not
+# re-verify one record for every write target it tests. Bounded (128 entries);
+# rc=3 (key missing) is never cached — it would stick after --init-secret.
+#
+# SCOPE, honestly stated (E-053 / F-07): the hook engine is COLD-STARTED per
+# call (see mirror.py — "the hook engine is cold-started per call, so an
+# in-process throttle never fires"), so this dict never survives past the
+# decision that filled it: it collapses the N record verifications inside ONE
+# guard call, nothing more. It is not a cross-call cache, and it does not need
+# external invalidation — the key IS the invalidation (a deleted, re-created
+# or edited record has a different (mtime_ns, size)). The former
+# `invalidate_verify_cache()` version counter and the "5-minute TTL" claim
+# described a cross-call lifetime this process cannot have; both are gone
+# rather than left as documentation of a mechanism that never runs.
+_VERIFY_CACHE: dict[str, tuple[tuple[int, int], int, str, float]] = {}
 
 
 def _cached_verify(rec: str) -> tuple[int, str]:
-    """verify_record with a small mtime+size-keyed cache (5-min TTL).
-    
-    NEW: Includes timestamp for time-based cache expiry (MEDIUM #8 / ISSUE #67)
-    NEW: Version-keyed invalidation to handle file deletion/recreation (PHASE 1 #3)
-    Prevents stale verification in long-running sessions where files may be deleted/re-created.
+    """verify_record, memoized by (mtime_ns, size) for THIS call only.
+
+    The key is the invalidation: an edited, re-created or deleted record
+    changes it, so a hit can only ever describe the file as it is now. See the
+    cache block above for why there is no TTL and no external invalidator.
     """
     import time
-    global _VERIFY_CACHE_VERSION
-    
+
     try:
         st = pathlib.Path(rec).stat()
         key = (st.st_mtime_ns, st.st_size)
     except OSError:
         return verify_record(rec)
-    
+
     hit = _VERIFY_CACHE.get(rec)
-    now = time.time()
-    
-    # Check cache hit: key must match AND version must match AND cache must not be stale (5 min TTL)
-    if hit is not None and hit[0] == key and hit[4] == _VERIFY_CACHE_VERSION and (now - hit[3]) < _VERIFY_CACHE_TTL_SECONDS:
+    if hit is not None and hit[0] == key:
         return hit[1], hit[2]
-    
+
     rc, scope = verify_record(rec)
     if rc != 3:
         if len(_VERIFY_CACHE) >= 128:
             _VERIFY_CACHE.pop(next(iter(_VERIFY_CACHE)))
-        _VERIFY_CACHE[rec] = (key, rc, scope, now, _VERIFY_CACHE_VERSION)  # NEW: Include version
+        _VERIFY_CACHE[rec] = (key, rc, scope, time.time())
     return rc, scope
 
 
-def invalidate_verify_cache(reason: str = "") -> None:
-    """Increment cache version to invalidate all cached verification results."""
-    global _VERIFY_CACHE_VERSION
-    _VERIFY_CACHE_VERSION += 1
+def _record_freshness(root: str, rec_path: str) -> dict | None:
+    """Derived freshness of an APPROVED record (E-053), or None when unavailable.
+
+    A VERIFIED token proves the record was not tampered with; it says nothing
+    about whether the decision still applies to the code. This derives that
+    second answer from the record's own Witness commit + Code Scope (and from a
+    Re-Measured-By declaration, which is a supersede). Returns None when the
+    plane is switched off or the gate is unreachable — fail-open, never block.
+    """
+    try:
+        from . import freshness as fr
+        if not fr.enabled() or not _load_gate():
+            return None
+        path = pathlib.Path(rec_path)
+        text = path.read_text(encoding="utf-8", errors="replace")
+        try:
+            commit = gate.witness_commit(text)
+        except Exception:
+            commit = ""
+        verdict, detail = fr.classify(root, commit=commit,
+                                      scope=record_scope_cached(rec_path),
+                                      run_key=path.stem)
+        age_s = None
+        try:
+            age_s = max(0.0, time.time() - path.stat().st_mtime)
+        except OSError:
+            pass
+        return {"verdict": verdict, "reason": detail.get("reason", ""),
+                "changed": detail.get("changed", []), "age_s": age_s,
+                "commit": commit, "record": path.name}
+    except Exception:
+        return None
 
 
-def find_approved(target: str, recs_dir: str | None = None, root: str = "") -> tuple[bool, str]:
-    """Find a VERIFIED record whose scope matches target."""
+# Cap on the records a commit/deploy freshness row reads: the row must stay
+# cheap on the hot path (init-time commit), and a project past this many
+# experiment records has bigger inputs than a warning line.
+_FRESHNESS_ROW_MAX_RECORDS = 500
+
+
+def _freshness_chain_row(root: str, blocked_action: str) -> dict:
+    """Derived freshness of every APPROVED record: report, or block on request.
+
+    The write path already refuses to open code through a claim the code moved
+    past (find_approved). This asks the SAME question at commit/deploy time,
+    where the answer can have changed since the write: an approval goes stale
+    while its work sits uncommitted in the tree.
+
+    Report-only under the shipped defaults; it blocks only when the operator
+    asked for it — `[hooks] freshness = deny` for STALE, `[freshness]
+    unknown_policy = deny` for UNKNOWN (both decided by `freshness.blocks`, the
+    single place that answers "does this verdict block?"). Fail-open on every
+    error: a diagnostic must not wedge a commit.
+    """
+    try:
+        from . import freshness as fr
+        if not fr.enabled():
+            return {"decision": "allow"}
+        # `_load_gate()` returns a BOOL and binds the module to `gate` — the
+        # record parser comes from that module (same single source the
+        # verification path uses), never from a second parser here.
+        if not _load_gate() or globals().get("gate") is None:
+            return {"decision": "allow"}
+        record_fields = gate.record_fields
+    except Exception:
+        return {"decision": "allow"}
+
+    stale: list[str] = []
+    unknown: list[str] = []
+    try:
+        base = pathlib.Path(root) / "docs" / "experiments"
+        with fr.batch():
+            for rec in sorted(base.glob("E-*.md"))[:_FRESHNESS_ROW_MAX_RECORDS]:
+                if rec.name == "_template.md":
+                    continue
+                try:
+                    text = rec.read_text(encoding="utf-8", errors="replace")
+                    decision = str(record_fields(text).get("Decision", ""))
+                except Exception:
+                    continue
+                if not decision.startswith("APPROVED"):
+                    continue
+                info = _record_freshness(root, str(rec))
+                if not info:
+                    continue
+                if info["verdict"] == fr.STALE:
+                    stale.append(f"{rec.stem} ({info['reason']})")
+                elif info["verdict"] == fr.UNKNOWN:
+                    unknown.append(f"{rec.stem} ({info['reason']})")
+    except Exception:
+        return {"decision": "allow"}
+
+    if not stale and not unknown:
+        return {"decision": "allow"}
+    try:
+        from . import freshness as fr
+        stale_blocks = bool(stale) and fr.blocks(fr.STALE)
+        unknown_blocks = bool(unknown) and fr.blocks(fr.UNKNOWN)
+    except Exception:
+        stale_blocks = unknown_blocks = False
+    if stale_blocks or unknown_blocks:
+        parts = []
+        if stale_blocks:
+            parts.append(f"{len(stale)} approval(s) the code moved past: "
+                         + ", ".join(stale[:3]))
+        if unknown_blocks:
+            parts.append(f"{len(unknown)} unverifiable approval(s): "
+                         + ", ".join(unknown[:3]))
+        return {"decision": "deny",
+                "reason": (f"{blocked_action}: freshness denies — "
+                           + "; ".join(parts)
+                           + ". Re-measure in a new E record, or retire the "
+                             "old one (blackboard.py handoff-retire) so the "
+                             "claim stops unlocking code.")}
+    shown = (stale + unknown)[:3]
+    return {"decision": "allow", "methodology_warnings": [
+        f"FRESHNESS: {len(stale)} approval(s) the code moved past, "
+        f"{len(unknown)} unverifiable — " + ", ".join(shown)
+        + (". This is a report, not a block: `[hooks] freshness = deny` / "
+           "`[freshness] unknown_policy = deny` make it one.")]}
+
+
+def find_approved(target: str, recs_dir: str | None = None,
+                  root: str = "") -> tuple[bool, str, dict | None]:
+    """Find a VERIFIED record whose scope matches target.
+
+    Returns ``(approved, detail, freshness)``. `freshness` is the derived
+    verdict of the record that opened the door (None when the plane is off):
+    under `[hooks] freshness = "deny"` a STALE approval does NOT unlock code,
+    and under the default `"warn"` it unlocks with the reason attached so the
+    caller can surface it — the write is never silently blessed by an approval
+    the code has moved past (E-053). Whether a verdict blocks is decided in ONE
+    place (`freshness.blocks`), so the write path, the commit gate and the
+    deploy gate cannot disagree — UNKNOWN joins STALE there only when
+    `[freshness] unknown_policy = "deny"`.
+    """
     if not _load_gate():
-        return False, "gate script not available"
+        return False, "gate script not available", None
     target_rel = norm_path(target).lstrip("/")
     if not root:
         root = repo_root({})
     recs_dir = recs_dir or "docs/experiments"
     if pathlib.PurePosixPath(recs_dir).is_absolute():
-        return False, "absolute recs_dir rejected"
+        return False, "absolute recs_dir rejected", None
     base = pathlib.Path(root) / recs_dir
     if not base.is_dir():
-        return False, "docs/experiments/ not found"
+        return False, "docs/experiments/ not found", None
     key_missing = False
     best = None
     advisory = None
@@ -1099,7 +1263,41 @@ def find_approved(target: str, recs_dir: str | None = None, root: str = "") -> t
             if advisory is None:
                 advisory = advisory_msg.format(rec=rec)
         elif rc == 0:
-            return True, f"record {rec} (scope matched)"
+            fresh = _record_freshness(root, str(rec))
+            # Local import (the engine imports freshness lazily): without it the
+            # verdict comparison below raised NameError on every scope-matched
+            # APPROVED record, so the write path crashed instead of warning.
+            try:
+                from . import freshness as fr
+            except Exception:
+                fr = None
+            if fr and fresh and fresh["verdict"] in (fr.STALE, fr.UNKNOWN):
+                try:
+                    blocks = fr.blocks(fresh["verdict"])
+                except Exception:
+                    blocks = False
+                if fresh["verdict"] == fr.STALE:
+                    trouble = (
+                        f"but the code has moved past it: {fresh['reason']} "
+                        f"({fresh['changed'][:3] if fresh['changed'] else 'code state'} "
+                        f"changed after approval"
+                        f"{', witness ' + fresh['commit'][:12] if fresh['commit'] else ''}). ")
+                else:
+                    trouble = (f"but its code state cannot be established "
+                               f"here: {fresh['reason']}. ")
+                stale_msg = (
+                    f"record {rec} is APPROVED and scope-matched, "
+                    f"{trouble}"
+                    f"Re-measure in a new E record (add a plain "
+                    f"`- **Re-Measured-By:** E-NNN (date)` line to {rec.name}), or "
+                    f"declare this file in the current record's plan "
+                    f"(--amend-plan). "
+                    f"[hooks] freshness = deny blocks stale; "
+                    f"[freshness] unknown_policy = deny blocks unverifiable.")
+                if blocks:
+                    return False, stale_msg, fresh
+                return True, f"record {rec} (scope matched)", fresh
+            return True, f"record {rec} (scope matched)", fresh
 
     for rec in deferred:
         rc, _scope = _cached_verify(str(rec))
@@ -1114,8 +1312,8 @@ def find_approved(target: str, recs_dir: str | None = None, root: str = "") -> t
     if key_missing:
         return False, ("gate key not configured (" + _plugin_script_cmd(
             'skills/bmad-research-experiment/scripts/run_experiment.py',
-            '--init-secret') + ")")
-    return False, advisory or best or "no approved experiment record"
+            '--init-secret') + ")"), None
+    return False, advisory or best or "no approved experiment record", None
 
 
 # Instrument paths stage BEFORE approval: the gate refuses to measure a bench
@@ -1291,12 +1489,13 @@ def guard(json_in: dict) -> dict:
                         }
 
                     # Validate experiment_refs in frontmatter — ALWAYS deny:
-                    valid, reason = _validate_story_experiment_refs(story_content, root)
+                    valid, reason, cascade = _validate_story_experiment_refs(story_content, root)
                     if not valid:
                         return {
                             "decision": "deny",
                             "reason": f"Story experiment validation failed for {rel}: {reason}"
                         }
+                    _soft_warnings.extend(cascade)
             except Exception as exc:
                 sys.stderr.write(f"metodoloji: story validation error for {rel}: {exc}\n")
             # Story validation passed — continue to next target
@@ -1347,7 +1546,29 @@ def guard(json_in: dict) -> dict:
             pass  # plan layer must never wedge the guard — Code Scope decides below
 
         # Find approved record
-        approved, detail = find_approved(rel, root=root)
+        approved, detail, fresh = find_approved(rel, root=root)
+        if approved:
+            # The approval opened the door, but a door is not a promise: when
+            # the code moved past the record's own scope, say so — the write
+            # proceeds under `freshness = warn` and the reason rides the
+            # warning channel instead of being silently forgotten (E-053).
+            if fresh and fresh.get("verdict") != fr.CURRENT:
+                quiet = False
+                if fresh["verdict"] == fr.UNKNOWN:
+                    # `[freshness] unknown_policy = "silent"`: a legacy corpus
+                    # with no witnesses is not lectured on every write.
+                    try:
+                        from . import freshness as _fr
+                        quiet = _fr.unknown_policy() == "silent"
+                    except Exception:
+                        quiet = False
+                if not quiet:
+                    _soft_warnings.append(
+                        f"{rel}: {fresh['record']} is {fresh['verdict']} — "
+                        f"{fresh['reason']}; re-measure it, add a "
+                        f"`- **Re-Measured-By:**` line, or plan this file in a "
+                        f"current record (--amend-plan).")
+            continue
         if not approved:
             # Staged instrument: a bench under a matching undecided record
             # stages BEFORE approval (otherwise the first experiment under
@@ -2141,6 +2362,15 @@ def quality(json_in: dict) -> dict:
     root = repo_root(json_in)
     root = os.path.abspath(root)
 
+    # 0. Freshness row (E-053): the commit is the last place the question "does
+    #    this approval still apply to this code?" can be asked before the work
+    #    leaves the tree. Report-only at the shipped modes — see
+    #    _freshness_chain_row.
+    res_fresh = _freshness_chain_row(root, "git commit blocked")
+    if res_fresh.get("decision") == "deny":
+        return _apply_gate_strictness(res_fresh, "quality_gate")
+    fresh_warnings = list(res_fresh.get("methodology_warnings") or [])
+
     # 1. Gate record checks (IR → QR → SP)
     res_gate = _check_gate_records(root, "git commit blocked")
     if res_gate.get("decision") == "deny":
@@ -2189,7 +2419,7 @@ def quality(json_in: dict) -> dict:
                 bb.post_alert(root, "scope", "warn", warn, sender="quality-gate")
         except Exception:
             pass  # board unavailable — the transcript warning already fired
-        return {"decision": "allow", "methodology_warnings": [warn]}
+        return {"decision": "allow", "methodology_warnings": [warn] + fresh_warnings}
     if ran:
         # Verified clean (git answered, records evaluated) — clear the debt.
         try:
@@ -2200,6 +2430,8 @@ def quality(json_in: dict) -> dict:
         except Exception:
             pass  # board unavailable — nothing to clear, nothing to block
 
+    if fresh_warnings:
+        return {"decision": "allow", "methodology_warnings": fresh_warnings}
     return {"decision": "allow"}
 
 
@@ -2377,6 +2609,15 @@ def deploy(json_in: dict) -> dict:
 
     # Gate record checks (IR → QR → SP → PR), same rationale as quality():
     # _check_gate_records carries the gate-specific messages; PR (Gate 4) is
-    # deploy-only via include_pr=True.
-    return _apply_gate_strictness(_check_gate_records(root, "Deploy blocked", include_pr=True),
-                                  "deploy_guard")
+    # deploy-only via include_pr=True. The freshness row rides the same
+    # decision (E-053): a deploy is the most expensive place to obey a claim
+    # the code moved past, so it is asked here too — report-only at the
+    # shipped modes, a block under the deny modes.
+    res = _check_gate_records(root, "Deploy blocked", include_pr=True)
+    if res.get("decision") != "deny":
+        fresh = _freshness_chain_row(root, "Deploy blocked")
+        if fresh.get("decision") == "deny":
+            res = fresh
+        elif fresh.get("methodology_warnings"):
+            res = dict(fresh)
+    return _apply_gate_strictness(res, "deploy_guard")

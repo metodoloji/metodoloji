@@ -20,18 +20,20 @@
 #       record-prefix menu code on a non-producing skill)
 #   6f. Trigger/description collisions (routing determinism)
 #   6g. No namespaced-tool priming tokens in shipped agent-facing text
-#   Coverage map: the numbered sections 1–6g above — each one's invariant is
+#   6h. Freshness contract (witness producer ↔ verdict consumers, derived)
+#   Coverage map: the numbered sections 1–6h above — each one's invariant is
 #   pinned by scripts/bench/bench_consistency.py (run it via the gate).
 #   docs/images/*.png are illustrative, NOT self-check inputs.
 #
 # Usage:  sh scripts/check-plugin.sh   (from the plugin root or anywhere;
 #            target project root is cwd or $OPENHANDS_PROJECT_DIR)
 #            sh scripts/check-plugin.sh --negtest
-#            (negative tests, 9 stages: §6a .env inventory, §2b BRIDGE
+#            (negative tests, 10 stages: §6a .env inventory, §2b BRIDGE
 #             visibility ×2 (skill + agent principles), §1b dispatch locator
 #             drift, §6c template copy drift, §6d init marker integrity,
 #             §6e help catalog integrity, §6g priming-token scan,
-#             §3 forged-token detection (hand-edited Gate Evidence) —
+#             §3 forged-token detection (hand-edited Gate Evidence),
+#             §6h freshness contract (a surface reads the raw alert plane) —
 #             break → catch MISS → restore)
 # Output:    [OK] / [WARNING] / [ERROR] at the start of each line; overall status at the end.
 
@@ -57,7 +59,7 @@ from pathlib import Path
 
 PLUGIN = Path(os.environ["PLUGIN_ROOT"])
 check_script = PLUGIN / "scripts" / "check-plugin.sh"
-total_stages = 9
+total_stages = 10
 # The full check runs every section (engine audit, gate, records, catalog) and
 # takes ~65s on Windows CI-class disks, so the 60s budget it used to carry made
 # stage 1 fail as a timeout rather than as a fixable defect.
@@ -315,6 +317,40 @@ try:
         sys.exit(1)
 finally:
     victim.write_bytes(orig_rec)  # byte-exact restore
+
+# Stage 10/10: a surface is made to read the RAW alert plane (whose entries
+# carry no verdict) → §6h must report the broken freshness contract. This is
+# the measured defect itself (E-052: a claim delivered as live work because
+# nothing read its code-state anchor), so the stage proves the gate that
+# protects the plane can still see it.
+print(f"[10/{total_stages}] does §6h catch a surface reading the raw alert plane ")
+stop_mod = PLUGIN / "hooks" / "engine" / "modules" / "stop.py"
+orig_stop = stop_mod.read_bytes()
+try:
+    text = orig_stop.decode("utf-8")
+    planted = text.replace(
+        "from .blackboard import pending_alerts",
+        "from .blackboard import read_board, pending_alerts", 1)
+    planted = planted.replace(
+        "        stop_alerts = pending_alerts(root, \"stop\")",
+        "        stop_alerts = [a for a in read_board(root)[\"alerts\"] "
+        "if a.get('channel') == 'stop']", 1)
+    if planted == text:
+        print("  [ERROR] test setup broken: stop.py stop-channel peek changed shape")
+        sys.exit(1)
+    stop_mod.write_text(planted, encoding="utf-8")
+    r = subprocess.run(
+        ["sh", str(check_script)],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        timeout=300, cwd=str(PLUGIN),
+    )
+    if "raw alert plane" in r.stdout and r.returncode == 1:
+        print("  [OK] §6h raw-plane read ERROR caught, exit=1")
+    else:
+        print(f"  [ERROR] §6h raw-plane ERROR expected, output: ...{r.stdout[-400:]!r}")
+        sys.exit(1)
+finally:
+    stop_mod.write_bytes(orig_stop)  # byte-exact restore
 
 print(f"[OK] all {total_stages} negtest stages successful")
 sys.exit(0)
@@ -991,9 +1027,15 @@ for rec in "$PROJECT_ROOT"/docs/experiments/*.md; do
                 PROBLEMS=$((PROBLEMS + 1))
             fi
         else
-            echo "[ERROR] $rec -> approved but --verify failed (FORGED?)"
+            # 'approved but --verify failed' covers two readings the token's
+            # HMAC cannot tell apart (E-053): a key outside this machine's ring
+            # (normal for a teammate's record) and tampering with a token here.
+            # Naming only FORGED accused the first case of forgery; the verdict
+            # is UNVERIFIABLE, and the remedies below resolve which one it is.
+            echo "[ERROR] $rec -> approved but --verify failed (UNVERIFIABLE, not re-derivable under this machine's ring — or a tampered token here)"
             echo "        If approved on another machine of yours: import that key (run_experiment.py --import-key;"
-            echo "        key material via BMAD_PEER_GATE_KEY) or re-measure with a Re-Measured-By marker."
+            echo "        key material via BMAD_PEER_GATE_KEY) — or re-measure with a Re-Measured-By marker."
+            echo "        A structural fault (missing evidence, claim mismatch, doctored plan/witness) still reports FORGED."
             PROBLEMS=$((PROBLEMS + 1))
         fi
     fi
@@ -1008,6 +1050,7 @@ echo "== 3b) Code-scope coverage (did every edited file sit inside an approved s
 # python — heredoc TEXT gets no such conversion, so in-script $PROJECT_ROOT
 # would resolve to a nonexistent /c/... directory).
 "$PY" - "$PROJECT_ROOT" "$GATE" <<'PYEOF'
+import contextlib
 import os
 import re
 import subprocess
@@ -1029,28 +1072,39 @@ ENGINE = Path(os.environ.get("PLUGIN_ROOT", "")) / "hooks" / "engine"
 try:
     sys.path.insert(0, str(ENGINE))
     from modules.utils import is_free as _engine_is_free  # noqa: E402
+    from modules.utils import is_code_target as _engine_is_code_target  # noqa: E402
     os.environ["OPENHANDS_PROJECT_DIR"] = str(PLUGIN)
     os.environ["CLAUDE_PROJECT_DIR"] = str(PLUGIN)
 
     def _is_free(norm: str) -> bool:
         return bool(_engine_is_free(norm))
 
-    _FREE_SRC = "engine is_free"
+    def _is_code_target(norm: str) -> bool:
+        return bool(_engine_is_code_target(norm))
+
+    _FREE_SRC = "engine is_free + is_code_target"
 except Exception:
     _FREE_SRC = "built-in fallback (engine import failed)"
 
-# Dogfood exemption: the plugin's own repository is the self-modification zone,
-# not a consumer project. Its packaging/root files (manifests, README, license,
-# config catalogs) ARE the plugin, so demanding an approved experiment scope for
-# them would make the plugin unable to maintain its own manifests. A consumer
-# project (project root != methodology root) still gets the full check.
+    def _is_code_target(norm: str) -> bool:  # noqa: E302
+        # Fail-closed fallback: without the engine's own classifier every
+        # edited file is treated as code, so the check over-reports instead of
+        # releasing a real gap.
+        return True
+
+# NO dogfood exemption (E-053, F-05): this check used to print "scope coverage
+# gate not applicable" and exit 0 whenever the project root WAS the methodology
+# root, so the plugin never ran the coverage check on its own edits. That is
+# exactly the surface whose monotonic approval union F-05 measured. Dogfood is
+# not exempt any more: the engine's own free-zone rule already releases the
+# plugin source trees here (hooks/, scripts/, skills/, custom/ — self-
+# modification), so tracking a manifest still costs nothing, while a genuinely
+# GATED path (bmad/scripts/**, any consumer repo) is now caught in-tree too.
 try:
     from modules.utils import _project_is_methodology_root as _dogfood_root  # noqa: E402
     if _dogfood_root():
-        print("  dogfood repo (project root == methodology root) — scope coverage gate not applicable")
-        raise SystemExit(0)
-except SystemExit:
-    raise
+        print("  dogfood repo (project root == methodology root) — "
+              "checked anyway; the plugin source trees are the free zone")
 except Exception:
     pass
 
@@ -1101,8 +1155,26 @@ _baseline = (f"{adopted[:12]} (methodology adoption commit)" if adopted
 # Approved scopes: every APPROVED record's Code Scope, parsed by the gate.
 # Exit 2 = ADVISORY-BLOCK (genuine token, small sample) still counts as
 # approved provenance; FORGED records are provenance-blind and are skipped.
+#
+# Freshness (E-053, F-05): an approval whose code state moved on is no longer a
+# scope "in force". The verdict comes from the engine's own plane
+# (modules/freshness.py — the single derivation every other surface reads), and
+# whether it EXCLUDES the scope is `freshness.blocks`'s answer, not this
+# script's: under the shipped `warn` a stale scope still covers (reported, so
+# the union stops being silently monotonic), under `deny` it does not.
 scopes = []
-for rec in sorted((PLUGIN / "docs" / "experiments").glob("E-*.md")):
+stale_scopes = []
+_stale_blocks = False
+_fr = None
+try:
+    from modules import freshness as _fr  # noqa: E402
+    _stale_blocks = _fr.blocks("STALE")
+except Exception:
+    _fr = None
+
+
+with (_fr.batch() if _fr is not None else contextlib.nullcontext()):
+  for rec in sorted((PLUGIN / "docs" / "experiments").glob("E-*.md")):
     if rec.name == "_template.md":
         continue
     text = rec.read_text(encoding="utf-8", errors="replace")
@@ -1115,9 +1187,33 @@ for rec in sorted((PLUGIN / "docs" / "experiments").glob("E-*.md")):
     if rc not in (0, 2):
         continue  # Re-Measured-By/CROSS-MACHINE spans are covered by their re-measurement record
     scope_value = fields.get("Code Scope", "")
-    if scope_value and scope_value.strip().lower() != "none":
-        scopes.append((rec.stem, scope_value))
+    if not scope_value or scope_value.strip().lower() == "none":
+        continue
+    verdict, reason = "CURRENT", ""
+    if _fr is not None:
+        try:
+            commit = gate.witness_commit(text)
+        except Exception:
+            commit = ""
+        try:
+            verdict, detail = _fr.classify(str(PLUGIN), commit=commit,
+                                           scope=scope_value, run_key=rec.stem)
+            reason = detail.get("reason", "")
+        except Exception:
+            verdict, reason = "CURRENT", ""
+    if verdict == "STALE":
+        stale_scopes.append((rec.stem, reason))
+        if _stale_blocks:
+            continue
+    scopes.append((rec.stem, scope_value))
 
+# The claim this section makes is the guard's own: only CODE targets need an
+# approved scope (the write path skips non-code targets before it ever asks for
+# approval — `if not is_code_target(rel): continue`). Flagging a launch image
+# or a CSV catalog here claimed MORE than the guard enforces, which is how
+# dogfood's first real run of this check produced 34 MISS lines that were
+# mostly not code. Mirror the guard; a non-code target is out of scope.
+noncode = 0
 for f in edited:
     checked += 1
     norm = f.replace("\\", "/")
@@ -1126,12 +1222,21 @@ for f in edited:
         continue
     if _is_free(norm):
         continue
+    if not _is_code_target(norm):
+        noncode += 1
+        continue
     problems.append(norm)
 
 print(f"  baseline: {_baseline}")
 print(f"  free-surface doctrine: {_FREE_SRC}")
-print(f"  edited files checked: {checked}")
+print(f"  edited files checked: {checked} ({noncode} non-code target(s) skipped)")
 print(f"  approved scopes in force: {len(scopes)}")
+for rid, why in stale_scopes[:10]:
+    print(f"  [STALE] {rid} — {why}; its scope "
+          + ("does NOT open code ([hooks] freshness = deny)" if _stale_blocks
+             else "still covers (reported only — [hooks] freshness = warn)"))
+if len(stale_scopes) > 10:
+    print(f"  ... and {len(stale_scopes) - 10} more stale approval(s)")
 for p in problems[:20]:
     print(f"  MISS: {p} — outside every approved Code Scope; open an experiment "
           "(E record with this file in its scope) or move it to a free surface")
@@ -1773,6 +1878,27 @@ if [ -n "$PRIMING_HITS" ]; then
 fi
 if [ "$PRIMING_ERRORS" -eq 0 ]; then
     echo "[OK]   no namespaced-tool priming tokens in shipped agent-facing text"
+fi
+
+echo "== 6h) Freshness contract (witness producer ↔ verdict consumers) =="
+# The freshness plane's contract is DERIVED, never listed: check-handoff.py
+# parses the shipped modules and derives (a) the witness/retire producers,
+# (b) every function that speaks about a verdict, and (c) every reader of the
+# raw alert plane. It fails when a producer disappears, when a verdict literal
+# is spelled outside freshness.py (a second vocabulary), when a surface speaks
+# about a verdict without obtaining it from the plane (a second opinion), or
+# when a surface reads the raw plane (whose entries carry no verdict — the
+# defect E-052 measured at 1.0). A new surface is therefore covered the moment
+# it lands; nothing here needs hand-updating.
+FRESHNESS_RC=0
+FRESHNESS_OUT=$("$PY" "$PLUGIN_ROOT/scripts/check-handoff.py" --freshness-only 2>&1) \
+    || FRESHNESS_RC=$?
+printf '%s\n' "$FRESHNESS_OUT" | sed -n '1,20p'
+if [ "$FRESHNESS_RC" -eq 0 ]; then
+    echo "[OK]   freshness contract holds (single vocabulary, single derivation)"
+else
+    echo "[ERROR] freshness contract broken — a surface dropped or re-derived the verdict"
+    PROBLEMS=$((PROBLEMS + 1))
 fi
 
 echo

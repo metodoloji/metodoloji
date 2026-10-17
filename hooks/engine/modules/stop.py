@@ -417,13 +417,21 @@ def stop(json_in: dict) -> dict:
     try:
         from .blackboard import METHODOLOGY_CHAIN, pending_handoffs
         routed: dict = {}
+        stale: dict = {}
         for skill in METHODOLOGY_CHAIN:
             signals = pending_handoffs(root, skill)
-            if signals:
-                routed[skill] = len(signals)
+            if not signals:
+                continue
+            # A baton whose claim the code moved past is not "live work nobody
+            # picked up" — that sentence is the whole defect E-052 measured.
+            routed[skill] = len(signals)
+            from . import freshness as fr
+            moved = [s for s in signals if s.get("verdict") not in (None, fr.CURRENT)]
+            if moved:
+                stale[skill] = moved
         if routed:
             waiting_s = ", ".join(f"{s} ({n})" for s, n in routed.items())
-            notes.append(
+            note = (
                 f"PROACTIVE — hand-off waiting: {waiting_s}: "
                 f"{sum(routed.values())} unclaimed signal(s) from completed "
                 f"upstream runs — the designed post-close state, not a "
@@ -433,11 +441,50 @@ def stop(json_in: dict) -> dict:
                 f"then consume the channel (doctor --json lists every waiting "
                 f"hop; correct a note with handoff-replace, never "
                 f"consume-then-repost).")
+            if stale:
+                # The same stale sentence the inject uses, on the stop surface:
+                # repeat the claim's state instead of asking for obedience.
+                labels = []
+                for skill, signals in stale.items():
+                    labels.extend(
+                        f"{s.get('run_key') or s.get('from') or '?'} "
+                        f"({s.get('verdict')}, for {skill})" for s in signals[:3])
+                note += (" BUT: " + ", ".join(labels[:5])
+                         + " may no longer apply — the code moved past "
+                           "them since they were recorded; verify before "
+                           "consuming, or withdraw with "
+                           f"`{_plugin_cmd('bmad/scripts/blackboard.py', 'handoff-retire')} "
+                           "--retire <key|channel> --reason <why>`.")
+            notes.append(note)
     except Exception:
         pass
 
-    # Subscription-plane delivery surface (BLACKBOARD.md §5: "stop → surfaced
-    # at stop"). Report-only like every stop note — nothing is consumed here:
+    # Retirements made in THIS session (E-053): the withdrawal is a first-class
+    # event, so the wrap-up names it instead of leaving it to be discovered by
+    # the next session's inject. Same session-window rule as the code-write
+    # report: only markers written after this session's start are listed.
+    try:
+        from .blackboard import retired_map
+        session_start = _latest_session_start(root)
+        retired = []
+        for target, marker in (retired_map(root) or {}).items():
+            try:
+                ts = float((marker or {}).get("ts", 0) or 0)
+            except (TypeError, ValueError):
+                continue
+            if ts and ts >= session_start:
+                retired.append(str(target))
+        if retired:
+            shown = ", ".join(sorted(retired)[:5])
+            if len(retired) > 5:
+                shown += f", … (+{len(retired) - 5} more)"
+            notes.append(f"retired this session: {shown} — these claims no longer "
+                         f"unlock code or announce work.")
+    except Exception:
+        pass
+
+    # Subscription-plane delivery surface (the engine's contract: "stop →
+    # surfaced at stop"). Report-only like every stop note — nothing is consumed here:
     # the producer/watcher clears the channel with `consume --channel stop`,
     # so an unconsumed routed alert keeps surfacing until its consumer takes
     # it (deliver-once belongs to the consumer, not the announcer).

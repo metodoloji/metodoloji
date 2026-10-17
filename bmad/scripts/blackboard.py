@@ -32,9 +32,13 @@ Usage:
     python3 blackboard.py handoff  --to SKILL --from-key K [--note X]
     python3 blackboard.py handoff-replace --to SKILL --from-key K --note X
     python3 blackboard.py mirror   --key K --value V [--to SKILL] [--note X]
-    python3 blackboard.py handoffs [--skill S]          (peek waiting signals)
+    python3 blackboard.py handoffs [--skill S] [--freshness] [--only-current]
+    python3 blackboard.py handoff-retire --retire K [--reason X]
+                                        ("this no longer applies", ts preserved)
+    python3 blackboard.py witness [--target K]          (anchors + derived verdicts)
     python3 blackboard.py chain-health                  (per-hop waiting/consumed)
-    python3 blackboard.py doctor [--json]               (one-glance diagnostic)
+    python3 blackboard.py doctor [--json] [--post]      (one-glance diagnostic;
+                                        --post also EMITS lifecycle alerts)
     python3 blackboard.py tag/untag --tag T
     python3 blackboard.py contribute --who W --what X
     python3 blackboard.py hot --key K | --clear
@@ -144,10 +148,49 @@ def cmd_mirror(args) -> int:
 def cmd_handoffs(args) -> int:
     root = _root(args)
     if args.skill:
-        pending = bb.pending_handoffs(root, args.skill)
-        _emit({"ok": True, "skill": args.skill, "handoffs": pending})
+        pending = bb.pending_handoffs(root, args.skill,
+                                      only_current=getattr(args, "only_current", False))
+        if getattr(args, "freshness", False):
+            # The annotation already rides each entry; --freshness makes the
+            # contract explicit and adds the channel-level breakdown.
+            _emit({"ok": True, "skill": args.skill, "handoffs": pending,
+                   "freshness": bb.pending_handoff_freshness(root).get(args.skill, {})})
+        else:
+            _emit({"ok": True, "skill": args.skill, "handoffs": pending})
     else:
-        _emit({"ok": True, "waiting": bb.pending_handoff_channels(root)})
+        payload = {"ok": True, "waiting": bb.pending_handoff_channels(root)}
+        if getattr(args, "freshness", False):
+            payload["freshness"] = bb.pending_handoff_freshness(root)
+        _emit(payload)
+    return 0
+
+
+def cmd_handoff_retire(args) -> int:
+    """Withdraw a claim: "this no longer applies" (event-sourced, ts preserved)."""
+    ack = bb.retire(_root(args), args.retire, reason=args.reason or "")
+    _emit(ack)
+    return 0 if ack.get("ok") else 1
+
+
+def cmd_witness(args) -> int:
+    """Show the stored anchors and the DERIVED verdicts for a board."""
+    root = _root(args)
+    stored = bb.witness_map(root)
+    payload = {"ok": True, "mode": bb.fr.mode(), "stored": stored,
+               "retired": bb.retired_map(root)}
+    if args.target:
+        ann = bb.fr.annotate(root, args.target, stored=stored.get(args.target))
+        payload["target"] = args.target
+        # The effective anchor is the DECISION's code state when the key names a
+        # record (a stored witness only anchors claims that resolve to none).
+        payload["witness"] = (stored.get(args.target)
+                              or bb.fr.derived_witness(root, args.target))
+        payload["anchor"] = ann
+        payload["verdict"] = ann
+    else:
+        payload["waiting"] = bb.pending_handoff_freshness(root)
+        payload["chain"] = bb.chain_health(root).get("freshness", {})
+    _emit(payload)
     return 0
 
 
@@ -198,6 +241,16 @@ def _panel(d: dict) -> str:
         oldest = max(ch["stale"], key=lambda s: s.get("age_seconds", 0))
         lines.append(f"stale     {len(ch['stale'])} signal(s) > 24h old "
                      f"(oldest: {oldest['from']}->{oldest['to']})")
+    fr_ = c.get("freshness", {})
+    if fr_:
+        tally = fr_.get("tally") or {}
+        lines.append(
+            f"freshness {fr_.get('mode', 'warn')}: {tally.get(bb.fr.STALE, 0)} stale / "
+            f"{tally.get(bb.fr.UNKNOWN, 0)} unknown of {tally.get('total', 0)} waiting "
+            f"({fr_.get('retired', 0)} retired; {fr_.get('witnesses', 0)} witness(es))")
+        for item in (fr_.get("unclear") or [])[:3]:
+            lines.append(f"          {item.get('run_key') or item.get('from')} "
+                         f"({item.get('verdict')}): {item.get('reason')}")
     w = c["watch"]["paths"]
     if w:
         lines.append("watch     " + "; ".join(
@@ -217,7 +270,7 @@ def _panel(d: dict) -> str:
 
 
 def cmd_doctor(args) -> int:
-    report = bb.doctor(_root(args))
+    report = bb.doctor(_root(args), post=bool(getattr(args, "post", False)))
     if args.json:
         _emit(report)
     else:
@@ -359,7 +412,7 @@ def cmd_stats(args) -> int:
     return 0
 
 
-def main() -> int:
+def main(argv: list | None = None) -> int:
     p = argparse.ArgumentParser(prog="blackboard.py",
                                 description="Methodology blackboard CLI")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -445,8 +498,28 @@ def main() -> int:
 
     hos = sub.add_parser("handoffs", help="Peek pending hand-off signals")
     hos.add_argument("--skill", default=None, help="filter: signals waiting for this skill")
+    hos.add_argument("--freshness", action="store_true",
+                     help="add the derived freshness verdicts + per-channel breakdown")
+    hos.add_argument("--only-current", action="store_true",
+                     help="drop claims the code state has moved past")
     common(hos)
     hos.set_defaults(fn=cmd_handoffs)
+
+    hrt = sub.add_parser("handoff-retire",
+                         help="Withdraw a claim (key, alert id or handoff.<skill>): "
+                              "'this no longer applies', keep its ts")
+    hrt.add_argument("--retire", required=True,
+                     help="what to withdraw: a run key (E-048), an alert id, or handoff.<skill>")
+    hrt.add_argument("--reason", default="", help="why it no longer applies")
+    common(hrt)
+    hrt.set_defaults(fn=cmd_handoff_retire)
+
+    wit = sub.add_parser("witness",
+                         help="Show the code-state anchors and derived freshness")
+    wit.add_argument("--target", default=None,
+                     help="one key or alert id (default: the whole board)")
+    common(wit)
+    wit.set_defaults(fn=cmd_witness)
 
     ch = sub.add_parser("chain-health", help="Per-hop hand-off diagnostics for the delivery relay")
     common(ch)
@@ -454,6 +527,10 @@ def main() -> int:
 
     dr = sub.add_parser("doctor", help="One-glance diagnostic of the whole board")
     dr.add_argument("--json", action="store_true", help="Emit the raw JSON report")
+    dr.add_argument("--post", action="store_true",
+                    help="also PRODUCE the lifecycle alerts it detected "
+                         "(witness_stale / cascade_invalidation / stale_session) "
+                         "on the session channel")
     common(dr)
     dr.set_defaults(fn=cmd_doctor)
 
@@ -616,7 +693,7 @@ def main() -> int:
     common(ro)
     ro.set_defaults(fn=lambda a: _emit(bb.rotate_event_log(_root(a))) or 0)
 
-    args = p.parse_args()
+    args = p.parse_args(argv)
     try:
         return args.fn(args)
     except Exception as exc:  # fail-open: never crash on board errors

@@ -59,9 +59,30 @@ design_artifacts = "{project-root}/design-artifacts"
 # exists. Never soften quality_gate / deploy_guard below for adoption — they
 # guard commits/deploys, not exploration writes.
 # Read live per-call by the hook engine.
+# freshness (E-053): how the engine treats a claim whose CODE STATE moved on.
+#   "off"  → pre-E-053 behavior: no witness written, no verdict derived
+#   "warn" → verdicts derived and reported everywhere; writes still allowed
+#   "deny" → an APPROVED record whose scope moved no longer unlocks code
+# Keep "warn" while adopting on a brownfield project: a legacy corpus has no
+# witnesses, so every claim reads UNKNOWN (never "fresh") until it is
+# re-measured — UNKNOWN warns and never blocks. Harden to "deny" once the
+# records carry Witness lines and the reported STALE set is empty.
 [hooks]
 quality_gate = "hard"   # "soft" | "hard" (code fallback default when absent: "soft")
+freshness = "warn"       # "off" | "warn" | "deny" (E-053 freshness plane)
+
 deploy_guard = "hard"   # "soft" | "hard" (code fallback default when absent: "soft")
 code_guard = "hard"     # hardened 2026-09-19 (S-005, TD-013 paid — E-014 40/40 + E-015 36/36 + E-016 44/44 + E-017 54/54 + E-018 59/59 + 4 live rehearsals)
 stop_guard = "soft"     # backward-compat key: stop is report-only and never blocks — leave "soft"
-blackboard = "on"       # dynamic working context (docs/BLACKBOARD.md); "off" disables engine integration
+blackboard = "on"       # dynamic working context (the code is canonical); "off" disables engine integration
+
+# Freshness plane details (E-053). Read live per-call by hooks/engine/modules/freshness.py.
+# `scope_digest = false` classifies on the commit only: every commit after the
+# witness stales the claim — noisy, and offered for a project whose code cannot
+# be expressed as scope globs. `unknown_policy = "silent"` counts UNKNOWNs
+# without announcing them (a legacy corpus with no Witness lines would otherwise
+# repeat "unverifiable" on every write); "deny" makes UNKNOWN block like STALE.
+[freshness]
+scope_digest = true       # true | false (false = commit-only classification)
+unknown_policy = "warn"   # "warn" | "silent" | "deny"
+max_digest_files = 2000   # bounded: above this the answer is UNKNOWN, not a guess

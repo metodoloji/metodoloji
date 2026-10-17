@@ -17,8 +17,16 @@ The board is a project-wide network, not a flat notebook:
 - subscriptions — watchers route matching mutations into alert channels
 - alerts     — bounded, channel-addressed notifications consumed by the
                engine (session_start injects, stop surfaces pending counts)
+- witness    — one code-state anchor per claim (alert id / key): the commit,
+               dirty-tree digest and scope digest the claim was true against.
+               Written by the write path, never by a reader; the freshness
+               VERDICT is derived from it (modules/freshness.py), never stored
+- retired    — claims explicitly withdrawn ("this no longer applies"): the
+               first-class sibling of consume/forget, keeping the original ts
+               (age stays honest) while changing what the claim MEANS
 
-Design invariants (docs/BLACKBOARD.md):
+Design invariants (this module is the canonical canvas home — the old canvas
+doc was pruned; the code is the contract):
 - Fail-open: every public function returns a usable default on any error.
 - Bounded: keys/lists/canvases/cells/links/alerts/events expire oldest-first.
 - No auto content generation: the board only holds what a writer (or an
@@ -38,20 +46,34 @@ import time
 from contextlib import contextmanager
 from enum import Enum  # NEW: For AlertKind (PHASE 4 #7)
 
+from . import freshness as fr
+
+
 # NEW: Structured alert taxonomy (PHASE 4 #7)
 class AlertKind(Enum):
-    """Enumeration of valid alert kinds for type-safe alert posting."""
+    """Enumeration of valid alert kinds for type-safe alert posting.
+
+    Not a decorative list: `post_alert` validates every kind against it, and
+    each kind ANNOTATED "written by" is WRITTEN through this enum by that
+    module (`retire`/`write_key` → RETIRED/CASCADE_INVALIDATION,
+    `doctor --post` → WITNESS_STALE/STALE_SESSION), so a rename here is a
+    rename at the writer too — the failure E-053 F-06 measured was a taxonomy
+    no code referenced. `bench_consistency.py` derives that annotation set and
+    fails if an annotated kind has no writer; the remaining members are the
+    operator vocabulary of `notify --kind`, validated by `post_alert` below.
+    """
     INFO = "info"
     WARN = "warn"
     ERROR = "error"
     RISK = "risk"
     HANDOFF = "handoff"
-    CASCADE_INVALIDATION = "cascade_invalidation"
-    STALE_SESSION = "stale_session"
+    CASCADE_INVALIDATION = "cascade_invalidation"   # written by blackboard.py
+    STALE_SESSION = "stale_session"                 # written by blackboard.py
     VERIFICATION_FAILURE = "verification_failure"
     HOOK_VIOLATION = "hook_violation"
     ESCALATION = "escalation"
-    CACHE_INVALIDATION = "cache_invalidation"
+    RETIRED = "retired"                             # written by blackboard.py
+    WITNESS_STALE = "witness_stale"                 # written by blackboard.py
     
     def __str__(self):
         return self.value
@@ -87,6 +109,8 @@ MAX_ALERTS = 32               # global, oldest expire
 MAX_ALERT_TEXT = 200
 MAX_CONSUMED_SENDERS = 256    # distinct sender names in the folded 'consumed' tally
 MAX_OPEN_HANDOFFS = 512       # entries in the folded open-handoff attribution ledger
+MAX_WITNESSES = 512           # code-state anchors (claims share a target's slot)
+MAX_RETIRED = 256             # explicit retirements (oldest retire marker expires)
 
 # Handoff signal TTL (24 hours) and stale cleanup (CRITICAL #4 / ISSUE #25)
 HANDOFF_SIGNAL_TTL_SECONDS = 24 * 3600
@@ -221,10 +245,14 @@ def board_paths(project_root: str) -> dict:
 
 # --- Snapshot handling --------------------------------------------------------
 def _empty_board() -> dict:
-    return {"version": 3, "hot": None, "hot_canvas": None, "keys": {},
+    # v4 adds the freshness planes (witness / retired). Both are empty by
+    # default, so a v3 snapshot upgrades in place — no replay is needed and no
+    # old reader can be surprised by a populated plane it does not know.
+    return {"version": 4, "hot": None, "hot_canvas": None, "keys": {},
             "tags": [], "contributions": [], "links": [], "canvases": {},
             "subscriptions": [], "alerts": [], "watchers": {},
-            "consumed": {}, "open_handoffs": {},
+            "consumed": {}, "open_handoffs": {}, "witness": {},
+            "retired": {},
             "updated": 0.0}
 
 
@@ -242,6 +270,10 @@ def _read_snapshot(paths: dict) -> dict:
         board["consumed"] = {}
     if not isinstance(board.get("open_handoffs"), dict):
         board["open_handoffs"] = {}
+    if not isinstance(board.get("witness"), dict):
+        board["witness"] = {}
+    if not isinstance(board.get("retired"), dict):
+        board["retired"] = {}
     # v1 snapshots had no graph sections — defaults already cover them.
     if not isinstance(board.get("links"), list):
         board["links"] = []
@@ -345,6 +377,10 @@ def read_board(project_root: str) -> dict:
                     replay["subscriptions"])) or replay.get("consumed"):
                 _write_snapshot_atomic(paths, replay)
                 board = replay
+        # v3 -> v4: the freshness planes default to empty and are event-sourced
+        # like every other plane, so the version marker needs no rebuild.
+        if board.get("version", 2) < 4:
+            board["version"] = 4
     if board.get("hot") and board["hot"] not in board["keys"]:
         board["hot"] = None
     if board.get("hot_canvas") and board["hot_canvas"] not in board["canvases"]:
@@ -696,6 +732,50 @@ def _apply_event(board: dict, ev: dict) -> None:
                     if ev.get("sender") and _SENDER_RE.match(str(ev.get("sender")).strip()):
                         a["sender"] = str(ev.get("sender")).strip()
                     break
+    elif kind == "witness":
+        # The claim's code-state anchor, written once by the write path. The
+        # board stores the ANCHOR, never a verdict: freshness is recomputed on
+        # every read (all a stored "fresh" flag could do is go stale silently).
+        target = str(ev.get("target", ""))[:200]
+        if target:
+            board["witness"][target] = {
+                "commit": str(ev.get("commit", "none"))[:64],
+                "tree": str(ev.get("tree", "none"))[:32],
+                "scope": str(ev.get("scope", "none"))[:32],
+                "ts": float(ev.get("ts", 0.0) or 0.0),
+            }
+            _cap_witness(board)
+    elif kind == "retire":
+        # "This no longer applies", event-sourced: the claim keeps its own ts
+        # (age stays truthful) but stops being delivered as live work.
+        target = str(ev.get("target", ""))[:200]
+        if target:
+            board["retired"][target] = {
+                "reason": str(ev.get("reason", ""))[:MAX_ALERT_TEXT],
+                "ts": float(ev.get("ts", 0.0) or 0.0),
+            }
+            _cap_retired(board)
+
+
+def _cap_witness(board: dict) -> None:
+    """Bound the witness plane, oldest anchor first (deterministic: replay
+    derives the same plane, so a rebuild cannot diverge from the live fold)."""
+    plane = board.get("witness")
+    if not isinstance(plane, dict):
+        board["witness"] = {}
+        return
+    while len(plane) > MAX_WITNESSES:
+        plane.pop(min(plane, key=lambda k: plane[k].get("ts", 0.0)))
+
+
+def _cap_retired(board: dict) -> None:
+    """Bound the retirement plane, oldest marker first."""
+    plane = board.get("retired")
+    if not isinstance(plane, dict):
+        board["retired"] = {}
+        return
+    while len(plane) > MAX_RETIRED:
+        plane.pop(min(plane, key=lambda k: plane[k].get("ts", 0.0)))
 
 
 def _cap_auto_cells(cv: dict) -> None:
@@ -899,6 +979,119 @@ def _mutate(project_root: str, mutator) -> dict:
     raise last_exc
 
 
+# --- freshness planes (witness / retired) ---------------------------------------
+# The board stores ANCHORS, the verdict is derived (modules/freshness.py). Write
+# paths stamp a witness in the SAME mutation scope as the claim itself (event
+# first, one lock, one snapshot) — a claim whose anchor lands in a later write
+# could be read in the gap between the two, which is exactly the shape the
+# freshness plane exists to remove.
+def _witness_event(project_root: str, target: str, scope: str = ""):
+    """A witness event for `target`, or None when there is nothing to anchor.
+
+    Fail-open: git unavailable / freshness switched off → no event (the claim
+    then reads UNKNOWN, which is the honest answer, not a fabricated CURRENT).
+    """
+    if not fr.enabled() or not str(target or "").strip():
+        return None
+    try:
+        if fr.head(project_root) is None:
+            return None
+        anchor = fr.witness_of(project_root, scope=scope)
+    except Exception:
+        return None
+    return {"event": "witness", "target": str(target)[:200],
+            "commit": anchor["commit"], "tree": anchor["tree"],
+            "scope": anchor["scope"], "ts": anchor["ts"]}
+
+
+def _retire_targets(board: dict, target: str) -> list:
+    """Alert ids a retirement of `target` withdraws.
+
+    `handoff.<skill>` withdraws every waiting signal on the channel; an alert
+    id withdraws that signal; anything else is read as a run key and withdraws
+    every signal that cites it (`E-048`, `story.1-1-x`, …) — the mechanical
+    form of "yesterday's decision no longer applies".
+    """
+    t = str(target or "").strip()
+    if not t:
+        return []
+    ids = []
+    if t.startswith("handoff."):
+        for a in board["alerts"]:
+            if a.get("channel") == t and a.get("kind") == "handoff" and a.get("id"):
+                ids.append(a["id"])
+        return ids
+    for a in board["alerts"]:
+        if a.get("id") == t:
+            ids.append(t)
+            return ids
+    for a in board["alerts"]:
+        if (a.get("kind") == "handoff" and a.get("id")
+                and str(a.get("text", "")).startswith(f"{t}:")):
+            ids.append(a["id"])
+    return ids
+
+
+def _retire_events(board: dict, target: str, reason: str, ts: float | None = None) -> list:
+    """Retire events withdrawing `target` plus every signal that carries it."""
+    t = str(target or "").strip()[:200]
+    if not t:
+        return []
+    now = float(ts if ts is not None else time.time())
+    events = [{"event": "retire", "target": t,
+               "reason": str(reason)[:MAX_ALERT_TEXT], "ts": now}]
+    for aid in _retire_targets(board, t):
+        events.append({"event": "retire", "target": aid,
+                       "reason": str(f"retired with {t}")[:MAX_ALERT_TEXT],
+                       "ts": now})
+    return events
+
+
+def retire(project_root: str, target: str, reason: str = "") -> dict:
+    """Withdraw a claim: "this no longer applies" as a first-class event.
+
+    The sibling of `consume` (complete the handshake) and `forget` (drop a
+    key): a retirement keeps the claim's own ts — the age stays honest — and
+    changes what the claim MEANS. Retired signals stop being delivered as live
+    work; retired keys keep their value but read RETIRED.
+    """
+    t = str(target or "").strip()[:200]
+    if not t:
+        return {"ok": False, "error": "retire needs a target (key, alert id or handoff.<skill>)"}
+
+    def mut(board):
+        paths = board_paths(project_root)
+        events = _retire_events(board, t, reason)
+        for ev in events:
+            _append_event(paths, ev)
+            _apply_event(board, ev)
+        return board, {"ok": True, "target": t, "signals": len(events) - 1,
+                       "reason": str(reason)[:MAX_ALERT_TEXT],
+                       "root": paths["root"]}
+
+    ack = _mutate(project_root, mut)
+    # A retirement is an operator-visible state change, so it is announced on
+    # the session channel (announce-only, like every other lifecycle signal).
+    try:
+        post_alert(project_root, "session", AlertKind.RETIRED.value,
+                   f"retired '{t}' — {ack.get('signals', 0)} waiting signal(s) "
+                   f"no longer apply{f': {reason}' if reason else ''}",
+                   sender="freshness")
+    except Exception:
+        pass
+    return ack
+
+
+def witness_map(project_root: str) -> dict:
+    """Every stored witness anchor: {target: {commit, tree, scope, ts}}."""
+    return dict(read_board(project_root).get("witness") or {})
+
+
+def retired_map(project_root: str) -> dict:
+    """Every retirement marker: {target: {reason, ts}}."""
+    return dict(read_board(project_root).get("retired") or {})
+
+
 # --- text keys -------------------------------------------------------------------
 def forget_key(project_root: str, key: str) -> dict:
     """Remove one namespaced key from the board (event-sourced).
@@ -944,6 +1137,7 @@ def write_key(project_root: str, key: str, value, *, type_: str = "note",
     value = str(value)[:MAX_VALUE_LEN]
     event = {"event": "write", "key": key.strip()[:200], "value": value,
              "type": str(type_)[:50], "hot": bool(hot), "ts": time.time()}
+    superseded: list = []  # records this write re-measures (cascade source)
 
     def mut(board):
         paths = board_paths(project_root)
@@ -1027,9 +1221,40 @@ def write_key(project_root: str, key: str, value, *, type_: str = "note",
                 _append_event(paths, watch_event)
                 _apply_event(board, watch_event)
                 ack["watchers"] = sorted(board["watchers"].keys())
+        # Freshness anchor: the write is where a claim begins, so its witness
+        # is stamped in this same mutation (event-first, one lock, one
+        # snapshot) — never in a second write a reader could interleave with.
+        w_ev = _witness_event(project_root, event["key"],
+                              fr.record_scope(project_root, event["key"]))
+        if w_ev:
+            _append_event(paths, w_ev)
+            _apply_event(board, w_ev)
+            ack["witness"] = {"commit": w_ev["commit"], "tree": w_ev["tree"]}
+        # Cascade invalidation (the plane that used to be declared but dead):
+        # writing a NEW record id that older records declare themselves
+        # re-measured by retires those older claims in the same breath —
+        # "E-019 superseded by E-053" is now a mechanic, not a convention.
+        if _RECORD_KEY_RE.match(event["key"]):
+            for old in fr.superseded_records(project_root, event["key"]):
+                superseded.append(old)
+                for r_ev in _retire_events(board, old,
+                                           f"superseded by {event['key']}",
+                                           event["ts"]):
+                    _append_event(paths, r_ev)
+                    _apply_event(board, r_ev)
         return board, ack
 
-    return _mutate(project_root, mut)
+    ack = _mutate(project_root, mut)
+    for old in dict.fromkeys(superseded):
+        try:
+            post_alert(project_root, "session",
+                       AlertKind.CASCADE_INVALIDATION.value,
+                       f"{old} superseded by {event['key']} — waiting claims "
+                       f"citing it are cascade-invalidated",
+                       sender="freshness")
+        except Exception:
+            pass
+    return ack
 
 
 def set_hot(project_root: str, key: str | None) -> dict:
@@ -1638,11 +1863,95 @@ def replace_handoff(project_root: str, to_skill: str, from_key: str, note: str =
     return _mutate(project_root, mut)
 
 
-def pending_handoffs(project_root: str, skill: str) -> list:
-    """Un-consumed hand-off signals waiting for `skill` (read-only peek)."""
+# --- freshness annotation of waiting signals -------------------------------------
+# ONE scan, ONE derivation. pending_handoffs, pending_handoff_channels,
+# pending_handoff_freshness, recent_handoffs, chain_health, doctor and the
+# session-start inject all read this, because a second parser is a second
+# opinion about whether a claim still holds (the project's own doctrine).
+def _routed_skills() -> set:
+    """Every known receiving skill (delivery + methodology + sub-chains)."""
+    return (set(CHAIN) | set(METHODOLOGY_CHAIN) | sub_chain_skills()
+            | CHAIN_ADJACENT
+            | {s for hop in CHAIN_TERMINAL for s in hop})
+
+
+def _annotate_alert(project_root: str, alert: dict, board: dict) -> dict:
+    """Derived freshness for one waiting signal — read-only, never raises.
+
+    A stored witness (written with the signal) wins; otherwise the claim is
+    dated by the commit that last touched the record its run key names. A
+    retirement (of the signal, its channel, or its run key) overrides both.
+    """
+    aid = str(alert.get("id", ""))
+    channel = str(alert.get("channel", ""))
+    key = fr.key_of(alert.get("text", ""))
+    markers = board.get("retired") or {}
+    retired = (aid in markers or channel in markers or bool(key and key in markers))
+    stored = (board.get("witness") or {}).get(aid) if aid else None
+    try:
+        ann = fr.annotate(project_root, key, stored=stored, retired=retired)
+    except Exception:
+        ann = {"verdict": fr.UNKNOWN, "reason": "freshness derivation failed",
+               "age_s": None, "changed": [], "changed_count": 0,
+               "run_key": key, "anchor": "none", "superseded_by": None}
+    if ann.get("age_s") is None:
+        try:
+            ann["age_s"] = max(0.0, time.time() - float(alert.get("ts", 0.0) or 0.0))
+        except (TypeError, ValueError):
+            ann["age_s"] = None
+    if retired and ann.get("verdict") != fr.RETIRED:
+        marker = markers.get(aid) or markers.get(channel) or markers.get(key) or {}
+        ann = {**ann, "verdict": fr.RETIRED,
+               "reason": f"retired — {marker.get('reason') or 'no longer applies'}"}
+    return ann
+
+
+def _waiting_signals(project_root: str, *, board: dict | None = None,
+                     include_retired: bool = False) -> list:
+    """Every waiting hand-off signal, annotated with its derived freshness.
+
+    Shaped for every reader: the alert's own fields (ts/text/id/channel/sender)
+    plus `skill`, `verdict`, `reason`, `age_s`, `changed_count`, `anchor`,
+    `run_key`. Retired signals are dropped unless explicitly asked for — a
+    withdrawn claim is not pending work.
+    """
+    board = board if board is not None else read_board(project_root)
+    out = []
+    # One batch: N signals on one board cost ONE head/diff/status read instead
+    # of N, and the cache dies with the scan so the next reader sees git as it
+    # is then (a wall-clock TTL here was measured hiding a commit — see
+    # freshness._BATCH).
+    with fr.batch():
+        for alert in board.get("alerts", []):
+            if not isinstance(alert, dict) or alert.get("kind") != "handoff":
+                continue
+            channel = str(alert.get("channel", ""))
+            if not channel.startswith("handoff."):
+                continue
+            ann = _annotate_alert(project_root, alert, board)
+            if ann["verdict"] == fr.RETIRED and not include_retired:
+                continue
+            out.append({**alert, "skill": channel[len("handoff."):],
+                        "verdict": ann["verdict"], "reason": ann["reason"],
+                        "age_s": ann["age_s"],
+                        "changed_count": ann["changed_count"],
+                        "anchor": ann["anchor"], "run_key": ann["run_key"]})
+    return out
+
+
+def pending_handoffs(project_root: str, skill: str, *,
+                     only_current: bool = False) -> list:
+    """Un-consumed hand-off signals waiting for `skill` (read-only peek).
+
+    Each entry carries the DERIVED freshness verdict (`CURRENT` / `STALE` /
+    `UNKNOWN`) and the reason behind it, so a reader can say "this no longer
+    applies" instead of repeating the past. `only_current=True` drops the
+    claims the code state has moved past.
+    """
     skill = str(skill).strip()[:MAX_CHANNEL_LEN - len("handoff.")]  # mirror post_handoff's budget
-    return [a for a in read_board(project_root)["alerts"]
-            if a.get("channel") == f"handoff.{skill}" and a.get("kind") == "handoff"]
+    return [sig for sig in _waiting_signals(project_root)
+            if sig["skill"] == skill
+            and (not only_current or sig["verdict"] == fr.CURRENT)]
 
 
 def pending_handoff_channels(project_root: str) -> dict:
@@ -1659,21 +1968,60 @@ def pending_handoff_channels(project_root: str) -> dict:
     the session-start nudge — the skill-side CLI lists every channel: run the
     plugin's ``bmad/scripts/blackboard.py handoffs`` (without `--skill`) from
     the plugin root.
+
+    Counts the SAME scan `pending_handoff_freshness` breaks down by verdict, so
+    the count and the breakdown can never disagree. Retired signals are not
+    waiting work and are excluded from both.
     """
-    relay = (set(CHAIN) | set(METHODOLOGY_CHAIN) | sub_chain_skills()
-             | CHAIN_ADJACENT
-             | {s for hop in CHAIN_TERMINAL for s in hop})
+    relay = _routed_skills()
     counts = {}
-    for a in read_board(project_root)["alerts"]:
-        ch = a.get("channel", "")
-        if ch.startswith("handoff.") and a.get("kind") == "handoff":
-            s = ch[len("handoff."):]
-            if s in relay:
-                counts[s] = counts.get(s, 0) + 1
+    for sig in _waiting_signals(project_root):
+        if sig["skill"] in relay:
+            counts[sig["skill"]] = counts.get(sig["skill"], 0) + 1
     return counts
 
 
-def recent_handoffs(project_root: str, limit: int = 3) -> list:
+def pending_handoff_freshness(project_root: str) -> dict:
+    """Per-routed-channel freshness breakdown of the waiting signals.
+
+    `{skill: {total, current, stale, unknown, oldest_age_s, stale_keys,
+    unknown_keys}}` — the data the session-start inject and doctor render. The
+    read that gives the delivery plane a third answer (E-052/E-053): a baton
+    the code moved past is reported as such instead of as live work.
+    """
+    relay = _routed_skills()
+    out: dict = {}
+    for sig in _waiting_signals(project_root):
+        skill = sig["skill"]
+        if skill not in relay:
+            continue
+        entry = out.setdefault(skill, {"total": 0, "current": 0, "stale": 0,
+                                       "unknown": 0, "oldest_age_s": None,
+                                       "stale_keys": [], "unknown_keys": [],
+                                       "freshness": []})
+        entry["total"] += 1
+        verdict = str(sig["verdict"]).lower()
+        entry[verdict if verdict in ("current", "stale", "unknown") else "unknown"] += 1
+        age = sig.get("age_s")
+        if isinstance(age, (int, float)):
+            if entry["oldest_age_s"] is None or age > entry["oldest_age_s"]:
+                entry["oldest_age_s"] = float(age)
+        key = sig.get("run_key")
+        if key and sig["verdict"] in (fr.STALE, fr.UNKNOWN):
+            bucket = ("stale_keys" if sig["verdict"] == fr.STALE
+                      else "unknown_keys")
+            if key not in entry[bucket]:
+                entry[bucket].append(key)
+            entry["freshness"].append(
+                {"key": key, "verdict": sig["verdict"],
+                 "label": fr.label(sig["verdict"], age),
+                 "age_s": age, "reason": str(sig.get("reason", ""))})
+    return out
+
+
+def recent_handoffs(project_root: str, limit: int = 3, *,
+                    only_current: bool = False,
+                    with_freshness: bool = False) -> list:
     """Most recent un-consumed hand-off signals, relay-routed only (read-only).
 
     The engine-side carrier for the close-out relay: skills post their
@@ -1688,25 +2036,32 @@ def recent_handoffs(project_root: str, limit: int = 3) -> list:
     stay out (same routing rule as pending_handoff_channels).
     """
     limit = max(1, min(int(limit), 10))
-    relay = (set(CHAIN) | set(METHODOLOGY_CHAIN) | sub_chain_skills()
-             | CHAIN_ADJACENT
-             | {s for hop in CHAIN_TERMINAL for s in hop})
+    relay = _routed_skills()
     now = time.time()
     hits = []
-    for a in read_board(project_root)["alerts"]:
-        ch = a.get("channel", "")
-        if not (ch.startswith("handoff.") and a.get("kind") == "handoff"):
+    for sig in _waiting_signals(project_root):
+        skill = sig["skill"]
+        if skill not in relay:
             continue
-        s = ch[len("handoff."):]
-        if s not in relay:
+        if only_current and sig["verdict"] != fr.CURRENT:
             continue
-        text = str(a.get("text", ""))
-        hits.append({
-            "skill": s,
+        text = str(sig.get("text", ""))
+        age = sig.get("age_s")
+        if not isinstance(age, (int, float)):
+            age = max(0.0, now - float(sig.get("ts", 0.0) or 0.0))
+        hit = {
+            "skill": skill,
             "from": text.split(":", 1)[0] if ":" in text else "",
             "note": text.split(":", 1)[1].strip() if ":" in text else text,
-            "age_s": max(0.0, now - float(a.get("ts", 0.0) or 0.0)),
-        })
+            "age_s": age,
+        }
+        if with_freshness:
+            # The verdict rides the note too (the inject reads `note`), so a
+            # stale baton cannot be re-announced as fresh work by a surface
+            # that only renders the table.
+            hit["verdict"] = sig["verdict"]
+            hit["reason"] = sig["reason"]
+        hits.append(hit)
     # Freshest baton first. Sort on the raw float — same-second batons keep
     # their post order stable (an int-rounded key would tie them and flip the
     # order); the shape rounds age_s for display.
@@ -2009,6 +2364,10 @@ def _skill_for_run_key(key: str) -> str | None:
 # the prefix rather than trusting a free-form string.
 _SENDER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$")
 
+# A run key that names a record (`E-048`, `QR-001`): only these can supersede or
+# be superseded, so only these pay the cascade scan on the write path.
+_RECORD_KEY_RE = re.compile(r"^[A-Z]+-\d+$")
+
 
 def _signal_sender(text: str, explicit: str | None = None) -> str:
     """Attribute a hand-off signal to a sender skill.
@@ -2076,38 +2435,52 @@ def chain_health(project_root: str, *, now: float | None = None) -> dict:
     # diagnostics are gone, so the diagnostic can only see a board the
     # readers can see — evicted or log-rotated history cannot stage a
     # divergence between the two views.
-    waiting: dict = {}  # (sender, receiver) -> count
-    stale: list = []     # waiting signals past TTL (escalation candidates)
-    for a in board.get("alerts", []):
-        if not isinstance(a, dict) or a.get("kind") != "handoff":
-            continue
-        channel = str(a.get("channel", ""))
-        if not channel.startswith("handoff."):
-            continue
-        receiver = channel[len("handoff."):]
-        sender = _signal_sender(str(a.get("text", "")), explicit=a.get("sender"))
+    waiting: dict = {}   # (sender, receiver) -> count
+    stale: list = []     # waiting signals past TTL (age-based escalation)
+    verdicts: dict = {}  # (sender, receiver) -> {STALE: n, UNKNOWN: n}
+    unclear: list = []   # waiting signals the CODE STATE moved past (E-053)
+    for sig in _waiting_signals(project_root, board=board):
+        receiver = sig["skill"]
+        sender = _signal_sender(str(sig.get("text", "")), explicit=sig.get("sender"))
         key = (sender, receiver)
         waiting[key] = waiting.get(key, 0) + 1
+        verdict = str(sig.get("verdict") or fr.CURRENT).upper()
+        if verdict in (fr.STALE, fr.UNKNOWN):
+            verdicts.setdefault(key, {})
+            verdicts[key][verdict] = verdicts[key].get(verdict, 0) + 1
+            unclear.append({"from": sender, "to": receiver,
+                            "text": str(sig.get("text", "")),
+                            "verdict": verdict,
+                            "reason": str(sig.get("reason", "")),
+                            "run_key": str(sig.get("run_key", "")),
+                            "age_seconds": int(sig.get("age_s") or 0)})
         try:
-            ts = float(a.get("ts", 0.0) or 0.0)
+            ts = float(sig.get("ts", 0.0) or 0.0)
         except (TypeError, ValueError):
             ts = 0.0
         if ref - ts > HANDOFF_SIGNAL_TTL_SECONDS:
             stale.append({"from": sender, "to": receiver,
-                          "text": str(a.get("text", "")),
-                          "age_seconds": int(ref - ts)})
+                          "text": str(sig.get("text", "")),
+                          "age_seconds": int(ref - ts), "verdict": verdict})
 
     def hop_rows(sender_skill: str, receiver_skill: str) -> dict:
         w = sum(v for (s, r), v in waiting.items() if s == sender_skill and r == receiver_skill)
         c = sum(v for (s, r), v in consumed.items() if s == sender_skill and r == receiver_skill)
+        v = verdicts.get((sender_skill, receiver_skill), {})
         if w:
             status = "waiting"
         elif w + c:
             status = "clear"
         else:
             status = "idle"
+        # Age and CODE STATE are different questions: `stale` counts the clock,
+        # `stale_claims`/`unknown_claims` count the claims the code moved past
+        # (and those the anchor cannot settle). A hop can be perfectly fresh by
+        # age and already false by state — that was the whole defect (E-052).
         return {"from": sender_skill, "to": receiver_skill,
-                "waiting": w, "consumed": c, "status": status}
+                "waiting": w, "consumed": c, "status": status,
+                "stale_claims": v.get(fr.STALE, 0),
+                "unknown_claims": v.get(fr.UNKNOWN, 0)}
 
     chain = [hop_rows(a, b) for a, b in zip(CHAIN, CHAIN[1:])]
     for a, b in CHAIN_TERMINAL:
@@ -2145,7 +2518,14 @@ def chain_health(project_root: str, *, now: float | None = None) -> dict:
     total_waiting = sum(waiting.values())
     return {"ok": True, "chain": chain, "methodology_chain": methodology_chain,
             "sub_chains": sub_chains,
-            "extra": extra, "total_waiting": total_waiting, "stale": stale}
+            "extra": extra, "total_waiting": total_waiting, "stale": stale,
+            # Freshness dimension (E-053): derived from the same scan, keyed by
+            # claim, never stored. `stale` above is the clock; `unclear` is the
+            # code state. `retired` counts the claims explicitly withdrawn.
+            "unclear": unclear,
+            "freshness": fr.tally(unclear),
+            "retired": len(board.get("retired") or {}),
+            "freshness_mode": fr.mode()}
 
 
 def waiting_hop_rows(health: dict) -> list:
@@ -2265,15 +2645,21 @@ def rotate_event_log(project_root: str, max_lines: int = 10000) -> dict:
         }
 
 
-def doctor(project_root: str) -> dict:
+def doctor(project_root: str, *, post: bool = False) -> dict:
     """One-glance diagnostic for the whole board: gate, snapshot, event log,
-    state counts, cap usage, focus, chain health, integrity (snapshot/event
-    drift, tmp residue) and watch paths. Verdict is HEALTHY iff no warnings.
+    state counts, cap usage, focus, chain health, FRESHNESS, integrity
+    (snapshot/event drift, tmp residue) and watch paths. Verdict is HEALTHY iff
+    no warnings.
     
     NEW: Supports --rotate flag to archive old event logs (MEDIUM #1)
     NEW: Includes record ID uniqueness check (MEDIUM #2 / ISSUE #61)
     NEW: Detects stale sessions (SessionStart without Stop) (MEDIUM #5 / ISSUE #64)
+    NEW (E-053): reports the derived freshness of every waiting claim, and — when
+    `post=True` — PRODUCES the lifecycle alerts the board's taxonomy declares
+    (`witness_stale`, `cascade_invalidation`, `stale_session`). The default stays
+    read-only: a diagnostic must not mutate the thing it measures.
     """
+    stale_session_hours: int | None = None
     paths = board_paths(project_root)
     warnings = []
     board = read_board(project_root)
@@ -2414,6 +2800,7 @@ def doctor(project_root: str) -> dict:
             
             if session_age > stale_threshold:
                 hours = int(session_age / 3600)
+                stale_session_hours = hours
                 warnings.append(
                     f"Stale session detected: SessionStart {hours}h+ ago without Stop "
                     f"(hung session? agent crash?)"
@@ -2470,15 +2857,30 @@ def doctor(project_root: str) -> dict:
     # Stale handoff escalation: folded-snapshot ages (TD-014 — the snapshot
     # is the live truth skills can claim; a log-only age stages a
     # divergence, not staleness). Oldest-first so operators triage the
-    # longest-waiting baton first.
+    # longest-waiting baton first. The diagnosis is split by DERIVED verdict
+    # (E-053): a >24h baton whose claim still holds is a crashed/hung skill,
+    # while one whose scope changed is obsolete WORK — the engine used to call
+    # both "hung skill" and so mis-prescribed the remedy for the second.
     stale = chain.get("stale", [])
     if stale:
         stale_sorted = sorted(stale, key=lambda s: -s.get("age_seconds", 0))
         oldest = stale_sorted[0]
-        warnings.append(f"{len(stale)} STALE hand-off signal(s) "
-                        f"(> 24h old) -- skill crashed/hung? "
-                        f"oldest: {oldest['from']}->{oldest['to']} -- "
-                        f"claim via handoffs --skill <downstream>, then consume")
+        obsolete = [s for s in stale
+                    if str(s.get("verdict", "")).upper() == fr.STALE]
+        if obsolete:
+            warnings.append(
+                f"{len(stale)} STALE hand-off signal(s) (> 24h old) — "
+                f"{len(obsolete)} name decisions the code has already moved "
+                f"past (obsolete work, not a hung skill); oldest: "
+                f"{oldest['from']}->{oldest['to']} — retire them "
+                f"(`handoff --retire <key> --reason \"…\"`) or re-post, then "
+                f"consume the channel")
+        else:
+            warnings.append(f"{len(stale)} STALE hand-off signal(s) "
+                            f"(> 24h old, claims still current) -- skill "
+                            f"crashed/hung? oldest: {oldest['from']}->"
+                            f"{oldest['to']} -- claim via handoffs --skill "
+                            f"<downstream>, then consume")
 
     # Focus liveness: a hot key with a finished bridge `status` is the stale
     # hand-off this engine used to hand bmad-help (2026-09-21 real session:
@@ -2544,6 +2946,36 @@ def doctor(project_root: str) -> dict:
         if entry and isinstance(entry, dict) and str(entry.get("value", "")).strip():
             methodology[stage] = str(entry.get("value"))[:80]
 
+    # Freshness plane (E-053): the DERIVED verdict of every waiting claim, plus
+    # the claims explicitly withdrawn. Informational by itself — a signal whose
+    # scope moved is report-only noise until it also ages out (the health case
+    # above). This is also the reader that turns the declared-but-dead alert
+    # taxonomy into produced data: doctor --post emits the lifecycle kinds.
+    freshness_report = {}
+    unclear = chain.get("unclear", [])
+    retired_count = len(board.get("retired") or {})
+    try:
+        freshness_report = pending_handoff_freshness(project_root)
+    except Exception:
+        freshness_report = {}
+    fresh_tally = fr.tally(unclear)
+    # `[freshness] unknown_policy = "silent"` keeps "unverifiable" out of the
+    # warnings (a legacy corpus has nothing else to report) while the tally
+    # keeps counting it — the fact is never lost, only not repeated.
+    report_unknown = fr.unknown_policy() != "silent"
+    if fresh_tally[fr.STALE] or (fresh_tally[fr.UNKNOWN] and report_unknown):
+        counts = f"{fresh_tally[fr.STALE]} stale"
+        tail = ""
+        if report_unknown:
+            counts += f", {fresh_tally[fr.UNKNOWN]} unknown"
+            tail = " or cannot be anchored"
+        chain_warnings.append(
+            f"{len(unclear)} waiting signal(s) name decisions the code has "
+            f"moved past{tail} ({counts}) — verify, then retire or re-post "
+            f"(checks.freshness.inject)")
+    stale_verdicts = [s for s in stale
+                      if str(s.get("verdict", "")).upper() == fr.STALE]
+
     checks = {
         "gate": {"known": gate_known, "on": gate_on,
                  "status": "ok" if gate_known else "info"},
@@ -2576,16 +3008,79 @@ def doctor(project_root: str) -> dict:
                   "status": "info"},
         "methodology": {"progress": methodology,
                         "status": "info" if methodology else "ok"},
+        "freshness": {"mode": fr.mode(),
+                      "witnesses": len(board.get("witness") or {}),
+                      "retired": retired_count,
+                      "report": freshness_report,
+                      "unclear": unclear[:10],
+                      "tally": fresh_tally,
+                      # A >24h signal that is ALSO stale by code state is a
+                      # health finding (its remedy is retire/re-post, not
+                      # "restart the skill"); otherwise freshness is info.
+                      "status": ("warn" if stale_verdicts
+                                 else "info" if unclear else "ok")},
     }
-    return {"ok": True, "root": paths["root"],
-            "verdict": "HEALTHY" if not warnings else "NEEDS ATTENTION",
-            "checks": checks,
-            "warnings": warnings,
-            # Signal-state findings (waiting batons): report-only, never part
-            # of the health verdict. The close-step contract surfaces these
-            # alongside the verdict instead of reading NEEDS ATTENTION as
-            # "the close failed".
-            "signal_warnings": chain_warnings}
+    report = {"ok": True, "root": paths["root"],
+              "verdict": "HEALTHY" if not warnings else "NEEDS ATTENTION",
+              "checks": checks,
+              "warnings": warnings,
+              # Signal-state findings (waiting batons): report-only, never part
+              # of the health verdict. The close-step contract surfaces these
+              # alongside the verdict instead of reading NEEDS ATTENTION as
+              # "the close failed".
+              "signal_warnings": chain_warnings}
+    if post:
+        report["posted"] = _post_lifecycle_alerts(project_root, unclear,
+                                                  stale_session_hours)
+    return report
+
+
+def _post_lifecycle_alerts(project_root: str, unclear: list,
+                           stale_session_hours: int | None) -> int:
+    """Produce the lifecycle alerts doctor detected (bounded, deduped, fail-open).
+
+    Split out so the default diagnostic stays read-only: only an explicit
+    `doctor --post` writes. Every kind emitted here already has a consumer —
+    the session-start inject and `alerts --channel session` — which is what
+    makes the board's declared taxonomy a working plane instead of dead names
+    (E-053, F-06). Bounded to 5 signals so a flooded board cannot evict real
+    batons from the shared 32-slot alert pool.
+    """
+    posted = 0
+    try:
+        for sig in (unclear or [])[:5]:
+            if str(sig.get("verdict", "")).upper() != fr.STALE:
+                continue
+            kind = (AlertKind.CASCADE_INVALIDATION.value
+                    if "superseded by" in str(sig.get("reason", ""))
+                    else AlertKind.WITNESS_STALE.value)
+            post_alert(
+                project_root, "session", kind,
+                f"{sig.get('run_key') or sig.get('from')}: {sig.get('reason')} "
+                f"(waiting for {sig.get('to')}, "
+                f"{int(sig.get('age_seconds') or 0) // 3600}h) — retire or re-post",
+                sender="doctor")
+            posted += 1
+        if stale_session_hours:
+            post_alert(
+                project_root, "session", AlertKind.STALE_SESSION.value,
+                f"stale session: SessionStart {stale_session_hours}h+ ago "
+                f"without Stop (hung session? agent crash?)", sender="doctor")
+            posted += 1
+    except Exception:
+        pass
+    return posted
+
+
+# Announcement-state kinds: re-posting the identical sentence is not a new
+# fact. These dedup because MAX_ALERTS is a SHARED pool (32) that also holds
+# waiting hand-off signals — a lifecycle announcement repeated per turn would
+# evict real batons. Hand-off signals deliberately keep their exact previous
+# semantics: every post is a distinct bridge between two runs.
+_DEDUP_ALERT_KINDS = frozenset({AlertKind.RETIRED.value,
+                                AlertKind.CASCADE_INVALIDATION.value,
+                                AlertKind.STALE_SESSION.value,
+                                AlertKind.WITNESS_STALE.value})
 
 
 def post_alert(project_root: str, channel: str, kind: str, text: str,
@@ -2619,18 +3114,34 @@ def post_alert(project_root: str, channel: str, kind: str, text: str,
         return {"ok": False, "error": "empty alert text"}
 
     def mut(board):
-        _append_event(board_paths(project_root), event)
+        paths = board_paths(project_root)
+        if kind_str in _DEDUP_ALERT_KINDS and any(
+                a.get("channel") == event["channel"] and a.get("kind") == kind_str
+                and a.get("text") == event["text"] for a in board["alerts"]):
+            return board, {"ok": True, "channel": event["channel"],
+                           "duplicate": True, "alerts": len(board["alerts"]),
+                           "root": paths["root"]}
+        _append_event(paths, event)
         _apply_event(board, event)
-        
+        # A hand-off signal IS a claim about the code state, so it is anchored
+        # to that state in this same mutation (the freshness plane's writer).
+        if kind_str == "handoff":
+            w_ev = _witness_event(
+                project_root, event["id"],
+                fr.record_scope(project_root, fr.key_of(event["text"])))
+            if w_ev:
+                _append_event(paths, w_ev)
+                _apply_event(board, w_ev)
+
         # NEW: Explicit bounds check - enforce MAX_ALERTS (MEDIUM #4 / ISSUE #63)
         alert_count = len(board["alerts"])
         if alert_count > MAX_ALERTS:
             sys.stderr.write(f"metodoloji: bounds enforced — alerts {alert_count}/{MAX_ALERTS}, "
                             f"oldest expired\n")
-        
+
         return board, {"ok": True, "channel": event["channel"],
-                       "alerts": alert_count,
-                       "root": board_paths(project_root)["root"]}
+                       "id": event["id"], "alerts": alert_count,
+                       "root": paths["root"]}
 
     return _mutate(project_root, mut)
 
@@ -2736,16 +3247,36 @@ def compact_context(project_root: str) -> dict:
     # the injected context shows how far the E→IR→SP→S→QR→PR relay has
     # actually progressed (empty = not started).
     methodology = {}
-    for stage, key in (("E", "methodology.last_experiment"),
-                       ("IR", "methodology.last_ir"),
-                       ("SP", "methodology.last_sp"),
-                       ("S", "methodology.last_story"),
-                       ("QR", "methodology.last_qr"),
-                       ("PR", "methodology.last_pr")):
-        entry = board["keys"].get(key)
-        if entry and isinstance(entry, dict) and str(entry.get("value", "")).strip():
+    methodology_freshness = {}
+    with fr.batch():
+        for stage, key in (("E", "methodology.last_experiment"),
+                           ("IR", "methodology.last_ir"),
+                           ("SP", "methodology.last_sp"),
+                           ("S", "methodology.last_story"),
+                           ("QR", "methodology.last_qr"),
+                           ("PR", "methodology.last_pr")):
+            entry = board["keys"].get(key)
+            if not (entry and isinstance(entry, dict)
+                    and str(entry.get("value", "")).strip()):
+                continue
             methodology[stage] = str(entry.get("value"))[:80]
-    
+            # The relay line is a CLAIM about a record, so it is dated too: the
+            # cited run key's own witness (write_key stamped it) or its record's
+            # commit. Without this the chain-progress sentence repeated history
+            # as if it were present tense (F-02/F-03).
+            cited = fr.key_of(str(entry.get("value", "")))
+            try:
+                ann = fr.annotate(
+                    project_root, cited,
+                    stored=(board.get("witness") or {}).get(cited) if cited else None)
+            except Exception:
+                continue
+            methodology_freshness[stage] = {
+                "verdict": ann["verdict"], "age_s": ann["age_s"],
+                "reason": ann["reason"], "run_key": ann["run_key"],
+                "label": fr.label(ann["verdict"], ann["age_s"])}
+
+
     # NEW: Operator preferences and urgency (PHASE 3 #6)
     tags_list = list(board["tags"])
     priority = "normal"
@@ -2762,6 +3293,7 @@ def compact_context(project_root: str) -> dict:
         "hot_canvas": canvas_summary,
         "focus": focus,
         "methodology": methodology,
+        "methodology_freshness": methodology_freshness,
         "priority": priority,  # NEW (PHASE 3 #6)
         "tags": tags_list,
         "watchers": sorted(board["watchers"].keys()),

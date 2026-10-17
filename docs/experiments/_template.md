@@ -32,6 +32,9 @@ lines; the gate writes them.
 - **Metric:** <gate writes: consistent | MISMATCH — from the measured metric of the --run output>
 - **Decision:** <gate writes: APPROVED | REJECTED — reason>
 - **Gate Evidence:** <gate writes: GATE-OK-...>
+- **Witness:** <gate writes: commit=<sha|none> tree=<digest|none> scope=<digest|none> — the
+  code state this decision was measured against; the commit is bound into the token, so the
+  line cannot be re-dated after approval (that is FORGED, not a repair)>
 - **Next Step:** <gate writes: Proceed to Code | Return to Theory>
 
 ## Implementation Plan (GRP)
@@ -82,9 +85,20 @@ python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment
 whole trust ring — this machine's own key plus peer keys imported with `--import-key`
 (into `~/.bmad/gate-keys/`), so a record APPROVED on another machine of yours verifies
 here without ceremony once that machine's key is in the ring. Outside the ring it
-reports FORGED by design — never hand-edit gate-written fields or tokens. Key-free
-remedy: re-run the measurement under a new E record with your local key and add a plain
-`- **Re-Measured-By:** E-NNN (date)` line at the end of the old record;
-`check-plugin.sh` §3 then reports it as a CROSS-MACHINE warning instead of an error.
+reports UNVERIFIABLE — the token is well-formed but re-derives under no key here, which
+is NOT the same verdict as FORGED (that stamp is reserved for structural impossibilities:
+a missing evidence block, a claim that contradicts the Hypothesis, a doctored plan hash
+or a Witness line added after approval). Never hand-edit gate-written fields or tokens.
+Key-free remedy: re-run the measurement under a new E record with your local key and add
+a plain `- **Re-Measured-By:** E-NNN (date)` line at the end of the old record;
+`check-plugin.sh` §3 then reports it as a CROSS-MACHINE warning instead of an error, and
+signals citing the old record are cascade-invalidated rather than obeyed.
+
+**Freshness (`Witness:`):** an APPROVED record is a claim about the code state it was
+measured against, so the gate dates it to that commit. `guard` and the session-start
+inject derive three verdicts from it — CURRENT / STALE / UNKNOWN — and a claim whose
+scope moved is reported as `this no longer applies` instead of being obeyed. Non-code
+scopes (`none`) have nothing to stale. Re-measure (a new record + Re-Measured-By on the
+old one) rather than editing the line.
 
 Keep raw data files under `docs/experiments/E-NNN/raw/`.
