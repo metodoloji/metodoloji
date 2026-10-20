@@ -1313,7 +1313,16 @@ def find_approved(target: str, recs_dir: str | None = None,
         return False, ("gate key not configured (" + _plugin_script_cmd(
             'skills/bmad-research-experiment/scripts/run_experiment.py',
             '--init-secret') + ")"), None
-    return False, advisory or best or "no approved experiment record", None
+    # A VERIFIED record that simply does not cover this target is the ACCURATE
+    # reason, and it must win over an advisory seeded by an unrelated record:
+    # with E-001 ADVISORY-BLOCKED and E-002 VERIFIED, a write to `lib/x.py`
+    # (outside BOTH scopes) was reported as "E-001 is ADVISORY-BLOCKED", which
+    # sends the agent off to re-measure E-001 instead of widening the scope it
+    # is actually missing. `advisory` still wins when no scope-mismatch exists,
+    # i.e. for the write the advisory record DOES cover.
+    if best:
+        return False, best, None
+    return False, advisory or "no approved experiment record", None
 
 
 # Instrument paths stage BEFORE approval: the gate refuses to measure a bench
@@ -1548,11 +1557,22 @@ def guard(json_in: dict) -> dict:
         # Find approved record
         approved, detail, fresh = find_approved(rel, root=root)
         if approved:
+            # Freshness vocabulary (CURRENT/STALE/UNKNOWN) lives in one module;
+            # import it HERE — `fr` was referenced without ever being bound in
+            # this scope, so every scope-matched APPROVED record raised
+            # NameError, the handler crashed, and the fail-closed wrapper turned
+            # the crash into "received no input" on the FIRST write an approval
+            # was supposed to unlock (found in a live Hermes session: E-002 was
+            # APPROVED and src/app.py still could not be written).
+            try:
+                from . import freshness as fr
+            except Exception:
+                fr = None
             # The approval opened the door, but a door is not a promise: when
             # the code moved past the record's own scope, say so — the write
             # proceeds under `freshness = warn` and the reason rides the
             # warning channel instead of being silently forgotten (E-053).
-            if fresh and fresh.get("verdict") != fr.CURRENT:
+            if fr and fresh and fresh.get("verdict") != fr.CURRENT:
                 quiet = False
                 if fresh["verdict"] == fr.UNKNOWN:
                     # `[freshness] unknown_policy = "silent"`: a legacy corpus

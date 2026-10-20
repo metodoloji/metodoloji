@@ -54,6 +54,7 @@ MANIFESTS = (
     ".plugin/marketplace.json",
     ".opencode-plugin/plugin.json",
     "opencode-plugin/package.json",
+    "plugin.yaml",          # Hermes Agent manifest (hermes_adapter.py reads it)
     "pyproject.toml",
 )
 # Visible claims derived from the manifests (updated when found; a missing
@@ -93,6 +94,9 @@ _COUNT_WORDS = {
 
 _JSON_VERSION_RE = re.compile(r'("version"\s*:\s*")([^"]+)(")')
 _TOML_VERSION_RE = re.compile(r'(?m)^version\s*=\s*"([^"]+)"')
+# Hermes' plugin.yaml: `version: 0.1.60` — same group shape as JSON (prefix,
+# version, closing quote) so the writer's lambda works unchanged.
+_YAML_VERSION_RE = re.compile(r"(?m)^(version:\s*[\"']?)([0-9][^\"'\s#]*)([\"']?)")
 _BADGE_RE = re.compile(r"(version-)(\d+\.\d+\.\d+)(-)")
 _CACHE_RE = re.compile(r"(\.\.\./)(\d+\.\d+\.\d+)(/)")
 
@@ -102,7 +106,11 @@ class BumpError(Exception):
 
 
 def _version_re(manifest: str) -> re.Pattern[str]:
-    return _TOML_VERSION_RE if manifest.endswith(".toml") else _JSON_VERSION_RE
+    if manifest.endswith(".toml"):
+        return _TOML_VERSION_RE
+    if manifest.endswith((".yaml", ".yml")):
+        return _YAML_VERSION_RE
+    return _JSON_VERSION_RE
 
 
 def read_version(root: pathlib.Path) -> str:

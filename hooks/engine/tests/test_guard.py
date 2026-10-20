@@ -2671,3 +2671,33 @@ def test_secret_ref_denies_key_access_and_dir_consumers():
     assert _secret_ref("echo $(cat ~/.bmad/gate-key)")
     assert _secret_ref("echo $BMAD_GATE_KEY")
     assert _secret_ref("cd ~/.bmad && ls")
+
+
+def test_approved_record_unlocks_write_without_a_nameerror(monkeypatch, tmp_path):
+    """The FIRST write an APPROVED record unlocks must not crash.
+
+    guard() referenced `fr` (the freshness module) without ever binding it in
+    that scope, so any scope-matched APPROVED record raised NameError. main.py
+    catches handler exceptions on the fail-closed path and emits "Methodology
+    hook received no input — fail-closed blocked.", so the symptom was a write
+    the approval had just authorised being denied with a misleading reason.
+    Found in a live Hermes session: E-002 was APPROVED and src/app.py still
+    could not be written.
+    """
+    from modules import guard as guard_mod
+
+    (tmp_path / "src").mkdir()
+    (tmp_path / "docs" / "experiments").mkdir(parents=True)
+    payload = {
+        "tool_name": "file_editor",
+        "tool_input": {"path": str(tmp_path / "src" / "app.py"), "content": "x"},
+        "cwd": str(tmp_path),
+    }
+    monkeypatch.setattr(guard_mod, "find_approved", lambda *a, **k: (
+        True, "record E-002 (scope matched)",
+        {"verdict": "CURRENT", "record": "docs/experiments/E-002.md", "reason": "",
+         "changed": [], "commit": None},
+    ))
+
+    result = guard_mod.guard(payload)
+    assert result["decision"] == "allow", result

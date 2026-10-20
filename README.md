@@ -1,6 +1,6 @@
 # metodoloji
 
-![version](https://img.shields.io/badge/version-0.1.60-0b7285?style=flat-square) ![license](https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square) ![python](https://img.shields.io/badge/python-3.11%2B-3776ab?style=flat-square) ![tests](https://img.shields.io/badge/tests-1%2C331-4c1?style=flat-square) ![runtimes](https://img.shields.io/badge/runtimes-OpenHands%20%7C%20Claude%20Code-555?style=flat-square)
+![version](https://img.shields.io/badge/version-0.1.61-0b7285?style=flat-square) ![license](https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square) ![python](https://img.shields.io/badge/python-3.11%2B-3776ab?style=flat-square) ![tests](https://img.shields.io/badge/tests-1%2C331-4c1?style=flat-square) ![runtimes](https://img.shields.io/badge/runtimes-OpenHands%20%7C%20Claude%20Code-555?style=flat-square)
 
 **A methodology plugin that makes your coding agent ask permission — mechanically.**
 
@@ -83,6 +83,7 @@ Multi-stage processes (`analyze → map → plan → apply → test → done`) r
 | Python | 3.11+ | `tomllib` for the TOML layers; the engine resolves `python3 → python → py` |
 | OpenHands / Claude Code | current | plugin + hook API support |
 | OpenCode | v2 | third runtime — a TypeScript bridge (`opencode-plugin/`) spawns the same Python engine |
+| Hermes Agent | current | fourth runtime — `plugin.yaml` + `pre_tool_call`, gates run in the gateway process ([HERMES.md](HERMES.md)) |
 | Git | 2.x | record and commit gating |
 | Shell | POSIX `sh` | Git Bash is enough on Windows |
 
@@ -114,6 +115,18 @@ install_plugin("github:metodoloji/metodoloji")
 > The Git/npm forms install only `opencode-plugin/`; point
 > `METODOLOJI_PLUGIN_ROOT` at a metodoloji checkout so the bridge finds the
 > engine. Details: [`docs/OPENCODE.md`](docs/OPENCODE.md).
+
+<sub>or Hermes Agent:</sub>
+
+```bash
+hermes plugins install metodoloji/metodoloji
+hermes plugins enable metodoloji
+```
+
+> The plugin ships `plugin.yaml` + `register(ctx)` at the repo root, so the
+> Git install is the whole package — 5 tools, 5 hooks, the full skill catalog
+> and 5 slash commands. Details, limits and the fail-closed contract:
+> [`HERMES.md`](HERMES.md).
 
 **2. Set up your project** (once):
 
@@ -189,6 +202,7 @@ metodoloji/
 | [KILAVUZ.md](KILAVUZ.md)           | Agent runbook, Turkish (canonical — 21 sections, 27 playbooks, 60 details) |
 | [GUIDE.md](GUIDE.md)               | Agent runbook, English mirror of KILAVUZ.md                                |
 | [AGENT-GUIDE.md](AGENT-GUIDE.md)   | Prompt-driven usage guide — every scenario as a copy-paste prompt (Turkish: [AGENT-GUIDE-TR.md](AGENT-GUIDE-TR.md)) |
+| [HERMES.md](HERMES.md)             | Hermes Agent port — install, tools/hooks/commands, runtime mapping, known limits |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Dev setup, quality checks, PR process                                      |
 | [SECURITY.md](SECURITY.md)         | Security architecture + vulnerability reporting                            |
 

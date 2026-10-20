@@ -1,0 +1,56 @@
+# Hermes Agent manifest. The Claude Code, OpenHands and OpenCode manifests live
+# in .claude-plugin/, .plugin/ and .opencode-plugin/; all four ship the same
+# engine, the same 129 skills and the same version number.
+name: metodoloji
+version: 0.1.61
+description: "Methodology plugin compatible with BMad Method: record chain (E→IR→SP→S→QR→PR), mechanical experiment/commit/deploy gates, declared workflows and 129 skills / 121 bridge TOMLs. Hermes port adds in-process pre_tool_call enforcement, 5 tools, 5 slash commands and the full skill catalog."
+author: yunusgungor
+license: MIT
+homepage: https://github.com/metodoloji/metodoloji
+repository: https://github.com/metodoloji/metodoloji
+kind: standalone
+
+provides_tools:
+  - metodoloji_orient
+  - metodoloji_init
+  - metodoloji_verify
+  - metodoloji_key
+  - metodoloji_audit
+provides_hooks:
+  - pre_tool_call
+  - post_tool_call
+  - pre_llm_call
+  - pre_verify
+  - on_session_start
+  - on_session_end
+provides_commands:
+  - metodoloji
+  - metodoloji-init
+  - metodoloji-gate-setup
+  - metodoloji-verify
+  - metodoloji-audit
+
+# Harness-level policy, one key per documented Hermes difference. Defaults are
+# the faithful-to-methodology choice; set `plugins.entries.metodoloji.settings.*`
+# to tighten them. See HERMES.md § "Hermes'e özgü ayarlar".
+config_schema:
+  execute_code_guard:
+    type: str
+    default: warn
+    description: "warn | deny — execute_code writes whose file target is not a literal"
+  block_gui_tools:
+    type: bool
+    default: false
+    description: "Deny computer_use: GUI automation bypasses the file-level record gate"
+  carry_stop_report:
+    type: bool
+    default: true
+    description: "Deliver the previous session's stop report at the next session start (once)"
+  nudge_on_stop:
+    type: bool
+    default: false
+    description: "pre_verify: turn an actionable stop report into one bounded continuation"
+  include_skill_triggers:
+    type: bool
+    default: true
+    description: "Fold a skill's `triggers:` words into its registered description (Hermes routes on description)"

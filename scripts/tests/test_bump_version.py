@@ -43,6 +43,9 @@ def _seed_tree(root: pathlib.Path, version: str = "0.1.3") -> None:
         if rel.endswith(".toml"):
             path.write_text(f'[project]\nname = "metodoloji"\n'
                             f'version = "{version}"\n', encoding="utf-8")
+        elif rel.endswith((".yaml", ".yml")):
+            # Hermes plugin.yaml — a YAML manifest carries the number unquoted.
+            path.write_text(f"name: metodoloji\nversion: {version}\n", encoding="utf-8")
         elif "marketplace" in rel:
             path.write_text(json.dumps(
                 {"name": "metodoloji",
@@ -354,7 +357,9 @@ def test_version_owned_site_drift_is_named_per_site(tmp_path):
          "a file the bump writes but the hook no longer stages"),
         (".githooks/pre-commit", hook.replace("commands/init.md", "LICENSE"),
          "a staged file the bump never writes"),
-        (".githooks/pre-commit", hook.replace("The nine files", "The eight files"),
+        # The count word is a canary: when the version-owned set grows, this
+        # literal must move with it (the audit names the drift if it does not).
+        (".githooks/pre-commit", hook.replace("The ten files", "The nine files"),
          "a stale count in the hook's own comment"),
         ("scripts/check-plugin.sh",
          checker.replace('VERSION_FILES=""',

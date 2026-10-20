@@ -105,6 +105,9 @@ def _seed_version(root: pathlib.Path, version: str) -> None:
         if rel.endswith(".toml"):
             path.write_text(f'[project]\nname = "metodoloji"\nversion = "{version}"\n',
                             encoding="utf-8")
+        elif rel.endswith((".yaml", ".yml")):
+            # Hermes plugin.yaml — YAML carries the number unquoted.
+            path.write_text(f"name: metodoloji\nversion: {version}\n", encoding="utf-8")
         else:
             path.write_text(json.dumps({"name": "metodoloji", "version": version}),
                             encoding="utf-8")

@@ -1679,7 +1679,7 @@ fi
 VERSION_SEEN=""
 VERSION_BAD=0
 for vf in $VERSION_FILES; do
-    v=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"\|version[[:space:]]*=[[:space:]]*"[^"]*"' "$vf" 2>/dev/null | head -1 | grep -o '"[^"]*"$' | tr -d '"')
+    v=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"\|version[[:space:]]*=[[:space:]]*"[^"]*"\|^version:[[:space:]]*[0-9][^[:space:]#]*' "$vf" 2>/dev/null | head -1 | sed 's/.*"\([^"]*\)"$/\1/; s/^version:[[:space:]]*//')
     if [ -z "$v" ]; then
         echo "[ERROR] no version found in $vf"
         PROBLEMS=$((PROBLEMS + 1))

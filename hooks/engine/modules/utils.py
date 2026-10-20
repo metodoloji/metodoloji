@@ -1,5 +1,6 @@
 """Utility functions for BMAD hooks engine."""
 
+import ast
 import os
 import pathlib
 import re
@@ -135,6 +136,255 @@ _OPENCODE_ALL_TOOLS = (
     | frozenset(_OPENCODE_READ_TOOLS)
 )
 
+# --- Hermes Agent tool vocabulary -------------------------------------------
+# Hermes (hermes-agent.nousresearch.com) names one tool per ACTION where Claude
+# reuses Write/Edit, and its gateway runs the plugin's hooks in-process. The
+# bridge (hermes_adapter.py) always passes --runtime=hermes, so this branch is
+# runtime-pinned rather than name-sniffed: `patch` exists in BOTH vocabularies
+# (OpenCode's applies a diff, Hermes' replaces a string in one file) and a name
+# heuristic would resolve it by whichever branch happened to be tested first.
+#   write_file / patch / multi_edit   → file_editor  (`path` + body keys)
+#   terminal                          → terminal
+#   execute_code                      → terminal     (runs arbitrary Python in
+#     the session cwd, so it can write files — the shell-target extractor and
+#     the gate-key reference check still see the payload; without this mapping
+#     it would normalize to "" and silently bypass the code gate)
+# Non-gated tools are listed so guard's fast path allows them WITHOUT a warning
+# — Hermes calls web_search/read_file on nearly every turn and a warn per call
+# would drown the real signal in the injected context.
+_HERMES_WRITE_TOOLS = {
+    "write_file": "file_editor",
+    "patch": "file_editor",
+    "multi_edit": "file_editor",
+    "notebook_edit": "notebook_editor",
+}
+_HERMES_SHELL_TOOLS = {
+    "terminal": "terminal",
+    "execute_code": "terminal",
+}
+_HERMES_READ_TOOLS = {
+    "read_file", "search_files", "web_search", "web_extract", "browser_navigate",
+    "browser_snapshot", "browser_click", "browser_type", "browser_console",
+    "browser_vision", "browser_scroll", "browser_press", "browser_back",
+    "browser_get_images", "vision_analyze", "todo_list", "skills_list",
+    "skill_view", "skill_manage", "delegate_task", "cronjob_manage",
+    "text_to_speech", "clarify", "computer_use", "tool_search", "tool_describe",
+    "tool_call", "session_search", "hindsight_recall", "hindsight_reflect",
+    "hindsight_retain", "process_manage", "manage_connections",
+    "metodoloji_orient", "metodoloji_init", "metodoloji_verify",
+    "metodoloji_audit",
+}
+_HERMES_PATH_KEYS = ("path", "file_path", "filename")
+
+# `execute_code` runs arbitrary Python in the session cwd, so "which files does
+# this touch" has to be derived from the source before the guard can judge it.
+# Two layers, in this order:
+#
+# 1. AST (primary): resolve the write idioms the language actually has —
+#    `open(p, 'w')`, `Path(p).write_text(...)`, `shutil.copy/move` destinations,
+#    `os.rename/replace`, dataframe/figure savers — with a tiny constant
+#    evaluator so the COMMON shape `p = 'src/a.py'; open(p, 'w')` resolves
+#    instead of falling into the blind spot. It also folds `os.path.join('a','b')`,
+#    `'a' + 'b'` and placeholder-free f-strings.
+# 2. Regex (supplement): a shell redirect living INSIDE a Python string
+#    (`os.system("... > src/a.py")`), which extract_bash_targets() gives up on
+#    at the surrounding quote. Deliberately not the general shell extractor:
+#    Python is full of `>` that is not a redirect (`if x > 3`), and a fake
+#    target there turns a computation into a denied write.
+#
+# What still cannot be resolved — a path read from argv/env/input() — is
+# reported as an `unknown` tool call, so the blind spot is visible. The Hermes
+# bridge turns that into a warning by default, or a denial under
+# `execute_code_guard: deny`.
+# A redirect target inside a shell string. Applied to STRING CONSTANTS (the
+# AST path hands us the literal body), so it must not require the surrounding
+# quote to still be present: `os.system("echo x > src/a.py")` reaches us as
+# `echo x > src/a.py`. The path-shape filter at the call site keeps `a > b`
+# comparisons out.
+_HERMES_PY_REDIRECT_RE = re.compile(r""">{1,2}\s*(?P<p>[^\s'";|&)]+)""")
+# Does the snippet write at all? Used only when no literal target was found, to
+# tell "pure computation" (silent allow) from "writes somewhere I cannot name"
+# (warn) — the difference between noise and a visible blind spot.
+_HERMES_PY_WRITE_SIGNAL_RE = re.compile(
+    r"""open\(|write_text|write_bytes|os\.system|os\.popen|subprocess\.|shutil\."""
+    r"""|os\.rename|os\.replace|to_csv|to_excel|to_parquet|savefig"""
+)
+_HERMES_SAVER_ATTRS = frozenset({
+    "to_csv", "to_excel", "to_parquet", "to_json", "savefig", "save",
+})
+
+
+def _hermes_const_value(node, consts: dict) -> str | None:
+    """Constant-fold one expression to a string, or None when not constant.
+
+    Deliberately small: string literals, names bound to a constant earlier,
+    `'a' + 'b'`, placeholder-free f-strings, and `os.path.join(...)` of
+    constants. Everything else (input(), env lookups, function results) stays
+    unresolved — guessing there would deny real work.
+    """
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if isinstance(node, ast.Name):
+        return consts.get(node.id)
+    if isinstance(node, ast.JoinedStr):
+        parts = []
+        for value in node.values:
+            if isinstance(value, ast.Constant) and isinstance(value.value, str):
+                parts.append(value.value)
+            else:
+                return None  # a formatted placeholder is not a constant
+        return "".join(parts) if parts else None
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        left = _hermes_const_value(node.left, consts)
+        right = _hermes_const_value(node.right, consts)
+        if left is not None and right is not None:
+            return left + right
+        return None
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+        func = node.func
+        if (func.attr == "join" and isinstance(func.value, ast.Attribute)
+                and func.value.attr == "path"):
+            parts = [_hermes_const_value(arg, consts) for arg in node.args]
+            if parts and all(part is not None for part in parts):
+                return "/".join(p for p in parts if p)  # type: ignore[arg-type]
+    return None
+
+
+def _hermes_const_map(tree: ast.AST) -> dict:
+    """Name → constant string for simple `p = 'src/a.py'` assignments."""
+    consts: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if (isinstance(node, ast.Assign) and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name)):
+            value = _hermes_const_value(node.value, consts)
+            if value:
+                consts[node.targets[0].id] = value
+    return consts
+
+
+def _hermes_call_target(call: ast.Call, consts: dict) -> str | None:
+    """The file one write-shaped call targets, when it is constant."""
+    func = call.func
+    if isinstance(func, ast.Name) and func.id == "open" and call.args:
+        mode = ""
+        if len(call.args) > 1:
+            mode = _hermes_const_value(call.args[1], consts) or ""
+        for keyword in call.keywords:
+            if keyword.arg == "mode":
+                mode = _hermes_const_value(keyword.value, consts) or ""
+        if not any(flag in mode for flag in "wax"):
+            return None
+        return _hermes_const_value(call.args[0], consts)
+    if not isinstance(func, ast.Attribute):
+        return None
+
+    attr = func.attr
+    if attr in ("write_text", "write_bytes"):
+        base = func.value
+        if (isinstance(base, ast.Call) and isinstance(base.func, ast.Name)
+                and base.func.id == "Path" and base.args):
+            return _hermes_const_value(base.args[0], consts)
+        if isinstance(base, ast.Name):
+            return consts.get(base.id)
+        return None
+    if attr in ("copy", "copy2", "copyfile", "move") and len(call.args) >= 2:
+        return _hermes_const_value(call.args[1], consts)
+    if attr in ("rename", "replace") and len(call.args) >= 2:
+        return _hermes_const_value(call.args[1], consts)
+    if attr in _HERMES_SAVER_ATTRS and call.args:
+        return _hermes_const_value(call.args[0], consts)
+    return None
+
+
+def _hermes_execute_code_targets(code: str) -> list[str]:
+    """Literal files an `execute_code` payload may write, in order, de-duplicated."""
+    if not isinstance(code, str) or not code:
+        return []
+    seen: list[str] = []
+
+    def add(path: str | None) -> None:
+        if not path:
+            return
+        path = path.strip()
+        if not path or path in seen or path.startswith(("http://", "https://")):
+            return
+        seen.append(path)
+
+    try:
+        tree = ast.parse(code)
+    except (SyntaxError, ValueError, RecursionError):
+        tree = None
+
+    if tree is not None:
+        consts = _hermes_const_map(tree)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call):
+                add(_hermes_call_target(node, consts))
+            # A file path can also arrive as a plain constant in a shell
+            # string: `os.system("echo x > src/a.py")`.
+            if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                for match in _HERMES_PY_REDIRECT_RE.finditer(node.value):
+                    path = (match.group("p") or "").strip()
+                    if "/" in path or "." in path:
+                        add(path)
+        return seen
+
+    # Unparseable snippet (a fragment, or a different language): fall back to
+    # the shape scan so a redirect is still seen.
+    for match in _HERMES_PY_REDIRECT_RE.finditer(code):
+        path = (match.group("p") or "").strip()
+        if "/" in path or "." in path:
+            add(path)
+    return seen
+
+
+def _normalize_hermes_tool(raw_name, tool_input: dict) -> str:
+    """Map one Hermes tool name onto the engine contract (or ""/passthrough)."""
+    name = str(raw_name or "")
+    low = name.lower()
+    if low in _HERMES_WRITE_TOOLS:
+        if not tool_input.get("path"):
+            for _k in _HERMES_PATH_KEYS:
+                if tool_input.get(_k):
+                    tool_input["path"] = tool_input[_k]
+                    break
+        return _HERMES_WRITE_TOOLS[low]
+    if low == "execute_code":
+        code = str(tool_input.get("code") or tool_input.get("command") or "")
+        targets = _hermes_execute_code_targets(code)
+        if targets:
+            # Gate it as a file write: every target must sit in an approved
+            # Code Scope, exactly like a write_file on the same path.
+            tool_input["paths"] = targets
+            tool_input.setdefault("path", targets[0])
+            tool_input["content"] = code
+            return "file_editor"
+        if _HERMES_PY_WRITE_SIGNAL_RE.search(code):
+            return "execute_code"  # no literal target → catch-all warns, allows
+        return ""  # pure computation: non-gated, no warning
+    if low == "process_manage":
+        # Feeding a PTY's stdin is a shell channel (`submit` types a command,
+        # `write` sends raw bytes): both go through the terminal gate. The
+        # read-only actions (list/poll/log/wait/kill) carry no write target.
+        action = str(tool_input.get("action") or "").lower()
+        if action in ("write", "submit"):
+            payload_text = (tool_input.get("data") or tool_input.get("input")
+                            or tool_input.get("text") or "")
+            tool_input["command"] = str(payload_text)
+            return "terminal"
+        return ""
+    if low in _HERMES_SHELL_TOOLS:
+        if not tool_input.get("command"):
+            for _k in ("cmd", "code"):
+                if tool_input.get(_k):
+                    tool_input["command"] = tool_input[_k]
+                    break
+        return _HERMES_SHELL_TOOLS[low]
+    if low in _HERMES_READ_TOOLS:
+        return ""  # non-gated: guard allows without a warning
+    return name  # unknown → the catch-all below marks it "unknown"
+
+
 # Patch payload path lines: `*** Add File: p`, `*** Update File: p`,
 # `*** Delete File: p`, and the `*** Move to: p` half of an update/rename.
 _OPENCODE_PATCH_PATH_RE = re.compile(
@@ -199,6 +449,9 @@ def normalize_hook_input(json_in: dict) -> dict:
       tool_input={path,content,command,...}
     OpenCode sends: tool_name=write|edit|patch|shell|read|glob|…,
       tool_input={path,content,command,patchText,...} — lower-case names (V2).
+    Hermes sends: tool_name=write_file|patch|terminal|execute_code|read_file|…,
+      tool_input={path,content,old_string,new_string,command,code,...} — one
+      name per action, normalized through the runtime-pinned hermes branch.
 
     `PowerShell` is Claude Code's shell tool on Windows (a real session emitted
     `PowerShell(...)` calls on the win32 host). Before this mapping it fell
@@ -238,6 +491,10 @@ def normalize_hook_input(json_in: dict) -> dict:
     elif runtime == "openhands" or tool_name in ("file_editor", "terminal",
                                                         "notebook_editor"):
         pass  # already normalized
+    elif runtime == "hermes":
+        # Runtime-pinned: see the Hermes vocabulary block above for why a
+        # name heuristic cannot be used here (`patch` is shared with OpenCode).
+        tool_name = _normalize_hermes_tool(tool_name, tool_input)
     elif runtime == "opencode" or tool_name in _OPENCODE_ALL_TOOLS:
         tool_name = _normalize_opencode_tool(tool_name, tool_input)
     elif tool_name in ("", None):
