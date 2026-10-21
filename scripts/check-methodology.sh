@@ -610,9 +610,11 @@ for _tpl in \
     "$METODOLOJI_ROOT/templates/_template_IR.md" "$METODOLOJI_ROOT/templates/_template_SP.md" \
     "$METODOLOJI_ROOT/templates/_template_QR.md" "$METODOLOJI_ROOT/templates/_template_PR.md" \
     "$METODOLOJI_ROOT/templates/_template_S.md" "$METODOLOJI_ROOT/templates/_template_PM.md" \
+    "$METODOLOJI_ROOT/templates/_template_STRUCT.md" \
     "$PROJECT_ROOT/docs/development/_template_IR.md" "$PROJECT_ROOT/docs/development/_template_SP.md" \
     "$PROJECT_ROOT/docs/development/_template_QR.md" "$PROJECT_ROOT/docs/development/_template_PR.md" \
     "$PROJECT_ROOT/docs/development/stories/_template_S.md" \
+    "$PROJECT_ROOT/docs/development/structural/_template_STRUCT.md" \
     "$PROJECT_ROOT/docs/development/incidents/_template_PM.md"; do
     if [ -f "$_tpl" ]; then LEAK_TEMPLATES_CHECKED=$((LEAK_TEMPLATES_CHECKED + 1)); fi
     _leak_check "$_tpl" ISSUE

@@ -27,6 +27,13 @@ lines; the gate writes them.
        cite every prior experiment this one builds on / supersedes (especially a REJECTED record whose Code
        Scope it re-treads: P9 — a rejection is a lesson the next record carries), and say what is inherited.
        Every cited id must resolve to docs/experiments/E-NNN.md; the gate refuses a dangling or self-citing claim. -->
+- **Control Command:** <a broken implementation that MUST fail the same claim, e.g. `node scripts/bench/bench_x.mjs --broken`>
+  <!-- Rule 7, MECHANICALLY ENFORCED. The gate runs this itself. If the control also clears the
+       threshold, the bench cannot separate working code from broken code: no token, no Decision,
+       the record stays undecided (exit 3) so the bench or the hypothesis can be fixed and re-run.
+       Omitting it is allowed for legacy records but writes `Falsifiability: UNVERIFIED` into the
+       record and says so on stderr — an unfalsifiable bench is a hypothesis that was never tested. -->
+- **Falsifiability:** <gate writes: verified — control measured X | REFUSED … | UNVERIFIED — no control declared>
 - **Raw Results:** <measurement — the gate writes this>
 - **Uncertainty:** <gate writes: small sample | none | n unknown>
 - **Metric:** <gate writes: consistent | MISMATCH — from the measured metric of the --run output>
@@ -73,6 +80,28 @@ python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment
 python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py \
   --record docs/experiments/E-NNN.md --run "python scripts/bench/bench_xxx.py" --dry-run
 ```
+
+## Falsifiability — declare a control, or the result means nothing
+
+```bash
+# Rule 7 is enforced, not requested. The gate runs the control itself and
+# refuses to decide when the control clears the same threshold.
+python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py \
+  --record docs/experiments/E-NNN.md \
+  --run "node scripts/bench/bench_x.mjs" \
+  --control "node scripts/bench/bench_x.mjs --broken"
+```
+
+A bench whose broken mode also passes is not measuring anything: it cannot tell
+working code from broken code, so its APPROVED token would certify a number and
+nothing else. When that happens the gate writes `Falsifiability: REFUSED …` and
+the reason, exits 3, and leaves the record undecided — fix the bench or the
+hypothesis and re-run the same record.
+
+Omitting `--control` is still permitted so that older records keep verifying, but
+the run writes `Falsifiability: UNVERIFIED — no control command declared` into
+the record and prints the same on stderr. That line is the honest state of a
+bench nobody has tried to break.
 
 ## Verify before code
 

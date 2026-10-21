@@ -1444,7 +1444,7 @@ metodoloji/
 ├── skills/                              # 125 BMAD skills (native bodies)
 ├── custom/                              # 121 TOMLs (33 BRIDGE active) + config.toml (soft/hard)
 ├── bmad/                                # module data (bmm,cis,gds,wds,tea,core,bmb,loop,_config) + scripts/ (blackboard, workflow, orient, resolve_config, resolve_customization, skeleton)
-├── templates/                           # _template_E/IR/SP/QR/PR/S/PM/BD/C + README/tech-debt/scratch-README
+├── templates/                           # _template_E/IR/SP/QR/PR/S/PM/BD/C/STRUCT + README/tech-debt/scratch-README
 ├── commands/                            # /metodoloji:init, gate-setup, verify, audit (.md)
 ├── scripts/                             # check-plugin/custom/methodology/techdebt, check-handoff, create-*-record, sync-*, bench/
 ├── docs/                                # CLAUDE.md, bmad manifests, record templates (experiments/development/quality/research/design) + native outputs (development/native/)

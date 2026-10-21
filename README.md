@@ -1,6 +1,6 @@
 # metodoloji
 
-![version](https://img.shields.io/badge/version-0.1.61-0b7285?style=flat-square) ![license](https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square) ![python](https://img.shields.io/badge/python-3.11%2B-3776ab?style=flat-square) ![tests](https://img.shields.io/badge/tests-1%2C331-4c1?style=flat-square) ![runtimes](https://img.shields.io/badge/runtimes-OpenHands%20%7C%20Claude%20Code-555?style=flat-square)
+![version](https://img.shields.io/badge/version-0.1.62-0b7285?style=flat-square) ![license](https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square) ![python](https://img.shields.io/badge/python-3.11%2B-3776ab?style=flat-square) ![tests](https://img.shields.io/badge/tests-1%2C331-4c1?style=flat-square) ![runtimes](https://img.shields.io/badge/runtimes-OpenHands%20%7C%20Claude%20Code-555?style=flat-square)
 
 **A methodology plugin that makes your coding agent ask permission — mechanically.**
 
@@ -189,7 +189,7 @@ metodoloji/
 ├── skills/              # 125 BMAD skills (native bodies)
 ├── custom/              # 121 TOMLs (33 BRIDGE active) + config.toml (soft/hard)
 ├── bmad/                # module data (bmm, cis, gds, wds, tea, core, bmb, loop) + scripts/
-├── templates/           # record templates (_template_E/IR/SP/QR/PR/S/PM/BD/C + README/tech-debt/scratch)
+├── templates/           # record templates (_template_E/IR/SP/QR/PR/S/PM/BD/C/STRUCT + README/tech-debt/scratch)
 ├── commands/            # /metodoloji:init, gate-setup, verify, audit (.md)
 ├── scripts/             # static checks, record generators, bench harness, sync-hooks-json
 └── docs/                # engine notes, bmad manifestos, record templates, native outputs

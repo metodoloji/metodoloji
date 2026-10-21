@@ -1387,6 +1387,73 @@ def find_staged_instrument(target: str, root: str = "") -> tuple[bool, str]:
     return False, "no undecided record stages this bench"
 
 
+_STRUCTURAL_DIR = ("docs", "development", "structural")
+_STRUCTURAL_MIN_JUSTIFICATION = 40
+
+
+def _struct_field(text: str, name: str) -> str:
+    m = re.search(rf"^-\s*\*\*{re.escape(name)}:\*\*\s*(.+)$", text, re.M)
+    return m.group(1).strip() if m else ""
+
+
+def find_structural_declaration(target: str, root: str = "") -> tuple[bool, str]:
+    """True when a Structural Scope record declares this path.
+
+    The honest third category. The guard knew two kinds of code: product code
+    (needs a VERIFIED experiment) and measurement benches (stage under an
+    undecided record). Code that carries no empirical claim had neither — a
+    scaffold, a CI workflow, a layout shell, a wiring module. The only way past
+    was to invent a hypothesis, and a fabricated experiment is a worse outcome
+    than an admitted exemption: a subagent in a consuming project did exactly
+    that, writing a fake E-001 to obtain permission to save an HTML file.
+
+    A structural record says, in public: this code makes no claim that could be
+    measured, here is why, and a QR must ratify it. Deliberately narrow:
+
+      - never covers scripts/bench/** — a bench needs a real experiment, and
+        this path must not become a way around the instrument rule;
+      - Status must be 'declared' or 'ratified'; anything else is ignored;
+      - a Scope glob and a justification of at least 40 characters are both
+        required, because an unexplained exemption is the abuse case;
+      - an approved record wins: this check is only reached when no approval
+        covered the path, so it can never downgrade a measured claim;
+      - every write warns, so the exemption is never invisible in a session.
+    """
+    try:
+        if not root:
+            root = repo_root({})
+        base = pathlib.Path(root).joinpath(*_STRUCTURAL_DIR)
+        if not base.is_dir():
+            return False, "no structural declarations"
+        target_rel = norm_path(target).lstrip("/")
+        if not target_rel:
+            return False, "empty target"
+        for rec in sorted(base.glob("*.md")):
+            if rec.name.startswith("_"):
+                continue
+            try:
+                text = rec.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            status = _struct_field(text, "Status").lower()
+            if status not in ("declared", "ratified"):
+                continue
+            if len(_struct_field(text, "Justification")) < _STRUCTURAL_MIN_JUSTIFICATION:
+                continue
+            scope = _struct_field(text, "Scope").replace("`", "")
+            patterns = [p for p in re.split(r"[,\s]+", scope) if p]
+            for pat in patterns:
+                try:
+                    if gate.scope_matches(pat, target_rel):
+                        return True, (f"structural scope declared in {rec.name} "
+                                      f"(status: {status}, unmeasured)")
+                except Exception:
+                    continue
+    except Exception:
+        return False, "structural check failed"
+    return False, "no structural declaration covers this path"
+
+
 def guard(json_in: dict) -> dict:
     """PreToolUse guard: block code writes without approved experiment record."""
     norm = normalize_hook_input(json_in)
@@ -1605,6 +1672,13 @@ def guard(json_in: dict) -> dict:
                             '--record', 'docs/experiments/E-XXX.md',
                             '--run', '<cmd>')}, "
                         f"and product code stays closed until VERIFIED")
+                    continue
+            if not _is_instrument_path(rel):
+                declared, smsg = find_structural_declaration(rel, root=root)
+                if declared:
+                    _soft_warnings.append(
+                        f"{rel}: {smsg} — this write is NOT backed by a measurement; "
+                        f"a QR must ratify the declaration before the story closes.")
                     continue
             from .config import hook_gate_mode
             msg = (f"No approved experiment record for {rel}: {detail}. "

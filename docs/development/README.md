@@ -28,6 +28,10 @@ docs/development/
 └── incidents/
     ├── _template_PM.md          (Post-Mortem template)
     └── PM-001.md, PM-002.md, ... (Post-Mortem records)
+
+└── structural/
+    ├── _template_STRUCT.md      (Structural Scope template — unmeasured code)
+    └── STRUCT-001.md, ...       (Structural Scope declarations)
 ```
 
 ---

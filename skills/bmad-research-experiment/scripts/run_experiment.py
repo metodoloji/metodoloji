@@ -1091,6 +1091,11 @@ def main() -> int:
     ap.add_argument("--record", help="path to the experiment record .md")
     ap.add_argument("--run", help="measurement command to execute; the gate parses the "
                                   "measured value from its output (only mechanical path)")
+    ap.add_argument("--control", default="",
+                    help="control command: an implementation the hypothesis says must "
+                         "FAIL. Rule 7 — if the control also clears the threshold the "
+                         "bench cannot tell working code from broken code, and no "
+                         "decision is written.")
     ap.add_argument("--raw", default="", help="extra raw-result note (optional)")
     ap.add_argument("--dry-run", action="store_true",
                     help="preview the decision (measured vs threshold, Wilson bound, "
@@ -1248,6 +1253,40 @@ def main() -> int:
 
     belirsizlik = uncertainty_note(x, n, val, threshold, op)
 
+    # ---- Rule 7 — falsifiability -------------------------------------------
+    # A hypothesis is only a test if a broken implementation fails it. The gate
+    # runs the declared control ITSELF; if the control also clears the threshold
+    # the bench cannot distinguish working code from broken code, and approving
+    # it would mint a token whose only content is "the threshold is loose".
+    # Before this check the property was left entirely to the operator's honesty,
+    # so a bench whose --broken mode also passed could still be APPROVED.
+    control_cmd = (args.control or fields.get("Control Command", "")).strip()
+    unfalsifiable = False
+    if control_cmd and not _is_placeholder(control_cmd):
+        try:
+            cval, cx, cy, _cmetric = run_and_measure(control_cmd, claim_metric=claim_metric)
+            cpassed, _csummary = evaluate(claim, cval)
+        except ValueError as exc:
+            print(f"ERROR: control measurement failed: {exc}", file=sys.stderr)
+            return 2
+        if cpassed:
+            unfalsifiable = True
+            control_note = (f"REFUSED — control '{control_cmd}' measured {cval} and also "
+                            f"clears the claim '{claim}', so the bench cannot separate "
+                            f"working code from broken code. No decision was written; the "
+                            f"record stays undecided so the bench or the hypothesis can be "
+                            f"fixed and re-run.")
+        else:
+            control_note = (f"verified — control '{control_cmd}' measured {cval}, which "
+                            f"does not clear the claim '{claim}', as rule 7 requires")
+    else:
+        control_note = ("UNVERIFIED — no control command declared. Rule 7 asks for one: a "
+                        "bench whose broken mode can also pass proves nothing. Declare it "
+                        "with --control '<cmd>' or a '- **Control Command:**' line in the "
+                        "record. Recorded, not enforced: older records have no control and "
+                        "must keep verifying.")
+    print(f"[falsifiability] {control_note}", file=sys.stderr)
+
     # Metric cross-check note: 'uyumlu' when the measured metric equals the claimed one,
     # 'UYUMSUZ' on a redefinition (rule-1 spirit, advisory).
     if measured_metric is not None:
@@ -1278,6 +1317,11 @@ def main() -> int:
         if _dry_witness:
             print(f"[DRY-RUN]   Witness will be written (and bound into the "
                   f"token): {_dry_witness}")
+        if unfalsifiable:
+            print(f"[DRY-RUN]   Decision will be: NONE — unfalsifiable: {control_note}")
+            print("[DRY-RUN]   No token, no Decision line; the record stays undecided.")
+            print("[DRY-RUN] NO CHANGES WRITTEN — fix the control or the hypothesis.")
+            return 0
         if passed:
             tok = gate_token(claim, val, did, secret, args.run)
             print(f"[DRY-RUN]   Decision will be: APPROVED — {hid}: {summary}")
@@ -1291,12 +1335,22 @@ def main() -> int:
         print(f"[DRY-RUN] NO CHANGES WRITTEN — {args.record} untouched.")
         return 0
 
+    if unfalsifiable:
+        lines = text.splitlines(keepends=False)
+        lines = upsert(lines, "- **Falsifiability:**", control_note)
+        open(args.record, "w", encoding="utf-8").write("\n".join(lines) + "\n")
+        print(f"[{hid}] REFUSED — unfalsifiable")
+        print("DECISION: NONE (no token written; record left undecided)")
+        print(f"Record updated: {args.record}")
+        return 3
+
     lines = text.splitlines(keepends=False)
     raw_val = f"measured={val}" + (f"; n={n}" if n is not None else "") \
               + (f"; {args.raw}" if args.raw else "")
     lines = upsert(lines, "- **Raw Results:**", raw_val)
     lines = upsert(lines, "- **Uncertainty:**", belirsizlik)
     lines = upsert(lines, "- **Metric:**", metric_note)
+    lines = upsert(lines, "- **Falsifiability:**", control_note)
     # Rule: measurement command is written to record; new-style token binds to this command,
     # so changing the command after approval breaks the token (verify rejects).
     lines = upsert(lines, "- **Measurement Command:**", args.run)

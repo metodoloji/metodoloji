@@ -15,7 +15,7 @@ probe further):
    Claude Code — do not depend on them, do not echo them to "verify".)
 2. Fixed checkout `~/.claude/plugins/marketplaces/metodoloji/`
 3. Versioned cache `~/.claude/plugins/cache/metodoloji/metodoloji/*`
-   (newest first; e.g. `.../0.1.61/` on Claude Code v2.1.x)
+   (newest first; e.g. `.../0.1.62/` on Claude Code v2.1.x)
 4. OpenHands install directory `~/.openhands/plugins/installed/metodoloji/`
 
 (An old `~/.claude/plugins/cache/yunusgungor/metodoloji/*` path appears in
@@ -85,6 +85,9 @@ wasted work and makes the chain look like it re-initializes the project.
    - `docs/development/stories/` — story records (S-NNN.md)
    - `docs/development/incidents/` — post-mortem records (PM-NNN.md; written
      within 24–48 hours of a SEV1/SEV2, blameless)
+   - `docs/development/structural/` — Structural Scope declarations (STRUCT-NNN.md):
+     code that carries no empirical claim (scaffold, CI config, layout shell) is
+     DECLARED and justified here instead of being forced through a fake experiment
    - `docs/quality/` — Quality Record home (QR-NNN.md; canonical per the bridge
      doc and `check-methodology.sh` CHECK 2/5 — `docs/development/QR-NNN.md`
      stays accepted as the legacy location)
@@ -105,6 +108,7 @@ wasted work and makes the chain look like it re-initializes the project.
    - `{metodoloji-root}/templates/_template_PR.md` → `docs/development/_template_PR.md`
    - `{metodoloji-root}/templates/_template_S.md` → `docs/development/stories/_template_S.md`
    - `{metodoloji-root}/templates/_template_PM.md` → `docs/development/incidents/_template_PM.md`
+   - `{metodoloji-root}/templates/_template_STRUCT.md` → `docs/development/structural/_template_STRUCT.md`
    - `{metodoloji-root}/templates/README.md` → `docs/development/README.md`
    - `{metodoloji-root}/templates/tech-debt.md` → `docs/development/tech-debt.md`
    - `{metodoloji-root}/templates/scratch-README.md` → `scratch/README.md`
