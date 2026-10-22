@@ -284,13 +284,29 @@ def glob_to_regex(pattern: str) -> str:
     return "".join(out)
 
 
+def _strip_dot_prefix(path: str) -> str:
+    """Remove a leading './' REPEATEDLY — and nothing else.
+
+    `str.lstrip("./")` strips any leading run of '.' and '/' characters, so it
+    eats the dot of a dot-directory: '.github/workflows/ci.yml' became
+    'github/workflows/ci.yml' while the pattern kept its dot, and the two could
+    never match. Every dot-directory (.github/, .githooks/, .devcontainer/,
+    .vscode/) was therefore impossible to cover with a scope — including an
+    exact, fully spelled path.
+    """
+    p = (path or "").replace("\\", "/")
+    while p.startswith("./"):
+        p = p[2:]
+    return p
+
+
 def scope_matches(scope: str, target: str) -> bool:
     """True if the record's 'Code Scope' covers the target file path (project-relative)."""
     if not scope or not target:
         return False
-    target = target.replace("\\", "/").lstrip("./")
+    target = _strip_dot_prefix(target)
     for pat in parse_scope(scope):
-        if re.fullmatch(glob_to_regex(pat), target, re.IGNORECASE):
+        if re.fullmatch(glob_to_regex(_strip_dot_prefix(pat)), target, re.IGNORECASE):
             return True
     return False
 
@@ -1479,7 +1495,7 @@ def amend_plan_cli(record_path: str, files: list[str], reason: str) -> int:
         return 2
     secret = require_secret()
     existing = _plan.parse_plan_fields(text)["planned_files"]
-    norm_files = [f.replace("\\", "/").lstrip("./") for f in files]
+    norm_files = [_strip_dot_prefix(f) for f in files]
     new_files = [f for f in norm_files if f not in existing]
     if not new_files:
         print("No-op: every file is already in the plan.")
@@ -1649,11 +1665,11 @@ def main() -> int:
     # `node -e "console.log('rate=1.00 (200/200)')"` before this check existed.
     if _bench_target(args.run) is None:
         print("ERROR: the measurement must execute a script FILE inside the "
-              "project (e.g. 'python3 scripts/bench/bench_x.py'). Inline "
-              "evaluation (-c/-e/-p), a module run with no file target, or a "
-              "shell chain cannot be attributed: the number would come from a "
-              "string that never becomes an artifact. Write the bench to disk "
-              "and put it in the record's Code Scope.", file=sys.stderr)
+              "project (a bench file under the project's own bench directory, "
+              "named in the record's Code Scope). Inline evaluation (-c/-e/-p), "
+              "a module run with no file target, or a shell chain cannot be "
+              "attributed: the number would come from a string that never "
+              "becomes an artifact. Write the bench to disk first.", file=sys.stderr)
         return 2
 
     # Measurement: the gate runs the command ITSELF and parses the value from output.

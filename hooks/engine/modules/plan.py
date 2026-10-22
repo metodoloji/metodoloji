@@ -88,6 +88,22 @@ FINAL_PLAN_FIELD = "- **Final Plan Hash:**"
 AMEND_TOKEN_PREFIX = "AMEND-OK-"
 
 
+def _strip_dot_prefix(path: str) -> str:
+    """Remove a leading './' REPEATEDLY — and nothing else.
+
+    `str.lstrip("./")` strips any leading run of '.' and '/' characters, so it
+    eats the dot of a dot-directory: '.github/workflows/ci.yml' became
+    'github/workflows/ci.yml' while the pattern kept its dot, and the two could
+    never match. Every dot-directory (.github/, .githooks/, .devcontainer/,
+    .vscode/) was therefore impossible to cover with a scope — including an
+    exact, fully spelled path.
+    """
+    p = (path or "").replace("\\", "/")
+    while p.startswith("./"):
+        p = p[2:]
+    return p
+
+
 def plan_section(text: str) -> str:
     """Return the `## Implementation Plan (GRP)` section body ('' when absent)."""
     m = _PLAN_SECTION_RE.search(text)
@@ -224,8 +240,8 @@ def _compile_uncached(record_path: str) -> dict:
         if any(ch in entry for ch in "*?"):
             patterns.append(re.compile(_glob_to_regex(entry), re.IGNORECASE))
         else:
-            exact.add(entry.lstrip("./"))
-    tests = {t.lstrip("./") for t in fields["planned_tests"]}
+            exact.add(_strip_dot_prefix(entry))
+    tests = {_strip_dot_prefix(t) for t in fields["planned_tests"]}
     return {"planned_exact": exact, "planned_patterns": patterns,
             "planned_tests": tests, "planned_count": len(exact) + len(patterns),
             "known_gaps": fields["known_gaps"]}
@@ -233,7 +249,7 @@ def _compile_uncached(record_path: str) -> dict:
 
 def plan_match(plan: dict, target: str) -> bool:
     """True when the (project-relative, forward-slashed) target is in the plan."""
-    t = (target or "").replace("\\", "/").lstrip("./")
+    t = _strip_dot_prefix(target)
     if not t:
         return False
     if t in plan["planned_exact"]:

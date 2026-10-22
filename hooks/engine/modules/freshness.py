@@ -79,6 +79,22 @@ _FIELD_RE = re.compile(r"^\s*-\s*\*\*([^*]+):\*\*\s*(.*)$")
 
 
 # --- git access (bounded, fail-open) ------------------------------------------
+def _strip_dot_prefix(path: str) -> str:
+    """Remove a leading './' REPEATEDLY — and nothing else.
+
+    `str.lstrip("./")` strips any leading run of '.' and '/' characters, so it
+    eats the dot of a dot-directory: '.github/workflows/ci.yml' became
+    'github/workflows/ci.yml' while the pattern kept its dot, and the two could
+    never match. Every dot-directory (.github/, .githooks/, .devcontainer/,
+    .vscode/) was therefore impossible to cover with a scope — including an
+    exact, fully spelled path.
+    """
+    p = (path or "").replace("\\", "/")
+    while p.startswith("./"):
+        p = p[2:]
+    return p
+
+
 def _git(root: str, *args: str) -> str | None:
     """stdout of a bounded git call, or None when git cannot answer at all."""
     try:
@@ -249,7 +265,7 @@ def scope_matches(scope: str, target: str) -> bool:
     """True when the scope value covers a project-relative path."""
     if not scope or not target:
         return False
-    target = target.replace("\\", "/").lstrip("./")
+    target = _strip_dot_prefix(target)
     return any(re.fullmatch(glob_to_regex(pat), target, re.IGNORECASE)
                for pat in parse_scope(scope))
 
