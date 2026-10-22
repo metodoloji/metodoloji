@@ -220,6 +220,121 @@ otherwise a small real sample could hide behind `n unknown` and bypass the
 command exits non-zero, times out, or prints no parseable value, the gate
 refuses with exit code 2 and **leaves the record untouched**.
 
+**The command must execute a file, and the number must come from samples.** Two
+rules that exist because an approved token was once minted from a one-line shell
+string that did no work at all:
+
+1. **Attribution.** `--run` must execute a script file inside the project
+   (`python3 scripts/bench/bench_x.py`). Inline evaluation (`-c`, `-e`, `-p`,
+   `--eval`), a module run with no file target, or a shell chain is refused with
+   exit 2 before anything executes — the number would come from a string that
+   never becomes an artifact.
+2. **Raw samples.** The record carries `- **Raw Samples:**` pointing at a JSONL
+   file the bench writes: **one JSON object per line, each with a boolean `ok`**.
+   The gate counts the lines, recounts the successes, and refuses (exit 4, record
+   left undecided) when the printed `(x/y)` disagrees, when the file was not
+   written by this run, when it lives outside the project, or when a sample has
+   no verdict. On success it writes `Raw Sample Evidence:` with the sample count,
+   pass count, byte size and `sha256`.
+
+   A record may decline the samples — `- **Raw Samples:** none — <reason>` — but
+   the reason must be at least 40 characters and the decline is written into the
+   record. Declining is a public act, not a default.
+
+   The aggregate stops being a claim and becomes a checksum over evidence a
+   reviewer can open. **These rules cannot prove the bench did real work** — a
+   fabricator can emit consistent fake samples. They make fabrication expensive,
+   visible and re-runnable, which is what `--reproduce` and the QR then act on.
+   Do not describe an approval as proof of truth; it is proof of procedure.
+
+**Comparison claims — the only form that can adjudicate a design choice.**
+Write the hypothesis as two metrics and no threshold:
+
+```
+- **Hypothesis:** H-101: "int8_p95 > float16_p95"
+- **Raw Samples:** docs/experiments/E-101/raw/paired.jsonl
+```
+
+The bench prints both conditions from ONE run and writes paired samples, one
+JSON object per line, each carrying boolean `a` and `b` verdicts **for the same
+case**:
+
+```python
+for i, case in enumerate(cases):
+    f.write(json.dumps({"i": i, "a": run_a(case), "b": run_b(case)}) + "\n")
+print(f"int8_p95={ok_a/n:.2f} ({ok_a}/{n})")
+print(f"float16_p95={ok_b/n:.2f} ({ok_b}/{n})")
+```
+
+PASS requires BOTH: the direction favours the left condition, AND an exact
+McNemar test on the discordant pairs gives p < 0.05. A 22-vs-20 result is
+REJECTED with "not distinguishable from noise" — coming out ahead is not
+evidence of being better. The record gains a `Comparison:` line carrying the
+rates, the delta, the relative change, the discordant counts and the p-value.
+
+Why paired: two unpaired rates are two samples of the same noise, and a plain
+two-sample test would ignore that the same cases produced both outcomes. The
+pairing is structural — one line, one case — so it cannot be reordered into
+significance.
+
+**Continuous comparisons — when the measure is a number, not a verdict.**
+Most architecture questions are about a distribution: this codec's p95 against
+that one's, over the same inputs. Declare the measure and pair the numbers:
+
+```
+- **Hypothesis:** H-102: "int8_ms < float16_ms"
+- **Measure:** continuous
+- **Raw Samples:** docs/experiments/E-102/raw/paired.jsonl
+```
+
+```python
+for i, case in enumerate(cases):
+    f.write(json.dumps({"i": i, "a": ms_int8(case), "b": ms_float16(case)}) + "\n")
+```
+
+PASS requires the median difference to favour the left condition **and** a
+two-sided **Wilcoxon signed-rank** test at p < 0.05, with tie correction. Below
+six non-zero pairs the test cannot reach p<0.05 at all, so the gate refuses
+(`exit 2`) rather than approving something it cannot decide. Booleans in a
+continuous record are rejected: a categorical file wearing a numeric label is
+exactly what this path exists to prevent.
+
+**Census — saying "these cases are the population".** An exact-zero claim
+(`escape_rate <= 0.0`) over six trials is not evidence of a zero rate unless
+those six cases ARE the population. Declare it:
+
+```
+- **Census:** the six storage write paths enumerated in storage_adapters.py are
+  the complete set; there is no seventh
+```
+
+With this line the gate records `0/n` as the rate itself and stops asking for a
+sampling bound. Without it, `0 of 6` only bounds the true rate below ~39% and
+the `Uncertainty` line says so. Minimum 40 characters; a shorter one is ignored
+and the record says it was ignored.
+
+**Corpus report — the view a per-record gate cannot have.**
+
+```bash
+python3 {skill-root}/scripts/run_experiment.py --corpus-report {project-root}/docs/experiments
+```
+
+Prints the corpus's own distribution: decisions, which metrics dominate, how many
+claims assert an exact zero, how many comparisons exist, how many records carry no
+`Raw Samples`, and how many are `UNVERIFIED` for rule 7. It changes nothing and
+approves nothing — it is how one notices that a corpus is measuring what is easy.
+
+**Rule 7 — a hypothesis is only a test if a broken implementation fails it.**
+Declare `--control "<command that must FAIL the same claim>"`. The gate runs it
+itself; if the control also clears the threshold, no token is written and the
+record stays undecided (exit 3) so the bench or the hypothesis can be fixed.
+Omitting it is allowed for legacy records but writes `Falsifiability: UNVERIFIED`.
+
+**`--reproduce` re-runs the recorded command** and compares the result with what
+the record claims. No key, no writes. It is the only check that tests a number
+against the world rather than against itself — run it before trusting a record
+you did not produce.
+
 **Dry-run preview — never decide a record by accident.** Passing `--dry-run`
 computes the full decision — parsed claim/threshold, measured
 value, PASS/FAIL, Wilson bound, the `Uncertainty`/`Metric`/`Decision`/`Gate Evidence`

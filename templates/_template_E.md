@@ -34,6 +34,29 @@ lines; the gate writes them.
        Omitting it is allowed for legacy records but writes `Falsifiability: UNVERIFIED` into the
        record and says so on stderr — an unfalsifiable bench is a hypothesis that was never tested. -->
 - **Falsifiability:** <gate writes: verified — control measured X | REFUSED … | UNVERIFIED — no control declared>
+- **Raw Samples:** <path to a JSONL file of per-sample evidence, one object per line with a
+  boolean `ok` — or `none — <why this claim has no per-sample evidence>` (reason ≥ 40 chars)>  
+  <!-- REQUIRED. The gate recomputes x and n from this file, refuses when the printed
+       aggregate disagrees, refuses a file the run did not write, and records its sha256.
+       The aggregate stops being a claim and becomes a checksum over inspectable samples. -->
+- **Raw Sample Evidence:** <gate writes: path — N samples, X ok, sha256=…, bytes>
+- **Comparison:** <gate writes for a comparison claim: left rate vs right rate over n paired
+  cases — delta, relative %, discordant +b/-c, McNemar exact p>
+  <!-- A comparison claim names two metrics and no threshold ("a_rate > b_rate"). The gate
+       requires paired samples (boolean `a` and `b` per line, same case) and approves only
+       when the direction favours the left condition AND McNemar p < 0.05. Being ahead is
+       not being better. -->
+- **Measure:** categorical | continuous
+  <!-- 'categorical' (default): each pair is a PASS/FAIL verdict, decided by McNemar.
+       'continuous': each pair is a NUMBER (a latency, a size, a score), decided by the
+       Wilcoxon signed-rank test on the paired differences. Use continuous whenever the
+       real question is "by how much", not "does it pass". -->
+- **Census:** <the complete population these n cases constitute, and why it is complete>
+  <!-- Only for an exact-zero (or exact-something) claim over a CLOSED set: "the six
+       storage write paths in storage_adapters.py are the complete set". With this line
+       the gate stops treating 0/n as an estimate and records it as the rate itself.
+       Without it, 0 of 6 only bounds the true rate below ~39% and the Uncertainty line
+       says so. Minimum 40 characters — an unexplained exemption is the abuse case. -->
 - **Raw Results:** <measurement — the gate writes this>
 - **Uncertainty:** <gate writes: small sample | none | n unknown>
 - **Metric:** <gate writes: consistent | MISMATCH — from the measured metric of the --run output>
@@ -102,6 +125,44 @@ Omitting `--control` is still permitted so that older records keep verifying, bu
 the run writes `Falsifiability: UNVERIFIED — no control command declared` into
 the record and prints the same on stderr. That line is the honest state of a
 bench nobody has tried to break.
+
+## Raw samples — where the number comes from
+
+The gate reads a printed aggregate (`rate=1.00 (200/200)`) and then refuses it
+unless it can be recomputed from per-sample evidence:
+
+```python
+# the bench writes one JSON object per sample, each stating its own verdict
+import json, pathlib
+raw = pathlib.Path("docs/experiments/E-NNN/raw")
+raw.mkdir(parents=True, exist_ok=True)
+with (raw / "samples.jsonl").open("w") as fh:
+    for i in range(n):
+        fh.write(json.dumps({"i": i, "ok": passes(i)}) + "\n")
+print(f"my_rate={x/n:.2f} ({x}/{n})")
+```
+
+The gate then: counts the lines, recounts the successes, refuses a mismatch with
+the printed `(x/y)`, refuses a file that was not written by this run, refuses a
+path outside the project, refuses a sample without a boolean `ok`, and records
+`sha256` + byte size so the evidence is identifiable later.
+
+A record may decline the samples — `- **Raw Samples:** none — <reason>` — but the
+reason must run to at least 40 characters and the refusal is written into the
+record. An exemption is a public act, never a silent default.
+
+## Reproduce — the only check against the world
+
+```bash
+python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py \
+  --record docs/experiments/E-NNN.md --reproduce
+```
+
+Everything else here establishes that a number was produced in a controlled way.
+None of it establishes that the number is *true*: a bench can fabricate samples
+that agree with a fabricated aggregate. Only an independent re-run tests the
+claim against reality. This needs no key, changes nothing, and is what a
+sceptical reader should run before trusting a record.
 
 ## Verify before code
 

@@ -36,6 +36,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import hmac
+import json
 import math
 import os
 import pathlib
@@ -44,6 +45,7 @@ import secrets as _secrets
 import shlex
 import subprocess
 import sys
+import time
 from datetime import date as _date
 
 # Plan-layer helpers (E-065): the engine's plan module owns plan parsing and
@@ -667,6 +669,18 @@ def wilson_lower(x: int, n: int, z: float = 1.96) -> float:
     return max(0.0, center - half)
 
 
+def wilson_upper(x: int, n: int, z: float = 1.96) -> float:
+    """95% Wilson score upper bound for observed x/n successes. 1.0 when n <= 0."""
+    if n <= 0:
+        return 1.0
+    p = x / n
+    z2 = z * z
+    denom = 1 + z2 / n
+    center = (p + z2 / (2 * n)) / denom
+    half = z * math.sqrt(p * (1 - p) / n + z2 / (4 * n * n)) / denom
+    return min(1.0, center + half)
+
+
 METRIC_SUFFIXES = ("_accuracy", "_validity", "_precision", "_score", "_rate", "_quality")
 
 
@@ -695,16 +709,288 @@ def uncertainty_note(x: int | None, n: int | None, value: float, threshold: floa
     """
     if n is None or x is None:
         return "n unknown (sample size could not be parsed)"
-    # The count only matters for upper-bound claims: a small sample inflates
-    # confidence that the rate >= threshold.
+    # A small sample inflates confidence in BOTH directions, and the direction
+    # was inverted here: a ">= threshold" claim is inflated from below (the
+    # Wilson LOWER bound sits under the observed rate), while a "<= threshold"
+    # claim is inflated from above (the UPPER bound sits over it). The old code
+    # returned "none (lower-bound claim: no small-sample risk)" for every "<=
+    # claim", so a record could assert `escape_rate <= 0.0` on 0 of 6 trials and
+    # be told it carried no small-sample risk — when 0/6 only bounds the true
+    # rate below ~39%. That is the opposite of what the rule exists to say.
+    if op in ("<=", "<"):
+        upper = wilson_upper(x, n)
+        if upper <= threshold:
+            return (f"none (n={n}, 95% Wilson upper bound {upper:.2f} <= "
+                    f"threshold {threshold:g})")
+        return (f"n={n} (small sample: {x} of {n} observed only bounds the true "
+                f"rate below {upper:.2f}; 95% Wilson upper bound {upper:.2f} > "
+                f"threshold {threshold:g} — the claim is stronger than the "
+                f"evidence)")
+
     if op not in (">=", ">"):
-        return "none (lower-bound claim: no small-sample risk)"
+        return "none (no directional claim: no small-sample risk)"
     if abs(x / n - value) > 0.02:
         return f"n unknown (x/y={x}/{n} value {value} inconsistent)"
     lower = wilson_lower(x, n)
     if lower >= threshold:
         return f"none (n={n}, 95% Wilson lower bound {lower:.2f} >= threshold {threshold:g})"
     return (f"n={n} (small sample: 95% Wilson lower bound {lower:.2f} < threshold {threshold:g})")
+
+
+def _mcnemar_exact_p(b: int, c: int) -> float:
+    """Two-sided exact McNemar p-value from the discordant pair counts.
+
+    b = cases where A passed and B failed; c = the reverse. The concordant cases
+    carry no information about the difference, which is precisely why a plain
+    two-sample comparison over the same cases is the wrong test: it ignores that
+    the same instance produced both outcomes.
+    """
+    n = b + c
+    if n == 0:
+        return 1.0
+    k = min(b, c)
+    tail = sum(math.comb(n, i) for i in range(0, k + 1)) / (2 ** n)
+    return min(1.0, 2 * tail)
+
+
+def comparison_claim(claim: str) -> dict | None:
+    """Parse 'a_rate > b_rate' into a comparison; None for a threshold claim.
+
+    A comparison is the only claim form that can adjudicate a design choice, and
+    it was missing entirely: every record could say "X meets T" and none could
+    say "X beats Y", so the gate could not judge the questions architecture is
+    actually made of.
+    """
+    m = re.match(r"^\s*([A-Za-z_][\w]*)\s*(>=|<=|==|>|<)\s*([A-Za-z_][\w]*)\s*$", claim)
+    if not m:
+        return None
+    if m.group(3)[0].isdigit():
+        return None  # numeric right-hand side: an ordinary threshold claim
+    return {"left": m.group(1), "right": m.group(3), "op": m.group(2)}
+
+
+def measure_all(cmd: str) -> dict:
+    """Run the measurement once and return EVERY parsed metric line.
+
+    A comparison needs both conditions out of a single run: two runs could
+    differ for reasons that have nothing to do with the variants.
+    """
+    proc = subprocess.run(cmd, shell=True, capture_output=True, text=True,
+                          encoding="utf-8", errors="replace", timeout=600,
+                          stdin=subprocess.DEVNULL)
+    if proc.returncode != 0:
+        raise ValueError(f"measurement exited {proc.returncode}: {cmd}\n{proc.stdout}\n{proc.stderr}")
+    found = {}
+    for m in MEASURED_RE.finditer(proc.stdout):
+        found[metric_stem(m.group(1))] = (
+            float(m.group(2)),
+            int(m.group(3)) if m.group(3) else None,
+            int(m.group(4)) if m.group(4) else None,
+        )
+    if not found:
+        raise ValueError(f"no parseable metric line in the run output: {cmd}\n{proc.stdout}")
+    return found
+
+
+def _load_paired_samples(path) -> tuple[list, list]:
+    """Read a paired sample file: one object per line with booleans `a` and `b`.
+
+    Pairing is by LINE, not by id: the case that produced A also produced B, and
+    the file makes that structurally impossible to fake by reordering.
+    """
+    try:
+        blob = path.read_bytes()
+    except OSError as exc:
+        raise ValueError(f"raw samples unreadable: {path}: {exc}")
+    a, b = [], []
+    for lineno, raw in enumerate(blob.decode("utf-8", "replace").splitlines(), 1):
+        line = raw.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+        except ValueError:
+            raise ValueError(f"paired sample line {lineno} is not JSON: {line[:80]}")
+        if not isinstance(obj, dict) or not isinstance(obj.get("a"), bool) \
+                or not isinstance(obj.get("b"), bool):
+            raise ValueError(
+                f"paired sample line {lineno} must carry boolean 'a' and 'b' "
+                f"verdicts for the same case: {line[:80]}")
+        a.append(obj["a"])
+        b.append(obj["b"])
+    if not a:
+        raise ValueError(f"paired sample file is empty: {path}")
+    return a, b
+
+
+def evaluate_comparison(comp: dict, metrics: dict, pairs: tuple) -> tuple:
+    """Decide a comparison: direction must favour left AND survive McNemar.
+
+    Returning APPROVED for "A > B" when A merely came out ahead is how a corpus
+    accumulates noise dressed as findings. The difference has to be larger than
+    the disagreement between the two conditions can explain.
+    """
+    left_key = metric_stem(comp["left"])
+    right_key = metric_stem(comp["right"])
+    for key in (left_key, right_key):
+        if key not in metrics:
+            raise ValueError(
+                f"the run printed no '{key}' metric — a comparison needs both "
+                f"conditions in one run. Printed: {', '.join(sorted(metrics))}")
+
+    a, b = pairs
+    n = len(a)
+    a_ok, b_ok = sum(a), sum(b)
+    if metrics[left_key][2] is not None and metrics[left_key][2] != n:
+        raise ValueError(f"'{left_key}' claims n={metrics[left_key][2]} but the "
+                         f"paired file holds {n} cases")
+    if metrics[right_key][2] is not None and metrics[right_key][2] != n:
+        raise ValueError(f"'{right_key}' claims n={metrics[right_key][2]} but the "
+                         f"paired file holds {n} cases")
+    for key, counted in ((left_key, a_ok), (right_key, b_ok)):
+        printed_x = metrics[key][1]
+        if printed_x is not None and printed_x != counted:
+            raise ValueError(f"'{key}' claims x={printed_x} but the paired file "
+                             f"holds {counted} passing cases of {n}")
+
+    rate_a, rate_b = a_ok / n, b_ok / n
+    delta = rate_a - rate_b
+    disc_a = sum(1 for x, y in zip(a, b) if x and not y)
+    disc_b = sum(1 for x, y in zip(a, b) if y and not x)
+    p = _mcnemar_exact_p(disc_a, disc_b)
+
+    higher = comp["op"] in (">", ">=", "==")
+    direction_ok = (delta > 0) if higher else (delta < 0)
+    significant = p < 0.05
+    passed = direction_ok and significant
+
+    rel = (delta / rate_b * 100) if rate_b else float("inf")
+    line = (f"{left_key} {rate_a:.4f} vs {right_key} {rate_b:.4f} over n={n} paired "
+            f"cases — delta={delta:+.4f} ({rel:+.1f}%), discordant +{disc_a}/-{disc_b}, "
+            f"McNemar exact p={p:.4f}")
+    if not direction_ok:
+        summary = f"H: {left_key} {comp['op']} {right_key} — FAIL ({line})"
+    elif not significant:
+        summary = (f"H: {left_key} {comp['op']} {right_key} — FAIL ({line}; the "
+                   f"difference is not distinguishable from noise at this n)")
+    else:
+        summary = f"H: {left_key} {comp['op']} {right_key} — PASS ({line})"
+
+    return (delta, a_ok, n, passed, summary, line)
+
+
+def _wilcoxon_signed_rank(diffs: list) -> tuple:
+    """Two-sided Wilcoxon signed-rank p-value for paired differences.
+
+    The continuous counterpart of McNemar: it asks whether the *signed
+    magnitudes* of the per-case differences are symmetric around zero, which is
+    the right question for "A is faster than B" where each case yields a number
+    rather than a verdict. Exact enumeration is replaced by the normal
+    approximation with tie correction — standard beyond n≈20, and below n=6 the
+    test cannot reach p<0.05 at all, so the gate refuses instead of pretending.
+    """
+    nonzero = [d for d in diffs if d != 0]
+    n = len(nonzero)
+    if n < 6:
+        raise ValueError(
+            f"only {n} non-zero paired differences — a signed-rank test cannot "
+            f"reach p<0.05 below n=6, so this comparison cannot be decided. "
+            f"Measure more cases.")
+    order = sorted(range(n), key=lambda i: abs(nonzero[i]))
+    ranks = [0.0] * n
+    i = 0
+    tie_term = 0.0
+    while i < n:
+        j = i
+        while j + 1 < n and abs(nonzero[order[j + 1]]) == abs(nonzero[order[i]]):
+            j += 1
+        avg = (i + j + 2) / 2.0  # 1-based average rank
+        for k in range(i, j + 1):
+            ranks[order[k]] = avg
+        t = j - i + 1
+        if t > 1:
+            tie_term += t * t * t - t
+        i = j + 1
+    w_plus = sum(r for d, r in zip(nonzero, ranks) if d > 0)
+    mean = n * (n + 1) / 4.0
+    var = (n * (n + 1) * (2 * n + 1) - tie_term) / 24.0
+    if var <= 0:
+        return w_plus, 1.0
+    z = (w_plus - mean - 0.5) / math.sqrt(var)
+    p = 2 * (1 - 0.5 * (1 + math.erf(abs(z) / math.sqrt(2))))
+    return w_plus, min(1.0, p)
+
+
+def _load_numeric_pairs(path) -> tuple:
+    """Paired numeric samples: one object per line with numbers `a` and `b`."""
+    try:
+        blob = path.read_bytes()
+    except OSError as exc:
+        raise ValueError(f"raw samples unreadable: {path}: {exc}")
+    a, b = [], []
+    for lineno, raw in enumerate(blob.decode("utf-8", "replace").splitlines(), 1):
+        line = raw.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+        except ValueError:
+            raise ValueError(f"paired sample line {lineno} is not JSON: {line[:80]}")
+        va, vb = (obj.get("a") if isinstance(obj, dict) else None,
+                  obj.get("b") if isinstance(obj, dict) else None)
+        if isinstance(va, bool) or isinstance(vb, bool) or \
+                not isinstance(va, (int, float)) or not isinstance(vb, (int, float)):
+            raise ValueError(
+                f"paired sample line {lineno} must carry NUMERIC 'a' and 'b' "
+                f"measurements for the same case (a continuous comparison, not "
+                f"a verdict): {line[:80]}")
+        a.append(float(va))
+        b.append(float(vb))
+    if not a:
+        raise ValueError(f"paired sample file is empty: {path}")
+    return a, b
+
+
+def _median(values: list) -> float:
+    s = sorted(values)
+    mid = len(s) // 2
+    return s[mid] if len(s) % 2 else (s[mid - 1] + s[mid]) / 2.0
+
+
+def evaluate_continuous(comp: dict, pairs: tuple) -> tuple:
+    """Decide a continuous comparison from paired measurements.
+
+    Same two requirements as the categorical case: the direction has to favour
+    the left condition, and the signed differences have to clear a two-sided
+    signed-rank test at p<0.05. A 1.2 ms difference that three cases cannot
+    support is not a faster implementation, it is a faster afternoon.
+    """
+    a, b = pairs
+    n = len(a)
+    diffs = [x - y for x, y in zip(a, b)]
+    left_key = metric_stem(comp["left"])
+    right_key = metric_stem(comp["right"])
+
+    w_plus, p = _wilcoxon_signed_rank(diffs)
+    med_a, med_b = _median(a), _median(b)
+    med_diff = med_a - med_b
+    higher_is_better = comp["op"] in (">", ">=", "==")
+    direction_ok = (med_diff > 0) if higher_is_better else (med_diff < 0)
+    significant = p < 0.05
+    passed = direction_ok and significant
+
+    rel = (med_diff / med_b * 100) if med_b else float("inf")
+    line = (f"{left_key} median {med_a:g} vs {right_key} median {med_b:g} over "
+            f"n={n} paired measurements — median difference {med_diff:+g} "
+            f"({rel:+.1f}%), Wilcoxon signed-rank W+={w_plus:g}, p={p:.4f}")
+    if not direction_ok:
+        summary = f"H: {left_key} {comp['op']} {right_key} — FAIL ({line})"
+    elif not significant:
+        summary = (f"H: {left_key} {comp['op']} {right_key} — FAIL ({line}; the "
+                   f"difference is not distinguishable from noise at this n)")
+    else:
+        summary = f"H: {left_key} {comp['op']} {right_key} — PASS ({line})"
+    return (med_diff, n, n, passed, summary, line)
 
 
 def run_and_measure(cmd: str, claim_metric: str | None = None
@@ -768,6 +1054,114 @@ def run_and_measure(cmd: str, claim_metric: str | None = None
         raise ValueError(
             f"no sample-size denominator '(x/y)' in the run output: {cmd}\n{proc.stdout}")
     return val, x, y, metric_stem(m.group(1))
+
+
+# --- Rule: the metric is DERIVED from raw samples, not trusted from stdout ---
+# The gate used to read a printed aggregate ("rate=1.00 (200/200)") and believe
+# it. That made a `print` statement indistinguishable from a measurement: a
+# one-line command minted a genuine GATE-OK token in a live session without
+# doing any work at all. Controls (rule 7) do not close this — whoever writes
+# the fake bench also writes its fake control.
+#
+# The contract: the bench writes one JSON object per sample, one per line, each
+# carrying a boolean `ok`. The gate recomputes x and n from those lines and
+# refuses when the printed aggregate disagrees. The aggregate stops being a
+# claim and becomes a checksum.
+#
+# A record may decline — `- **Raw Samples:** none — <reason>` — but the reason
+# must be at least 40 characters and the refusal is written into the record, so
+# an exemption is a public act rather than a silent default. This cannot prove
+# the bench did real work (a fabricator can emit consistent fake samples too);
+# it makes the samples inspectable, hash-bound and re-runnable, which is what
+# `--reproduce` and the QR then act on.
+RAW_SAMPLES_FIELD = "Raw Samples"
+_RAW_NONE_MIN_REASON = 40
+
+
+def _load_raw_samples(path: pathlib.Path) -> tuple[int, int, int, str]:
+    """Read a JSONL sample file -> (x, n, bytes, sha256-prefix). Fails closed."""
+    try:
+        blob = path.read_bytes()
+    except OSError as exc:
+        raise ValueError(f"raw samples unreadable: {path}: {exc}")
+    digest = hashlib.sha256(blob).hexdigest()[:16]
+    x = n = 0
+    for lineno, raw in enumerate(blob.decode("utf-8", "replace").splitlines(), 1):
+        line = raw.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+        except ValueError:
+            raise ValueError(f"raw sample line {lineno} is not JSON: {line[:80]}")
+        if not isinstance(obj, dict):
+            raise ValueError(f"raw sample line {lineno} is not an object: {line[:80]}")
+        if not isinstance(obj.get("ok"), bool):
+            raise ValueError(
+                f"raw sample line {lineno} has no boolean 'ok' field — every "
+                f"sample must state its own verdict: {line[:80]}")
+        n += 1
+        if obj["ok"]:
+            x += 1
+    return x, n, len(blob), digest
+
+
+def reconcile_raw_samples(spec: str, printed_x: int | None, printed_y: int | None,
+                          root: str, run_started_at: float,
+                          ) -> tuple[str, str | None]:
+    """Recompute the aggregate from raw samples. -> (record_value, refusal_or_None)."""
+    spec = (spec or "").strip()
+    if not spec:
+        return "", ("record has no '- **Raw Samples:**' line. State the file the "
+                    "samples were written to (e.g. `docs/experiments/E-NNN/raw/"
+                    "samples.jsonl`, one JSON object per line with a boolean `ok`), "
+                    "or decline explicitly: '- **Raw Samples:** none — <why this "
+                    "claim has no per-sample evidence>'.")
+    if spec.lower().startswith("none"):
+        reason = spec[4:].lstrip(" \u2014-:").strip()
+        if len(reason) < _RAW_NONE_MIN_REASON:
+            return "", (f"'Raw Samples: none' needs a reason of at least "
+                        f"{_RAW_NONE_MIN_REASON} characters (got {len(reason)}) — an "
+                        f"unexplained exemption is the abuse case.")
+        return f"none — {reason}", None
+
+    raw_path = spec.split()[0].strip("`\"'")
+    candidate = pathlib.Path(raw_path)
+    if not candidate.is_absolute():
+        candidate = pathlib.Path(root) / candidate
+    try:
+        resolved = candidate.resolve()
+        root_resolved = pathlib.Path(root).resolve()
+        resolved.relative_to(root_resolved)
+    except (OSError, ValueError):
+        return "", f"raw samples must live inside the project root: {raw_path}"
+
+    if not resolved.is_file():
+        return "", (f"raw samples file does not exist: {raw_path} — the measurement "
+                    f"must write it; a value with no samples behind it is a claim, "
+                    f"not a measurement.")
+    try:
+        mtime = resolved.stat().st_mtime
+    except OSError as exc:
+        return "", f"raw samples unreadable: {raw_path}: {exc}"
+    if mtime < run_started_at - 1.0:
+        return "", (f"raw samples file was not written by this run ({raw_path} is "
+                    f"{int(run_started_at - mtime)}s older than the measurement) — a "
+                    f"stale sample file cannot evidence a fresh measurement.")
+
+    try:
+        raw_x, raw_n, size, digest = _load_raw_samples(resolved)
+    except ValueError as exc:
+        return "", str(exc)
+
+    if printed_y is None or raw_n != printed_y:
+        return "", (f"sample count disagrees: the output claims n={printed_y} but "
+                    f"{raw_path} holds {raw_n} samples.")
+    if printed_x is not None and raw_x != printed_x:
+        return "", (f"success count disagrees: the output claims x={printed_x} but "
+                    f"{raw_path} holds {raw_x} passing samples of {raw_n}.")
+    return (f"`{raw_path}` — {raw_n} samples, {raw_x} ok, "
+            f"sha256={digest}, {size} bytes (recomputed by the gate)"), None
 
 
 # --- Rule: measurement script cannot live in a free zone ---
@@ -846,9 +1240,26 @@ def _bench_target(cmd: str) -> str | None:
         # Skip valueless flags ('-u') and flags with values ('-W ignore').
         # -m/-c ALWAYS switch to inline mode (a following token is a module
         # name or code string, never a script path).
+        # Inline evaluation per interpreter family. The old check knew only
+        # python's -m/-c, so `node -e "console.log('rate=1.00 (200/200)')"` fell
+        # through the flag loop, its CODE STRING was returned as if it were a
+        # script path, the free-zone check saw a harmless relative name — and a
+        # live session minted a genuine token from a command that never touched
+        # the repository. An inline command has no artifact; it must not measure.
+        _inline_by_interp = {
+            "python": ("-c", "-m"), "python3": ("-c", "-m"), "py": ("-c", "-m"),
+            "node": ("-e", "--eval", "-p", "--print", "-pe", "-ep"),
+            "nodejs": ("-e", "--eval", "-p", "--print"),
+            "deno": ("eval", "--eval"), "bun": ("-e", "--eval"),
+            "perl": ("-e", "--eval"), "ruby": ("-e", "--eval"),
+            "php": ("-r", "--run"),
+            "sh": ("-c",), "bash": ("-c",), "zsh": ("-c",),
+            "rscript": ("-e",),
+        }
+        inline_flags = _inline_by_interp.get(base0, ())
         while i < len(toks) and toks[i].startswith("-") and toks[i] not in ("-", "--"):
-            if toks[i] in ("-m", "-c"):
-                return None  # inline — dosya hedefi yok
+            if toks[i] in inline_flags or toks[i].split("=")[0] in inline_flags:
+                return None  # inline — no file target, nothing to attribute
             if toks[i] in _INTERP_VALUELESS:
                 i += 1
             elif "=" in toks[i]:
@@ -1101,6 +1512,14 @@ def main() -> int:
                     help="preview the decision (measured vs threshold, Wilson bound, "
                          "would-be GATE-OK token) WITHOUT writing to the record")
     ap.add_argument("--verify", action="store_true", help="verify an existing decision")
+    ap.add_argument("--reproduce", action="store_true",
+                    help="re-run a decided record's measurement and compare — the "
+                         "only check that tests the number against the world rather "
+                         "than against itself")
+    ap.add_argument("--corpus-report", metavar="DIR",
+                    help="report the corpus's own distribution (metrics, decisions, "
+                         "exact-zero claims, comparisons, missing evidence) — the "
+                         "view a single-record gate cannot provide")
     ap.add_argument("--init-secret", action="store_true",
                     help="generate the gate key (HMAC secret) outside the repo, once per machine")
     ap.add_argument("--import-key", action="store_true",
@@ -1141,6 +1560,12 @@ def main() -> int:
         if not args.record:
             ap.error("--verify requires --record")
         return verify(args.record)
+    if args.reproduce:
+        if not args.record:
+            ap.error("--reproduce requires --record")
+        return reproduce(args.record)
+    if args.corpus_report:
+        return corpus_report(args.corpus_report)
     if not args.record:
         ap.error("need --record")
     if not args.run:
@@ -1217,23 +1642,105 @@ def main() -> int:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
 
+    # A command that executes no script file (interpreter inline eval, shell
+    # chain) leaves nothing to attribute the number to: the bench IS the shell
+    # string, it can be retyped with any value, and it never touches the
+    # repository. A live session minted a genuine token from
+    # `node -e "console.log('rate=1.00 (200/200)')"` before this check existed.
+    if _bench_target(args.run) is None:
+        print("ERROR: the measurement must execute a script FILE inside the "
+              "project (e.g. 'python3 scripts/bench/bench_x.py'). Inline "
+              "evaluation (-c/-e/-p), a module run with no file target, or a "
+              "shell chain cannot be attributed: the number would come from a "
+              "string that never becomes an artifact. Write the bench to disk "
+              "and put it in the record's Code Scope.", file=sys.stderr)
+        return 2
+
     # Measurement: the gate runs the command ITSELF and parses the value from output.
     # Operator declares no numbers — reality is mechanical (manifesto: --run is canonical).
     # The claimed metric name steers which metric_* line binds the decision
     # (E-004): a multi-metric bench must not have its first line decide.
     claim_metric = claim_metric_name(claim)
+    # A comparison claim names two metrics and no threshold: the decision is
+    # "is the difference bigger than the disagreement can explain", which needs
+    # a paired test rather than a threshold check.
+    comp = comparison_claim(claim)
+    # Bound for both paths: a comparison sets its own evidence + summary and has
+    # no threshold, but the surrounding record-writing code is shared.
+    raw_value = ""
+    raw_refusal = None
+    threshold = 0.0
+    op = ">="
+    comp_line = ""
     try:
-        val, x, y, run_metric = run_and_measure(args.run, claim_metric=claim_metric)
+        run_started = time.time()
+        if comp is not None:
+            measure = (fields.get("Measure", "") or "categorical").strip().lower()
+            continuous = measure in ("continuous", "numeric", "measured")
+            metrics = {}
+            if continuous:
+                subprocess.run(args.run, shell=True, capture_output=True, text=True,
+                               encoding="utf-8", errors="replace", timeout=600,
+                               stdin=subprocess.DEVNULL, check=False)
+            else:
+                metrics = measure_all(args.run)
+            raw_spec = (fields.get(RAW_SAMPLES_FIELD, "") or "").strip()
+            if not raw_spec or raw_spec.lower().startswith("none"):
+                raise ValueError(
+                    "a comparison has no meaning without paired samples: set "
+                    "'- **Raw Samples:**' to a JSONL file holding one object per "
+                    "line with 'a' and 'b' for the SAME case (booleans for a "
+                    "categorical comparison, numbers for a continuous one). "
+                    "Without the pairing the gate cannot tell a real difference "
+                    "from two samples of the same noise.")
+            raw_rel = raw_spec.split()[0].strip("`\"'")
+            raw_path = pathlib.Path(raw_rel)
+            if not raw_path.is_absolute():
+                raw_path = pathlib.Path(
+                    _derive_project_root(args.record, args.project_root) or os.getcwd()
+                ) / raw_path
+            if continuous:
+                pairs = _load_numeric_pairs(raw_path)
+                val, x, y, passed, summary, comp_line = evaluate_continuous(comp, pairs)
+            else:
+                pairs = _load_paired_samples(raw_path)
+                val, x, y, passed, summary, comp_line = evaluate_comparison(
+                    comp, metrics, pairs)
+            run_metric = metric_stem(comp["left"])
+            try:
+                raw_digest = hashlib.sha256(raw_path.read_bytes()).hexdigest()[:16]
+            except OSError:
+                raw_digest = "?"
+            kind = "paired measurements" if continuous else "paired verdicts"
+            raw_value = (f"`{raw_rel}` — {y} {kind}, sha256={raw_digest} "
+                         f"(read by the gate)")
+        else:
+            val, x, y, run_metric = run_and_measure(args.run, claim_metric=claim_metric)
+            threshold, op = parse_claim(claim)
+            passed, summary = evaluate(claim, val)
+            comp_line = ""
     except ValueError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
 
-    try:
-        threshold, op = parse_claim(claim)
-        passed, summary = evaluate(claim, val)
-    except ValueError as exc:
-        print(f"ERROR: {exc}", file=sys.stderr)
-        return 2
+    # ---- Raw samples: the aggregate must be derivable from the samples -------
+    # A comparison already loaded its paired file above; the single-condition
+    # reconciler would reject that file for having no `ok` field, so it is
+    # skipped and the pairing itself is the evidence.
+    if comp is None:
+        raw_value, raw_refusal = reconcile_raw_samples(
+            fields.get(RAW_SAMPLES_FIELD, ""), x, y,
+            _derive_project_root(args.record, args.project_root) or os.getcwd(),
+            run_started)
+        if raw_refusal:
+            lines = text.splitlines(keepends=False)
+            lines = upsert(lines, "- **Raw Sample Evidence:**", f"REFUSED — {raw_refusal}")
+            open(args.record, "w", encoding="utf-8").write("\n".join(lines) + "\n")
+            print(f"ERROR: {raw_refusal}", file=sys.stderr)
+            print(f"[{hid}] REFUSED — the value is not backed by samples")
+            print("DECISION: NONE (no token written; record left undecided)")
+            print(f"Record updated: {args.record}")
+            return 4
 
     # Metric-name cross-check (Rule 1): the measured metric name (parsed from output)
     # is compared against the metric name in the hypothesis claim.
@@ -1251,7 +1758,25 @@ def main() -> int:
     if x is None:
         x = int(round(n * val))  # n exists but x missing: derive from value (for Wilson)
 
-    belirsizlik = uncertainty_note(x, n, val, threshold, op)
+    if comp is not None:
+        belirsizlik = ("none (paired comparison — McNemar exact test on the "
+                       "discordant pairs; a difference the pairs cannot explain "
+                       "is not a difference)")
+    else:
+        census = (fields.get("Census", "") or "").strip()
+        if census and len(census) >= 40:
+            # A census answers the question Wilson asks: if the n cases ARE the
+            # population, then 0/n is not an estimate of a rate, it is the rate.
+            # Without this field the gate must assume a sample, which is why an
+            # exact-zero claim on six trials reads as unsupported.
+            belirsizlik = (f"census — {census} (the cases are the population, not "
+                           f"a sample; no sampling inference applies)")
+        else:
+            belirsizlik = uncertainty_note(x, n, val, threshold, op)
+            if census:
+                belirsizlik += (f" [Census ignored: its justification is "
+                                f"{len(census)} characters, {_RAW_NONE_MIN_REASON} "
+                                f"required]")
 
     # ---- Rule 7 — falsifiability -------------------------------------------
     # A hypothesis is only a test if a broken implementation fails it. The gate
@@ -1308,6 +1833,7 @@ def main() -> int:
         print(f"[DRY-RUN] {hid}: {summary} -> {'PASS' if passed else 'FAIL'}")
         print(f"[DRY-RUN]   Uncertainty will be written: {belirsizlik}")
         print(f"[DRY-RUN]   Metric will be written: {metric_note}")
+        print(f"[DRY-RUN]   Raw Sample Evidence will be written: {raw_value}")
         print(f"[DRY-RUN]   Measurement command will be written: {args.run}")
         if _dry_plan_hash is not None:
             print(f"[DRY-RUN]   Final plan hash will bind the token: {_dry_plan_hash[:16]}…")
@@ -1351,6 +1877,9 @@ def main() -> int:
     lines = upsert(lines, "- **Uncertainty:**", belirsizlik)
     lines = upsert(lines, "- **Metric:**", metric_note)
     lines = upsert(lines, "- **Falsifiability:**", control_note)
+    lines = upsert(lines, "- **Raw Sample Evidence:**", raw_value)
+    if comp is not None:
+        lines = upsert(lines, "- **Comparison:**", comp_line)
     # Rule: measurement command is written to record; new-style token binds to this command,
     # so changing the command after approval breaks the token (verify rejects).
     lines = upsert(lines, "- **Measurement Command:**", args.run)
@@ -1398,6 +1927,195 @@ def main() -> int:
         _mirror_board(_derive_project_root(args.record, args.project_root),
                       did, False, summary)
     return 1
+
+
+def reproduce(record_path: str) -> int:
+    """Re-run a decided record's measurement and compare with what it recorded.
+
+    Everything else in this gate establishes that a number was produced in a
+    controlled way. None of it establishes that the number is TRUE about the
+    world — a bench can fabricate consistent samples, and no amount of internal
+    checking will notice. The only real defence is independence: re-execute the
+    recorded command and see whether the same value comes out.
+
+    This is what a sceptical reader should run before trusting a record. It
+    needs no gate key and changes nothing.
+    """
+    try:
+        text = pathlib.Path(record_path).read_text(encoding="utf-8")
+    except OSError as exc:
+        print(f"ERROR: cannot read record: {record_path}: {exc}", file=sys.stderr)
+        return 2
+    fields = record_fields(text)
+    cmd = (fields.get("Measurement Command") or "").strip()
+    if not cmd or _is_placeholder(cmd):
+        print("ERROR: the record names no Measurement Command — nothing to "
+              "reproduce. A record without a command was never re-runnable.",
+              file=sys.stderr)
+        return 2
+    recorded = fields.get("Raw Results", "")
+    m = re.search(r"measured=(-?[0-9.]+)", recorded)
+    if not m:
+        print(f"ERROR: no recorded measurement found in '{recorded[:80]}'",
+              file=sys.stderr)
+        return 2
+    expected = float(m.group(1))
+    mx = re.search(r"n=([0-9]+)", recorded)
+
+    hid, claim = hypothesis_claim(fields.get("Hypothesis", ""))
+    comp = comparison_claim(claim)
+    if comp is not None:
+        # A comparison's recorded value is the DELTA, not a rate: re-deriving it
+        # means re-running both conditions and re-joining the pairs, not reading
+        # a metric line.
+        try:
+            raw_rel = (fields.get(RAW_SAMPLES_FIELD, "") or "").split()[0].strip("`\"'")
+            raw_path = pathlib.Path(raw_rel)
+            if not raw_path.is_absolute():
+                raw_path = pathlib.Path(
+                    _derive_project_root(record_path, None) or os.getcwd()) / raw_path
+            if (fields.get("Measure", "") or "categorical").strip().lower() in (
+                    "continuous", "numeric", "measured"):
+                subprocess.run(cmd, shell=True, capture_output=True, text=True,
+                               encoding="utf-8", errors="replace", timeout=600,
+                               stdin=subprocess.DEVNULL, check=False)
+                pairs = _load_numeric_pairs(raw_path)
+                val, x, y, passed, summary, line = evaluate_continuous(comp, pairs)
+            else:
+                metrics = measure_all(cmd)
+                pairs = _load_paired_samples(raw_path)
+                val, x, y, passed, summary, line = evaluate_comparison(comp, metrics, pairs)
+        except ValueError as exc:
+            print(f"ERROR: the recorded comparison could not be re-derived: {exc}",
+                  file=sys.stderr)
+            return 1
+        print(f"record : {record_path}")
+        print(f"command: {cmd}")
+        print(f"recorded: measured={expected}")
+        print(f"re-run  : measured={val}")
+        print(f"detail  : {line}")
+        if abs(val - expected) <= 1e-9:
+            print("REPRODUCED — the paired comparison still comes out the same.")
+            return 0
+        print("NOT REPRODUCED — the recorded delta does not come back. Either the "
+              "world moved (re-measure under a new record) or the record was never "
+              "a measurement of this code.")
+        return 1
+
+    try:
+        val, x, y, _metric = run_and_measure(
+            cmd, claim_metric=claim_metric_name(claim) or None)
+    except ValueError as exc:
+        print(f"ERROR: the recorded command failed to produce a value: {exc}",
+              file=sys.stderr)
+        return 1
+
+    same_value = abs(val - expected) <= 1e-9
+    same_n = (mx is None) or (y is not None and int(mx.group(1)) == y)
+    print(f"record : {record_path}")
+    print(f"command: {cmd}")
+    print(f"recorded: measured={expected}" + (f" n={mx.group(1)}" if mx else ""))
+    print(f"re-run  : measured={val}" + (f" n={y}" if y is not None else ""))
+    if same_value and same_n:
+        print("REPRODUCED — the command still yields the recorded value.")
+        return 0
+    print("NOT REPRODUCED — the recorded value does not come back. Either the "
+          "world moved (re-measure under a new record) or the record was never "
+          "a measurement of this code.")
+    return 1
+
+
+def corpus_report(records_dir: str) -> int:
+    """Report what the corpus actually contains, so its habits are visible.
+
+    A gate judges records one at a time and therefore cannot notice that 48 of
+    67 hypotheses measure the same thing, or that a fifth of the corpus claims an
+    exact zero. Those are properties of the corpus, and a discipline that cannot
+    see its own distribution is measuring without looking.
+    """
+    base = pathlib.Path(records_dir)
+    if not base.is_dir():
+        print(f"ERROR: not a directory: {records_dir}", file=sys.stderr)
+        return 2
+    files = sorted(base.glob("E-*.md"))
+    if not files:
+        print(f"ERROR: no E-*.md records under {records_dir}", file=sys.stderr)
+        return 2
+
+    metrics: dict = {}
+    decisions: dict = {}
+    exact_zero = comparisons = continuous = no_raw = unverified = small_n = 0
+    totals = 0
+    for rec in files:
+        try:
+            text = rec.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        fields = record_fields(text)
+        if not fields.get("Hypothesis"):
+            continue
+        totals += 1
+        hid, claim = hypothesis_claim(fields.get("Hypothesis", ""))
+        decision = (fields.get("Decision", "") or "").strip().split(" ")[0]
+        decisions[decision or "undecided"] = decisions.get(decision or "undecided", 0) + 1
+        if (fields.get("Falsifiability", "") or "").startswith("UNVERIFIED"):
+            unverified += 1
+        if not (fields.get(RAW_SAMPLES_FIELD, "") or "").strip():
+            no_raw += 1
+
+        comp = comparison_claim(claim)
+        if comp is not None:
+            comparisons += 1
+            if (fields.get("Measure", "") or "").lower().strip() in (
+                    "continuous", "numeric", "measured"):
+                continuous += 1
+            continue
+
+        name = claim_metric_name(claim) or "?"
+        metrics[name] = metrics.get(name, 0) + 1
+        try:
+            threshold, op = parse_claim(claim)
+            if op in ("<=", "<") and threshold == 0.0:
+                exact_zero += 1
+        except ValueError:
+            pass
+        m = re.search(r"n=([0-9]+)", fields.get("Raw Results", "") or "")
+        if m and int(m.group(1)) <= 8:
+            small_n += 1
+
+    top = sorted(metrics.items(), key=lambda kv: -kv[1])[:5]
+    dominant = top[0][1] if top else 0
+    print(f"records                 : {totals}  ({records_dir})")
+    print(f"decisions               : " +
+          ", ".join(f"{k}={v}" for k, v in sorted(decisions.items())))
+    print(f"threshold claims        : {sum(metrics.values())}  "
+          f"(distinct metrics: {len(metrics)})")
+    for name, count in top:
+        print(f"  {name:<22}: {count}")
+    if totals:
+        print(f"dominant metric share   : {dominant}/{sum(metrics.values()) or 1} "
+              f"threshold claims")
+    print(f"comparison claims       : {comparisons} "
+          f"(continuous: {continuous}, categorical: {comparisons - continuous})")
+    print(f"exact-zero claims       : {exact_zero}  "
+          f"(no finite sample establishes these — see Census)")
+    print(f"small samples (n <= 8)  : {small_n}")
+    print(f"no Raw Samples field    : {no_raw}")
+    print(f"falsifiability UNVERIFIED: {unverified}")
+
+    print()
+    if dominant and sum(metrics.values()) and dominant / sum(metrics.values()) > 0.5:
+        print("NOTE: one metric dominates the threshold claims. That is not an "
+              "error, but a corpus that measures one thing measures what is easy "
+              "to measure.")
+    if exact_zero and exact_zero > totals * 0.1:
+        print("NOTE: a large share of claims assert an exact zero. Unless each is "
+              "declared as a census over a defined population, the evidence does "
+              "not support them — see the Census field.")
+    if comparisons == 0:
+        print("NOTE: no comparison claims. Without one, the corpus cannot "
+              "adjudicate a choice between two designs.")
+    return 0
 
 
 def verify(path: str) -> int:
@@ -1683,9 +2401,35 @@ def _selfcheck() -> None:
     # positives on Linux; the temp directory is deleted when selfcheck ends.
     with tempfile.TemporaryDirectory(dir=os.path.dirname(os.path.abspath(__file__)),
                                      prefix="meth-selfcheck-") as td:
+        _SAMP = "samples" + ".jsonl"
+        _cwd0 = os.getcwd()
+        # Benches write raw/ relative to the project root; make the
+        # fixture root and the bench cwd the same directory so the
+        # raw-sample reconciliation sees what the bench produced.
+        os.chdir(td)
+
+        def _bench_src(line: str) -> str:
+            """Bench source that prints LINE and emits samples agreeing with it.
+
+            The gate now refuses an aggregate it cannot recompute from
+            per-sample evidence, so every selfcheck fixture must produce
+            that evidence or it is measuring nothing.
+            """
+            return (
+                "import json, pathlib\n"
+                "_line = " + repr(line) + "\n"
+                "print(_line)\n"
+                "_p = _line.split('(')[-1].rstrip(')').split('/')\n"
+                "if len(_p) == 2 and _p[0].isdigit() and _p[1].isdigit():\n"
+                "    ok, tot = int(_p[0]), int(_p[1])\n"
+                "    raw = pathlib.Path('raw'); raw.mkdir(exist_ok=True)\n"
+                "    with (raw / " + repr(_SAMP) + ").open('w') as f:\n"
+                "        for i in range(tot):\n"
+                "            f.write(json.dumps({'i': i, 'ok': i < ok}) + chr(10))\n"
+            )
         bench = os.path.join(td, "fake_bench.py")
         with open(bench, "w", encoding="utf-8") as fh:
-            fh.write('print("fake_accuracy=1.00 (40/40)")\n')
+            fh.write(_bench_src("fake_accuracy=1.00 (40/40)"))
         rec = os.path.join(td, "E-001.md")
         with open(rec, "w", encoding="utf-8") as fh:
             fh.write(
@@ -1697,6 +2441,8 @@ def _selfcheck() -> None:
                 "- **Experiment Design:** unit test\n"
                 "- **Code Scope:** none\n"
                 "- **Lineage:** none\n"
+                "- **Raw Samples:** raw/" + _SAMP + "\n"
+                "- **Raw Samples:** raw/samples.jsonl\n"
             )
         # Rule: an unreadable Experiment id is refused BEFORE the measurement runs
         # (trap bench would leave a marker), and the record stays untouched.
@@ -1717,12 +2463,13 @@ def _selfcheck() -> None:
                 "- **Experiment Design:** unit test\n"
                 "- **Code Scope:** none\n"
                 "- **Lineage:** none\n"
+                "- **Raw Samples:** raw/" + _SAMP + "\n"
             )
         import contextlib, io as _io
         os.environ["BB_TRAP_MARKER"] = trap_marker
         before_h1 = open(rec_h1, encoding="utf-8").read()
         _out_h1 = _io.StringIO()
-        sys.argv = ["run_experiment.py", "--record", rec_h1,
+        sys.argv = ["run_experiment.py", "--project-root", td, "--record", rec_h1,
                     "--run", f'"{sys.executable}" "{trap}"']
         with contextlib.redirect_stderr(_out_h1):
             assert main() == 2                       # refused
@@ -1731,7 +2478,7 @@ def _selfcheck() -> None:
         assert "## Experiment: E-<id>" in _out_h1.getvalue()
         os.environ.pop("BB_TRAP_MARKER", None)
         old = sys.argv
-        sys.argv = ["run_experiment.py", "--record", rec,
+        sys.argv = ["run_experiment.py", "--project-root", td, "--record", rec,
                     "--run", f'"{sys.executable}" "{bench}"']
         assert main() == 0
         assert verify(rec) == 0  # genuine approval verifies
@@ -1786,8 +2533,9 @@ def _selfcheck() -> None:
                 "- **Experiment Design:** unit test\n"
                 "- **Code Scope:** none\n"
                 "- **Lineage:** none\n"
+                "- **Raw Samples:** raw/" + _SAMP + "\n"
             )
-        sys.argv = ["run_experiment.py", "--record", rec2,
+        sys.argv = ["run_experiment.py", "--project-root", td, "--record", rec2,
                     "--run", f'"{sys.executable}" "{bench}"']
         assert main() == 0  # parsed 1.0 >= 0.90 -> PASS
         assert verify(rec2) == 0
@@ -1803,18 +2551,19 @@ def _selfcheck() -> None:
                 "- **Experiment Design:** unit test\n"
                 "- **Code Scope:** none\n"
                 "- **Lineage:** none\n"
+                "- **Raw Samples:** raw/" + _SAMP + "\n"
             )
         with open(bench, "w", encoding="utf-8") as fh:
-            fh.write('print("hello")\n')
+            fh.write(_bench_src("hello"))
         before = open(rec3, encoding="utf-8").read()
-        sys.argv = ["run_experiment.py", "--record", rec3,
+        sys.argv = ["run_experiment.py", "--project-root", td, "--record", rec3,
                     "--run", f'"{sys.executable}" "{bench}"']
         assert main() == 2  # no measured value -> gate refuses
         assert open(rec3, encoding="utf-8").read() == before  # record untouched
 
         # Sample-size: small-n warns but still PASSes.
         with open(bench, "w", encoding="utf-8") as fh:
-            fh.write('print("fake_accuracy=0.93 (14/15)")\n')
+            fh.write(_bench_src("fake_accuracy=0.93 (14/15)"))
         rec4 = os.path.join(td, "E-001-smalln.md")
         with open(rec4, "w", encoding="utf-8") as fh:
             fh.write(
@@ -1826,8 +2575,9 @@ def _selfcheck() -> None:
                 "- **Experiment Design:** unit test\n"
                 "- **Code Scope:** none\n"
                 "- **Lineage:** none\n"
+                "- **Raw Samples:** raw/" + _SAMP + "\n"
             )
-        sys.argv = ["run_experiment.py", "--record", rec4,
+        sys.argv = ["run_experiment.py", "--project-root", td, "--record", rec4,
                     "--run", f'"{sys.executable}" "{bench}"']
         assert main() == 0  # 0.93 >= 0.90 still PASSes
         assert "Uncertainty:** n=15" in open(rec4, encoding="utf-8").read()
@@ -1835,7 +2585,7 @@ def _selfcheck() -> None:
 
         # Sample-size: sufficient-n writes 'yok' (affirmative no-warning).
         with open(bench, "w", encoding="utf-8") as fh:
-            fh.write('print("fake_accuracy=1.00 (40/40)")\n')
+            fh.write(_bench_src("fake_accuracy=1.00 (40/40)"))
         rec5 = os.path.join(td, "E-001-suff.md")
         with open(rec5, "w", encoding="utf-8") as fh:
             fh.write(
@@ -1847,8 +2597,9 @@ def _selfcheck() -> None:
                 "- **Experiment Design:** unit test\n"
                 "- **Code Scope:** none\n"
                 "- **Lineage:** none\n"
+                "- **Raw Samples:** raw/" + _SAMP + "\n"
             )
-        sys.argv = ["run_experiment.py", "--record", rec5,
+        sys.argv = ["run_experiment.py", "--project-root", td, "--record", rec5,
                     "--run", f'"{sys.executable}" "{bench}"']
         assert main() == 0
         assert "Uncertainty:** none" in open(rec5, encoding="utf-8").read()
@@ -1856,7 +2607,7 @@ def _selfcheck() -> None:
         # --run requires the (x/y) denominator: a value-only bench is rejected so
         # 'n bilinmiyor' cannot bypass ADVISORY-BLOCK.
         with open(bench, "w", encoding="utf-8") as fh:
-            fh.write('print("fake_score=0.95")\n')
+            fh.write(_bench_src("fake_score=0.95"))
         rec6 = os.path.join(td, "E-001-nounk.md")
         with open(rec6, "w", encoding="utf-8") as fh:
             fh.write(
@@ -1868,6 +2619,7 @@ def _selfcheck() -> None:
                 "- **Experiment Design:** unit test\n"
                 "- **Code Scope:** none\n"
                 "- **Lineage:** none\n"
+                "- **Raw Samples:** raw/" + _SAMP + "\n"
             )
         before6 = open(rec6, encoding="utf-8").read()
         # Distinct from rec3 ('hello' prints no value at all): this bench DID print a
@@ -1875,7 +2627,7 @@ def _selfcheck() -> None:
         # not the could-not-parse-value error. Capture exit code + stderr in one run.
         import contextlib, io as _io
         _err = _io.StringIO()
-        sys.argv = ["run_experiment.py", "--record", rec6,
+        sys.argv = ["run_experiment.py", "--project-root", td, "--record", rec6,
                     "--run", f'"{sys.executable}" "{bench}"']
         with contextlib.redirect_stderr(_err):
             _rc6 = main()
@@ -1950,10 +2702,11 @@ def _selfcheck() -> None:
 - **Experiment Design:** unit test
 - **Code Scope:** none
 - **Lineage:** none
+- **Raw Samples:** raw/samples.jsonl
 """)
         with open(bench, "w", encoding="utf-8") as fh:
-            fh.write('print("fake_accuracy=0.93 (14/15)")')
-        sys.argv = ["run_experiment.py", "--record", rec9,
+            fh.write(_bench_src("fake_accuracy=0.93 (14/15)"))
+        sys.argv = ["run_experiment.py", "--project-root", td, "--record", rec9,
                     "--run", f'"{sys.executable}" "{bench}"']
         assert main() == 0
         assert "MISMATCH — measured fake" in open(rec9, encoding="utf-8").read()
@@ -1970,10 +2723,11 @@ def _selfcheck() -> None:
 - **Experiment Design:** unit test
 - **Code Scope:** none
 - **Lineage:** none
+- **Raw Samples:** raw/samples.jsonl
 """)
         with open(bench, "w", encoding="utf-8") as fh:
-            fh.write('print("grounding_accuracy=0.93 (14/15)")')
-        sys.argv = ["run_experiment.py", "--record", rec10,
+            fh.write(_bench_src("grounding_accuracy=0.93 (14/15)"))
+        sys.argv = ["run_experiment.py", "--project-root", td, "--record", rec10,
                     "--run", f'"{sys.executable}" "{bench}"']
         assert main() == 0
         assert "consistent (measured grounding" in open(rec10, encoding="utf-8").read()
@@ -1990,12 +2744,13 @@ def _selfcheck() -> None:
                 "- **Experiment Design:** unit test\n"
                 "- **Code Scope:** none\n"
                 "- **Lineage:** none\n"
+                "- **Raw Samples:** raw/" + _SAMP + "\n"
             )
         with open(bench, "w", encoding="utf-8") as fh:
-            fh.write('print("fake_accuracy=0.93 (14/15)")')
+            fh.write(_bench_src("fake_accuracy=0.93 (14/15)"))
         before_dry = open(rec_dry, encoding="utf-8").read()
         _out = _io.StringIO()
-        sys.argv = ["run_experiment.py", "--record", rec_dry,
+        sys.argv = ["run_experiment.py", "--project-root", td, "--record", rec_dry,
                     "--run", f'"{sys.executable}" "{bench}"', "--dry-run"]
         with contextlib.redirect_stdout(_out):
             assert main() == 0
@@ -2018,6 +2773,7 @@ def _selfcheck() -> None:
                 "- **Experiment Design:** unit test\n"
                 "- **Code Scope:** none\n"
                 "- **Lineage:** none\n"
+                "- **Raw Samples:** raw/" + _SAMP + "\n"
                 "- **Raw Results:** <numbers — as-is>\n"
                 "- **Uncertainty:** <gate writes: small sample | none | n unknown>\n"
                 "- **Metric:** <gate writes: consistent | MISMATCH | n/a>\n"
@@ -2026,7 +2782,7 @@ def _selfcheck() -> None:
                 "- **Next Step:** <gate writes: Proceed to Code | Return to Theory>\n"
             )
         _out_ph = _io.StringIO()
-        sys.argv = ["run_experiment.py", "--record", rec_ph,
+        sys.argv = ["run_experiment.py", "--project-root", td, "--record", rec_ph,
                     "--run", f'"{sys.executable}" "{bench}"', "--dry-run"]
         with contextlib.redirect_stdout(_out_ph):
             assert main() == 0  # placeholder karar bloklamaz
@@ -2041,10 +2797,10 @@ def _selfcheck() -> None:
         assert "undecided" in _out_ph2.getvalue()
         # dry-run on a FAILing value also writes nothing.
         with open(bench, "w", encoding="utf-8") as fh:
-            fh.write('print("fake_accuracy=0.50 (20/40)")')
+            fh.write(_bench_src("fake_accuracy=0.50 (20/40)"))
         before_dry2 = open(rec_dry, encoding="utf-8").read()
         _out2 = _io.StringIO()
-        sys.argv = ["run_experiment.py", "--record", rec_dry,
+        sys.argv = ["run_experiment.py", "--project-root", td, "--record", rec_dry,
                     "--run", f'"{sys.executable}" "{bench}"', "--dry-run"]
         with contextlib.redirect_stdout(_out2):
             assert main() == 0
@@ -2052,10 +2808,10 @@ def _selfcheck() -> None:
         assert open(rec_dry, encoding="utf-8").read() == before_dry2  # still untouched
         # dry-run with --run: the bench runs, the record stays untouched.
         with open(bench, "w", encoding="utf-8") as fh:
-            fh.write('print("fake_accuracy=0.93 (14/15)")')
+            fh.write(_bench_src("fake_accuracy=0.93 (14/15)"))
         before_dry3 = open(rec_dry, encoding="utf-8").read()
         _out3 = _io.StringIO()
-        sys.argv = ["run_experiment.py", "--record", rec_dry,
+        sys.argv = ["run_experiment.py", "--project-root", td, "--record", rec_dry,
                     "--run", f'"{sys.executable}" "{bench}"', "--dry-run"]
         with contextlib.redirect_stdout(_out3):
             assert main() == 0
@@ -2063,18 +2819,19 @@ def _selfcheck() -> None:
         assert "fake" in _out3.getvalue() or "uyumlu" in _out3.getvalue()
         assert open(rec_dry, encoding="utf-8").read() == before_dry3
         # after a real run the record is decided; dry-run then refuses as decided.
-        sys.argv = ["run_experiment.py", "--record", rec_dry,
+        sys.argv = ["run_experiment.py", "--project-root", td, "--record", rec_dry,
                     "--run", f'"{sys.executable}" "{bench}"']
         assert main() == 0
         before_dry4 = open(rec_dry, encoding="utf-8").read()
         _out4 = _io.StringIO()
-        sys.argv = ["run_experiment.py", "--record", rec_dry,
+        sys.argv = ["run_experiment.py", "--project-root", td, "--record", rec_dry,
                     "--run", f'"{sys.executable}" "{bench}"', "--dry-run"]
         with contextlib.redirect_stderr(_out4):
             assert main() == 2  # already decided -> refuses (dry-run included)
         assert open(rec_dry, encoding="utf-8").read() == before_dry4
 
         sys.argv = old
+        os.chdir(_cwd0)
     if _old_env is None:
         os.environ.pop(SECRET_ENV, None)
     else:
