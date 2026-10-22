@@ -26,23 +26,35 @@
 
 ## Acceptance Criteria
 
-> For the story to count as "done", all criteria must be met
+> For the story to count as "done", all criteria must be met.
+>
+> Every criterion names **one** of three things, and the choice is the claim:
+>
+> | Field | Use when | The gate checks |
+> |---|---|---|
+> | `Experiment: E-NNN` | the criterion asserts something about the world that could come out false | the record resolves and did decide something (a withdrawn, rejected or planned record backs nothing) |
+> | `Experiment: STRUCT-NNN` | the paths make no claim anyone could measure — wiring, manifests, a shell | the declaration resolves |
+> | `Test: path::name` | the criterion is a *specification*: given this input, that output. Nothing to discover. | the file exists **and contains a test of that name** |
+>
+> A specification is not a hypothesis. Writing `Experiment:` for one asks a record
+> to back a claim it never measured; writing `STRUCT:` for one claims the user
+> cannot see the result. Both are the fabrication the chain exists to prevent.
 
 - [AC-001] **Given** [initial state] **When** [action] **Then** [expected result]
   - Experiment: E-XXX
-  - Type: agent-verifiable | manual
+  - Type: agent-verifiable | user-evaluable | hybrid
   - Measured: true | false
   - Verify: [test command]
 - [AC-002] **Given** [initial state] **When** [action] **Then** [expected result]
-  - Experiment: E-XXX
-  - Type: agent-verifiable | manual
-  - Measured: true | false
+  - Test: [path/to/file.test.ts]::[exact test name as it appears in the file]
+  - Type: agent-verifiable
+  - Measured: true
   - Verify: [test command]
 - [AC-003] **Given** [initial state] **When** [action] **Then** [expected result]
-  - Experiment: E-XXX
-  - Type: agent-verifiable | manual
-  - Measured: true | false
-  - Verify: [test command]
+  - Experiment: STRUCT-XXX
+  - Type: agent-verifiable | user-evaluable | hybrid
+  - Measured: false
+  - Verify: [inspection step]
 
 ---
 

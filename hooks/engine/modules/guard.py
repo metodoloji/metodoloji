@@ -315,6 +315,7 @@ def _orphan_story_reason(content: str) -> str:
         # is an orphan only when some AC is neither experiment-linked nor a
         # hypothesis.
         if all(ac["experiment"] not in ("", "—", "-") or ac["is_hypothesis"]
+               or ac.get("test")
                for ac in acs):
             return ""
     else:
@@ -459,6 +460,10 @@ _AC_ID_RE = re.compile(r"\[AC-(\d+)\]")
 _TASK_AC_RE = re.compile(r"AC:\s*(AC-\d+)")
 _HYPOTHESIS_RE = re.compile(r"\[HYPOTHESIS\]")
 _EXPERIMENT_FIELD_RE = re.compile(r"Experiment:\s*(E-\d+|STRUCT-\d{3}|—|-)")
+# A Test id is `path::name` — a criterion decided by a unit test, not measured
+# and not declared structural. The name is required: "the tests cover it" is
+# exactly the claim this field exists to make checkable.
+_TEST_FIELD_RE = re.compile(r"^\s*-?\s*Test:\s*([^\n]+)", re.M)
 _MEASURED_FIELD_RE = re.compile(r"Measured:\s*(true|false)", re.IGNORECASE)
 _TYPE_FIELD_RE = re.compile(r"Type:\s*(agent-verifiable|user-evaluable|hybrid)", re.IGNORECASE)
 # _VERIFY_FIELD_RE and the DoD rules are shared with the audit's QR DoD check
@@ -467,7 +472,7 @@ _TYPE_FIELD_RE = re.compile(r"Type:\s*(agent-verifiable|user-evaluable|hybrid)",
 
 _TABLE_AC_ID_RE = re.compile(r"AC-(\d+)")
 _TABLE_AC_KNOWN_TYPES = ("agent-verifiable", "user-evaluable", "hybrid")
-_TABLE_AC_COLUMNS = ("ac", "status", "experiment", "type", "measured", "verify")
+_TABLE_AC_COLUMNS = ("ac", "status", "experiment", "test", "type", "measured", "verify")
 
 
 def _is_ac_table_header(cells: list[str]) -> bool:
@@ -529,6 +534,7 @@ def _parse_table_ac_row(cells: list[str], col: dict[str, int], line: str) -> dic
     return {
         "id": ac_id,
         "experiment": experiment,
+        "test": cell("test"),
         "type": type_value,
         "measured": measured,
         "verify": verify,
@@ -573,7 +579,7 @@ def _parse_ac_metadata(content: str) -> list[dict]:
             continue
         if not header_found:
             col = _table_column_map(
-                ["ac", "status", "experiment", "type", "measured", "verify"])
+                ["ac", "status", "experiment", "test", "type", "measured", "verify"])
             header_found = True
         parsed = _parse_table_ac_row(cells, col, line)
         if parsed and parsed["id"] not in table_seen:
@@ -587,6 +593,7 @@ def _parse_ac_metadata(content: str) -> list[dict]:
             continue
         ac_id = f"AC-{id_match.group(1)}"
         experiment_m = _EXPERIMENT_FIELD_RE.search(block)
+        test_m = _TEST_FIELD_RE.search(block)
         type_m = _TYPE_FIELD_RE.search(block)
         measured_m = _MEASURED_FIELD_RE.search(block)
         verify_m = _VERIFY_FIELD_RE.search(block)
@@ -595,6 +602,7 @@ def _parse_ac_metadata(content: str) -> list[dict]:
         acs.append({
             "id": ac_id,
             "experiment": experiment_m.group(1) if experiment_m else "",
+            "test": test_m.group(1).strip() if test_m else "",
             "type": type_m.group(1) if type_m else "",
             "measured": measured_m.group(1).lower() if measured_m else "",
             "verify": verify_m.group(1).strip() if verify_m else "",
@@ -757,7 +765,7 @@ def _validate_story_metadata(content: str) -> tuple[bool, str]:
     # 1. Validate AC metadata
     acs = _parse_ac_metadata(content)
     for ac in acs:
-        if has_refs and not ac["is_hypothesis"]:
+        if has_refs and not ac["is_hypothesis"] and not ac["test"]:
             if not ac["experiment"]:
                 issues.append(f"{ac['id']}: missing Experiment field")
             elif ac["experiment"] in ("—", "-"):
@@ -889,6 +897,51 @@ def _cited_experiment_problem(ref: str, root: str) -> str:
         f"nothing cannot back an acceptance criterion. Cite one that decided, or "
         f"rewrite the criterion so a test can decide it"
     )
+
+
+def _dangling_test_problem(content: str, root: str) -> str:
+    """A cited Test must name a test that exists, or it backs nothing.
+
+    Third category, and the reason it exists: an acceptance criterion like "the
+    pin's opacity is 0.18 + 0.82·α^0.6" is not an empirical hypothesis (there is
+    nothing to discover) and not a structural declaration (a user can see the
+    result). It is a *specification*, decided by running a named test. Without
+    this field such a criterion had only two dishonest homes: cite an experiment
+    that never measured it, or call it structural and pretend nobody can observe
+    it.
+
+    `Test: <path>::<name>` — path relative to the project root, name a literal
+    substring of the file. The name is mandatory: a file-level citation would let
+    "the tests cover it" through, which is the claim this field exists to make
+    checkable. Resolution is the same rule the E and STRUCT references follow —
+    a reference that cannot be followed is a comment with extra steps.
+    """
+    root_path = pathlib.Path(root).resolve()
+    for ac in _parse_ac_metadata(content):
+        ref = (ac.get("test") or "").strip()
+        if not ref:
+            continue
+        path_part, sep, name = ref.partition("::")
+        name = name.strip()
+        if not sep or not name:
+            return (f"{ac['id']} cites Test '{ref}', which is not a `path::name` "
+                    f"reference — name the test, not just the file")
+        candidate = (root_path / path_part.strip()).resolve()
+        try:
+            candidate.relative_to(root_path)
+        except ValueError:
+            return f"{ac['id']} cites Test '{ref}', but {path_part.strip()} is outside the project"
+        if not candidate.is_file():
+            return f"{ac['id']} cites Test '{ref}', but {path_part.strip()} does not exist"
+        try:
+            body = candidate.read_text(encoding="utf-8", errors="replace")
+        except OSError as exc:
+            return (f"{ac['id']} cites Test '{ref}', but {path_part.strip()} is unreadable "
+                    f"({exc.__class__.__name__})")
+        if name not in body:
+            return (f"{ac['id']} cites Test '{ref}', but {path_part.strip()} contains no test "
+                    f"named '{name}' — the cited name has to appear in the file")
+    return ""
 
 
 def _validate_methodology_chain(content: str, rel_path: str, root: str = "") -> tuple[bool, str]:
@@ -1100,12 +1153,20 @@ def _validate_methodology_chain(content: str, rel_path: str, root: str = "") -> 
     # Check 4: a cited experiment must still be able to back a criterion.
     # Without this the "approved experiment" requirement was a docstring: an AC
     # citing a withdrawn or rejected record read as valid everywhere.
-    for ref in sorted({ac.get("experiment", "") for ac in _parse_ac_metadata(content)}):
+    for ac in _parse_ac_metadata(content):
+        if ac.get("test"):
+            continue  # decided by a named test — Check 5 resolves that instead
+        ref = ac.get("experiment", "")
         if not re.fullmatch(r"E-\d+", ref or ""):
             continue
         problem = _cited_experiment_problem(ref, root)
         if problem:
             issues.append(problem)
+
+    # Check 5: a test-decided criterion must name a test that exists.
+    dangling_test = _dangling_test_problem(content, root)
+    if dangling_test:
+        issues.append(dangling_test)
 
     if issues:
         return False, "; ".join(issues[:3])
