@@ -851,6 +851,46 @@ def _qr_remedy(root: str, missing_keys: "list[str]") -> str:
     return "; ".join(cmds)
 
 
+# A cited experiment has to be *able* to back the criterion. The docstring of
+# _validate_methodology_chain has claimed this since it was written ("Every AC
+# must reference an approved experiment"), but the code only checked that the
+# reference was non-empty — so a story could cite a record that was withdrawn,
+# rejected, or still planned and pass every gate. Found on a real project whose
+# three stories all cited the same withdrawn E-004: the chain read as valid, and
+# the matrix of ACs pointing at a record that measured nothing looked green.
+_INERT_EXPERIMENT_STATUSES = ("withdrawn", "rejected", "refused", "planned", "draft")
+
+
+def _cited_experiment_problem(ref: str, root: str) -> str:
+    """Return why `E-NNN` cannot back an AC, or "" when it can."""
+    path = pathlib.Path(root) / "docs" / "experiments" / f"{ref}.md"
+    if not path.is_file():
+        return (f"{ref} is cited but no record exists at docs/experiments/{ref}.md — "
+                f"the reference has to resolve before it can mean anything")
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        return f"{ref} is unreadable ({exc.__class__.__name__}), so it backs nothing"
+    m_status = re.search(r"^-\s*\*\*Status:\*\*\s*([^\n]+)", text, re.M)
+    status = ""
+    if m_status:
+        status = m_status.group(1).strip().split()[0].strip("—-,.:;").lower()
+    m_decision = re.search(r"^-\s*\*\*Decision:\*\*\s*([A-Za-z]+)", text, re.M)
+    decision = m_decision.group(1).strip().upper() if m_decision else ""
+    inert = status in _INERT_EXPERIMENT_STATUSES or decision in ("REJECTED", "REFUSED")
+    if not inert:
+        return ""
+    # Name the field that actually made the record inert. A rejected record whose
+    # Status still reads "completed" is the common shape, and reporting the
+    # benign status would send the reader looking for a problem that is not there.
+    label = decision.lower() if decision in ("REJECTED", "REFUSED") else (status or "inert")
+    return (
+        f"AC cites {ref}, but that record is {label} — an experiment that decided "
+        f"nothing cannot back an acceptance criterion. Cite one that decided, or "
+        f"rewrite the criterion so a test can decide it"
+    )
+
+
 def _validate_methodology_chain(content: str, rel_path: str, root: str = "") -> tuple[bool, str]:
     """Validate that the methodology chain is intact for a story file.
 
@@ -1056,6 +1096,16 @@ def _validate_methodology_chain(content: str, rel_path: str, root: str = "") -> 
                             f"SP record {sp_id} does not reference any Implementation Readiness (IR) record. "
                             f"Stories cannot be planned without IR. Create IR record first."
                         )
+
+    # Check 4: a cited experiment must still be able to back a criterion.
+    # Without this the "approved experiment" requirement was a docstring: an AC
+    # citing a withdrawn or rejected record read as valid everywhere.
+    for ref in sorted({ac.get("experiment", "") for ac in _parse_ac_metadata(content)}):
+        if not re.fullmatch(r"E-\d+", ref or ""):
+            continue
+        problem = _cited_experiment_problem(ref, root)
+        if problem:
+            issues.append(problem)
 
     if issues:
         return False, "; ".join(issues[:3])

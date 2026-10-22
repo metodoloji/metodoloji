@@ -110,6 +110,17 @@ def _throwaway_root(tmp_path: Path, monkeypatch) -> Path:
         "# Implementation Readiness: IR-900\n\n- **Status:** READY\n"
         "- **Research inputs:**\n  - E-900 (roundtrip fixture)\n",
         encoding="utf-8")
+    # The fixture cites E-900, so E-900 has to exist and be able to back a
+    # criterion. Before the chain resolved cited records it did not need to, and
+    # the fixture encoded that hole: a story citing an experiment that was never
+    # written used to commit clean.
+    experiments = root / "docs" / "experiments"
+    experiments.mkdir(parents=True)
+    (experiments / "E-900.md").write_text(
+        "# Experiment: E-900 — roundtrip fixture\n\n"
+        "- **Status:** APPROVED\n"
+        "- **Decision:** APPROVED — H-900: fixture\n",
+        encoding="utf-8")
     monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(root))
     monkeypatch.delenv("OPENHANDS_PROJECT_DIR", raising=False)
     monkeypatch.setattr(config, "hook_gate_mode", lambda key: "hard")
@@ -139,8 +150,17 @@ def test_s_record_survives_hard_quality_commit(tmp_path, monkeypatch):
     res = quality({"tool_name": "terminal",
                    "tool_input": {"command": "git commit -m 'roundtrip'"}})
     assert res["decision"] == "allow", res.get("reason", "")
-    assert not res.get("methodology_warnings", ""), \
-        res.get("methodology_warnings", "")
+    # The fixture now carries a real E-900 so the story's citation resolves (an
+    # AC citing a record that was never written used to commit clean, which was
+    # the hole itself). A record with no witness commit is reported by the
+    # freshness plane — the fixture has no repository to anchor it to. That is a
+    # report rather than a block, and it must not be confused with a chain
+    # problem, so freshness notes are filtered and anything else still fails.
+    warnings = res.get("methodology_warnings", []) or []
+    if isinstance(warnings, str):
+        warnings = [warnings]
+    leftovers = [w for w in warnings if w and "FRESHNESS:" not in str(w)]
+    assert not leftovers, leftovers
 
 
 def test_done_record_with_qr_survives_hard_quality_commit(tmp_path, monkeypatch):

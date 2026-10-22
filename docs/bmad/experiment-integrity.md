@@ -46,6 +46,7 @@ That is the whole disease. Everything below is treatment.
 | 10 | Declining the evidence silently | **open** | **closed** — `none — <reason ≥40 chars>`, written into the record | `test_declining_samples_requires_a_real_reason` |
 | 11 | Metric redefinition (measure A, claim B) | warned | warned | existing |
 | 12 | Reusing a committed sample file for a new claim | **open** | **closed** — mtime binding | #6 |
+| 13 | **Citing an experiment that decided nothing** — a *withdrawn*, `REJECTED`, `planned` or missing record backs an acceptance criterion | **open** — the chain docstring claimed "approved experiment" and the code checked only that the reference was non-empty; three real stories cited one withdrawn record and read as green | **closed** — the chain resolves every cited `E-NNN` and refuses an inert one, naming the field that made it inert | `test_story_experiment_approval.py` |
 
 ## What is *not* closed, and must not be papered over
 
