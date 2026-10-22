@@ -262,9 +262,28 @@ def _table_experiment_linked(content: str) -> bool:
     if refs_match and re.search(r"E-\d+", refs_match.group(1)):
         return True
     for ac in _parse_ac_metadata(content):
-        if re.fullmatch(r"E-\d+", ac.get("experiment", "")):
+        if re.fullmatch(r"E-\d+|STRUCT-\d{3}", ac.get("experiment", "")):
             return True
     return False
+
+
+def _dangling_structural_reason(content: str, root: str) -> str:
+    """A cited STRUCT-NNN must resolve to a declaration on disk.
+
+    Teaching the gate to accept a structural reference without checking that
+    the declaration exists would swap one silent assumption for another: a
+    story could cite STRUCT-404, pass every field check, and point at nothing.
+    An E reference is resolved the same way; this is not a weaker rule.
+    """
+    cited = {ac.get("experiment", "") for ac in _parse_ac_metadata(content)}
+    cited |= set(re.findall(r"STRUCT-\d{3}", content))
+    for ref in sorted(c for c in cited if c.startswith("STRUCT-")):
+        path = pathlib.Path(root) / "docs" / "development" / "structural" / f"{ref}.md"
+        if not path.is_file():
+            return (f"{ref} is cited but no declaration exists at "
+                    f"docs/development/structural/{ref}.md — a structural "
+                    f"reference has to resolve, exactly like an E record")
+    return ""
 
 
 def _orphan_story_reason(content: str) -> str:
@@ -439,7 +458,7 @@ def _validate_story_experiment_refs(content: str, root: str = "") -> tuple[bool,
 _AC_ID_RE = re.compile(r"\[AC-(\d+)\]")
 _TASK_AC_RE = re.compile(r"AC:\s*(AC-\d+)")
 _HYPOTHESIS_RE = re.compile(r"\[HYPOTHESIS\]")
-_EXPERIMENT_FIELD_RE = re.compile(r"Experiment:\s*(E-\d+|—|-)")
+_EXPERIMENT_FIELD_RE = re.compile(r"Experiment:\s*(E-\d+|STRUCT-\d{3}|—|-)")
 _MEASURED_FIELD_RE = re.compile(r"Measured:\s*(true|false)", re.IGNORECASE)
 _TYPE_FIELD_RE = re.compile(r"Type:\s*(agent-verifiable|user-evaluable|hybrid)", re.IGNORECASE)
 # _VERIFY_FIELD_RE and the DoD rules are shared with the audit's QR DoD check
@@ -495,7 +514,7 @@ def _parse_table_ac_row(cells: list[str], col: dict[str, int], line: str) -> dic
         return cells[idx].strip() if 0 <= idx < len(cells) else ""
 
     experiment_raw = cell("experiment")
-    experiment_m = re.search(r"E-\d+", experiment_raw)
+    experiment_m = re.search(r"E-\d+|STRUCT-\d{3}", experiment_raw)
     experiment = experiment_m.group(0) if experiment_m else (
         experiment_raw if experiment_raw in ("—", "-") else "")
     type_raw = cell("type").lower()
@@ -2264,6 +2283,12 @@ def _check_all_stories_quality(root: str, blocked_action: str) -> dict:
             return {
                 "decision": "deny",
                 "reason": f"{blocked_action}: Story experiment validation failed for {s_file.name}: {orphan}",
+            }
+        dangling = _dangling_structural_reason(content, root)
+        if dangling:
+            return {
+                "decision": "deny",
+                "reason": f"{blocked_action}: Structural reference failed for {s_file.name}: {dangling}",
             }
         rel = rel_to_root(root, str(s_file))
         valid, reason = _validate_methodology_chain(content, rel, root)
