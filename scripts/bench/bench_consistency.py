@@ -42,6 +42,10 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 # KILAVUZ.md §14) and docs/USAGE-GUIDE.md is not in the tree; the live
 # reader-facing set is the README documentation table plus the engine summary.
 # scripts/tests/test_selfcheck_scripts.py pins this list against the tree.
+# The two runtime ports are docs a READER follows (both are linked from the
+# README table) and they restate the public counts; leaving them out is how
+# `docs/OPENCODE.md` kept claiming 125 skills after the Hermes port took the
+# tree to 129 — the same hand-maintained-inventory class this rule exists for.
 DOC_FILES = (
     "README.md",
     "CONTRIBUTING.md",
@@ -49,6 +53,8 @@ DOC_FILES = (
     "AGENT-GUIDE.md",
     "GUIDE.md",
     "KILAVUZ.md",
+    "HERMES.md",
+    "docs/OPENCODE.md",
 )
 # The stop-semantics and canvas-feed claims live in the runbooks/guides, not
 # only in README.md; the old canvas home was pruned.
@@ -3378,6 +3384,15 @@ def _check_version_owned_sites_agree() -> str | None:
     git_hooks = _read("scripts/tests/test_git_hooks.py")
     pipeline = _read("scripts/tests/test_release_pipeline.py")
     checker = _read("scripts/check-plugin.sh")
+    # The stale-count falsifier derives the hook's OWN word instead of pasting
+    # one: it said "The nine files" while the set had grown to ten, so the
+    # mutation no longer existed and the rule silently measured nothing (the
+    # `mutated == original` branch below reported it, but only as setup noise).
+    hook_count = re.search(r"The (\w+) files", hook)
+    stale_word = "eleven" if hook_count and hook_count.group(1).lower() != "eleven" else "twelve"
+    stale_count = (hook.replace(f"The {hook_count.group(1)} files",
+                               f"The {stale_word} files")
+                   if hook_count else hook)
     cases = (
         (".githooks/pre-commit",
          hook.replace("\nREADME.md commands/init.md", "\ncommands/init.md"),
@@ -3385,7 +3400,7 @@ def _check_version_owned_sites_agree() -> str | None:
         (".githooks/pre-commit",
          hook.replace("commands/init.md", "LICENSE"),
          "a staged file the bump never writes"),
-        (".githooks/pre-commit", hook.replace("The nine files", "The eight files"),
+        (".githooks/pre-commit", stale_count,
          "a stale count in the hook's own comment"),
         ("scripts/check-plugin.sh",
          checker.replace(

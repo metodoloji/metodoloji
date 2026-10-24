@@ -787,7 +787,8 @@ experiment_refs:
 **2. Acceptance Criteria (mandatory sub-fields per AC):**
 
 - `[AC-NNN]` identifier
-- `Experiment:` (E-NNN, or `—` on an AC tagged `[HYPOTHESIS]`)
+- `Experiment:` (E-NNN — a measured claim; `STRUCT-NNN` — a structural declaration; `—` on an AC tagged `[HYPOTHESIS]`)
+- `Test:` (the other home for a criterion: `path/to/file::test name` — a specification a test decides; the file must exist and contain that name)
 - `Type:` (`agent-verifiable` | `user-evaluable` | `hybrid`)
 - `Measured:` (`true` | `false`)
 - `Verify:` (verification method)
@@ -1280,7 +1281,7 @@ sh scripts/check-techdebt.sh      # debt drift/ID/P0/orphan (also runs as #6b)
 python scripts/check-triggers.py  # trigger/description collision (also runs as #6f)
 ```
 
-**# map:** #0 gate key · #0b base config project-name leak · #1 engine selfcheck (combined `pre` + individual modes) · #1b hooks.json byte-identical · #2 manifesto wiring · #2b bridge runtime visibility (30 workflow + 3 agent-principles) · #2c bridge VERIFY (17 skills) · #3 approved inventory (VERIFIED/ADVISORY-BLOCK + CROSS-MACHINE warning) · #3b code-scope coverage · #4 documentary records · #5 engine integrity (py\_compile) · #5b hard-gate validity · #5c custom/ static · #6 development format · #6a `.env` · #6b tech-debt · #6c template copy identity · #6d init marker integrity · #6d2 command→script reference integrity · #6d3 plugin version consistency (`.plugin/plugin.json` ↔ `.plugin/marketplace.json` ↔ `.claude-plugin/plugin.json` ↔ `.claude-plugin/marketplace.json` ↔ `.opencode-plugin/plugin.json` ↔ `opencode-plugin/package.json` ↔ `pyproject`) · #6e help catalog integrity · #6f trigger/description collision · #6g no namespaced-tool priming tokens · #6h freshness contract (witness producer ↔ verdict consumers, derived from the tree).
+**# map:** #0 gate key · #0b base config project-name leak · #1 engine selfcheck (combined `pre` + individual modes) · #1b hooks.json byte-identical · #2 manifesto wiring · #2b bridge runtime visibility (30 workflow + 3 agent-principles) · #2c bridge VERIFY (17 skills) · #3 approved inventory (VERIFIED/ADVISORY-BLOCK + CROSS-MACHINE warning) · #3b code-scope coverage · #4 documentary records · #5 engine integrity (py\_compile) · #5b hard-gate validity · #5c custom/ static · #6 development format · #6a `.env` · #6b tech-debt · #6c template copy identity · #6d init marker integrity · #6d2 command→script reference integrity · #6d3 plugin version consistency (`.plugin/plugin.json` ↔ `.plugin/marketplace.json` ↔ `.claude-plugin/plugin.json` ↔ `.claude-plugin/marketplace.json` ↔ `.opencode-plugin/plugin.json` ↔ `opencode-plugin/package.json` ↔ `plugin.yaml` ↔ `pyproject.toml`) · #6e help catalog integrity · #6f trigger/description collision · #6g no namespaced-tool priming tokens · #6h freshness contract (witness producer ↔ verdict consumers, derived from the tree).
 
 **Single-record verification + inventory:**
 
@@ -1441,7 +1442,7 @@ metodoloji/
 │   ├── engine/modules/                  # guard (guard+quality+deploy), audit, stop, plan, mirror, state, config, archive, bash_targets, blackboard, utils
 │   ├── engine/resolve_customization.py  # thin re-export (real: bmad/scripts/resolve_customization.py)
 │   └── scripts/bootstrap.sh, hook-entry.sh, run-hook.sh
-├── skills/                              # 125 BMAD skills (native bodies)
+├── skills/                              # 129 skills (native bodies)
 ├── custom/                              # 121 TOMLs (33 BRIDGE active) + config.toml (soft/hard)
 ├── bmad/                                # module data (bmm,cis,gds,wds,tea,core,bmb,loop,_config) + scripts/ (blackboard, workflow, orient, resolve_config, resolve_customization, skeleton)
 ├── templates/                           # _template_E/IR/SP/QR/PR/S/PM/BD/C/STRUCT + README/tech-debt/scratch-README

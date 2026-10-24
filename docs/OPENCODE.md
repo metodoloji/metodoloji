@@ -176,7 +176,7 @@ Windows too.
 
 ## Skills and commands
 
-The 125 skills (`skills/<id>/SKILL.md`) are portable: they carry the `name` and
+The 129 skills (`skills/<id>/SKILL.md`) are portable: they carry the `name` and
 `description` frontmatter OpenCode needs, and the directory name is the skill ID.
 Point OpenCode at the checkout's `skills/` directory:
 

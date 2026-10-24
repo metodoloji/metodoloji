@@ -6,6 +6,9 @@ triggers: ["metodoloji-audit", "/metodoloji-audit", "methodology audit", "record
 
 # Metodoloji — health check
 
+Bound to `{metodoloji-root}/docs/bmad/research-methodology.md` — the gaps this
+surface reports are that manifesto's rules, measured against the tree.
+
 Canonical contract: `{metodoloji-root}/commands/audit.md`.
 
 ## Fast pass (default)

@@ -9,7 +9,7 @@ sözleşmesine bağlanması: kapı **gateway süreci içinde**, `pre_tool_call`
 plugin.yaml          Hermes manifesti (ad, sürüm, sağlanan tool/hook/komutlar)
 __init__.py          register(ctx) — tool + hook + skill + komut kaydı
 hermes_adapter.py    iki diyalekt arasındaki tek köprü (motoru alt süreçle çağırır)
-hermes_tools.py      4 deterministik tool (orient / init / verify / audit)
+hermes_tools.py      5 deterministik tool (orient / init / verify / key / audit)
 ```
 
 ## Kurulum
@@ -24,7 +24,7 @@ hermes plugins enable metodoloji
 
 # 3) Kapıların yüklendiğini doğrula
 hermes plugins doctor ~/.hermes/plugins/metodoloji
-#   → registrations: 4 tool(s), 5 hook(s)
+#   → registrations: 5 tool(s), 6 hook(s)
 
 # 4) Yeni oturum / gateway yeniden başlatma (plugin'ler süreç açılışında keşfedilir)
 ```
@@ -54,6 +54,7 @@ Gereksinimler: Hermes Agent (plugin + `pre_tool_call` API'si), Python 3.11+
 | hook | `pre_llm_call` | İlk turda oturum bağlamını enjekte eder (sistem prompt'una değil, kullanıcı mesajına — prompt cache bozulmaz) |
 | hook | `on_session_start` | Oturum durumunu sıfırlar |
 | hook | `on_session_end` | Motor `stop` — oturum raporu `.metodoloji/logs/hermes-stop.log`'a yazılır |
+| hook | `pre_verify` | `nudge_on_stop` kapalıyken no-op; açıkken açık işi tek sınırlı "devam et" turuna çevirir (Claude `Stop` karşılığı) |
 | skill | `metodoloji:<ad>` | Repodaki 129 skill — hem `skill_view("metodoloji:bmad-brainstorming")` hem `/metodoloji:bmad-brainstorming` slash komutu |
 | komut | `/metodoloji` | Durum özeti |
 | komut | `/metodoloji-init` | İskeleti kur (`--force` destekler) |

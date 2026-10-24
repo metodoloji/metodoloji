@@ -93,10 +93,24 @@ def test_evaluate_passes_and_fails():
 
 # --- uncertainty_note -------------------------------------------------------
 
-def test_uncertainty_lower_bound_claim_no_note():
-    # A lower-bound claim (<=, <) has no small-sample risk.
+def test_uncertainty_upper_bound_claim_flags_a_thin_margin():
+    # A "<= threshold" claim is inflated from ABOVE: the evidence is the Wilson
+    # upper bound, not the observed rate. 35/40 observes 0.875 <= 0.8? No — and
+    # even a passing observation only bounds the true rate below 0.95, so a
+    # threshold of 0.8 is not established by this sample. This used to return
+    # "none (lower-bound claim: no small-sample risk)" for EVERY "<=" claim,
+    # which let `escape_rate <= 0.0` on 0 of 6 trials look risk-free.
     note = gate.uncertainty_note(35, 40, 0.875, 0.8, "<=")
+    assert "small sample" in note
+    assert "upper bound 0.95" in note
+
+
+def test_uncertainty_upper_bound_claim_with_enough_evidence_has_no_note():
+    # 0 of 40 bounds the true rate below 0.09, so a 0.2 ceiling IS established
+    # by this sample — the honest answer is "none", not a warning.
+    note = gate.uncertainty_note(0, 40, 0.0, 0.2, "<=")
     assert "none" in note
+    assert "upper bound 0.09" in note
 
 
 def test_uncertainty_small_sample_flags():

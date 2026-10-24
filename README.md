@@ -1,10 +1,10 @@
 # metodoloji
 
-![version](https://img.shields.io/badge/version-0.1.68-0b7285?style=flat-square) ![license](https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square) ![python](https://img.shields.io/badge/python-3.11%2B-3776ab?style=flat-square) ![tests](https://img.shields.io/badge/tests-1%2C331-4c1?style=flat-square) ![runtimes](https://img.shields.io/badge/runtimes-OpenHands%20%7C%20Claude%20Code-555?style=flat-square)
+![version](https://img.shields.io/badge/version-0.1.69-0b7285?style=flat-square) ![license](https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square) ![python](https://img.shields.io/badge/python-3.11%2B-3776ab?style=flat-square) ![tests](https://img.shields.io/badge/tests-1%2C400%2B-4c1?style=flat-square) ![runtimes](https://img.shields.io/badge/runtimes-OpenHands%20%7C%20Claude%20Code-555?style=flat-square)
 
 **A methodology plugin that makes your coding agent ask permission — mechanically.**
 
-For **OpenHands** and **Claude Code**: a 6-stage record chain (`E → IR → SP → S → QR → PR`), hooks that block writes/commits/deploys outside an approved experiment, 125 skills, a blackboard that carries context across sessions, and a declared workflow engine. Compatible with the [BMad Method](https://github.com/bmad-code-org/BMAD-METHOD).
+For **OpenHands** and **Claude Code**: a 6-stage record chain (`E → IR → SP → S → QR → PR`), hooks that block writes/commits/deploys outside an approved experiment, 129 skills, a blackboard that carries context across sessions, and a declared workflow engine. Compatible with the [BMad Method](https://github.com/bmad-code-org/BMAD-METHOD).
 
 ---
 
@@ -28,7 +28,7 @@ For **OpenHands** and **Claude Code**: a 6-stage record chain (`E → IR → SP 
 
 - **A mechanical experiment gate.** Code is written only from a record that the gate itself measured and signed (`APPROVED` + a `GATE-OK-...` token). No record, no write — `DENY`, not a lecture.
 - **A chain that unlocks itself.** `E → IR → SP → S → QR → PR`: research, readiness, sprint, story, quality, production readiness. Each link checks the one before it, on commit and on deploy.
-- **125 skills, 121 TOMLs, 33 BRIDGEs.** PRD, architecture, story, sprint, dev, code review, test/QA, retro and correction workflows for product, game and web/UX projects — customized per skill in up to three TOML layers.
+- **129 skills, 121 TOMLs, 33 BRIDGEs.** PRD, architecture, story, sprint, dev, code review, test/QA, retro and correction workflows for product, game and web/UX projects — customized per skill in up to three TOML layers.
 - **Context that survives sessions.** The blackboard (`write --hot`, run lists, handoffs, canvases) carries focus and pending batons between skills and across windows.
 - **One manifest, two shell runtimes.** A single `hooks/hooks.json` serves both Claude Code and OpenHands; hook commands self-locate the plugin, and the engine fails closed when it cannot run.
 - **Three runtimes, one engine.** OpenCode joins Claude Code and OpenHands through a thin TypeScript bridge (`opencode-plugin/`) that spawns the *same* Python hook engine — a gate cannot disagree with itself across runtimes. See [`docs/OPENCODE.md`](docs/OPENCODE.md).
@@ -124,7 +124,7 @@ hermes plugins enable metodoloji
 ```
 
 > The plugin ships `plugin.yaml` + `register(ctx)` at the repo root, so the
-> Git install is the whole package — 5 tools, 5 hooks, the full skill catalog
+> Git install is the whole package — 5 tools, 6 hooks, the full skill catalog
 > and 5 slash commands. Details, limits and the fail-closed contract:
 > [`HERMES.md`](HERMES.md).
 
@@ -186,7 +186,7 @@ CI in this repo is **release-numbers only**: `.github/workflows/release-numbers.
 metodoloji/
 ├── hooks/engine/        # hook engine (main.py + modules/): pre, guard, quality, deploy, audit, stop, session_start
 ├── hooks/hooks.json     # generated dispatch manifest (sync-hooks-json.py --write)
-├── skills/              # 125 BMAD skills (native bodies)
+├── skills/              # 129 skills (native bodies)
 ├── custom/              # 121 TOMLs (33 BRIDGE active) + config.toml (soft/hard)
 ├── bmad/                # module data (bmm, cis, gds, wds, tea, core, bmb, loop) + scripts/
 ├── templates/           # record templates (_template_E/IR/SP/QR/PR/S/PM/BD/C/STRUCT + README/tech-debt/scratch)

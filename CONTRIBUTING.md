@@ -1,6 +1,6 @@
 # Contributing to Metodoloji
 
-Thank you for your interest in contributing to **Metodoloji**! We welcome contributions across our 125 BMAD skills, hook engine, workflow kernel, and documentation.
+Thank you for your interest in contributing to **Metodoloji**! We welcome contributions across our 129 skills, hook engine, workflow kernel, and documentation.
 
 ---
 
@@ -21,7 +21,7 @@ Thank you for your interest in contributing to **Metodoloji**! We welcome contri
    ```
 
 3. **Run the Full Test Suite:**
-   All 700+ unit and integration tests must pass:
+   All 1,400+ unit and integration tests must pass:
    ```bash
    pytest
    ```

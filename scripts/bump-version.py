@@ -43,7 +43,7 @@ import versioning  # noqa: E402  (the rule lives in one place, E-013)
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
-# The §6d3 agreement set — these seven must share one version, always.
+# The §6d3 agreement set — these eight must share one version, always.
 # The OpenCode package's manifest and its npm `package.json` join the set: a
 # published plugin pinned to a different number than the tree it wraps is the
 # same skew §6d3 exists to catch, one runtime further out.
@@ -69,7 +69,7 @@ DERIVED = (
 #   * `.githooks/pre-commit` keeps `FILES` — the list it refuses an unstaged
 #     edit in and `git add`s after the bump (a manifest the bump writes but the
 #     hook does not stage is a skewed tree in the very commit that owns the
-#     number), plus a prose count ("The nine files whose version claims");
+#     number), plus a prose count ("The ten files whose version claims");
 #   * `scripts/check-plugin.sh` §6d3 carried a literal second copy of the
 #     manifests, so a new manifest's skew would be invisible to the audit that
 #     exists to catch skew;

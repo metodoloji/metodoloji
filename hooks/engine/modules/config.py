@@ -405,6 +405,18 @@ FREE_PREFIXES = (
 PLUGIN_FREE_PREFIXES = ("hooks/", "scripts/", "skills/", "custom/", "bmad/tests/",
                         "opencode-plugin/", ".githooks/", ".github/", "assets/")
 
+# Root-level plugin SOURCE FILES with no tree of their own — the same class as
+# the prefixes above, kept separate because a prefix tuple cannot name a file
+# (test_free_prefixes_are_slashed pins that every prefix ends with `/`). The
+# Hermes port (the fourth runtime) is exactly this shape: `register(ctx)` lives
+# at the repo root because `plugin.yaml` loads the repository as the package, so
+# its three modules have no directory to free. E-053 added the other late
+# arrivals (`opencode-plugin/`, `.githooks/`, `.github/`, `assets/`) for the same
+# reason; §3b caught these three as "edited files outside every approved scope".
+# Conditional on the same self-modification rule as the prefixes: in an
+# ordinary project a root `hermes_adapter.py` is ordinary code and stays gated.
+PLUGIN_FREE_FILES = frozenset({"__init__.py", "hermes_adapter.py", "hermes_tools.py"})
+
 INFRA_FILES = {"scripts/check-methodology.sh"}
 # The gate script is DELIBERATELY not listed under its project-relative
 # `skills/…` spelling (E-038): that path exists only inside the plugin

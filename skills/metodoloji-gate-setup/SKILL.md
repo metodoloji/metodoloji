@@ -6,6 +6,9 @@ triggers: ["metodoloji-gate-setup", "/metodoloji-gate-setup", "gate key", "gate-
 
 # Metodoloji — gate key setup
 
+Bound to `{metodoloji-root}/docs/bmad/research-methodology.md` — the key is what
+makes that manifesto's approval mechanical and machine-local.
+
 Canonical contract: `{metodoloji-root}/commands/gate-setup.md`.
 
 The key is machine-local, lives **outside the repo** with `0600`, and is never

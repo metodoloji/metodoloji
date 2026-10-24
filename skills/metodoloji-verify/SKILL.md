@@ -6,6 +6,10 @@ triggers: ["metodoloji-verify", "/metodoloji-verify", "verify experiment record"
 
 # Metodoloji — verify a record
 
+Bound to `{metodoloji-root}/docs/bmad/research-methodology.md` — this surface
+reaches the verdict that manifesto makes mechanical; a verdict is a gate, not a
+preference.
+
 Canonical contract: `{metodoloji-root}/commands/verify.md`.
 
 ```

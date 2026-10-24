@@ -14,6 +14,7 @@ from modules.config import (  # noqa: E402
     CODE_DIRS,
     FREE_PREFIXES,
     NON_CODE_EXTS,
+    PLUGIN_FREE_FILES,
     PLUGIN_FREE_PREFIXES,
     TAR_ARG_OPTS,
 )
@@ -44,6 +45,20 @@ def test_free_prefixes_are_slashed():
         assert p.endswith("/"), f"free prefix should end with /: {p!r}"
     for p in PLUGIN_FREE_PREFIXES:
         assert p.endswith("/"), f"plugin free prefix should end with /: {p!r}"
+
+
+def test_plugin_free_files_are_root_level_and_conditional():
+    # The Hermes entry modules live at the repo root (plugin.yaml loads the
+    # repository as the package), so no prefix can name them. They are plugin
+    # SOURCE, not plain free files: an ordinary project's root `hermes_adapter.py`
+    # is ordinary code and must stay behind the experiment gate.
+    assert PLUGIN_FREE_FILES, "the root-level plugin source set is empty"
+    for name in PLUGIN_FREE_FILES:
+        assert name == name.strip() and "/" not in name and "\\" not in name, (
+            f"plugin-free file must be a bare root name: {name!r}")
+    for name in ("__init__.py", "hermes_adapter.py", "hermes_tools.py"):
+        assert name in PLUGIN_FREE_FILES
+        assert name not in FREE_PREFIXES
 
 
 def test_plugin_trees_not_in_plain_free_prefixes():

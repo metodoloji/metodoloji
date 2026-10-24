@@ -10,13 +10,17 @@ and tool registry to it.
 
 What is registered
 ------------------
-tools   metodoloji_orient / metodoloji_init / metodoloji_verify / metodoloji_audit
+tools   metodoloji_orient / metodoloji_init / metodoloji_verify / metodoloji_key
+        / metodoloji_audit
 hooks   pre_tool_call   → engine ``pre``   (guard + quality + deploy; can BLOCK)
         post_tool_call  → engine ``audit`` (redacted trail; never blocks)
         pre_llm_call    → engine ``session_start`` context, injected once
+        on_session_start → reset the per-session flags
+        pre_verify      → optional one-shot continuation (``nudge_on_stop``)
         on_session_end  → engine ``stop``  (session report; never blocks)
 skills  every ``skills/*/SKILL.md`` in the repository, namespaced ``metodoloji:<name>``
-cmds    /metodoloji, /metodoloji-init, /metodoloji-verify, /metodoloji-audit
+cmds    /metodoloji, /metodoloji-init, /metodoloji-gate-setup, /metodoloji-verify,
+        /metodoloji-audit
 
 Hard rule: a gated tool call is blocked ONLY by an explicit engine denial. A
 crash, timeout or unreadable answer from the engine blocks too (fail closed);

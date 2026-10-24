@@ -786,7 +786,8 @@ experiment_refs:
 **2. Acceptance Criteria (her AC için zorunlu alt alanlar):**
 
 - `[AC-NNN]` kimliği
-- `Experiment:` (E-NNN, veya `[HYPOTHESIS]` etiketli AC'de `—`)
+- `Experiment:` (E-NNN — ölçülmüş iddia; `STRUCT-NNN` — yapısal beyan; `[HYPOTHESIS]` etiketli AC'de `—`)
+- `Test:` (kriterin diğer evi: `path/to/file::test adı` — testin karar verdiği bir spesifikasyon; dosya var olmalı ve o adı içermeli)
 - `Type:` (`agent-verifiable` | `user-evaluable` | `hybrid`)
 - `Measured:` (`true` | `false`)
 - `Verify:` (doğrulama yöntemi)
@@ -1279,7 +1280,7 @@ sh scripts/check-techdebt.sh      # borç drift/ID/P0/orphan (#6b olarak da koş
 python scripts/check-triggers.py  # trigger/description çakışması (#6f olarak da koşar)
 ```
 
-**# haritası:** #0 gate key · #0b base config proje-adı sızıntısı · #1 motor selfcheck (birleşik `pre` + tekil modlar) · #1b hooks.json byte-identical · #2 manifesto wiring · #2b bridge runtime görünürlüğü (30 workflow + 3 agent-principles) · #2c bridge VERIFY (17 skill) · #3 approved envanter (VERIFIED/ADVISORY-BLOCK + CROSS-MACHINE uyarısı) · #3b code-scope coverage · #4 dokümantatif kayıtlar · #5 motor bütünlüğü (py\_compile) · #5b hard-gate geçerliliği · #5c custom/ statik · #6 development format · #6a `.env` · #6b tech-debt · #6c template kopya kimliği · #6d init marker bütünlüğü · #6d2 command→script referans bütünlüğü · #6d3 plugin sürüm tutarlılığı (`.plugin/plugin.json` ↔ `.plugin/marketplace.json` ↔ `.claude-plugin/plugin.json` ↔ `.claude-plugin/marketplace.json` ↔ `.opencode-plugin/plugin.json` ↔ `opencode-plugin/package.json` ↔ `pyproject`) · #6e help catalog bütünlüğü · #6f trigger/description çakışması · #6g namespaced-tool priming token yok · #6h tazelik sözleşmesi (witness üreticisi ↔ verdict tüketicileri, ağaçtan türetilir).
+**# haritası:** #0 gate key · #0b base config proje-adı sızıntısı · #1 motor selfcheck (birleşik `pre` + tekil modlar) · #1b hooks.json byte-identical · #2 manifesto wiring · #2b bridge runtime görünürlüğü (30 workflow + 3 agent-principles) · #2c bridge VERIFY (17 skill) · #3 approved envanter (VERIFIED/ADVISORY-BLOCK + CROSS-MACHINE uyarısı) · #3b code-scope coverage · #4 dokümantatif kayıtlar · #5 motor bütünlüğü (py\_compile) · #5b hard-gate geçerliliği · #5c custom/ statik · #6 development format · #6a `.env` · #6b tech-debt · #6c template kopya kimliği · #6d init marker bütünlüğü · #6d2 command→script referans bütünlüğü · #6d3 plugin sürüm tutarlılığı (`.plugin/plugin.json` ↔ `.plugin/marketplace.json` ↔ `.claude-plugin/plugin.json` ↔ `.claude-plugin/marketplace.json` ↔ `.opencode-plugin/plugin.json` ↔ `opencode-plugin/package.json` ↔ `plugin.yaml` ↔ `pyproject.toml`) · #6e help catalog bütünlüğü · #6f trigger/description çakışması · #6g namespaced-tool priming token yok · #6h tazelik sözleşmesi (witness üreticisi ↔ verdict tüketicileri, ağaçtan türetilir).
 
 **Tek kayıt doğrulama + envanter:**
 
@@ -1440,7 +1441,7 @@ metodoloji/
 │   ├── engine/modules/                  # guard (guard+quality+deploy), audit, stop, plan, mirror, state, config, archive, bash_targets, blackboard, utils
 │   ├── engine/resolve_customization.py  # ince re-export (gerçek: bmad/scripts/resolve_customization.py)
 │   └── scripts/bootstrap.sh, hook-entry.sh, run-hook.sh
-├── skills/                              # 125 BMAD skill (native gövde)
+├── skills/                              # 129 skill (native gövde)
 ├── custom/                              # 121 TOML (33 BRIDGE aktif) + config.toml (soft/hard)
 ├── bmad/                                # modül verisi (bmm,cis,gds,wds,tea,core,bmb,loop,_config) + scripts/ (blackboard, workflow, orient, resolve_config, resolve_customization, skeleton)
 ├── templates/                           # _template_E/IR/SP/QR/PR/S/PM/BD/C/STRUCT + README/tech-debt/scratch-README

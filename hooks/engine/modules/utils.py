@@ -16,6 +16,7 @@ from .config import (
     NON_CODE_BASENAMES,
     NON_CODE_CONFIG_RES,
     NON_CODE_EXTS,
+    PLUGIN_FREE_FILES,
     PLUGIN_FREE_PREFIXES,
 )
 
@@ -32,6 +33,9 @@ INFRA_FILES_KEY = frozenset(f.lower() for f in INFRA_FILES) if _FREE_ZONE_FOLD e
 _FREE_PREFIXES_KEY = tuple(x.lower() for x in FREE_PREFIXES) if _FREE_ZONE_FOLD else FREE_PREFIXES
 _PLUGIN_FREE_PREFIXES_KEY = (
     tuple(x.lower() for x in PLUGIN_FREE_PREFIXES) if _FREE_ZONE_FOLD else PLUGIN_FREE_PREFIXES
+)
+_PLUGIN_FREE_FILES_KEY = (
+    frozenset(x.lower() for x in PLUGIN_FREE_FILES) if _FREE_ZONE_FOLD else PLUGIN_FREE_FILES
 )
 
 
@@ -637,6 +641,8 @@ def _lexically_free(key: str) -> bool:
         return True
     # Plugin source trees: free ONLY when the project is this repo itself
     # (self-modification). Otherwise they are protected by the experiment gate.
+    if key in _PLUGIN_FREE_FILES_KEY:
+        return _project_is_methodology_root()
     if any(key.startswith(prefix) for prefix in _PLUGIN_FREE_PREFIXES_KEY):
         return _project_is_methodology_root()
     return False

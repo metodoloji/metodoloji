@@ -6,6 +6,10 @@ triggers: ["metodoloji-init", "/metodoloji-init", "install methodology", "init m
 
 # Metodoloji — install the record skeleton
 
+Bound to `{metodoloji-root}/docs/bmad/research-methodology.md` — this surface
+installs the record chain that manifesto defines (E → IR → SP → S → QR → PR);
+it never replaces it.
+
 One-time, idempotent installation. The canonical contract is
 `{metodoloji-root}/commands/init.md`; this skill is the Hermes entry point to it.
 

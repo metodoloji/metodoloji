@@ -6,7 +6,7 @@ Claude Code plugin for methodology enforcement, compatible with BMad Method.
 
 - **Record chain**: E → IR → SP → S → QR → PR (experiment → implementation readiness → sprint planning → story → quality review → production readiness)
 - **Mechanical gates**: guard (write/edit blocking, config-gated), quality (`git commit` chain check, config-gated), deploy (deploy-command chain check, config-gated), audit (post-write trail), stop (session-end report, never blocks)
-- **125 skills** with **121 customization TOMLs** + `config.toml` (33 active BRIDGEs linking native outputs to methodology records). `bmad-customize`, `bmad-help`, `memory`, `sync` are tool/meta skills with no bridge TOML by design: `memory`/`sync` are in {metodoloji-root}/scripts/check-plugin.sh §2 EXCLUDED, while `bmad-customize`/`bmad-help` ship no customize.toml and are audited through their SKILL.md manifesto pointer (see §2 / §6b pairing).
+- **129 skills** with **121 customization TOMLs** + `config.toml` (33 active BRIDGEs linking native outputs to methodology records). `bmad-customize`, `bmad-help`, `memory`, `sync` are tool/meta skills with no bridge TOML by design: `memory`/`sync` are in {metodoloji-root}/scripts/check-plugin.sh §2 EXCLUDED, while `bmad-customize`/`bmad-help` ship no customize.toml and are audited through their SKILL.md manifesto pointer (see §2 / §6b pairing).
 
 ## Hooks
 
@@ -148,7 +148,8 @@ per-stage evidence, computed transitions) that the kernel runs as a state
 machine. The model authors the spec and does the work inside a stage; the kernel
 sets the order and refuses a stage whose evidence is missing. Entry point:
 `python3 {metodoloji-root}/bmad/scripts/workflow.py <validate|create|list|status|next|complete|block|resume|flag|history> --project-root {project-root}`,
-skill `bmad-workflow`, design in `docs/WORKFLOW.md`. The SessionStart line names
+skill `bmad-workflow`, design in `bmad/workflow/` (kernel + evidence; commands in
+GUIDE §15.2). The SessionStart line names
 the active run's stage and its computed next stage; state lives under
 `{project-root}/.metodoloji/workflow/` and is never hand-edited.
 
