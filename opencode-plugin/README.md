@@ -1,6 +1,6 @@
 # metodoloji-opencode-plugin
 
-OpenCode V2 adapter for the **metodoloji** methodology plugin.
+OpenCode adapter for the **metodoloji** methodology plugin (V2 and 1.x).
 
 This package is a thin TypeScript bridge. It registers the same gate chain the
 Claude Code and OpenHands adapters run, but it does **not** reimplement any
@@ -21,18 +21,22 @@ portable skills setup and troubleshooting.
 ## Layout
 
 ```
-index.ts         package entry OpenCode loads (re-exports src/index.ts)
+index.ts         V2 package entry (re-exports src/index.ts)
 src/runtime.ts   plugin-root + python discovery, engine spawn, fail-closed texts
 src/map.ts       OpenCode call → engine payload (deliberately thin)
 src/decide.ts    engine JSON → allow/deny/context (+ warning queue)
 src/engine.ts    spawn + interpret in one place
 src/index.ts     Plugin.define + hook registration
+v1/index.ts      OpenCode 1.x entry (tool.execute.before/after, event, …)
 tests/           node:test contract tests (incl. a real engine round-trip)
 ```
 
-> The root `index.ts` is **required**: OpenCode resolves a local plugin directory
-> as `<dir>/index.ts` and ignores `package.json` `exports`. Without it the plugin
-> is skipped silently (no gate at all). Do not delete it.
+> The root `index.ts` is **required** for V2: OpenCode resolves a local plugin
+> directory as `<dir>/index.ts` and ignores `package.json` `exports`. Without it
+> the plugin is skipped silently (no gate at all). Do not delete it.
+>
+> OpenCode 1.x cannot load the V2 entry. Point `plugin` at `opencode-plugin/v1`
+> instead; it maps the 1.x hooks onto the same engine.
 
 ## Test
 

@@ -94,6 +94,23 @@ To confirm the plugin is live, run the server with `--print-logs`; a successful
 load prints `msg="loading plugin" id="…/opencode-plugin/index.ts"`. If no such
 line appears, the guard is **off** for that project.
 
+### OpenCode 1.x
+
+OpenCode 1.x loads the V1 plugin API (`export default async (ctx) => ({ … })`),
+not `Plugin.define` / `ctx.tool.hook`. Point the config at the 1.x entry:
+
+```jsonc title="opencode.jsonc"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["<metodoloji-root>/opencode-plugin/v1"]
+}
+```
+
+`v1/index.ts` maps the same gate chain onto `tool.execute.before`,
+`tool.execute.after`, `experimental.chat.system.transform`, `event` and
+`permission.ask`, and still spawns the shared Python engine. A V2-style entry
+(`opencode-plugin/`) is skipped **silently** by 1.x — no error, no gate.
+
 ---
 
 ## What it wires

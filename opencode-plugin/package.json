@@ -1,6 +1,6 @@
 {
   "name": "metodoloji-opencode-plugin",
-  "version": "0.1.71",
+  "version": "0.1.72",
   "description": "Methodology plugin for OpenCode: record-chain gates (E→IR→SP→S→QR→PR) enforced through the shared Python hook engine",
   "type": "module",
   "license": "MIT",
@@ -12,12 +12,14 @@
   "files": [
     "index.ts",
     "src",
+    "v1",
     "README.md"
   ],
   "scripts": {
     "test": "node --test"
   },
   "dependencies": {
+    "@opencode-ai/plugin": "1.18.21",
     "@opencode/plugin": "latest"
   }
 }
