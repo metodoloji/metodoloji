@@ -33,6 +33,7 @@ from __future__ import annotations
 import argparse
 import ast
 import csv
+import io
 import os
 import pathlib
 import re
@@ -2871,6 +2872,137 @@ def _run_hooks_json_sync() -> str | None:
     return None
 
 
+# --- shipped-inventory contracts (E-074) --------------------------------------
+# Three inventories the repo ships claim to describe the tree they ship with:
+# the 129-skill manifest the BMAD installer reads, the Hermes manifest that
+# tells the harness which tools/hooks/commands exist, and the OpenCode port's
+# own test suite. None of them was measured, and all three had drifted (the
+# manifest listed 125 skills; the OpenCode port's 22-test suite had no runner
+# outside a manual `npm test`).
+_SKILL_MANIFEST = "bmad/_config/skill-manifest.csv"
+
+
+def _manifest_rows(text: str) -> list[dict[str, str]]:
+    return list(csv.DictReader(io.StringIO(text)))
+
+
+def _manifest_problems(rows: list[dict[str, str]], skill_dirs: set[str],
+                       exists) -> list[str]:
+    """Pure half of the manifest check, so the falsifiers can feed it rows."""
+    ids = [r.get("canonicalId", "") for r in rows]
+    problems: list[str] = []
+    dups = sorted({i for i in ids if i and ids.count(i) > 1})
+    if dups:
+        problems.append(f"duplicate canonicalId(s): {dups[:5]}")
+    missing = sorted(skill_dirs - set(ids))
+    if missing:
+        problems.append(f"skills missing from the manifest: {missing[:6]}")
+    extra = sorted(set(ids) - skill_dirs)
+    if extra:
+        problems.append(f"manifest rows with no skill dir: {extra[:6]}")
+    dead = sorted(r["path"] for r in rows
+                  if r.get("path") and not exists(r["path"]))
+    if dead:
+        problems.append(f"manifest paths that do not exist: {dead[:4]}")
+    misfiled = sorted(r.get("canonicalId", "?") for r in rows
+                      if r.get("path") != f"skills/{r.get('canonicalId')}/SKILL.md")
+    if misfiled:
+        problems.append(f"rows whose path is not skills/<id>/SKILL.md: {misfiled[:4]}")
+    return problems
+
+
+def _check_skill_manifest_completeness() -> str | None:
+    """E-074: the shipped skill inventory must describe the shipped tree.
+
+    `bmad/_config/skill-manifest.csv` is the machine-readable catalogue a BMAD
+    installer reads. It still said 125 skills after the tree reached 129, and no
+    check compared it with `skills/` — the same hand-maintained inventory class
+    as the README counts.
+    """
+    try:
+        rows = _manifest_rows(_read(_SKILL_MANIFEST))
+    except FileNotFoundError:
+        return f"{_SKILL_MANIFEST} is missing"
+    dirs = {p.name for p in (ROOT / "skills").iterdir() if p.is_dir()}
+    problems = _manifest_problems(rows, dirs, lambda rel: (ROOT / rel).is_file())
+    return "; ".join(problems) if problems else None
+
+
+_HERMES_PROVIDES = ("provides_tools", "provides_hooks", "provides_commands")
+
+
+def _yaml_list(text: str, key: str) -> list[str] | None:
+    """The simple ``key:\n  - item`` block, or None when the key is absent."""
+    m = re.search(rf"(?m)^{re.escape(key)}:\s*\n((?:[ \t]+-[^\n]*\n?)+)", text)
+    if not m:
+        return None
+    return re.findall(r"(?m)^[ \t]+-\s*(\S+)\s*$", m.group(1))
+
+
+def _provides_problems(declared: list[str], actual: list[str], what: str) -> list[str]:
+    problems = []
+    unregistered = sorted(set(declared) - set(actual))
+    if unregistered:
+        problems.append(f"{what} declared but never registered: {unregistered}")
+    undeclared = sorted(set(actual) - set(declared))
+    if undeclared:
+        problems.append(f"{what} registered but not declared: {undeclared}")
+    return problems
+
+
+def _check_hermes_manifest_matches_registration() -> str | None:
+    """E-074: `plugin.yaml` must declare exactly what `__init__.py` registers.
+
+    The Hermes manifest is what the harness reads to decide which tools, hooks
+    and commands exist. A tool added to `hermes_tools.py` but not listed here is
+    invisible to the host; a hook listed but not registered never fires. Both
+    directions are silent failures, so both are measured.
+    """
+    yaml = _read("plugin.yaml")
+    init = _read("__init__.py")
+    actual = {
+        "provides_tools": re.findall(r'(?m)^\s*"name":\s*"([^"]+)"',
+                                     _read("hermes_tools.py")),
+        "provides_hooks": re.findall(r'ctx\.register_hook\("([^"]+)"', init),
+        "provides_commands": re.findall(r'(?m)^\s*\("([^"]+)", _command_\w+', init),
+    }
+    problems: list[str] = []
+    for key in _HERMES_PROVIDES:
+        declared = _yaml_list(yaml, key)
+        if declared is None:
+            problems.append(f"plugin.yaml has no {key} block")
+            continue
+        problems.extend(_provides_problems(declared, actual[key], key))
+    return "; ".join(problems) if problems else None
+
+
+def _run_opencode_tests() -> str | None:
+    """E-074: the OpenCode port's suite must actually run and pass.
+
+    22 tests pin the bridge contract (payload mapping, fail-closed decisions and
+    a real engine subprocess). Nothing ran them — `npm test` was a manual step —
+    so a contract drift would only surface in an OpenCode session.
+    """
+    port = ROOT / "opencode-plugin"
+    tests = sorted((port / "tests").glob("*.test.ts"))
+    if not tests:
+        return "opencode-plugin/tests ships no *.test.ts"
+    node = shutil.which("node")
+    if node is None:
+        # Not a failure: Node is not a declared prerequisite for contributors
+        # who only touch the Python surfaces. The bench says so out loud rather
+        # than reporting a green it never measured.
+        print("  skip  opencode bridge suite (node is not installed)")
+        return None
+    proc = subprocess.run([node, "--test"], cwd=port, capture_output=True, text=True,
+                          encoding="utf-8", errors="replace", timeout=180,
+                          stdin=subprocess.DEVNULL, env={**os.environ, "NO_COLOR": "1"})
+    if proc.returncode != 0:
+        out = ((proc.stdout or "") + (proc.stderr or "")).strip().splitlines()[-4:]
+        return f"node --test exited {proc.returncode}: {' | '.join(out)}"
+    return None
+
+
 def _check_tool_contract_names_the_real_harness_failures() -> str | None:
     """E-041: the shipped tool coaching must name the failure the harness emits.
 
@@ -3971,6 +4103,12 @@ def build_checks() -> list[tuple[str, object]]:
                    _check_template_inventory_matches_the_shipped_one))
     checks.append(("story AC categories match the canvas (E-073)",
                    _check_story_ac_categories_documented))
+    checks.append(("shipped skill inventory matches the tree (E-074)",
+                   _check_skill_manifest_completeness))
+    checks.append(("Hermes manifest declares exactly what it registers (E-074)",
+                   _check_hermes_manifest_matches_registration))
+    checks.append(("opencode bridge suite runs and passes (E-074)",
+                   _run_opencode_tests))
     checks.append(("pytest suite green (falsifier)", _run_pytest))
     checks.append(("hooks.json in sync with generator", _run_hooks_json_sync))
     return checks
@@ -4022,6 +4160,15 @@ def _stale_hook_count():
             return text
         word = "eleven" if m.group(1).lower() != "eleven" else "twelve"
         return text[:m.start()] + f"The {word} files" + text[m.end():]
+    return mutate
+
+
+def _drop_last_manifest_row():
+    """Drop the last data row of the skill manifest (derived, never pasted)."""
+    def mutate(text: str) -> str:
+        lines = text.splitlines(keepends=True)
+        idx = max(i for i, line in enumerate(lines) if line.strip())
+        return "".join(lines[:idx] + lines[idx + 1:])
     return mutate
 
 
@@ -4082,6 +4229,12 @@ def _broken_mutations() -> tuple[tuple[str, str, object], ...]:
          _drop_ac_test_bullet()),
         (".github/workflows/release-numbers.yml", "a CI step that writes a commit",
          _append_ci_commit()),
+        ("bmad/_config/skill-manifest.csv", "a skill missing from the inventory",
+         _drop_last_manifest_row()),
+        ("__init__.py", "a hook registered but undeclared in the manifest",
+         _replace_once('    ctx.register_hook("pre_verify", on_pre_verify)\n', "")),
+        ("opencode-plugin/src/map.ts", "a bridge payload dropping the real cwd",
+         _replace_once("    cwd,\n    ...extra,\n", '    cwd: "",\n    ...extra,\n')),
     )
 
 

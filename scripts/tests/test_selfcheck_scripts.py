@@ -1054,3 +1054,69 @@ def test_story_ac_category_drift_is_named(monkeypatch):
     monkeypatch.setattr(bench, "_read", fake_read)
     problem = bench._check_story_ac_categories_documented()
     assert problem and "GUIDE.md" in problem, problem
+
+
+# --- shipped-inventory contracts (E-074) -------------------------------------
+
+
+def test_skill_manifest_matches_the_tree():
+    """The machine-readable skill catalogue must describe the shipped tree."""
+    bench = _load_bench()
+    assert bench._check_skill_manifest_completeness() is None
+
+
+def test_skill_manifest_drift_is_named():
+    """Every way the manifest can lie is named, not just the count."""
+    bench = _load_bench()
+    rows = bench._manifest_rows(bench._read("bmad/_config/skill-manifest.csv"))
+    dirs = {p.name for p in (bench.ROOT / "skills").iterdir() if p.is_dir()}
+    exists = lambda rel: (bench.ROOT / rel).is_file()
+
+    problems = bench._manifest_problems(rows[:-1], dirs, exists)
+    assert any("missing from the manifest" in p for p in problems), problems
+
+    ghost = [{"canonicalId": "ghost-skill", "name": "ghost-skill",
+              "description": "", "module": "core",
+              "path": "skills/ghost-skill/SKILL.md"}]
+    problems = bench._manifest_problems(rows + ghost, dirs | {"ghost-skill"},
+                                        lambda rel: False)
+    assert any("do not exist" in p for p in problems), problems
+
+    problems = bench._manifest_problems(rows + rows[:1], dirs, exists)
+    assert any("duplicate" in p for p in problems), problems
+
+    misfiled = rows[:-1] + [dict(rows[-1], path="skills/elsewhere/SKILL.md")]
+    problems = bench._manifest_problems(misfiled, dirs, exists)
+    assert any("skills/<id>/SKILL.md" in p for p in problems), problems
+
+
+def test_hermes_manifest_declares_exactly_what_it_registers():
+    """E-074: plugin.yaml and the Hermes registration agree in both directions."""
+    bench = _load_bench()
+    assert bench._check_hermes_manifest_matches_registration() is None
+
+
+def test_hermes_manifest_drift_is_named(monkeypatch):
+    """An undeclared hook must fail — a host that reads the manifest never calls it."""
+    bench = _load_bench()
+    real_read = bench._read
+
+    def fake_read(rel):
+        text = real_read(rel)
+        if rel == "__init__.py":
+            text = text.replace(
+                '    ctx.register_hook("pre_verify", on_pre_verify)\n', "")
+        return text
+
+    monkeypatch.setattr(bench, "_read", fake_read)
+    problem = bench._check_hermes_manifest_matches_registration()
+    assert problem and "pre_verify" in problem, problem
+
+
+def test_opencode_bridge_suite_is_wired_into_the_bench():
+    """E-074: the port's tests only guard anything if a runner executes them."""
+    bench = _load_bench()
+    labels = [label for label, _fn in bench.build_checks()]
+    assert any("opencode bridge suite" in label for label in labels), labels
+    tests = sorted((bench.ROOT / "opencode-plugin" / "tests").glob("*.test.ts"))
+    assert tests, "the OpenCode port lost its test files"
