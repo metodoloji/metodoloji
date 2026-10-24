@@ -1006,3 +1006,51 @@ def test_engine_mode_lists_match_the_dispatch_map(tmp_path):
         '"session_start": ("modules.audit", "sessionStart")'))
     problems = bench._engine_mode_problems(root)
     assert any("sessionStart" in p for p in problems), problems
+
+
+# --- rule 7's control for the bench itself (E-073) ---------------------------
+
+
+def test_broken_mode_seeds_every_defect_it_declares():
+    """A mutation whose anchor rotted is a rule nobody proves anymore.
+
+    The bench's own `--broken` control is only as honest as its mutations: if
+    one stops being injectable, the control silently measures fewer defects.
+    This pins every mutation against the shipped tree.
+    """
+    bench = _load_bench()
+    mutations = bench._broken_mutations()
+    broken = [f"{label} in {rel}" for rel, label, mutate in mutations
+              if mutate(bench._read(rel)) == bench._read(rel)]
+    assert not broken, f"mutations no longer injectable: {broken}"
+
+
+def test_broken_mode_covers_distinct_rule_families():
+    """The control must seed defects across families, not 16 copies of one."""
+    bench = _load_bench()
+    mutations = bench._broken_mutations()
+    assert len(mutations) >= 14, "the broken mode lost seeded defects"
+    assert len({rel for rel, _label, _fn in mutations}) >= 8, (
+        "the broken mode seeds too few files to exercise the rule families")
+
+
+def test_story_ac_categories_are_documented():
+    """E-073: the runbooks teach every AC category the story canvas accepts."""
+    bench = _load_bench()
+    assert bench._check_story_ac_categories_documented() is None
+
+
+def test_story_ac_category_drift_is_named(monkeypatch):
+    """Dropping the Test category from a runbook must fail, naming the doc."""
+    bench = _load_bench()
+    real_read = bench._read
+
+    def fake_read(rel):
+        text = real_read(rel)
+        if rel == "GUIDE.md":
+            text = re.sub(r"(?m)^- `Test:`[^\n]*\n", "", text, count=1)
+        return text
+
+    monkeypatch.setattr(bench, "_read", fake_read)
+    problem = bench._check_story_ac_categories_documented()
+    assert problem and "GUIDE.md" in problem, problem

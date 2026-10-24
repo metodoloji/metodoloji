@@ -19,15 +19,25 @@ is provenance, not drift.
 Stdlib only, no network, no model calls. Run from the repository root:
 
     python scripts/bench/bench_consistency.py
+
+The bench also declares a broken mode — the control rule 7 asks for:
+
+    python scripts/bench/bench_consistency.py --broken
+
+It copies the tree, seeds one defect per rule family, and prints the resulting
+(low) accuracy. A clean-tree run that could not tell the difference would mean
+the rules are decorative.
 """
 from __future__ import annotations
 
+import argparse
 import ast
 import csv
 import os
 import pathlib
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -3766,6 +3776,58 @@ def _check_template_inventory_matches_the_shipped_one() -> str | None:
     return "; ".join(problems) if problems else None
 
 
+# Story AC categories: the canonical template is the owner (its copy is
+# byte-pinned by §6c), and the two runbooks restate the accepted sub-fields by
+# hand. After the third category landed (`Test: path::name`, e8e7cb8) the
+# runbooks still taught only `Experiment:`, so a writer reading the runbook
+# reached for the wrong home for a specification. Nothing measured the list.
+_AC_CATEGORY_RE = re.compile(r"`(Experiment|Test):")
+_AC_SECTION_ANCHORS = (
+    ("GUIDE.md", "**2. Acceptance Criteria", "**3. Technical Tasks"),
+    ("KILAVUZ.md", "**2. Acceptance Criteria", "**3. Technical Tasks"),
+)
+
+
+def _ac_categories(text: str) -> set[str]:
+    """The AC category names a passage teaches (backticked `Name:` fields)."""
+    return set(_AC_CATEGORY_RE.findall(text))
+
+
+def _check_story_ac_categories_documented() -> str | None:
+    """E-073: both runbooks teach every AC category the story canvas accepts.
+
+    A criterion names ONE of three things: `Experiment: E-NNN` (measured),
+    `Experiment: STRUCT-NNN` (a structural declaration) or `Test: path::name`
+    (a specification a test decides). The template is the owner; the runbooks
+    must not silently narrow back to the one category they used to teach.
+    """
+    template = _read("templates/_template_S.md")
+    owner = _ac_categories(template)
+    problems = []
+    if owner != {"Experiment", "Test"}:
+        problems.append(f"the canonical story template teaches {sorted(owner) or 'no categories'}, "
+                        "expected ['Experiment', 'Test']")
+    if "STRUCT" not in template:
+        problems.append("the story template no longer names the structural variant (STRUCT)")
+    for rel, start, end in _AC_SECTION_ANCHORS:
+        text = _read(rel)
+        try:
+            section = text[text.index(start):text.index(end, text.index(start))]
+        except ValueError:
+            problems.append(f"{rel}: no acceptance-criteria section between "
+                            f"{start!r} and {end!r}")
+            continue
+        taught = _ac_categories(section)
+        missing, extra = sorted(owner - taught), sorted(taught - owner)
+        if missing or extra:
+            problems.append(f"{rel}: the AC sub-field list teaches {sorted(taught)}, "
+                            f"the template teaches {sorted(owner)}")
+        if "STRUCT" not in section:
+            problems.append(f"{rel}: the Experiment bullet never names the "
+                            "structural variant (STRUCT)")
+    return "; ".join(problems) if problems else None
+
+
 def build_checks() -> list[tuple[str, object]]:
     checks: list[tuple[str, object]] = []
     for rel in DOC_FILES:
@@ -3907,12 +3969,174 @@ def build_checks() -> list[tuple[str, object]]:
                    _check_installed_doc_paths))
     checks.append(("documented template inventory equals the shipped one (E-050)",
                    _check_template_inventory_matches_the_shipped_one))
+    checks.append(("story AC categories match the canvas (E-073)",
+                   _check_story_ac_categories_documented))
     checks.append(("pytest suite green (falsifier)", _run_pytest))
     checks.append(("hooks.json in sync with generator", _run_hooks_json_sync))
     return checks
 
 
-def main() -> int:
+# --------------------------------------------------------------------------- #
+# --broken: rule 7's control for this bench (E-073) — a bench that cannot fail
+# proves nothing. The gate's `--control` runs this command and refuses the
+# record when the control also clears the claim; until now the corpus had no
+# control at all, so every new record was stamped `Falsifiability: UNVERIFIED`.
+# The mode copies the tree to a temp dir, seeds ONE defect per rule family and
+# runs the SAME checks there (minus the pytest subprocess — the copy's suite is
+# not what the control measures). The live tree is never written.
+# --------------------------------------------------------------------------- #
+_IGNORE_FOR_COPY = shutil.ignore_patterns("__pycache__", ".pytest_cache", "*.pyc", ".metodoloji")
+
+
+def _shift_skills_count(delta: int = -1):
+    """Mutate the FIRST live total-count claim by `delta` (derived, not pasted)."""
+    actual = _actual_counts()[0]
+    rx = re.compile(rf"(?<!\d){actual}(?=\s+(?:\*\*)?(?:BMAD\s+)?skills?\b)")
+
+    def mutate(text: str) -> str:
+        m = rx.search(text)
+        if not m:
+            return text
+        return text[:m.start()] + str(actual + delta) + text[m.end():]
+    return mutate
+
+
+def _replace_once(old: str, new: str):
+    def mutate(text: str) -> str:
+        return text.replace(old, new, 1)
+    return mutate
+
+
+def _stale_suite_size():
+    """Replace the first '# N+ tests' floor with an exact, wrong count."""
+    def mutate(text: str) -> str:
+        return re.sub(r"#\s*[\d,]+\+\s+tests", "# 1,331 tests", text, count=1)
+    return mutate
+
+
+def _stale_hook_count():
+    """Mutate the pre-commit comment's OWN count word (never a pasted one)."""
+    def mutate(text: str) -> str:
+        m = re.search(r"The (\w+) files", text)
+        if not m:
+            return text
+        word = "eleven" if m.group(1).lower() != "eleven" else "twelve"
+        return text[:m.start()] + f"The {word} files" + text[m.end():]
+    return mutate
+
+
+def _drop_ac_test_bullet():
+    def mutate(text: str) -> str:
+        return re.sub(r"(?m)^- `Test:`[^\n]*\n", "", text, count=1)
+    return mutate
+
+
+def _drop_map_segment(segment: str):
+    def mutate(text: str) -> str:
+        return re.sub(rf" · {re.escape(segment)}[^\n]*", "", text, count=1)
+    return mutate
+
+
+def _append_ghost_command():
+    def mutate(text: str) -> str:
+        return text + "\n\n```bash\nsh scripts/check-ghost.py\n```\n"
+    return mutate
+
+
+def _append_ci_commit():
+    def mutate(text: str) -> str:
+        return text + "\n# seeded defect (control)\n        run: git commit -m probe\n"
+    return mutate
+
+
+def _broken_mutations() -> tuple[tuple[str, str, object], ...]:
+    """(path, label, mutator) — one seeded defect per rule family.
+
+    Reusing one mutator across files is deliberate: each file owns a separate
+    check, so N files yield N caught defects from the same rule. Every entry
+    must still be injectable against the shipped tree (a mutation whose anchor
+    rotted is a rule nobody proves anymore — the bench reports it loudly).
+    """
+    stale_skills = _shift_skills_count()
+    return (
+        ("README.md", "a stale public skill count", stale_skills),
+        ("CONTRIBUTING.md", "a stale count in the contributor guide", stale_skills),
+        ("docs/CLAUDE.md", "a stale count in the engine summary", stale_skills),
+        ("GUIDE.md", "a stale count in the runbook tree", stale_skills),
+        ("KILAVUZ.md", "a stale count in the Turkish tree", stale_skills),
+        ("HERMES.md", "a stale count in the Hermes port doc", stale_skills),
+        ("docs/OPENCODE.md", "a stale count in the OpenCode port doc", stale_skills),
+        (".claude-plugin/plugin.json", "a stale count in a shipped manifest", stale_skills),
+        ("README.md", "an exact (stale) suite size", _stale_suite_size()),
+        ("AGENT-GUIDE.md", "a documented command that ships nowhere",
+         _append_ghost_command()),
+        ("GUIDE.md", "a '# map:' missing a shipped audit section",
+         _drop_map_segment("#6h")),
+        (".githooks/pre-commit", "a stale count in the hook's own comment",
+         _stale_hook_count()),
+        ("scripts/check-plugin.sh", "the declaration audit being unhooked",
+         _replace_once(" --audit-declarations", "")),
+        ("docs/CLAUDE.md", "a documented gate mode drifting from config",
+         _replace_once('code_guard = "hard"', 'code_guard = "soft"')),
+        ("GUIDE.md", "an AC sub-field list missing the Test category",
+         _drop_ac_test_bullet()),
+        (".github/workflows/release-numbers.yml", "a CI step that writes a commit",
+         _append_ci_commit()),
+    )
+
+
+def _run_broken_mode() -> int:
+    """Run the checks against a seeded COPY of the tree; print the low metric."""
+    global ROOT
+    mutations = _broken_mutations()
+    with tempfile.TemporaryDirectory(prefix="bench-broken-") as td:
+        tree = pathlib.Path(td) / "tree"
+        try:
+            shutil.copytree(ROOT, tree, ignore=_IGNORE_FOR_COPY)
+        except OSError as exc:
+            print(f"BROKEN-SETUP: cannot copy the tree ({exc})")
+            return 2
+        for rel, label, mutate in mutations:
+            path = tree / rel
+            try:
+                before = path.read_text(encoding="utf-8", errors="replace")
+            except OSError as exc:
+                print(f"BROKEN-SETUP: {rel} unreadable ({exc})")
+                return 2
+            after = mutate(before)
+            if after == before:
+                print(f"BROKEN-SETUP: {label} in {rel} could not be injected — "
+                      "the defect that proved this rule can fail is gone")
+                return 2
+            path.write_text(after, encoding="utf-8")
+        ROOT = tree
+        print(f"broken-mode: seeded {len(mutations)} defects across "
+              f"{len({rel for rel, _label, _fn in mutations})} files")
+        checks = [c for c in build_checks() if "pytest suite green" not in c[0]]
+        failures = []
+        for label, fn in checks:
+            try:
+                problem = fn()
+            except Exception as exc:  # a crashing check is a failing check
+                problem = f"check raised {type(exc).__name__}: {exc}"
+            if problem:
+                failures.append(label)
+        total = len(checks)
+        passed = total - len(failures)
+        print(f"broken-mode: {len(failures)}/{total} checks caught a seeded defect")
+        print(f"consistency_accuracy={passed / total if total else 0.0:.2f} ({passed}/{total})")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--broken", action="store_true",
+                    help="rule-7 control: seed one defect per rule family into a "
+                         "COPY of the tree and print the resulting accuracy; the "
+                         "live tree is never written")
+    args = ap.parse_args(argv)
+    if args.broken:
+        return _run_broken_mode()
     checks = build_checks()
     failures: list[tuple[str, str]] = []
     for label, fn in checks:

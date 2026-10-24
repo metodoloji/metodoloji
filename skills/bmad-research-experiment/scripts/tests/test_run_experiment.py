@@ -1018,3 +1018,73 @@ def test_lineage_main_refuses_a_command_line_draft(tmp_path, monkeypatch, capsys
     assert gate.main() == 2
     err = capsys.readouterr().err
     assert "Lineage" in err and "Traceback" not in err
+
+
+# --- rule 7: the gate runs the declared control itself (E-073) ---------------
+#
+# The control path shipped without a test and without a single user: a
+# passing control must leave the record undecided (no token), a failing one
+# must approve. Both cases are driven end-to-end through the CLI, because the
+# ordering (measure → control → decide) is the property under test.
+
+
+def _control_fixture(tmp_path):
+    project = tmp_path / "proj"
+    (project / "docs" / "experiments").mkdir(parents=True)
+    bench = project / "scripts" / "bench"
+    bench.mkdir(parents=True)
+    (bench / "probe.py").write_text(
+        "import sys\n"
+        "broken = '--broken' in sys.argv\n"
+        "print('probe_rate=0.20 (2/10)' if broken else 'probe_rate=1.00 (10/10)')\n",
+        encoding="utf-8")
+    record = project / "docs" / "experiments" / "E-901.md"
+    record.write_text(
+        "## Experiment: E-901 — rule 7 probe\n\n"
+        "- **Date:** 24.10.2026\n"
+        "- **Status:** planned\n"
+        "- **Theory:** rule-7 probe fixture; the same bench with --broken must "
+        "not clear the claim.\n"
+        '- **Hypothesis:** H-901: "probe_rate >= 0.90"\n'
+        "- **Measurement Metrics:** probe_rate >= 0.90\n"
+        "- **Experiment Design:** one deterministic probe, run intact and broken.\n"
+        "- **Sample Size n:** 10\n"
+        "- **Code Scope:** none\n"
+        "- **Lineage:** none\n"
+        "- **Raw Samples:** none — the probe fixture has no per-sample stream; "
+        "this test exercises the control ordering, not the sample cross-check\n",
+        encoding="utf-8")
+    return project, record
+
+
+def _run_control_gate(project, record, control):
+    env = dict(os.environ, BMAD_GATE_KEY="test-secret")
+    env.pop("CLAUDE_PROJECT_DIR", None)
+    env.pop("OPENHANDS_PROJECT_DIR", None)
+    return subprocess.run(
+        [sys.executable, str(SCRIPTS_DIR / "run_experiment.py"),
+         "--record", str(record),
+         "--run", "python scripts/bench/probe.py",
+         "--control", control,
+         "--no-blackboard"],
+        cwd=str(project), capture_output=True, text=True, encoding="utf-8",
+        errors="replace", env=env, timeout=120, stdin=subprocess.DEVNULL)
+
+
+def test_rule7_a_control_that_also_passes_refuses_the_record(tmp_path):
+    """A bench that cannot separate working code from broken code mints nothing."""
+    project, record = _control_fixture(tmp_path)
+    proc = _run_control_gate(project, record, "python scripts/bench/probe.py")
+    assert proc.returncode == 3, proc.stdout + proc.stderr
+    text = record.read_text(encoding="utf-8")
+    assert "**Decision:**" not in text, "an unfalsifiable bench must not be decided"
+    assert "**Falsifiability:** REFUSED" in text
+
+
+def test_rule7_a_failing_control_approves_and_records_the_proof(tmp_path):
+    project, record = _control_fixture(tmp_path)
+    proc = _run_control_gate(project, record, "python scripts/bench/probe.py --broken")
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    text = record.read_text(encoding="utf-8")
+    assert "**Decision:** APPROVED" in text
+    assert "**Falsifiability:** verified — control" in text
