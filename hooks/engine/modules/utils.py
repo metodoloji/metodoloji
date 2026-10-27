@@ -507,6 +507,22 @@ def normalize_hook_input(json_in: dict) -> dict:
     else:
         tool_name = "unknown"
 
+    # Canonicalize common field aliases for every runtime branch, including
+    # already-normalized tool names. Otherwise `terminal` + `cmd` or
+    # `file_editor` + `filePath` looks like an empty/no-op call to the guard.
+    if tool_name == "terminal" and not str(tool_input.get("command") or "").strip():
+        command_alias = tool_input.get("cmd")
+        if command_alias is not None:
+            tool_input["command"] = str(command_alias)
+    elif tool_name in ("file_editor", "notebook_editor") and not str(
+        tool_input.get("path") or ""
+    ).strip():
+        for path_key in ("file_path", "filePath"):
+            path_alias = tool_input.get(path_key)
+            if path_alias is not None and str(path_alias).strip():
+                tool_input["path"] = str(path_alias)
+                break
+
     # Unknown tool names with a conventional shell or file-write payload can
     # still be routed through the normal gates. This catches future adapters
     # that use a new name but preserve common command or path + mutation fields,

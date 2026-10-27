@@ -962,7 +962,7 @@ Arşiv bomba koruması (tar+zip): tek dosya ≤512MB, sıkışmış arşiv ≤64
 
 ### 9.9 Girdi normalizasyonu
 
-`normalize_hook_input()`: Claude `Write`/`Edit`/`MultiEdit` → `file_editor` (`file_path` → `path`), `Bash`/`PowerShell` → `terminal` (`cmd` → `command`); OpenHands aynen geçer; OpenCode `write`/`edit`/`patch` → `file_editor` (`filePath` → `path`, `patchText` → `paths`), `shell`/`bash` → `terminal`; Hermes `write_file`/`patch`/`multi_edit` ve `terminal` Hermes dalında normalize edilir, `execute_code` yazma hedefleri koddan çıkarılır. Runtime `METODOLOJI_RUNTIME`/`--runtime=` değerinden, yoksa tanınan araç adlarının sözlüğünden anlaşılır. Bilinmeyen adların `command`/`cmd` payload'ları `terminal` gate'ine, standart yol + değişiklik içeriği ise `file_editor` gate'ine yönlendirilir; sınıflandırılamayan araçlar `unknown` kalır ve uyarılır.
+`normalize_hook_input()`: Claude `Write`/`Edit`/`MultiEdit` → `file_editor` (`file_path` → `path`), `Bash`/`PowerShell` → `terminal` (`cmd` → `command`); OpenHands normalize edilmiş `file_editor`/`terminal` şemasını kullanır; OpenCode `write`/`edit`/`patch` → `file_editor` (`filePath` → `path`, `patchText` → `paths`), `shell`/`bash` → `terminal`; Hermes `write_file`/`patch`/`multi_edit` ve `terminal` Hermes dalında normalize edilir, `execute_code` yazma hedefleri koddan çıkarılır. `cmd`/`command` ve `filePath`/`file_path` alias'ları normalize edilmiş araçlarda runtime'lar arasında kanonikleştirilir. Runtime `METODOLOJI_RUNTIME`/`--runtime=` değerinden, yoksa tanınan araç adlarının sözlüğünden anlaşılır. Bilinmeyen adların `command`/`cmd` payload'ları `terminal` gate'ine, standart yol + değişiklik içeriği ise `file_editor` gate'ine yönlendirilir; sınıflandırılamayan araçlar `unknown` kalır ve uyarılır.
 
 ---
 
