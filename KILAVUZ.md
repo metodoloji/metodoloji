@@ -1,4 +1,4 @@
-# AGENT RUNBOOK — metodoloji (v0.1.0)
+# AGENT RUNBOOK — metodoloji
 
 ---
 
@@ -49,7 +49,7 @@ Bu dokümanı baştan sona "okuyup bitirilecek" bir metin sanma. Bir **karar tab
 1. Zincirin gerçek durumunu **SessionStart çıktısından** al (`Chain progress`, kayıt envanteri, sprint satırı, PROACTIVE dürtme). Modelin ezberi değil, oturumun kendi durumu esastır.
 2. `{metodoloji-root}` değerini uydurma: SessionStart'ın `METODOLOJI active (plugin: PATH)` satırını **verbatim** kullan. Bulamıyorsan #20'deki çözümleme sırasına bak.
 3. Bir script'in arayüzünü hatırlamıyorsan `--help`'i `{metodoloji-root}`'tan koş (ör. `python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --help`; `blackboard.py` ve `workflow.py` `{metodoloji-root}/bmad/scripts/` altındadır — aynı kural). Motor ve CLI'lar kanoniktir; bu doküman onların özetidir.
-4. Bu doküman v0.1.0 içindir. Şüphede çapraz kontrol: `docs/CLAUDE.md` (motor özeti), `docs/bmad/*-methodology.md` (manifesto), `templates/` (güncel şablon), `.plugin/plugin.json` (sürüm).
+4. Bu runbook'u güncel sürümle uyumlu tut. Şüphede `README.md`, `HERMES.md`, `docs/OPENCODE.md`, `docs/bmad/*-methodology.md`, `templates/` ve `.plugin/plugin.json` ile çapraz kontrol et.
 
 ---
 
@@ -1498,5 +1498,5 @@ metodoloji/
 
 ### 20.4 Bakım notu
 
-Bu runbook `metodoloji` v0.1.0'ya göre yazıldı. Plugin evrildikçe şu dosyalarla çapraz kontrol et: `docs/CLAUDE.md` (motor özeti), `docs/bmad/*-methodology.md` (manifesto), `.plugin/plugin.json` + `.claude-plugin/*.json` + `pyproject.toml` (sürüm), `templates/` (güncel şablon), `scripts/` (komut adları). Lisans + BMAD atfı için `LICENSE` dosyasına bak.
+Bu runbook'u güncel sürümle uyumlu tut. `README.md`, `HERMES.md`, `docs/OPENCODE.md`, `docs/bmad/*-methodology.md`, `.plugin/plugin.json` + `.claude-plugin/*.json` + `pyproject.toml`, `templates/` ve `scripts/` dosyalarını çapraz kontrol et. Lisans + BMAD atfı için `LICENSE` dosyasına bak.
 

@@ -82,12 +82,24 @@ test("an allow envelope with additionalContext becomes warnings", () => {
 test("an engine failure denies the write gate but allows the rest", () => {
   const failed: RawRun = { stdout: "", stderr: "boom", status: null, failed: true }
   assert.equal(interpret("pre", failed).effect, "deny")
+  assert.equal(
+    interpret(
+      "pre",
+      raw(envelope({ permissionDecision: "allow" }), { status: 1 }),
+    ).effect,
+    "deny",
+  )
   assert.equal(interpret("audit", failed).effect, "allow")
   assert.equal(interpret("stop", failed).effect, "allow")
 })
 
-test("empty stdout denies the write gate (no decision is not an allow)", () => {
+test("missing or invalid decisions deny the write gate", () => {
   assert.equal(interpret("pre", raw("")).effect, "deny")
+  assert.equal(interpret("pre", raw(envelope({}))).effect, "deny")
+  assert.equal(
+    interpret("pre", raw(envelope({ permissionDecision: "maybe" }))).effect,
+    "deny",
+  )
 })
 
 test("a plugin-root failure carries the exact hook-entry sentence", () => {

@@ -55,11 +55,11 @@ def _load_handler(hook_type: str):
     return getattr(mod, fn_name)
 
 
-def _deny_no_input(hook_type: str) -> None:
+def _deny(hook_type: str, reason: str) -> None:
     if hook_type == "stop":
         print(json.dumps({
             "decision": "block",
-            "reason": "Methodology hook received no input — fail-closed blocked.",
+            "reason": reason,
             "hookSpecificOutput": {"hookEventName": "Stop"},
         }))
     else:
@@ -67,9 +67,40 @@ def _deny_no_input(hook_type: str) -> None:
             "hookSpecificOutput": {
                 "hookEventName": "PreToolUse",
                 "permissionDecision": "deny",
-                "permissionDecisionReason": "Methodology hook received no input — fail-closed blocked.",
+                "permissionDecisionReason": reason,
             }
         }))
+
+
+def _deny_no_input(hook_type: str) -> None:
+    _deny(hook_type, "Methodology hook received no input — fail-closed blocked.")
+
+
+def _is_fail_closed(hook_type: str) -> bool:
+    """Whether a handler failure must block under the active gate settings."""
+    if hook_type in ("stop", "guard", "pre"):
+        return True
+    gate_keys = {"quality": "quality_gate", "deploy": "deploy_guard"}
+    gate_key = gate_keys.get(hook_type)
+    if gate_key is None:
+        return False
+    try:
+        from modules.config import hook_gate_mode
+        return hook_gate_mode(gate_key) == "hard"
+    except Exception:
+        # If strictness cannot be read, do not let a broken gate pass a
+        # commit/deploy hook.
+        return True
+
+
+def _deny_unknown_hook_type() -> None:
+    """Fail closed when dispatch is missing or names an unknown hook.
+
+    The shell dispatcher already rejects unknown modes. Keep direct engine
+    invocations equally safe: an unrecognized PreToolUse mode must never fall
+    through to the generic allow response below.
+    """
+    _deny("guard", "Unknown methodology hook mode — fail-closed blocked.")
 
 
 def main():
@@ -82,13 +113,13 @@ def main():
     if hook_type in _LAZY_IMPORTS:
         try:
             handler = _load_handler(hook_type)
-        except (ImportError, AttributeError) as exc:
+        except (Exception, SystemExit) as exc:
             sys.stderr.write(f"metodoloji-hooks: handler import failed ({hook_type}) — {exc}\n")
             handler = None
 
-    # Read JSON input from stdin. Empty stdin is only fail-open for
-    # non-blocking hooks; guard/stop stay fail-closed (their _fail path in
-    # hook-entry.sh already denies, this keeps direct-engine calls safe).
+    # Read JSON input from stdin. Empty stdin follows each hook's failure
+    # policy: guard/pre/stop always deny; quality/deploy follow their configured
+    # hard/soft mode; audit/session_start stay fail-open.
     # The fail-closed contract covers BOTH bad-input classes: unparseable JSON
     # AND valid JSON that is not an object (array/string/number/null). The
     # second class used to reach the handler and raise inside
@@ -104,8 +135,12 @@ def main():
         json_in = json.load(sys.stdin)
     except (json.JSONDecodeError, ValueError, EOFError, RecursionError):
         json_in = None
+    if hook_type not in _LAZY_IMPORTS:
+        _deny_unknown_hook_type()
+        return
+
     if not isinstance(json_in, dict):
-        if hook_type in ("stop", "guard", "pre"):
+        if _is_fail_closed(hook_type):
             _deny_no_input(hook_type)
             return
         print(json.dumps({
@@ -118,14 +153,15 @@ def main():
 
     # Execute the handler. A failed lazy import on a fail-closed hook denies
     # (same policy as hook-entry.sh _fail); on fail-open hooks it allows.
+    # A failed lazy import on a known fail-open hook is allowed by policy.
     if handler is None:
-        if hook_type in ("stop", "guard", "pre"):
-            _deny_no_input(hook_type)
+        if _is_fail_closed(hook_type):
+            _deny(hook_type, f"Methodology {hook_type} hook handler unavailable — fail-closed blocked.")
             return
         result = {"decision": "allow"}
     elif hook_type:
         # E-007: a handler exception must still END in a decision — the same
-        # policy as bad/no input (stop/guard/pre fail-closed; the rest allow).
+        # policy as bad/no input, including quality/deploy strictness.
         # The probe made the class concrete: a deep routing value raised
         # RecursionError inside _coerce_json_scalar and escaped HERE, so guard,
         # pre, quality, deploy and audit exited 1 with empty stdout — a
@@ -133,17 +169,18 @@ def main():
         # bug now lands on the same wall: decide, never traceback.
         try:
             result = handler(json_in)
-        except Exception as exc:
+        except (Exception, SystemExit) as exc:
             sys.stderr.write(
                 f"metodoloji-hooks: handler crashed ({hook_type}) — "
                 f"{type(exc).__name__}: {exc}\n")
-            if hook_type in ("stop", "guard", "pre"):
-                _deny_no_input(hook_type)
+            if _is_fail_closed(hook_type):
+                _deny(hook_type, f"Methodology {hook_type} hook failed — fail-closed blocked.")
                 return
             result = {"decision": "allow"}
     else:
-        # Unknown hook type - allow
-        result = {"decision": "allow"}
+        # Defensive: dispatch was validated above, so this is unreachable.
+        _deny_unknown_hook_type()
+        return
 
     # Output result — Claude Code v2 schema: hookSpecificOutput wrapper.
     # Schema differs per event type:
@@ -193,8 +230,9 @@ def main():
         if ctx:
             hso["additionalContext"] = ctx
     else:
-        # Unknown hook type — flat allow
-        hso = {"hookEventName": event_name, "permissionDecision": "allow"}
+        # Defensive: never pass a mode with no known output schema.
+        _deny_unknown_hook_type()
+        return
 
     print(json.dumps({"hookSpecificOutput": hso}, ensure_ascii=False))
 

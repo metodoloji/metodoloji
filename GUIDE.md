@@ -1,4 +1,4 @@
-# AGENT RUNBOOK — metodoloji (v0.1.0)
+# AGENT RUNBOOK — metodoloji
 
 ---
 
@@ -49,7 +49,7 @@ Do not treat this as text to read once from cover to cover. It is a **decision t
 1. Take the chain's real state from the **SessionStart output** (`Chain progress`, record inventory, sprint line, PROACTIVE nudge). The session's own state is authoritative, not your recollection of the model.
 2. Never invent the `{metodoloji-root}` value: use the SessionStart `METODOLOJI active (plugin: PATH)` line **verbatim**. If you cannot find it, use the resolution order in #20.
 3. If you cannot recall a script's interface, run its `--help` from `{metodoloji-root}` (e.g. `python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --help`; `blackboard.py` and `workflow.py` live under `{metodoloji-root}/bmad/scripts/` — same rule). The engine and CLIs are canonical; this document summarises them.
-4. This document is for v0.1.0. When in doubt, cross-check: `docs/CLAUDE.md` (engine summary), `docs/bmad/*-methodology.md` (manifesto), `templates/` (current templates), `.plugin/plugin.json` (version).
+4. Keep this runbook aligned with the current release. When in doubt, cross-check `README.md`, `HERMES.md`, `docs/OPENCODE.md`, `docs/bmad/*-methodology.md`, `templates/` and `.plugin/plugin.json`.
 
 ---
 
@@ -1499,5 +1499,5 @@ metodoloji/
 
 ### 20.4 Maintenance note
 
-This runbook was written for `metodoloji` v0.1.0. As the plugin evolves, cross-check these files: `docs/CLAUDE.md` (engine summary), `docs/bmad/*-methodology.md` (manifesto), `.plugin/plugin.json` + `.claude-plugin/*.json` + `pyproject.toml` (version), `templates/` (current templates), `scripts/` (command names). For the license + BMAD attribution see `LICENSE`.
+Keep this runbook aligned with the current release. Cross-check `README.md`, `HERMES.md`, `docs/OPENCODE.md`, `docs/bmad/*-methodology.md`, `.plugin/plugin.json` + `.claude-plugin/*.json` + `pyproject.toml`, `templates/` and `scripts/`. For the license + BMAD attribution see `LICENSE`.
 

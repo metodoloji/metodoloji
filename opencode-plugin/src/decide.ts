@@ -26,7 +26,7 @@ function failure(mode: string, raw: RawRun): EngineResult {
 }
 
 export function interpret(mode: string, raw: RawRun): EngineResult {
-  if (raw.failed || !raw.stdout.trim()) return failure(mode, raw)
+  if (raw.failed || raw.status !== 0 || !raw.stdout.trim()) return failure(mode, raw)
 
   let parsed: unknown
   try {
@@ -57,7 +57,14 @@ export function interpret(mode: string, raw: RawRun): EngineResult {
       warnings,
     }
   }
-  return { effect: "allow", warnings }
+  if (decision === "allow") return { effect: "allow", warnings }
+
+  // The Python engine always emits an explicit permissionDecision for gated
+  // hooks. Missing or unknown values are a broken contract, not an allow.
+  if (isFailClosed(mode)) {
+    return { effect: "deny", reason: FAIL_NO_ENGINE, warnings: [] }
+  }
+  return { effect: "allow", warnings: [] }
 }
 
 // --- per-session warning queue ----------------------------------------------

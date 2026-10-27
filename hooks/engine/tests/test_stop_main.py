@@ -542,14 +542,16 @@ def test_main_bad_stdin_pre_denies(tmp_path):
     assert out["hookSpecificOutput"]["permissionDecision"] == "deny"
 
 
-def test_main_dispatch_unknown_hook_allows(tmp_path):
+def test_main_dispatch_unknown_hook_denies(tmp_path):
     r = _run_main(["nonexistent-hook"], {"tool_name": "terminal"},
                   project_root=tmp_path)
     out = json.loads(r.stdout)
-    assert out["hookSpecificOutput"]["permissionDecision"] == "allow"
+    assert out["hookSpecificOutput"]["permissionDecision"] == "deny"
+    assert "Unknown methodology hook mode" in out["hookSpecificOutput"][
+        "permissionDecisionReason"]
 
 
-def test_main_dispatch_bad_stdin_allows():
+def test_main_dispatch_missing_mode_denies_bad_stdin():
     r = subprocess.run(
         [sys.executable, str(MAIN_PY)],
         input="not-json",
@@ -560,7 +562,7 @@ def test_main_dispatch_bad_stdin_allows():
         cwd=str(_HOOKS.parent),
     )
     out = json.loads(r.stdout)
-    assert out["hookSpecificOutput"]["permissionDecision"] == "allow"
+    assert out["hookSpecificOutput"]["permissionDecision"] == "deny"
 
 
 def test_main_dispatch_runtime_flag(tmp_path, monkeypatch):
@@ -810,11 +812,12 @@ def test_main_fail_closed_hooks_deny_on_parser_overflow(tmp_path):
 
 
 def test_main_handler_crash_still_decides(monkeypatch, capsys):
-    """E-007 boundary: an escaped handler exception mirrors the input policy —
-    stop/guard/pre fail-closed, the report-only hooks allow — never a
-    traceback/no-decision turn (main.py's handler call used to be unguarded)."""
+    """Handler failures honor gate strictness and still emit a decision."""
     import io
     import main as engine_main
+    from modules import config as engine_config
+
+    monkeypatch.setattr(engine_config, "hook_gate_mode", lambda key: "hard")
 
     def _boom(payload):
         raise RuntimeError("handler exploded")
@@ -825,8 +828,8 @@ def test_main_handler_crash_still_decides(monkeypatch, capsys):
         ("guard", lambda o: o["hookSpecificOutput"]["permissionDecision"] == "deny"),
         ("pre", lambda o: o["hookSpecificOutput"]["permissionDecision"] == "deny"),
         ("stop", lambda o: o.get("decision") == "block"),
-        ("quality", lambda o: o["hookSpecificOutput"]["permissionDecision"] == "allow"),
-        ("deploy", lambda o: o["hookSpecificOutput"]["permissionDecision"] == "allow"),
+        ("quality", lambda o: o["hookSpecificOutput"]["permissionDecision"] == "deny"),
+        ("deploy", lambda o: o["hookSpecificOutput"]["permissionDecision"] == "deny"),
         ("audit", lambda o: o["hookSpecificOutput"]["hookEventName"] == "PostToolUse"),
     ):
         monkeypatch.setattr(engine_main, "_load_handler", lambda ht: _boom)

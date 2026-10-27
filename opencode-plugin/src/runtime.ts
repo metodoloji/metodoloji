@@ -173,7 +173,10 @@ export function spawnEngine(
     timeout: timeoutMs,
     env: childEnv,
   })
-  const failed = Boolean(result.error) || result.status === null
+  // A parseable stdout is not enough when the child reports failure: a
+  // partially written allow envelope followed by a non-zero exit must not
+  // bypass the fail-closed write gate.
+  const failed = Boolean(result.error) || result.status !== 0
   return {
     stdout: typeof result.stdout === "string" ? result.stdout : "",
     stderr: typeof result.stderr === "string" ? result.stderr : "",

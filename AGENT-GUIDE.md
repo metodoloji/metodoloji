@@ -2,7 +2,7 @@
 
 > **Turkish:** [AGENT-GUIDE-TR.md](AGENT-GUIDE-TR.md)
 >
-> **What this file is.** A prompt-driven usage guide for the `metodoloji` plugin (v0.1.0, three runtimes: OpenHands + Claude Code + OpenCode, BMad Method compatible). You never run a command yourself, never open a file by hand, never touch a key. You **send prompts**; the agent does the rest and reports back in a vocabulary you can read.
+> **What this file is.** A prompt-driven usage guide for the `metodoloji` plugin (OpenHands, Claude Code, OpenCode and Hermes; BMad Method compatible). You never run a command yourself, never open a file by hand, never touch a key. You **send prompts**; the agent does the rest and reports back in a vocabulary you can read.
 > **How to use it.** Find your situation in the [prompt catalogue](#9-prompt-catalogue-index) or the [combination matrix](#6-combination-matrix--project-state--goal--prompt), copy the prompt, paste it, then follow the follow-ups listed under it.
 > **Language note.** Prompts are written in English because commands, record names and field labels are English (the gate parses them). You can phrase the same intent in your own language — the agent maps it to the same action.
 > **Licence:** MIT (`LICENSE`). Built on BMAD-METHOD (BMad Code, MIT); see the `ATTRIBUTION` section at the end of `LICENSE`.
@@ -94,7 +94,7 @@ A single self-contained prompt that puts the agent in the right posture before a
 
 ```
 You are operating a project that has the metodoloji plugin installed
-(OpenHands + Claude Code + OpenCode, v0.1.0). Work through prompts only — I will not
+(OpenHands + Claude Code + OpenCode + Hermes). Work through prompts only — I will not
 run commands or edit files myself.
 
 Operating rules you must follow:
@@ -681,5 +681,5 @@ A **warning** (`methodology_warnings`, soft mode) means the agent got through wi
 
 ---
 
-**Closing note.** This file is written for `metodoloji` v0.1.0. When the plugin evolves, re-check the promises against `docs/CLAUDE.md`, `templates/` and `.plugin/plugin.json`. Licence and BMAD attribution: `LICENSE`.
+**Closing note.** Keep this guide aligned with the current release: use `README.md`, `HERMES.md`, `docs/OPENCODE.md`, `templates/` and `.plugin/plugin.json` as the source of truth. Licence and BMAD attribution: `LICENSE`.
 

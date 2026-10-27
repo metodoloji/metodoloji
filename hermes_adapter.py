@@ -202,12 +202,16 @@ def run_engine(mode: str, payload: dict, *, timeout: float | None = None,
     parsed: dict = {}
     if out:
         try:
-            parsed = json.loads(out)
-        except ValueError:
+            decoded = json.loads(out)
+            if isinstance(decoded, dict):
+                parsed = decoded
+        except (ValueError, RecursionError):
             parsed = {}
 
-    hso = parsed.get("hookSpecificOutput") or {}
-    decision = str(hso.get("permissionDecision") or parsed.get("decision") or "allow").lower()
+    hso_value = parsed.get("hookSpecificOutput")
+    hso = hso_value if isinstance(hso_value, dict) else {}
+    permission = hso.get("permissionDecision")
+    decision = str(permission or parsed.get("decision") or "allow").lower()
     reason = str(hso.get("permissionDecisionReason") or parsed.get("reason") or "")
     context = str(hso.get("additionalContext") or "")
     warnings = [line for line in context.splitlines() if line.strip()] if context else []
@@ -216,6 +220,20 @@ def run_engine(mode: str, payload: dict, *, timeout: float | None = None,
     if mode == "stop" and str(parsed.get("decision") or "").lower() == "block":
         decision = "deny"
         reason = reason or context
+
+    # Gated modes require the engine's explicit permission envelope and a
+    # successful process exit. A parseable partial allow response is not a
+    # valid decision; accepting it would turn a crashed hook into a bypass.
+    if mode in FAIL_CLOSED_MODES and (
+        proc.returncode != 0 or permission not in ("allow", "deny")
+    ):
+        return _result(
+            "deny",
+            f"Methodology {mode} hook produced no valid decision "
+            f"(exit {proc.returncode}) — fail-closed blocked.",
+            exit_code=proc.returncode,
+            stderr=(proc.stderr or "")[-2000:],
+        )
 
     if decision not in ("allow", "deny", "ask") or (not parsed and proc.returncode != 0):
         # No decidable answer. Fail closed where the engine would have, and

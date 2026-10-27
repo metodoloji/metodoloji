@@ -1064,10 +1064,11 @@ def test_pre_later_gate_deny_carries_earlier_warnings(monkeypatch):
     assert res["methodology_warnings"] == ["from-guard"]
 
 
-def test_pre_gate_crash_fails_open(monkeypatch):
-    """One gate raising must not wedge the call (fail-open, as before)."""
+def test_pre_gate_crash_obeys_hard_and_soft_modes(monkeypatch):
+    """A crashed quality/deploy gate denies in hard mode and warns in soft."""
     from modules.guard import pre
     from modules import guard as guard_mod
+    from modules import config
 
     monkeypatch.setattr(guard_mod, "guard", lambda payload: {"decision": "allow"})
 
@@ -1076,7 +1077,14 @@ def test_pre_gate_crash_fails_open(monkeypatch):
 
     monkeypatch.setattr(guard_mod, "quality", _boom)
     monkeypatch.setattr(guard_mod, "deploy", lambda payload: {"decision": "allow"})
-    assert pre({})["decision"] == "allow"
+    monkeypatch.setattr(config, "hook_gate_mode", lambda key: "hard")
+    assert pre({})["decision"] == "deny"
+
+    monkeypatch.setattr(config, "hook_gate_mode", lambda key: "soft")
+    soft = pre({})
+    assert soft["decision"] == "allow"
+    assert any("quality_gate could not complete" in w
+               for w in soft["methodology_warnings"])
 
 
 def test_guard_soft_gate_warns_not_denies(tmp_path, monkeypatch):

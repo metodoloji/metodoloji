@@ -1,6 +1,6 @@
 # AGENT-GUIDE-TR.md — metodoloji'yi Tamamen Prompt ile Kullanma Kılavuzu
 
-> **Bu dosya nedir?** `metodoloji` eklentisi (v0.1.0, çift-runtime: OpenHands + Claude Code, BMad Method uyumlu) için prompt ile kullanım kılavuzudur. Komut çalıştırmaz, dosya açmaz, anahtara dokunmazsınız. **Prompt atarsınız**, gerisini agent yapar ve okunabilir bir dille raporlar. İngilizce karşılığı: [`AGENT-GUIDE.md`](AGENT-GUIDE.md).
+> **Bu dosya nedir?** `metodoloji` eklentisi (OpenHands, Claude Code, OpenCode ve Hermes; BMad Method uyumlu) için prompt ile kullanım kılavuzudur. Komut çalıştırmaz, dosya açmaz, anahtara dokunmazsınız. **Prompt atarsınız**, gerisini agent yapar ve okunabilir bir dille raporlar. İngilizce karşılığı: [`AGENT-GUIDE.md`](AGENT-GUIDE.md).
 > **Nasıl kullanılır:** Durumunuzu [prompt kataloğu](#9-prompt-kataloğu-dizini) veya [kombinasyon matrisinden](#6-kombinasyon-matrisi--proje-durumu--hedef--prompt) bulun, prompt'u kopyalayıp yapıştırın, altındaki takip prompt'larını izleyin.
 > **Dil kuralı:** Prompt'lar **İngilizcedir** — çünkü komutlar, dosya adları, kayıt alan etiketleri ve statü belirteçleri İngilizce kalmak zorundadır (gate parse ediyor). Aynı niyeti Türkçe söyleyebilirsiniz; agent aynı eyleme bağlar.
 > **Lisans:** MIT (`LICENSE`). Metodoloji BMAD-METHOD (BMad Code, MIT) üzerine kuruludur — atıf ve trademark notu `LICENSE` sonundaki `ATTRIBUTION` bölümündedir.
@@ -92,7 +92,7 @@ Herhangi bir işe başlamadan önce agent'ı doğru pozisyona getiren, tek baş�
 
 ```
 You are operating a project that has the metodoloji plugin installed
-(OpenHands + Claude Code, v0.1.0). Work through prompts only — I will not
+(OpenHands + Claude Code + OpenCode + Hermes). Work through prompts only — I will not
 run commands or edit files myself.
 
 Operating rules you must follow:
@@ -675,5 +675,5 @@ and the file you verified. If you cannot, mark it as not done.
 
 ---
 
-**Kapanış notu.** Bu dosya `metodoloji` v0.1.0 için yazılmıştır. Eklenti evrildikçe sözlerini `docs/CLAUDE.md`, `templates/` ve `.plugin/plugin.json` ile çapraz kontrol et. Lisans + BMAD atfı: `LICENSE`. İngilizce karşılığı: [`AGENT-GUIDE.md`](AGENT-GUIDE.md).
+**Kapanış notu.** Bu kılavuzu güncel sürümle uyumlu tutmak için `README.md`, `HERMES.md`, `docs/OPENCODE.md`, `templates/` ve `.plugin/plugin.json` dosyalarını kaynak kabul et. Lisans + BMAD atfı: `LICENSE`. İngilizce karşılığı: [`AGENT-GUIDE.md`](AGENT-GUIDE.md).
 

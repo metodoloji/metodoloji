@@ -36,7 +36,7 @@ def _load_gate():
         import run_experiment as _gate  # noqa: E402
         gate = _gate
         return True
-    except Exception as exc:
+    except (Exception, SystemExit) as exc:
         sys.stderr.write(f"metodoloji-hooks: gate import failed — {exc}\n")
         return False
 
@@ -2780,11 +2780,26 @@ def pre(json_in: dict) -> dict:
         return res
     warnings: list[str] = list(res.get("methodology_warnings") or [])
 
-    for gate_fn in (quality, deploy):
+    for gate_key, gate_fn in (("quality_gate", quality), ("deploy_guard", deploy)):
         try:
             r = gate_fn(json_in)
-        except Exception:
-            continue  # fail-open: one gate crashing must not wedge the call
+        except Exception as exc:
+            from .config import hook_gate_mode
+            warning = (
+                f"{gate_key} could not complete ({type(exc).__name__}); "
+                "the gate returned no decision."
+            )
+            try:
+                hard = hook_gate_mode(gate_key) == "hard"
+            except Exception:
+                hard = True
+            if hard:
+                out = {"decision": "deny", "reason": warning}
+                if warnings:
+                    out["methodology_warnings"] = warnings
+                return out
+            warnings.append(warning)
+            continue
         if r.get("decision") == "deny":
             out = dict(r)
             if warnings:
