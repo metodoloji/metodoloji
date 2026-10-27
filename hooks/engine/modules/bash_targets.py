@@ -266,7 +266,8 @@ _PS_DEST_FIRST = frozenset({
 _PS_DEST_SECOND = frozenset({"copy-item", "move-item"})
 # Flags whose following token is a path (never content).
 _PS_PATH_FLAGS = frozenset({
-    "-path", "-filepath", "-literalpath", "-outfile", "-destination",
+    "-path", "-filepath", "-literalpath", "-pspath", "-lp",
+    "-outfile", "-destination",
 })
 
 
@@ -335,12 +336,16 @@ def _extract_powershell_targets(command: str, *, aliases: bool = False) -> list[
         for seg in segments:
             if not seg:
                 continue
-            cmd = seg[0].replace("\\", "/").rsplit("/", 1)[-1].lower()
+            # PowerShell's call operator is a valid command prefix (`&
+            # Set-Content ...`). Only accept it in the PowerShell tool context
+            # so POSIX background-operator syntax is not reinterpreted.
+            cmd_index = 1 if aliases and seg[0] == "&" and len(seg) > 1 else 0
+            cmd = seg[cmd_index].replace("\\", "/").rsplit("/", 1)[-1].lower()
             if aliases:
                 cmd = _PS_WRITE_ALIASES.get(cmd, cmd)
             if cmd not in _PS_WRITE_CMDLETS:
                 continue
-            args = seg[1:]
+            args = seg[cmd_index + 1:]
             # Directory/container creation is not a code write — and an
             # extensionless path fails is_code_target CLOSED, so extracting
             # `New-Item -ItemType Directory docs/foo` would deny a
