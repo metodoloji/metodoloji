@@ -29,6 +29,10 @@ _LAZY_IMPORTS = {
     "stop": ("modules.stop", "stop"),
 }
 
+# Bound hook payloads before JSON decoding. A malformed or unexpectedly large
+# tool call must not consume unbounded memory in a long-lived host process.
+MAX_HOOK_INPUT_CHARS = 16 * 1024 * 1024
+
 
 def _resolve_hook_type() -> str:
     """HOOK_TYPE env wins; a positional non-flag argv is the direct-call mode.
@@ -137,6 +141,10 @@ def main():
     # matching module is imported below.
     hook_type = _resolve_hook_type()
 
+    if hook_type not in _LAZY_IMPORTS:
+        _deny_unknown_hook_type()
+        return
+
     handler = None
     if hook_type in _LAZY_IMPORTS:
         try:
@@ -160,12 +168,19 @@ def main():
     # it used to escape json.load uncaught, so at depth ~20k EVERY mode exited
     # 1 with empty stdout (no decision on stop/guard/pre either).
     try:
-        json_in = json.load(sys.stdin)
-    except (json.JSONDecodeError, ValueError, EOFError, RecursionError):
+        raw_input = sys.stdin.read(MAX_HOOK_INPUT_CHARS + 1)
+        if len(raw_input) > MAX_HOOK_INPUT_CHARS:
+            if _is_fail_closed(hook_type):
+                _deny(
+                    "Methodology hook input exceeds the 16 Mi character limit "
+                    "— fail-closed blocked."
+                )
+            else:
+                _allow_no_input(hook_type)
+            return
+        json_in = json.loads(raw_input)
+    except (json.JSONDecodeError, ValueError, EOFError, OSError, RecursionError):
         json_in = None
-    if hook_type not in _LAZY_IMPORTS:
-        _deny_unknown_hook_type()
-        return
 
     if not isinstance(json_in, dict):
         if _is_fail_closed(hook_type):
