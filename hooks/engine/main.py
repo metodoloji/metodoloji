@@ -42,11 +42,14 @@ def _resolve_hook_type() -> str:
     Direct calls may also pass the mode positionally:  main.py guard --runtime=openhands
     """
     hook_type = os.environ.get("HOOK_TYPE", "")
+    positional_hook_type = ""
     for arg in sys.argv[1:]:
         if arg.startswith("--runtime="):
             os.environ["METODOLOJI_RUNTIME"] = arg.split("=", 1)[1]
         elif not arg.startswith("-"):
-            hook_type = arg
+            positional_hook_type = arg
+    if not hook_type:
+        hook_type = positional_hook_type
     return hook_type
 
 
