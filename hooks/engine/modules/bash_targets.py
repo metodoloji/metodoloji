@@ -315,8 +315,9 @@ _PS_WRITE_ALIASES = {
 _PS_DOTNET_WRITE_RE = re.compile(
     r"(?:\[(?:system\.)?io\.file\]\s*::\s*"
     r"(?:writealltext|appendalltext|writealllines|appendalllines|"
-    r"writeallbytes|appendallbytes|create|createtext|appendtext|openwrite)"
-    r"|\[(?:system\.)?io\.streamwriter\]\s*::\s*new)\s*\(",
+    r"writeallbytes|appendallbytes|create|createtext|appendtext|openwrite|open)"
+    r"|\[(?:system\.)?io\.streamwriter\]\s*::\s*new"
+    r"|\[(?:system\.)?io\.filestream\]\s*::\s*new)\s*\(",
     re.IGNORECASE,
 )
 
@@ -400,6 +401,39 @@ def _extract_powershell_dotnet_targets(command: str) -> tuple[list[str], bool]:
             j += 1
 
         raw_path = command[start:j].strip()
+        api = match.group(0).lower()
+        if ("file]::open" in api or "filestream]::new" in api) and command[j:j + 1] == ",":
+            # File.Open/FileStream can also be read-only. Respect an explicit
+            # FileAccess.Read; absent/unclear access remains write-capable.
+            tail_start = j + 1
+            k = tail_start
+            depth = 0
+            tail_quote = ""
+            while k < len(command):
+                c = command[k]
+                if tail_quote:
+                    if tail_quote == '"' and c == "`" and k + 1 < len(command):
+                        k += 2
+                        continue
+                    if c == tail_quote:
+                        tail_quote = ""
+                elif c in ("'", '"'):
+                    tail_quote = c
+                elif c == "(":
+                    depth += 1
+                elif c == ")":
+                    if depth == 0:
+                        break
+                    depth -= 1
+                k += 1
+            call_tail = command[tail_start:k]
+            if re.search(
+                r"\[(?:system\.)?io\.fileaccess\]\s*::\s*read\b",
+                call_tail,
+                re.IGNORECASE,
+            ):
+                i = max(k, match.end())
+                continue
         if len(raw_path) >= 2 and raw_path[0] in ("'", '"') and raw_path[-1] == raw_path[0]:
             path = raw_path[1:-1]
             if raw_path[0] == "'":
