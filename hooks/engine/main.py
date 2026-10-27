@@ -28,6 +28,7 @@ _LAZY_IMPORTS = {
     "session_start": ("modules.audit", "session_start"),
     "stop": ("modules.stop", "stop"),
 }
+_SUPPORTED_RUNTIMES = frozenset({"claude", "openhands", "opencode", "hermes"})
 
 # Bound hook payloads before JSON decoding. A malformed or unexpectedly large
 # tool call must not consume unbounded memory in a long-lived host process.
@@ -138,6 +139,24 @@ def _deny_unknown_hook_type() -> None:
     _deny("Unknown methodology hook mode — fail-closed blocked.")
 
 
+def _report_unknown_runtime(hook_type: str, runtime: str) -> None:
+    """Reject invalid runtime routing without making report hooks blocking."""
+    reason = f"Unknown methodology runtime '{runtime}' — hook could not route safely."
+    if _is_fail_closed(hook_type):
+        _deny(reason + " Fail-closed blocked.")
+        return
+    event_name = {
+        "stop": "Stop",
+        "audit": "PostToolUse",
+        "session_start": "SessionStart",
+    }.get(hook_type, "PreToolUse")
+    hso = {"hookEventName": event_name}
+    if hook_type in ("quality", "deploy"):
+        hso["permissionDecision"] = "allow"
+    hso["additionalContext"] = reason
+    print(json.dumps({"hookSpecificOutput": hso}, ensure_ascii=False))
+
+
 def main():
     """Main entry point for hook execution."""
     # Resolve the hook type BEFORE importing any gate module — only the
@@ -146,6 +165,11 @@ def main():
 
     if hook_type not in _LAZY_IMPORTS:
         _deny_unknown_hook_type()
+        return
+
+    runtime = os.environ.get("METODOLOJI_RUNTIME", "")
+    if runtime and runtime not in _SUPPORTED_RUNTIMES:
+        _report_unknown_runtime(hook_type, runtime)
         return
 
     handler = None

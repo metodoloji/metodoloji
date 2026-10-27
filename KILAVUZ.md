@@ -937,6 +937,7 @@ hook-entry.sh stop     → stop (fail-open, report-only)
 `hooks.json` sadece birleşik `pre`'yi dispatch eder; tekil modlar direkt çağrı + `{metodoloji-root}/scripts/check-plugin.sh` #1 smoke testi için geçerlidir.
 
 - Runtime: 2. CLI arg &gt; `METODOLOJI_RUNTIME` env &gt; varsayılan `openhands`.
+- Desteklenen runtime adları `claude`, `openhands`, `opencode` ve `hermes`; açıkça verilen tanınmayan değerler araç normalizasyonundan önce gated modlarda deny verir.
 - Python çözümleyici: `python3 → python → py`, sonra yaygın Windows yolları.
 - Ortak engine bilinmeyen hook modlarını input okumadan reddeder ve JSON input'u 16 Mi karakterle sınırlar; sınırı aşan gated payload deny alır, soft quality/deploy ve rapor-only modlar yapılandırılmış engellememe davranışını korur.
 - Motor/Python yok ama plugin kökü bulunuyorsa: pre/guard → `DENY` + exit 2 (fail-closed); quality/deploy hard/soft modunu uygular, soft modda uyarı verir; audit/session\_start geçer. Stop rapor-only kalır ve oturum kapanışını engellemeden raporun üretilemediğini iletir. Plugin kökü bulunamazsa enforcement modları (pre/guard/quality/deploy) politika çözülemediği için deny verir; Stop kök eksikliğini raporlar; audit/bootstrap/session\_start geçer; tanınmayan mod deny verir.

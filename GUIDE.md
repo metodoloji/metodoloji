@@ -938,6 +938,7 @@ hook-entry.sh stop     → stop (fail-open, report-only)
 `hooks.json` only dispatches the combined `pre`; the individual modes exist for direct calls and for the `{metodoloji-root}/scripts/check-plugin.sh` #1 smoke test.
 
 - Runtime: 2. CLI arg &gt; `METODOLOJI_RUNTIME` env &gt; default `openhands`.
+- Supported runtime names are `claude`, `openhands`, `opencode`, and `hermes`; an explicit unknown value denies gated modes before tool normalization.
 - Python resolver: `python3 → python → py`, then common Windows paths.
 - The shared engine rejects unknown hook modes before reading input and caps JSON input at 16 Mi characters; an oversized gated payload denies, while soft quality/deploy and report-only modes keep their configured non-blocking behavior.
 - If the engine/Python is missing but the plugin root is available: pre/guard → `DENY` + exit 2 (fail-closed); quality/deploy honor hard/soft mode, with a warning in soft mode; audit/session\_start pass. Stop stays report-only and surfaces an unavailable-report note without blocking session close. If the plugin root itself cannot be found, enforcement modes (pre/guard/quality/deploy) deny because policy cannot be resolved; Stop reports the missing root; audit/bootstrap/session\_start pass; unknown modes deny.
