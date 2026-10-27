@@ -1,6 +1,6 @@
 {
   "name": "metodoloji-opencode-plugin",
-  "version": "0.1.81",
+  "version": "0.1.82",
   "description": "Methodology plugin for OpenCode: record-chain gates (E→IR→SP→S→QR→PR) enforced through the shared Python hook engine",
   "type": "module",
   "license": "MIT",

@@ -963,7 +963,7 @@ Archive bomb protection (tar+zip): single file ≤512MB, compressed archive ≤6
 
 ### 9.9 Input normalisation
 
-`normalize_hook_input()`: Claude `Write`/`Edit`/`MultiEdit` → `file_editor` (`file_path` → `path`), `Bash`/`PowerShell` → `terminal` (`cmd` → `command`); OpenHands passes through unchanged; OpenCode `write`/`edit`/`patch` → `file_editor` (`filePath` → `path`, `patchText` → `paths`), `shell`/`bash` → `terminal`; Hermes `write_file`/`patch`/`multi_edit` and `terminal` map through its runtime branch, while `execute_code` write targets are derived from the code. The runtime is inferred from `METODOLOJI_RUNTIME` (the `--runtime=` flag) or the raw tool name. **Known deviation:** an unrecognised tool name normalises to `unknown` and guard **warns**, it does not deny (so an unknown tool cannot hard-block a call).
+`normalize_hook_input()`: Claude `Write`/`Edit`/`MultiEdit` → `file_editor` (`file_path` → `path`), `Bash`/`PowerShell` → `terminal` (`cmd` → `command`); OpenHands passes through unchanged; OpenCode `write`/`edit`/`patch` → `file_editor` (`filePath` → `path`, `patchText` → `paths`), `shell`/`bash` → `terminal`; Hermes `write_file`/`patch`/`multi_edit` and `terminal` map through its runtime branch, while `execute_code` write targets are derived from the code. Runtime comes from `METODOLOJI_RUNTIME`/`--runtime=` or, for recognized tool names, vocabulary inference. Unknown names with a conventional path plus mutation payload are routed through `file_editor`; truly unclassifiable names remain `unknown` and warn without blocking, so an unknown tool cannot hard-block a call.
 
 ---
 
@@ -1390,7 +1390,7 @@ These 60 items are not "good practice" — they are the system's mechanical boun
 41. Audit is synchronous + fail-open — a slowness complaint is usually a duplicate hook registration, not audit.
 42. If you see "2 async PostToolUse hooks completed" there is a duplicate install — clean the manifest + `settings.json` + stale cache.
 43. A duplicate Stop ("Ran 2 stop hooks") is cleaned up via `/hooks` — stop does not block anyway, but the report doubles.
-44. An unknown tool name becomes `unknown` → warning, not deny — so an unknown tool cannot lock you out.
+44. Unknown tools with `path` + write content use the file gate; other unclassifiable names warn, not deny — so an unknown read tool cannot lock you out.
 45. Archive limits (512MB/64MB/200k members/2GB) — the `tar/unzip` target scan has bomb protection.
 
 **TOML/Blackboard/Output (46–60):**

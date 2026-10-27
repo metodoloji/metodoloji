@@ -118,8 +118,9 @@ def _coerce_tool_input(raw) -> dict:
 # Non-write tools (read/glob/grep/webfetch/websearch/question/skill/task/…)
 # normalize to "" so guard's non-gated fast path allows them WITHOUT a warning —
 # a warn on every read would drown the real signal. A name outside this
-# vocabulary keeps the E-010 catch-all ("unknown" → warn), so a future write-ish
-# tool stays visible instead of being silently allowed.
+# vocabulary keeps the E-010 catch-all ("unknown" → warn), while the shared
+# path + mutation inference below can route conventional future write payloads
+# through the file gate instead of merely warning.
 _OPENCODE_WRITE_TOOLS = {
     "write": "file_editor", "edit": "file_editor", "multiedit": "file_editor",
     "patch": "file_editor", "apply_patch": "file_editor",
@@ -505,6 +506,40 @@ def normalize_hook_input(json_in: dict) -> dict:
         pass  # no tool info (e.g. Stop/SessionStart payloads) — nothing to map
     else:
         tool_name = "unknown"
+
+    # Unknown tool names with a conventional file-write payload can still be
+    # routed through the normal file gate. This catches future adapters that
+    # use a new name but preserve the common path + content/edit contract,
+    # while a genuinely unclassifiable tool remains visible as a warning.
+    if tool_name not in ("file_editor", "terminal", "notebook_editor"):
+        path_keys = ("path", "file_path", "filePath")
+        candidate_path = next(
+            (str(tool_input.get(key) or "").strip() for key in path_keys
+             if str(tool_input.get(key) or "").strip()),
+            "",
+        )
+        candidate_paths = tool_input.get("paths")
+        has_paths = isinstance(candidate_paths, list) and any(
+            str(path).strip() for path in candidate_paths
+        )
+        mutation_keys = ("content", "new_string", "replacement", "patchText", "patch")
+        has_mutation = any(
+            key in tool_input and tool_input.get(key) is not None
+            for key in mutation_keys
+        )
+        action = str(tool_input.get("action") or "").strip().lower()
+        has_mutation = has_mutation or action in {
+            "write", "create", "edit", "replace", "patch", "delete", "remove"
+        }
+        patch_text = tool_input.get("patchText") or tool_input.get("patch") or ""
+        patch_paths = _opencode_patch_paths(patch_text)
+        if ((candidate_path or has_paths) and has_mutation) or patch_paths:
+            tool_name = "file_editor"
+            if candidate_path:
+                tool_input.setdefault("path", candidate_path)
+            if patch_paths:
+                tool_input["paths"] = patch_paths
+                tool_input.setdefault("path", patch_paths[0])
 
     # E-010 — unified catch-all. hook-entry.sh ALWAYS passes a runtime
     # (`RUNTIME="${2:-${METODOLOJI_RUNTIME:-openhands}}"`), and each runtime
