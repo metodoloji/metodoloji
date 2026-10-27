@@ -14,14 +14,14 @@ This module is the only place that knows both sides:
 
 Two design rules, both load-bearing:
 
-1. **The engine is never imported.** Every call is a subprocess. A gate module
-   that calls ``sys.exit``, a corrupted record that trips a bug, or a hung
-   ``git`` cannot take the gateway down, and the engine keeps its own
-   fail-closed policy: a missing engine or unreadable output BLOCKS a gated
-   tool call rather than silently allowing it.
-2. **Fail closed only where the engine does.** ``pre`` (guard + quality +
-   deploy) denies on error; audit/stop/session_start are report-only and fail
-   open, because a logging failure must never wedge a session.
+1. **Gate handlers are never imported.** Every engine decision is a subprocess.
+   A gate module that calls ``sys.exit``, a corrupted record that trips a bug,
+   or a hung ``git`` cannot take the gateway down. Adapter failures use the
+   shared gate configuration to produce the matching decision.
+2. **Fail closed only where the engine does.** ``pre``/``guard`` always deny
+   on error; standalone quality/deploy honor their configured hard/soft mode.
+   Audit/stop/session_start are report-only and fail open, because a logging
+   failure must never wedge a session.
 
 The payload's ``cwd`` carries the session working directory: Hermes hooks run
 in the gateway process, whose own cwd is NOT the project (see
@@ -34,6 +34,7 @@ payload and would silently redirect every gate to another project.
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import os
 import shutil
@@ -79,9 +80,8 @@ def configure(options: dict | None) -> None:
                      "include_skill_triggers"):
             OPTIONS[key] = bool(value)
 
-# Modes whose failure must block. ``pre`` bundles guard+quality+deploy, i.e.
-# the three that can deny a write, a commit or a deploy.
-FAIL_CLOSED_MODES = frozenset({"pre", "guard", "quality", "deploy"})
+# Gate strictness is resolved from the same config accessor as the engine.
+_GATE_KEYS = {"quality": "quality_gate", "deploy": "deploy_guard"}
 
 # The engine's own hook timeout in hooks/hooks.json is 10s for PreToolUse and
 # 2s for the audit trail. Match those budgets: Hermes bounds plugin callbacks
@@ -94,8 +94,36 @@ TIMEOUTS = {
 _ENV_LOCK = threading.Lock()
 
 
+def _is_fail_closed(mode: str) -> bool:
+    """Mirror engine failure policy without importing a gate handler."""
+    if mode in ("pre", "guard"):
+        return True
+    gate_key = _GATE_KEYS.get(mode)
+    if gate_key is None:
+        return False
+    try:
+        config_path = PLUGIN_ROOT / "hooks" / "engine" / "modules" / "config.py"
+        spec = importlib.util.spec_from_file_location("_metodoloji_hook_config", config_path)
+        if spec is None or spec.loader is None:
+            return True
+        config = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(config)
+        return config.hook_gate_mode(gate_key) == "hard"
+    except (Exception, SystemExit):
+        # If policy itself cannot be read, do not allow a broken gate through.
+        return True
+
+
+def _failure_result(mode: str, reason: str, *, exit_code: int = 1,
+                    stderr: str = "") -> dict:
+    """Turn an adapter failure into the active mode's decision and warning."""
+    if _is_fail_closed(mode):
+        return _result("deny", reason, exit_code=exit_code, stderr=stderr)
+    return _result("allow", reason, warnings=[reason], exit_code=exit_code, stderr=stderr)
+
+
 class EngineUnavailable(RuntimeError):
-    """No interpreter or no engine on disk — a fail-closed condition for `pre`."""
+    """No interpreter is available for the engine or a plugin-owned script."""
 
 
 def python_executable() -> str:
@@ -167,16 +195,20 @@ def run_engine(mode: str, payload: dict, *, timeout: float | None = None,
     """Run one engine mode and normalize its answer.
 
     Returns ``{"decision": "allow"|"deny", "reason": str, "warnings": [...],
-    "context": str, "exit_code": int, "stderr": str}``. Never raises for the
-    report-only modes; raises :class:`EngineUnavailable` only when the engine
-    itself is missing (callers decide the policy, see :func:`check_tool`).
+    "context": str, "exit_code": int, "stderr": str}``. Adapter failures are
+    converted according to the active mode's strictness.
     """
     if not ENGINE.is_file():
-        raise EngineUnavailable(f"engine missing at {ENGINE}")
+        reason = f"Methodology {mode} hook could not run (engine missing)."
+        return _failure_result(mode, reason, exit_code=127)
 
     workdir = cwd or str(payload.get("cwd") or agent_cwd())
     limit = TIMEOUTS.get(mode, 10.0) if timeout is None else timeout
-    argv = [python_executable(), str(ENGINE), "--runtime=hermes"]
+    try:
+        python = python_executable()
+    except EngineUnavailable as exc:
+        return _failure_result(mode, str(exc), exit_code=127)
+    argv = [python, str(ENGINE), "--runtime=hermes"]
 
     with _ENV_LOCK:  # env is built per call; the lock keeps diagnostics ordered
         env = _child_env(mode)
@@ -191,12 +223,12 @@ def run_engine(mode: str, payload: dict, *, timeout: float | None = None,
             env=env,
         )
     except subprocess.TimeoutExpired:
-        return _result("deny" if mode in FAIL_CLOSED_MODES else "allow",
-                       f"Methodology {mode} hook timed out after {limit:g}s",
-                       exit_code=124)
+        return _failure_result(mode,
+                               f"Methodology {mode} hook timed out after {limit:g}s",
+                               exit_code=124)
     except OSError as exc:
-        return _result("deny" if mode in FAIL_CLOSED_MODES else "allow",
-                       f"Methodology {mode} hook could not start: {exc}", exit_code=127)
+        return _failure_result(mode, f"Methodology {mode} hook could not start: {exc}",
+                               exit_code=127)
 
     out = (proc.stdout or "").strip()
     parsed: dict = {}
@@ -224,13 +256,13 @@ def run_engine(mode: str, payload: dict, *, timeout: float | None = None,
     # Gated modes require the engine's explicit permission envelope and a
     # successful process exit. A parseable partial allow response is not a
     # valid decision; accepting it would turn a crashed hook into a bypass.
-    if mode in FAIL_CLOSED_MODES and (
+    if mode in ("pre", "guard", *_GATE_KEYS) and (
         proc.returncode != 0 or permission not in ("allow", "deny")
     ):
-        return _result(
-            "deny",
+        return _failure_result(
+            mode,
             f"Methodology {mode} hook produced no valid decision "
-            f"(exit {proc.returncode}) — fail-closed blocked.",
+            f"(exit {proc.returncode}); no gate decision was available.",
             exit_code=proc.returncode,
             stderr=(proc.stderr or "")[-2000:],
         )
@@ -238,10 +270,11 @@ def run_engine(mode: str, payload: dict, *, timeout: float | None = None,
     if decision not in ("allow", "deny", "ask") or (not parsed and proc.returncode != 0):
         # No decidable answer. Fail closed where the engine would have, and
         # say which mode produced the silence so the block message is actionable.
-        return _result("deny" if mode in FAIL_CLOSED_MODES else "allow",
-                       f"Methodology {mode} hook produced no decision "
-                       f"(exit {proc.returncode}) — fail-closed blocked.",
-                       exit_code=proc.returncode, stderr=(proc.stderr or "")[-2000:])
+        return _failure_result(mode,
+                               f"Methodology {mode} hook produced no decision "
+                               f"(exit {proc.returncode}).",
+                               exit_code=proc.returncode,
+                               stderr=(proc.stderr or "")[-2000:])
 
     return _result("deny" if decision == "deny" else "allow", reason,
                    warnings=warnings, context=context,
