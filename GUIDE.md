@@ -866,7 +866,7 @@ Hook commands locate the plugin root themselves (`$CLAUDE_PLUGIN_ROOT`, `$METODO
 
 ### 9.2 Guard (PreToolUse) — Fail-Closed, runs first
 
-Scope: `Write`/`Edit`/`MultiEdit` + `Bash`/`PowerShell` + `file_editor`/`terminal`/`notebook_editor` (internally normalised to `file_editor`/`terminal`). `PowerShell` is Claude Code's shell tool on Windows; without it in the matcher, `Set-Content src/a.py ...` writes would never reach guard. The PowerShell surface also recognizes common writing aliases (`sc`, `ac`, `clc`, `tee`, `si`, `ni`, `cpi`, `cp`, `copy`, `mi`, `mv`, `move`), `&`-invoked cmdlets, `-LP`/`-PSPath` aliases for `-LiteralPath`, and backtick line continuations; these forms are not applied to Bash, where names such as `sc` and `tee` have different meanings.
+Scope: `Write`/`Edit`/`MultiEdit` + `Bash`/`PowerShell` + `file_editor`/`terminal`/`notebook_editor` (internally normalised to `file_editor`/`terminal`). `PowerShell` is Claude Code's shell tool on Windows; without it in the matcher, `Set-Content src/a.py ...` writes would never reach guard. The PowerShell surface also recognizes common writing aliases (`sc`, `ac`, `clc`, `tee`, `si`, `ni`, `cpi`, `cp`, `copy`, `mi`, `mv`, `move`), `&`-invoked cmdlets, `-LP`/`-PSPath` aliases for `-LiteralPath`, backtick line continuations, and literal-path calls to common `[IO.File]` write methods. A dynamic path in a recognized .NET write call is treated as unresolved and follows `code_guard` hard/soft policy. These forms are not applied to Bash, where names such as `sc` and `tee` have different meanings.
 
 Behaviour:
 

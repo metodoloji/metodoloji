@@ -118,11 +118,14 @@ def extract_bash_targets_ex(
     inert for ordinary shell input.
     """
     targets, dropped = _extract_raw(command)
-    ps_targets = _extract_powershell_targets(command, aliases=powershell)
+    ps_targets, ps_unresolved = _extract_powershell_targets(
+        command, aliases=powershell
+    )
     if ps_targets:
         targets = targets + ps_targets
         if not dropped:
             dropped = any(t and "$" in t for t in ps_targets)
+    dropped = dropped or ps_unresolved
     kept = [t for t in targets if t and "$" not in t]
     # Order-preserving dedupe: more than one branch (or two interpreter
     # tokens in different segments) can report the same destination; guard
@@ -309,7 +312,107 @@ _PS_WRITE_ALIASES = {
 }
 
 
-def _extract_powershell_targets(command: str, *, aliases: bool = False) -> list[str]:
+_PS_DOTNET_WRITE_RE = re.compile(
+    r"\[(?:system\.)?io\.file\]\s*::\s*"
+    r"(?:writealltext|appendalltext|writealllines|appendalllines|"
+    r"writeallbytes|appendallbytes|create|createtext|appendtext|openwrite)\s*\(",
+    re.IGNORECASE,
+)
+
+
+def _extract_powershell_dotnet_targets(command: str) -> tuple[list[str], bool]:
+    """Return literal paths and whether a recognized .NET write has a dynamic path."""
+    targets: list[str] = []
+    unresolved = False
+    quote = ""
+    i = 0
+    while i < len(command):
+        ch = command[i]
+        if not quote and command.startswith("<#", i):
+            # Skip PowerShell block comments (including nested blocks) so a
+            # code example in a comment cannot fabricate a write target.
+            depth = 1
+            i += 2
+            while i < len(command) and depth:
+                if command.startswith("<#", i):
+                    depth += 1
+                    i += 2
+                elif command.startswith("#>", i):
+                    depth -= 1
+                    i += 2
+                else:
+                    i += 1
+            continue
+        if quote:
+            if quote == '"' and ch == "`" and i + 1 < len(command):
+                i += 2
+                continue
+            if ch == quote:
+                if i + 1 < len(command) and command[i + 1] == quote:
+                    i += 2
+                    continue
+                quote = ""
+            i += 1
+            continue
+        if ch in ("'", '"'):
+            quote = ch
+            i += 1
+            continue
+        if ch == "#" and (
+            i == 0 or command[i - 1].isspace() or command[i - 1] in ";|&"
+        ):
+            newline = command.find("\n", i)
+            i = len(command) if newline < 0 else newline + 1
+            continue
+        match = _PS_DOTNET_WRITE_RE.match(command, i)
+        if not match:
+            i += 1
+            continue
+
+        # Read the first method argument through nested expressions, stopping
+        # only at its top-level comma or closing parenthesis.
+        start = match.end()
+        j = start
+        depth = 0
+        arg_quote = ""
+        while j < len(command):
+            c = command[j]
+            if arg_quote:
+                if arg_quote == '"' and c == "`" and j + 1 < len(command):
+                    j += 2
+                    continue
+                if c == arg_quote:
+                    if j + 1 < len(command) and command[j + 1] == arg_quote:
+                        j += 2
+                        continue
+                    arg_quote = ""
+            elif c in ("'", '"'):
+                arg_quote = c
+            elif c == "(":
+                depth += 1
+            elif c == ")":
+                if depth == 0:
+                    break
+                depth -= 1
+            elif c == "," and depth == 0:
+                break
+            j += 1
+
+        raw_path = command[start:j].strip()
+        if len(raw_path) >= 2 and raw_path[0] in ("'", '"') and raw_path[-1] == raw_path[0]:
+            path = raw_path[1:-1]
+            if raw_path[0] == "'":
+                path = path.replace("''", "'")
+            targets.append(path)
+        else:
+            unresolved = True
+        i = max(j, match.end())
+    return targets, unresolved
+
+
+def _extract_powershell_targets(
+    command: str, *, aliases: bool = False
+) -> tuple[list[str], bool]:
     """Paths a PowerShell command may write to (bounded cmdlet scan).
 
     Best-effort: an empty result means "no cmdlet destination recognized",
@@ -317,7 +420,7 @@ def _extract_powershell_targets(command: str, *, aliases: bool = False) -> list[
     to whatever is returned.
     """
     if not command:
-        return []
+        return [], False
     if aliases:
         # A single trailing backtick continues the PowerShell statement on
         # the next physical line. Keep escaped pairs of backticks intact and
@@ -329,6 +432,10 @@ def _extract_powershell_targets(command: str, *, aliases: bool = False) -> list[
             command,
         )
     targets: list[str] = []
+    unresolved = False
+    if aliases:
+        dotnet_targets, unresolved = _extract_powershell_dotnet_targets(command)
+        targets.extend(dotnet_targets)
     for stmt in re.split(r"[;\r\n]", command):
         words = _ps_word_split(stmt)
         if not words:
@@ -392,7 +499,7 @@ def _extract_powershell_targets(command: str, *, aliases: bool = False) -> list[
                     targets.append(flag_vals[0])
                 elif positionals:
                     targets.append(positionals[0])
-    return targets
+    return targets, unresolved
 
 
 # --- bounded per-command output/operand scanners -----------------------------

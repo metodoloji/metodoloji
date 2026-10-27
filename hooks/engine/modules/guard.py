@@ -1649,7 +1649,7 @@ def guard(json_in: dict) -> dict:
 
         if _var_drop:
             message = (
-                "Unresolved variable write target — guard cannot verify the destination. "
+                "Unresolved write target — guard cannot verify the destination. "
                 "Use a literal path or configure code_guard=soft for warn-only handling."
             )
             try:
