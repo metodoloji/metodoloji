@@ -318,6 +318,16 @@ def _extract_powershell_targets(command: str, *, aliases: bool = False) -> list[
     """
     if not command:
         return []
+    if aliases:
+        # A single trailing backtick continues the PowerShell statement on
+        # the next physical line. Keep escaped pairs of backticks intact and
+        # remove only the final continuation marker plus its newline.
+        command = re.sub(
+            r"(?<!`)(?:``)*`\r?\n",
+            lambda m: m.group(0)[:-3] if m.group(0).endswith("\r\n")
+            else m.group(0)[:-2],
+            command,
+        )
     targets: list[str] = []
     for stmt in re.split(r"[;\r\n]", command):
         words = _ps_word_split(stmt)
