@@ -507,11 +507,16 @@ def normalize_hook_input(json_in: dict) -> dict:
     else:
         tool_name = "unknown"
 
-    # Unknown tool names with a conventional file-write payload can still be
-    # routed through the normal file gate. This catches future adapters that
-    # use a new name but preserve the common path + content/edit contract,
+    # Unknown tool names with a conventional shell or file-write payload can
+    # still be routed through the normal gates. This catches future adapters
+    # that use a new name but preserve common command or path + mutation fields,
     # while a genuinely unclassifiable tool remains visible as a warning.
     if tool_name not in ("file_editor", "terminal", "notebook_editor"):
+        candidate_command = tool_input.get("command") or tool_input.get("cmd")
+        if candidate_command and str(candidate_command).strip():
+            tool_name = "terminal"
+            tool_input["command"] = str(candidate_command)
+
         path_keys = ("path", "file_path", "filePath")
         candidate_path = next(
             (str(tool_input.get(key) or "").strip() for key in path_keys
@@ -533,7 +538,9 @@ def normalize_hook_input(json_in: dict) -> dict:
         }
         patch_text = tool_input.get("patchText") or tool_input.get("patch") or ""
         patch_paths = _opencode_patch_paths(patch_text)
-        if ((candidate_path or has_paths) and has_mutation) or patch_paths:
+        if tool_name != "terminal" and (
+            ((candidate_path or has_paths) and has_mutation) or patch_paths
+        ):
             tool_name = "file_editor"
             if candidate_path:
                 tool_input.setdefault("path", candidate_path)
