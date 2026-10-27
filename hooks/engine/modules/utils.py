@@ -100,7 +100,12 @@ def _coerce_tool_input(raw) -> dict:
         return {"command": rendered} if rendered else {}
     out = {}
     for k, x in raw.items():
-        if k in _COERCE_TOOL_KEYS:
+        if k in ("path", "file_path") and isinstance(x, (list, tuple)):
+            # Preserve the malformed shape for normalize_hook_input(); joining
+            # paths here would hide which individual target the gate must see.
+            out[k] = _coerce_json_scalar(x)
+            out["_malformed_path_selector_list"] = True
+        elif k in _COERCE_TOOL_KEYS:
             out[k] = _coerce_json_scalar(x)
         else:
             out[k] = x
@@ -507,6 +512,13 @@ def normalize_hook_input(json_in: dict) -> dict:
     else:
         tool_name = "unknown"
 
+    malformed_path_selector_list = bool(
+        tool_input.pop("_malformed_path_selector_list", False)
+    ) or any(
+        isinstance(tool_input.get(key), (list, tuple))
+        for key in ("path", "file_path", "filePath", "filename", "target_path")
+    )
+
     # Canonicalize common field aliases for every runtime branch, including
     # already-normalized tool names. Otherwise `terminal` + `cmd` or
     # `file_editor` + `filePath` looks like an empty/no-op call to the guard.
@@ -579,10 +591,18 @@ def normalize_hook_input(json_in: dict) -> dict:
         and not candidate_path
         and not has_paths
     )
+    malformed_path_write = malformed_path_selector_list and (
+        tool_name in ("file_editor", "notebook_editor")
+        or has_mutation
+        or bool(candidate_command and str(candidate_command).strip())
+    )
     ambiguous_write_payload = bool(
-        candidate_command
-        and str(candidate_command).strip()
-        and (has_file_write or missing_editor_target)
+        malformed_path_write
+        or (
+            candidate_command
+            and str(candidate_command).strip()
+            and (has_file_write or missing_editor_target)
+        )
     )
 
     if tool_name not in ("file_editor", "terminal", "notebook_editor"):
