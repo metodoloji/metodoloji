@@ -527,7 +527,8 @@ def normalize_hook_input(json_in: dict) -> dict:
         )
         all_paths = []
         for value in [*path_values, *(tool_input.get(key) for key in
-                                      ("path", "file_path", "filePath"))]:
+                                      ("path", "file_path", "filePath", "filename",
+                                       "target_path"))]:
             path = str(value or "").strip()
             if path and path not in all_paths:
                 all_paths.append(path)
@@ -542,13 +543,18 @@ def normalize_hook_input(json_in: dict) -> dict:
     # call carries both shell and file-write signatures, a single normalized
     # tool cannot safely represent both; preserve that fact for guard().
     candidate_command = tool_input.get("command") or tool_input.get("cmd")
-    path_keys = ("path", "file_path", "filePath")
+    path_keys = ("path", "file_path", "filePath", "filename", "target_path")
     candidate_path = next(
         (str(tool_input.get(key) or "").strip() for key in path_keys
          if str(tool_input.get(key) or "").strip()),
         "",
     )
     candidate_paths = tool_input.get("paths")
+    if candidate_paths is not None and not isinstance(candidate_paths, list):
+        # Some adapters encode one path in `paths`; preserve it as a singleton
+        # list so the downstream guard does not mistake it for no target.
+        candidate_paths = [str(candidate_paths)]
+        tool_input["paths"] = candidate_paths
     has_paths = isinstance(candidate_paths, list) and any(
         str(path).strip() for path in candidate_paths
     )
@@ -587,6 +593,8 @@ def normalize_hook_input(json_in: dict) -> dict:
             tool_name = "file_editor"
             if candidate_path:
                 tool_input.setdefault("path", candidate_path)
+            if has_paths:
+                tool_input["paths"] = [str(path) for path in candidate_paths if str(path).strip()]
             if patch_paths:
                 tool_input["paths"] = patch_paths
                 tool_input.setdefault("path", patch_paths[0])
