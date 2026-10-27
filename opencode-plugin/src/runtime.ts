@@ -108,6 +108,19 @@ function candidateRoots(env: NodeJS.ProcessEnv, self: string | undefined): strin
 }
 
 export function discoverRoot(env: NodeJS.ProcessEnv = process.env): string | undefined {
+  // Explicit roots and this plugin's own checkout outrank a prior fallback
+  // result. Re-check them on every call because OpenCode can keep the plugin
+  // process alive while its environment or installation changes.
+  const preferred = [env.METODOLOJI_PLUGIN_ROOT, env.CLAUDE_PLUGIN_ROOT, selfRoot()]
+  for (const candidate of preferred) {
+    if (candidate && isRoot(candidate)) {
+      cachedRoot = resolve(candidate)
+      return cachedRoot
+    }
+  }
+
+  // Cache only the lower-priority discovered install. This avoids repeated
+  // filesystem scans without allowing it to shadow a newly selected root.
   if (cachedRoot && isRoot(cachedRoot)) return cachedRoot
   cachedRoot = undefined
   for (const candidate of candidateRoots(env, selfRoot())) {
