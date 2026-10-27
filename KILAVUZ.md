@@ -871,7 +871,7 @@ Davranış:
 
 - Story dosyası (`S-NNN.md` veya `N-N-slug.md`) yazımında: `experiment_refs` doğrulanır (`PENDING`/`REJECTED` → hep deny); yeni dosyada yinelenen kayıt ID taranır (mevcut dosya editinde değil — duplicate sadece yaratılışta doğar).
 - Kod hedefi + free zone dışı → **kapsayan VERIFIED** deney aranır. Yoksa `DENY` (hard) veya `allow + methodology_warnings` (`code_guard="soft"`).
-- Terminal komutundaki `$var`/`${var}` hedefleri tek tek düşürülür — `$var` asla literal path sayılmaz, ama aynı komuttaki statik hedefler hâlâ denetlenir.
+- `$var`/`${var}` hiçbir zaman literal path sayılmaz. Yazma hedefi çözülemiyorsa `code_guard="hard"` komutu deny eder, `soft` uyarır; aynı komuttaki statik hedefler ayrıca denetlenir.
 - Story dosyasına terminal/heredoc yazımı: payload görünürse `experiment_refs` doğrulanır; opaksa "commit zamanına ertelendi" uyarısı verilir.
 - Secret referansı (terminal komutu veya yazılan içerik) → `DENY`. İçerik taraması free-zone kontrolünden **önce** koşar — agent zone'ları bypass edemez.
 
@@ -1377,7 +1377,7 @@ Bu 60 madde "iyi pratik" değil, sistemin mekanik sınırlarıdır. Her birini i
 29. Bilinmeyen uzantı korumalıdır — "bu uzantıyı tanımıyor, geçer" sanma; whitelist dışı = kod hedefi.
 30. `package.json` exec-config sayılıp korunur; `tsconfig*.json`/lockfile'lar serbest — ayrımı ezberle.
 31. `echo x > src/a.py` guard'a takılır (union matcher) — shell'den kaçış yok.
-32. Komuttaki `$var` hedefleri düşürülür ama statik hedefler denetlenir — `cat $X > src/a.py` hâlâ yakalanır.
+32. Çözülemeyen değişkenli yazma hedefi hard modda deny, soft modda uyarı alır; aynı komuttaki statik hedefler de denetlenir — `cat $X > src/a.py` hâlâ yakalanır.
 33. Secret taraması free-zone'dan ÖNCE koşar — scratch seni kurtarmaz.
 34. Düz yazıda `load_secret` serbest, `load_secret(` deny — parantez/atama/köşeli arar.
 35. Gate key'i terminalde `cat`leme, içeriğini dosyaya yazma — guard DENY atar (ve haklıdır).

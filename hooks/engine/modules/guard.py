@@ -10,7 +10,8 @@ import sys
 import time
 from functools import lru_cache
 
-from .config import GATE_DIR, SCOPE_GIT_TIMEOUT_SECONDS, _BMD_DIR, _KEY_ACCESS_IN_CONTENT, story_status
+from .config import (GATE_DIR, SCOPE_GIT_TIMEOUT_SECONDS, _BMD_DIR,
+                     _KEY_ACCESS_IN_CONTENT, hook_gate_mode, story_status)
 from .utils import (is_code_target, is_free, norm_path, normalize_hook_input,
                     rel_to_root, repo_root, extract_story_key_from_content,
                     dod_issues, _VERIFY_FIELD_RE)
@@ -1598,7 +1599,6 @@ def guard(json_in: dict) -> dict:
             "identify every possible target safely. Split or correct the operation."
         )
         try:
-            from .config import hook_gate_mode
             hard = hook_gate_mode("code_guard") == "hard"
         except (Exception, SystemExit):
             hard = True
@@ -1645,6 +1645,19 @@ def guard(json_in: dict) -> dict:
                           "/metodoloji:verify; never print or cat the key file itself."
             }
 
+        if _var_drop:
+            message = (
+                "Unresolved variable write target — guard cannot verify the destination. "
+                "Use a literal path or configure code_guard=soft for warn-only handling."
+            )
+            try:
+                hard = hook_gate_mode("code_guard") == "hard"
+            except (Exception, SystemExit):
+                hard = True
+            if hard:
+                return {"decision": "deny", "reason": message}
+            _soft_warnings.append(message)
+
     elif tool_name in ("file_editor", "notebook_editor"):
         _paths = tool_input.get("paths")
         if isinstance(_paths, list) and any(str(x).strip() for x in _paths):
@@ -1656,17 +1669,13 @@ def guard(json_in: dict) -> dict:
 
     # Fast exit: shell/file write with no resolvable targets
     if not targets:
-        # F1/T-03: a dropped $destination means the write went SOMEWHERE the
-        # guard cannot see — allow (never deny on a guess) but say so, so the
-        # blind spot is visible instead of silent. No write operator at all
-        # (e.g. `echo $HOME`) stays a plain allow.
-        if tool_name == "terminal" and _var_drop:
+        # A shell command without a write operator (e.g. `echo $HOME`) stays a
+        # plain allow. An unresolved destination was already handled under the
+        # active code_guard mode above.
+        if _soft_warnings:
             return {
                 "decision": "allow",
-                "methodology_warnings": [
-                    "Unresolved variable write target — guard could not verify "
-                    "the destination; confirm it is not an unapproved code write."
-                ],
+                "methodology_warnings": _soft_warnings,
             }
         return {"decision": "allow"}
 
@@ -1824,7 +1833,6 @@ def guard(json_in: dict) -> dict:
                         f"{rel}: {smsg} — this write is NOT backed by a measurement; "
                         f"a QR must ratify the declaration before the story closes.")
                     continue
-            from .config import hook_gate_mode
             msg = (f"No approved experiment record for {rel}: {detail}. "
                    f"Create a hypothesis, measure, and get approval with "
                    f"{_plugin_script_cmd(

@@ -872,7 +872,7 @@ Behaviour:
 
 - Writing a story file (`S-NNN.md` or `N-N-slug.md`): `experiment_refs` is verified (`PENDING`/`REJECTED` → always deny); duplicate record IDs are scanned on new files (not on edits of existing files — duplicates are only born at creation).
 - Code target outside the free zone → a **covering VERIFIED** experiment is required. Otherwise `DENY` (hard) or `allow + methodology_warnings` (`code_guard="soft"`).
-- `$var`/`${var}` targets in a terminal command are dropped one by one — `$var` is never treated as a literal path, but static targets in the same command are still checked.
+- `$var`/`${var}` targets are never treated as literal paths. If a write destination cannot be resolved, `code_guard="hard"` denies the command and `soft` warns; static targets in the same command are still checked.
 - Writing to a story file via terminal/heredoc: if the payload is visible, `experiment_refs` is verified; if it is opaque, you get a "deferred to commit time" warning.
 - Secret reference (terminal command or written content) → `DENY`. Content scanning runs **before** the free-zone check — agents cannot bypass it through a zone.
 
@@ -1378,7 +1378,7 @@ These 60 items are not "good practice" — they are the system's mechanical boun
 29. An unknown extension is protected — do not assume "it doesn't know this extension, so it passes"; outside the whitelist = a code target.
 30. `package.json` counts as exec-config and is protected; `tsconfig*.json`/lockfiles are free — memorise the distinction.
 31. `echo x > src/a.py` hits guard (union matcher) — there is no escaping through the shell.
-32. `$var` targets in a command are dropped but static targets are checked — `cat $X > src/a.py` is still caught.
+32. A variable write destination that cannot be resolved denies in hard mode and warns in soft; static targets in the same command are still checked — `cat $X > src/a.py` is still caught.
 33. Secret scanning runs BEFORE the free-zone check — scratch will not save you.
 34. In prose `load_secret` is free, `load_secret(` denies — it looks for a call/assignment/bracket.
 35. Do not `cat` the gate key in a terminal or write its content to a file — guard DENIES (and is right to).
