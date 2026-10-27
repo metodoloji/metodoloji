@@ -112,6 +112,20 @@ def _coerce_tool_input(raw) -> dict:
     return out
 
 
+def _malformed_path_selector_shape(raw) -> bool:
+    """True when a path field cannot denote one or more string targets."""
+    if not isinstance(raw, dict):
+        return False
+    singular = ("path", "file_path", "filePath", "filename", "target_path")
+    if any(raw.get(key) is not None and not isinstance(raw.get(key), str)
+           for key in singular):
+        return True
+    paths = raw.get("paths")
+    if paths is None or isinstance(paths, str):
+        return False
+    return not isinstance(paths, list) or any(not isinstance(path, str) for path in paths)
+
+
 # --- OpenCode tool vocabulary (V2) ------------------------------------------
 # OpenCode (V2) exposes lower-case tool names. They are normalized onto the same
 # internal contract the other runtimes use, so the gate logic stays shared:
@@ -512,11 +526,10 @@ def normalize_hook_input(json_in: dict) -> dict:
     else:
         tool_name = "unknown"
 
-    malformed_path_selector_list = bool(
+    malformed_path_selector_shape = _malformed_path_selector_shape(
+        json_in.get("tool_input")
+    ) or bool(
         tool_input.pop("_malformed_path_selector_list", False)
-    ) or any(
-        isinstance(tool_input.get(key), (list, tuple))
-        for key in ("path", "file_path", "filePath", "filename", "target_path")
     )
 
     # Canonicalize common field aliases for every runtime branch, including
@@ -591,7 +604,7 @@ def normalize_hook_input(json_in: dict) -> dict:
         and not candidate_path
         and not has_paths
     )
-    malformed_path_write = malformed_path_selector_list and (
+    malformed_path_write = malformed_path_selector_shape and (
         tool_name in ("file_editor", "notebook_editor")
         or has_mutation
         or bool(candidate_command and str(candidate_command).strip())
