@@ -313,9 +313,10 @@ _PS_WRITE_ALIASES = {
 
 
 _PS_DOTNET_WRITE_RE = re.compile(
-    r"\[(?:system\.)?io\.file\]\s*::\s*"
+    r"(?:\[(?:system\.)?io\.file\]\s*::\s*"
     r"(?:writealltext|appendalltext|writealllines|appendalllines|"
-    r"writeallbytes|appendallbytes|create|createtext|appendtext|openwrite)\s*\(",
+    r"writeallbytes|appendallbytes|create|createtext|appendtext|openwrite)"
+    r"|\[(?:system\.)?io\.streamwriter\]\s*::\s*new)\s*\(",
     re.IGNORECASE,
 )
 
