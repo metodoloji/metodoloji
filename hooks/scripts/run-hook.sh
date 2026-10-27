@@ -45,28 +45,11 @@ _try_candidate() {
     return 0
 }
 
-# Resolved-root cache: a validated PLUGIN_ROOT is reused while its marker
-# files still exist. Stale cache (checkout moved/deleted) is ignored — the
-# full discovery below re-runs. Cache file lives in TMPDIR so concurrent
-# users never share it.
-_ROOT_CACHE="${TMPDIR:-/tmp}/metodoloji-root-$USER.cache"
-if [ -n "$USER" ] && [ -f "$_ROOT_CACHE" ]; then
-    _CACHED_ROOT=$(cat "$_ROOT_CACHE" 2>/dev/null)
-    if [ -n "$_CACHED_ROOT" ] && [ -f "$_CACHED_ROOT/hooks/scripts/hook-entry.sh" ] \
-        && [ -f "$_CACHED_ROOT/hooks/scripts/bootstrap.sh" ]; then
-        PLUGIN_ROOT="$_CACHED_ROOT"
-    else
-        rm -f "$_ROOT_CACHE" 2>/dev/null || true
-    fi
-fi
-
-if [ -z "$PLUGIN_ROOT" ]; then
 for dir in "$CLAUDE_PLUGIN_ROOT" "$METODOLOJI_PLUGIN_ROOT" "$SCRIPT_PLUGIN_ROOT" \
            "$OPENHANDS_PROJECT_DIR" "$WORKSPACE_BASE" "." "$PWD" "$PWD/metodoloji" \
            "/workspace" "/workspace/metodoloji"; do
     [ -n "$dir" ] && _try_candidate "$dir" && break
 done
-fi
 if [ -z "$PLUGIN_ROOT" ]; then
     for dir in $(_join_newest_first "/workspace/*") \
                $(_join_newest_first "$HOME/.claude/plugins/cache/metodoloji/metodoloji/*") \
@@ -80,11 +63,6 @@ if [ -z "$PLUGIN_ROOT" ]; then
     [ -z "$PLUGIN_ROOT" ] && _try_candidate "$HOME/.claude/plugins/marketplaces/metodoloji"
     [ -z "$PLUGIN_ROOT" ] && _try_candidate "$HOME/.openhands/plugins/installed/metodoloji"
 fi
-# Populate the cache on success (best-effort, fail-open).
-if [ -n "$PLUGIN_ROOT" ] && [ -n "$USER" ]; then
-    printf '%s' "$PLUGIN_ROOT" > "$_ROOT_CACHE" 2>/dev/null || true
-fi
-
 # Plugin root not located: enforcement modes deny because their policy cannot
 # be resolved; report-only hooks pass without blocking the tool/session.
 if [ -z "$PLUGIN_ROOT" ]; then

@@ -52,9 +52,11 @@ plugin root and dispatch to the same `hooks/engine/` core.
 > Measured engine latency (bench over direct `main.py` calls, Windows): every
 > hook (pre/audit/stop/session_start) p50 ≈ **40–45 ms** — lazy per-mode
 > imports (only the matching gate module loads, blackboard never on the hot
-> path), a `[hooks]` config parse cache (mtime+size keyed), a resolved
-> plugin-root/python cache, and a shell fast lane that skips glob/stat when an
-> explicit root is set. `hooks.json` timeouts were trimmed to match
+> path), a `[hooks]` config parse cache (mtime+size keyed), and a shell fast
+> lane that skips glob/stat when an explicit root is set. Root selection follows
+> the current environment and script location on every call; shell temp-file
+> caches are avoided so stale installs cannot shadow the active plugin.
+> `hooks.json` timeouts were trimmed to match
 > (SessionStart 10s, Pre 10s, Post 2s, Stop 5s) so a hung hook fails open
 > inside the budget instead of being silently killed. The old advisory locks
 > (`fcntl`/`msvcrt` blocking) and the `verify_record` thread timeout were

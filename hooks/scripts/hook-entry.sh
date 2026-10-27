@@ -13,23 +13,10 @@ ENGINE="$PLUGIN_ROOT/hooks/engine/main.py"
 MODE="$1"
 
 # Find a working python interpreter (cross-platform).
-# Cached (Faz 1): a validated interpreter path is reused while it stays
-# executable. Cache lives in TMPDIR (per-user), stale entries are dropped.
-_PY_CACHE="${TMPDIR:-/tmp}/metodoloji-py-$USER.cache"
 PY=
-if [ -n "$USER" ] && [ -f "$_PY_CACHE" ]; then
-    _CACHED_PY=$(cat "$_PY_CACHE" 2>/dev/null)
-    if [ -n "$_CACHED_PY" ] && command -v "$_CACHED_PY" >/dev/null 2>&1; then
-        PY="$_CACHED_PY"
-    else
-        rm -f "$_PY_CACHE" 2>/dev/null || true
-    fi
-fi
-if [ -z "$PY" ]; then
 for c in python3 python py; do
     command -v "$c" >/dev/null 2>&1 && PY="$c" && break
 done
-fi
 if [ -z "$PY" ]; then
     # Last resort: try common Windows paths
     for p in "/c/Python3*/python.exe" "/c/Users/$USER/AppData/Local/Programs/Python/Python3*/python.exe"; do
@@ -38,10 +25,6 @@ if [ -z "$PY" ]; then
         done
     done
 fi
-if [ -n "$PY" ] && [ -n "$USER" ]; then
-    printf '%s' "$PY" > "$_PY_CACHE" 2>/dev/null || true
-fi
-
 # MODE comes from $1 (our own hooks.json, not user input), but pin it to the
 # known set anyway so a typo can never interpolate into the JSON output.
 _fail() {
