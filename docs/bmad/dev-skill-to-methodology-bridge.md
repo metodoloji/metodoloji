@@ -426,7 +426,7 @@ This document is compliant with the following skills:
 | bmad-create-epics-and-stories | ⚠️ Partial | AC format compatible but no experiment binding |
 | bmad-code-review | ✅ | Acceptance Auditor AC metadata + Task↔AC + DoD check |
 | guard hook | ✅ | Experiment + AC metadata + Task↔AC + DoD validation |
-| stop hook | ✅ | Story status check (in-progress = block) |
+| stop hook | ✅ | Reports in-progress story status; never blocks session close |
 | audit hook | ✅ | Methodology compliance warnings |
 | bmad-edit-prd | ❌ REMOVED | DEPRECATED — merged into bmad-prd |
 | bmad-testarch-atdd | ✅ Feeder | Adds ATDD tests/checklist to the existing QR record's Mechanical checks — opens no record of its own |

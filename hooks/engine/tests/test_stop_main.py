@@ -444,7 +444,7 @@ def test_main_stop_carries_plan_progress_envelope(tmp_path):
 # ponytail: subprocess dispatch tests live here (engine entry contract),
 # not in a new file — one place for "main.py speaks the hook schema".
 
-def test_main_bad_stdin_stop_blocks(tmp_path):
+def test_main_bad_stdin_stop_remains_report_only(tmp_path):
     import subprocess
     env = dict(os.environ)
     env["CLAUDE_PROJECT_DIR"] = str(tmp_path)
@@ -456,7 +456,8 @@ def test_main_bad_stdin_stop_blocks(tmp_path):
         env=env, cwd=str(_HOOKS.parent),
     )
     out = json.loads(r.stdout)
-    assert out["decision"] == "block"
+    assert "decision" not in out
+    assert out["hookSpecificOutput"]["hookEventName"] == "Stop"
 
 
 def test_main_bad_stdin_guard_denies(tmp_path):
@@ -626,9 +627,8 @@ def _main_with_stdin(mode, payload, project_root):
 
 
 def test_main_non_object_stdin_fail_closed(tmp_path):
-    """Non-object JSON must deny/block on every fail-closed hook, never crash."""
+    """Non-object JSON must deny on gated hooks and never crash."""
     checkers = {
-        "stop": lambda o: o["decision"] == "block",
         "guard": lambda o: o["hookSpecificOutput"]["permissionDecision"] == "deny",
         "pre": lambda o: o["hookSpecificOutput"]["permissionDecision"] == "deny",
     }
@@ -638,6 +638,15 @@ def test_main_non_object_stdin_fail_closed(tmp_path):
             assert r.returncode == 0, (mode, payload, r.stderr)
             out = json.loads(r.stdout)
             assert ok(out), (mode, payload, out)
+
+
+def test_main_non_object_stdin_stop_is_report_only(tmp_path):
+    for payload in _NON_OBJECT_STDIN:
+        r = _main_with_stdin("stop", payload, tmp_path)
+        assert r.returncode == 0, (payload, r.stderr)
+        out = json.loads(r.stdout)
+        assert "decision" not in out
+        assert out["hookSpecificOutput"]["hookEventName"] == "Stop"
 
 
 def test_main_non_object_stdin_open_hook_allows(tmp_path):
@@ -798,17 +807,13 @@ def test_main_parser_overflow_payload_decides_not_crash(tmp_path):
 
 
 def test_main_fail_closed_hooks_deny_on_parser_overflow(tmp_path):
-    """The deny half of the parser contract: the recursion class behaves like
-    bad input — stop blocks, guard/pre deny (never allow, never crash)."""
+    """The deny half of the parser contract: guard/pre deny on bad input."""
     raw = _deep_command_raw(20000)
-    for mode, want in (("stop", "block"), ("guard", "deny"), ("pre", "deny")):
+    for mode in ("guard", "pre"):
         r = _run_mode_raw(mode, raw, tmp_path)
         assert r.returncode == 0, (mode, r.stderr[-400:])
         out = json.loads(r.stdout)
-        if want == "block":
-            assert out.get("decision") == "block", (mode, out)
-        else:
-            assert out["hookSpecificOutput"]["permissionDecision"] == "deny", (mode, out)
+        assert out["hookSpecificOutput"]["permissionDecision"] == "deny", (mode, out)
 
 
 def test_main_handler_crash_still_decides(monkeypatch, capsys):
@@ -827,7 +832,8 @@ def test_main_handler_crash_still_decides(monkeypatch, capsys):
     for mode, check in (
         ("guard", lambda o: o["hookSpecificOutput"]["permissionDecision"] == "deny"),
         ("pre", lambda o: o["hookSpecificOutput"]["permissionDecision"] == "deny"),
-        ("stop", lambda o: o.get("decision") == "block"),
+        ("stop", lambda o: o.get("decision") != "block"
+         and o["hookSpecificOutput"]["hookEventName"] == "Stop"),
         ("quality", lambda o: o["hookSpecificOutput"]["permissionDecision"] == "deny"),
         ("deploy", lambda o: o["hookSpecificOutput"]["permissionDecision"] == "deny"),
         ("audit", lambda o: o["hookSpecificOutput"]["hookEventName"] == "PostToolUse"),

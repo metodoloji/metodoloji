@@ -507,13 +507,13 @@ Check .env hygiene: .env must not be tracked, .env.example must exist, and
 
 ### 6.2 Runtime boyutu (prompt değişiyor mu?)
 
-| Şey | Claude Code | OpenHands |
-|---|---|---|
-| Kurulum kelimesi | `/plugin marketplace add …` + `/plugin install metodoloji@metodoloji` + `claude plugin enable metodoloji` | `install_plugin("github:yunusgungor/metodoloji")` |
-| Slash prompt'lar | `/metodoloji:*` aynen çalışır | aynı prompt'lar, runtime'ın skill/yüzeyinden |
-| Geri kalan her şey (serbest prompt'lar, takipler, raporlar) | aynı | aynı |
+| Şey | Claude Code | OpenHands | OpenCode | Hermes |
+|---|---|---|---|---|
+| Kurulum kelimesi | `/plugin marketplace add …` + `/plugin install metodoloji@metodoloji` + `claude plugin enable metodoloji` | `install_plugin("github:yunusgungor/metodoloji")` | `"plugins": ["./opencode-plugin"]` in `opencode.jsonc` | `hermes plugins install metodoloji/metodoloji` ardından `hermes plugins enable metodoloji` |
+| Slash prompt'lar | `/metodoloji:*` aynen çalışır | aynı prompt'lar, runtime'ın skill/yüzeyinden | aynı amaç; `metodoloji_verify` / `metodoloji_audit` araçları da sunulur | `/metodoloji`, `/metodoloji-init`, `/metodoloji-verify` vb.; skill'ler `metodoloji:<ad>` altında |
+| Geri kalan her şey (serbest prompt'lar, takipler, raporlar) | aynı hedef, host yüzeyi farklı | aynı hedef, host yüzeyi farklı | aynı hedef, host yüzeyi farklı | aynı hedef, host yüzeyi farklı |
 
-Kural: **kurulum prompt'u dışında hiçbir şey değişmez** — sonrası aynıdır çünkü agent kendi araç kelime dağını normalize eder.
+Kural: hedef ve serbest prompt'lar runtime'lar arasında taşınır; kurulum adımları, slash komut adları ve araç yüzeyleri host'a göre değişir.
 
 ### 6.3 Mod boyutu (aynı prompt ne üretir)
 
@@ -675,5 +675,5 @@ and the file you verified. If you cannot, mark it as not done.
 
 ---
 
-**Kapanış notu.** Bu kılavuzu güncel sürümle uyumlu tutmak için `README.md`, `HERMES.md`, `docs/OPENCODE.md`, `templates/` ve `.plugin/plugin.json` dosyalarını kaynak kabul et. Lisans + BMAD atfı: `LICENSE`. İngilizce karşılığı: [`AGENT-GUIDE.md`](AGENT-GUIDE.md).
+**Kapanış notu.** Bu kılavuzu güncel sürümle uyumlu tutmak için `README.md`, `docs/CLAUDE.md`, `HERMES.md`, `docs/OPENCODE.md`, `templates/` ve `.plugin/plugin.json` dosyalarını kaynak kabul et. Lisans + BMAD atfı: `LICENSE`. İngilizce karşılığı: [`AGENT-GUIDE.md`](AGENT-GUIDE.md).
 

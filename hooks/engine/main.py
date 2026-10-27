@@ -55,30 +55,58 @@ def _load_handler(hook_type: str):
     return getattr(mod, fn_name)
 
 
-def _deny(hook_type: str, reason: str) -> None:
+def _deny(reason: str) -> None:
+    print(json.dumps({
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": reason,
+        }
+    }))
+
+
+def _deny_no_input() -> None:
+    _deny("Methodology hook received no input — fail-closed blocked.")
+
+
+def _allow_no_input(hook_type: str) -> None:
+    """Return a valid non-blocking envelope when an advisory hook cannot run."""
+    event_names = {
+        "stop": "Stop",
+        "audit": "PostToolUse",
+        "session_start": "SessionStart",
+    }
+    event_name = event_names.get(hook_type, "PreToolUse")
+    hso = {"hookEventName": event_name}
     if hook_type == "stop":
-        print(json.dumps({
-            "decision": "block",
-            "reason": reason,
-            "hookSpecificOutput": {"hookEventName": "Stop"},
-        }))
-    else:
-        print(json.dumps({
-            "hookSpecificOutput": {
-                "hookEventName": "PreToolUse",
-                "permissionDecision": "deny",
-                "permissionDecisionReason": reason,
-            }
-        }))
+        hso["additionalContext"] = "Methodology Stop report unavailable (invalid hook input)."
+    elif hook_type in ("quality", "deploy"):
+        hso["additionalContext"] = (
+            f"Methodology {hook_type} gate received invalid input; "
+            "soft mode allowed the call without a gate decision."
+        )
+    elif event_name == "PreToolUse":
+        hso["permissionDecision"] = "allow"
+    print(json.dumps({"hookSpecificOutput": hso}, ensure_ascii=False))
 
 
-def _deny_no_input(hook_type: str) -> None:
-    _deny(hook_type, "Methodology hook received no input — fail-closed blocked.")
+def _allow_failed_handler(hook_type: str, detail: str) -> dict:
+    """Preserve report-only behavior while surfacing soft-gate failures."""
+    if hook_type in ("quality", "deploy"):
+        return {
+            "decision": "allow",
+            "methodology_warnings": [
+                f"{hook_type} gate unavailable ({detail}); soft mode allowed the call without a decision."
+            ],
+        }
+    if hook_type == "stop":
+        return {"decision": "allow", "reason": "Methodology Stop report unavailable."}
+    return {"decision": "allow"}
 
 
 def _is_fail_closed(hook_type: str) -> bool:
     """Whether a handler failure must block under the active gate settings."""
-    if hook_type in ("stop", "guard", "pre"):
+    if hook_type in ("guard", "pre"):
         return True
     gate_keys = {"quality": "quality_gate", "deploy": "deploy_guard"}
     gate_key = gate_keys.get(hook_type)
@@ -87,7 +115,7 @@ def _is_fail_closed(hook_type: str) -> bool:
     try:
         from modules.config import hook_gate_mode
         return hook_gate_mode(gate_key) == "hard"
-    except Exception:
+    except (Exception, SystemExit):
         # If strictness cannot be read, do not let a broken gate pass a
         # commit/deploy hook.
         return True
@@ -100,7 +128,7 @@ def _deny_unknown_hook_type() -> None:
     invocations equally safe: an unrecognized PreToolUse mode must never fall
     through to the generic allow response below.
     """
-    _deny("guard", "Unknown methodology hook mode — fail-closed blocked.")
+    _deny("Unknown methodology hook mode — fail-closed blocked.")
 
 
 def main():
@@ -118,7 +146,7 @@ def main():
             handler = None
 
     # Read JSON input from stdin. Empty stdin follows each hook's failure
-    # policy: guard/pre/stop always deny; quality/deploy follow their configured
+    # policy: guard/pre always deny; quality/deploy follow their configured
     # hard/soft mode; audit/session_start stay fail-open.
     # The fail-closed contract covers BOTH bad-input classes: unparseable JSON
     # AND valid JSON that is not an object (array/string/number/null). The
@@ -141,14 +169,9 @@ def main():
 
     if not isinstance(json_in, dict):
         if _is_fail_closed(hook_type):
-            _deny_no_input(hook_type)
+            _deny_no_input()
             return
-        print(json.dumps({
-            "hookSpecificOutput": {
-                "hookEventName": os.environ.get("HOOK_TYPE", "PreToolUse"),
-                "permissionDecision": "allow",
-            }
-        }))
+        _allow_no_input(hook_type)
         return
 
     # Execute the handler. A failed lazy import on a fail-closed hook denies
@@ -156,9 +179,9 @@ def main():
     # A failed lazy import on a known fail-open hook is allowed by policy.
     if handler is None:
         if _is_fail_closed(hook_type):
-            _deny(hook_type, f"Methodology {hook_type} hook handler unavailable — fail-closed blocked.")
+            _deny(f"Methodology {hook_type} hook handler unavailable — fail-closed blocked.")
             return
-        result = {"decision": "allow"}
+        result = _allow_failed_handler(hook_type, "handler unavailable")
     elif hook_type:
         # E-007: a handler exception must still END in a decision — the same
         # policy as bad/no input, including quality/deploy strictness.
@@ -174,9 +197,9 @@ def main():
                 f"metodoloji-hooks: handler crashed ({hook_type}) — "
                 f"{type(exc).__name__}: {exc}\n")
             if _is_fail_closed(hook_type):
-                _deny(hook_type, f"Methodology {hook_type} hook failed — fail-closed blocked.")
+                _deny(f"Methodology {hook_type} hook failed — fail-closed blocked.")
                 return
-            result = {"decision": "allow"}
+            result = _allow_failed_handler(hook_type, type(exc).__name__)
     else:
         # Defensive: dispatch was validated above, so this is unreachable.
         _deny_unknown_hook_type()
@@ -186,7 +209,7 @@ def main():
     # Schema differs per event type:
     #   PreToolUse (pre/guard/quality/deploy) → permissionDecision
     #   PostToolUse (audit)               → additionalContext
-    #   Stop (stop)                       → decision block/reason (loop-safe)
+    #   Stop (stop)                       → report-only; never block
     #   SessionStart                      → additionalContext
     event_name = hook_type or "PreToolUse"
     if hook_type in ("guard", "quality", "deploy", "pre"):
@@ -208,20 +231,13 @@ def main():
         if warnings:
             hso["additionalContext"] = "\n".join(warnings)
     elif hook_type == "stop":
-        # Stop: top-level decision block/reason is the documented loop-safe
-        # pattern; additionalContext carries the feedback so the model can
-        # act on it. stop_hook_active re-fires pass stop_hook_active=true in
-        # stdin, which stop() honors by allowing.
-        out = {}
+        # Stop is report-only: even if the report handler fails, it must never
+        # wedge a session close. additionalContext carries the report only.
         reason = result.get("reason")
-        if result.get("decision") == "deny":
-            out["decision"] = "block"
-            if reason:
-                out["reason"] = reason
         hso = {"hookEventName": "Stop"}
         if reason:
             hso["additionalContext"] = reason
-        print(json.dumps({**out, "hookSpecificOutput": hso}, ensure_ascii=False))
+        print(json.dumps({"hookSpecificOutput": hso}, ensure_ascii=False))
         return
     elif hook_type == "session_start":
         # SessionStart: context injection only, never blocks.

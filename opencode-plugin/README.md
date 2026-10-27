@@ -3,7 +3,7 @@
 OpenCode adapter for the **metodoloji** methodology plugin (V2 and 1.x).
 
 This package is a thin TypeScript bridge. It registers the same gate chain the
-Claude Code and OpenHands adapters run, but it does **not** reimplement any
+Claude Code, OpenHands and Hermes adapters run, but it does **not** reimplement any
 decision — every hook spawns the shared Python engine
 (`hooks/engine/main.py --runtime=opencode`) and maps its JSON contract back to
 OpenCode.

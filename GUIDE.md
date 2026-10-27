@@ -49,7 +49,7 @@ Do not treat this as text to read once from cover to cover. It is a **decision t
 1. Take the chain's real state from the **SessionStart output** (`Chain progress`, record inventory, sprint line, PROACTIVE nudge). The session's own state is authoritative, not your recollection of the model.
 2. Never invent the `{metodoloji-root}` value: use the SessionStart `METODOLOJI active (plugin: PATH)` line **verbatim**. If you cannot find it, use the resolution order in #20.
 3. If you cannot recall a script's interface, run its `--help` from `{metodoloji-root}` (e.g. `python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --help`; `blackboard.py` and `workflow.py` live under `{metodoloji-root}/bmad/scripts/` — same rule). The engine and CLIs are canonical; this document summarises them.
-4. Keep this runbook aligned with the current release. When in doubt, cross-check `README.md`, `HERMES.md`, `docs/OPENCODE.md`, `docs/bmad/*-methodology.md`, `templates/` and `.plugin/plugin.json`.
+4. Keep this runbook aligned with the current release. When in doubt, cross-check `README.md`, `docs/CLAUDE.md`, `HERMES.md`, `docs/OPENCODE.md`, `docs/bmad/*-methodology.md`, `templates/` and `.plugin/plugin.json`.
 
 ---
 
@@ -200,6 +200,8 @@ Does the target project have .metodoloji/initialized?
 | ----------------------- | ---------- | ------------------------------------------------------------------------- |
 | Python                  | 3.11+      | Required for `tomllib`; the engine tries `python3 → python → py` in order |
 | OpenHands / Claude Code | Current    | Plugin/hook API support                                                   |
+| OpenCode                | v2         | TypeScript bridge calls the shared Python hook engine                     |
+| Hermes Agent            | Current    | Plugin API with `pre_tool_call`; see `HERMES.md`                          |
 | Git                     | 2.x        | Version control                                                           |
 | Shell                   | POSIX `sh` | Git Bash is enough on Windows                                             |
 
@@ -233,6 +235,8 @@ claude plugin enable metodoloji
 ```
 
 > The plugin is **opt-in** (`defaultEnabled: false`). Fail-closed guard hooks do not run unless explicitly enabled.
+
+OpenCode and Hermes installation steps: see [`docs/OPENCODE.md`](docs/OPENCODE.md) and [`HERMES.md`](HERMES.md).
 
 Manual install (verification):
 
@@ -935,7 +939,7 @@ hook-entry.sh stop     → stop (fail-open, report-only)
 
 - Runtime: 2. CLI arg &gt; `METODOLOJI_RUNTIME` env &gt; default `openhands`.
 - Python resolver: `python3 → python → py`, then common Windows paths.
-- If the engine/Python is missing: pre/guard → `DENY` + exit 2 (fail-closed); quality/deploy/audit/stop/session\_start → silent pass (fail-open).
+- If the engine/Python is missing but the plugin root is available: pre/guard → `DENY` + exit 2 (fail-closed); quality/deploy honor hard/soft mode, with a warning in soft mode; audit/session\_start pass. Stop stays report-only and surfaces an unavailable-report note without blocking session close. If the plugin root itself cannot be found, the dispatcher has no policy to read: pre/guard deny, Stop reports the missing root, and other modes pass.
 
 ### 9.8 Bash target detection
 
@@ -957,7 +961,7 @@ Archive bomb protection (tar+zip): single file ≤512MB, compressed archive ≤6
 
 ### 9.9 Input normalisation
 
-`normalize_hook_input()`: Claude `Write`/`Edit`/`MultiEdit` → `file_editor` (`file_path` → `path`), `Bash`/`PowerShell` → `terminal` (`cmd` → `command`); OpenHands passes through unchanged; OpenCode `write`/`edit`/`patch` → `file_editor` (`filePath` → `path`, `patchText` → `paths`), `shell`/`bash` → `terminal`. The runtime is inferred from `METODOLOJI_RUNTIME` (the `--runtime=` flag) or the raw tool name. **Known deviation:** an unrecognised tool name normalises to `unknown` and guard **warns**, it does not deny (so an unknown tool cannot hard-block a call).
+`normalize_hook_input()`: Claude `Write`/`Edit`/`MultiEdit` → `file_editor` (`file_path` → `path`), `Bash`/`PowerShell` → `terminal` (`cmd` → `command`); OpenHands passes through unchanged; OpenCode `write`/`edit`/`patch` → `file_editor` (`filePath` → `path`, `patchText` → `paths`), `shell`/`bash` → `terminal`; Hermes `write_file`/`patch`/`multi_edit` and `terminal` map through its runtime branch, while `execute_code` write targets are derived from the code. The runtime is inferred from `METODOLOJI_RUNTIME` (the `--runtime=` flag) or the raw tool name. **Known deviation:** an unrecognised tool name normalises to `unknown` and guard **warns**, it does not deny (so an unknown tool cannot hard-block a call).
 
 ---
 
@@ -1499,5 +1503,5 @@ metodoloji/
 
 ### 20.4 Maintenance note
 
-Keep this runbook aligned with the current release. Cross-check `README.md`, `HERMES.md`, `docs/OPENCODE.md`, `docs/bmad/*-methodology.md`, `.plugin/plugin.json` + `.claude-plugin/*.json` + `pyproject.toml`, `templates/` and `scripts/`. For the license + BMAD attribution see `LICENSE`.
+Keep this runbook aligned with the current release. Cross-check `README.md`, `docs/CLAUDE.md`, `HERMES.md`, `docs/OPENCODE.md`, `docs/bmad/*-methodology.md`, `.plugin/plugin.json` + `.claude-plugin/*.json` + `pyproject.toml`, `templates/` and `scripts/`. For the license + BMAD attribution see `LICENSE`.
 

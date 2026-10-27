@@ -85,8 +85,8 @@ if [ -n "$PLUGIN_ROOT" ] && [ -n "$USER" ]; then
     printf '%s' "$PLUGIN_ROOT" > "$_ROOT_CACHE" 2>/dev/null || true
 fi
 
-# Plugin root not located: pre/guard/stop stay fail-closed (deny), everything
-# else fails open. Stop uses the loop-safe envelope (block + exit 0).
+# Plugin root not located: pre/guard stay fail-closed (deny); report-only hooks
+# pass without blocking the tool/session.
 if [ -z "$PLUGIN_ROOT" ]; then
     case "$TARGET_HOOK" in
         guard|pre)
@@ -94,7 +94,7 @@ if [ -z "$PLUGIN_ROOT" ]; then
             exit 2
             ;;
         stop)
-            printf '%s\n' '{"decision":"block","reason":"Methodology plugin root not found — fail-closed blocked.","hookSpecificOutput":{"hookEventName":"Stop"}}'
+            printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"Stop","additionalContext":"Methodology Stop report unavailable (plugin root not found)."}}'
             exit 0
             ;;
         *)  exit 0 ;;

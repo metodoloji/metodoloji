@@ -4,9 +4,8 @@
 # Cross-platform: Windows/macOS/Linux.
 # Policies (Claude parity):
 #   pre/guard      fail-closed  (engine missing → deny + exit 2)
-#   stop           fail-closed, loop-safe (decision block + exit 0; exit 2
-#                  re-triggers Stop and wedges the session)
-#   quality/deploy fail-open    (engine missing → silent pass)
+#   stop           report-only (missing engine cannot block session close)
+#   quality/deploy configured   (hard → deny; soft → allow + warning)
 #   audit/session_start fail-open
 SELF=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 PLUGIN_ROOT=$(CDPATH= cd -- "$SELF/../.." && pwd)
@@ -47,18 +46,23 @@ fi
 # known set anyway so a typo can never interpolate into the JSON output.
 _fail() {
     case "$MODE" in
-        # Stop uses the loop-safe envelope: decision block + exit 0. Exit 2 on
-        # Stop re-triggers the hook and wedges the session (stop_hook_active
-        # never propagates on a non-zero exit path).
         stop)
-            printf '%s\n' '{"decision":"block","reason":"Methodology hook engine could not run (no python or missing engine) — fail-closed blocked.","hookSpecificOutput":{"hookEventName":"Stop"}}'
+            printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"Stop","additionalContext":"Methodology Stop report unavailable (engine could not run)."}}'
             exit 0
             ;;
         guard|pre)
             printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Methodology hook engine could not run (no python or missing engine) — fail-closed blocked."}}'
             exit 2
             ;;
-        quality|deploy|audit|bootstrap|session_start)
+        quality|deploy)
+            if _gate_is_hard "$MODE"; then
+                printf '%s\n' "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Methodology $MODE gate could not run (no python or missing engine) — hard mode blocked.\"}}"
+                exit 2
+            fi
+            printf '%s\n' "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"allow\",\"additionalContext\":\"Methodology $MODE gate could not run (no python or missing engine); soft mode allowed the call without a gate decision.\"}}"
+            exit 0
+            ;;
+        audit|bootstrap|session_start)
             exit 0
             ;;
         *)
@@ -68,6 +72,38 @@ _fail() {
             exit 2
             ;;
     esac
+}
+
+_gate_is_hard() {
+    case "$1" in
+        quality) _key=quality_gate ;;
+        deploy) _key=deploy_guard ;;
+        *) return 1 ;;
+    esac
+    _cfg="$PLUGIN_ROOT/custom/config.toml"
+    [ -r "$_cfg" ] || return 1
+    awk -v target="$_key" '
+        function trim(value) {
+            sub(/^[[:space:]]+/, "", value)
+            sub(/[[:space:]]+$/, "", value)
+            return value
+        }
+        {
+            line = $0
+            sub(/[[:space:]]+#.*/, "", line)
+            if (trim(line) == "[hooks]") { in_hooks = 1; next }
+            if (in_hooks && line ~ /^[[:space:]]*\[/) exit
+            if (!in_hooks) next
+            equals = index(line, "=")
+            if (!equals) next
+            name = trim(substr(line, 1, equals - 1))
+            value = trim(substr(line, equals + 1))
+            gsub(/"/, "", value)
+            gsub(sprintf("%c", 39), "", value)
+            if (name == target && value == "hard") found = 1
+        }
+        END { exit(found ? 0 : 1) }
+    ' "$_cfg"
 }
 
 if [ -z "$PY" ] || [ ! -f "$ENGINE" ]; then

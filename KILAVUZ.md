@@ -49,7 +49,7 @@ Bu dokümanı baştan sona "okuyup bitirilecek" bir metin sanma. Bir **karar tab
 1. Zincirin gerçek durumunu **SessionStart çıktısından** al (`Chain progress`, kayıt envanteri, sprint satırı, PROACTIVE dürtme). Modelin ezberi değil, oturumun kendi durumu esastır.
 2. `{metodoloji-root}` değerini uydurma: SessionStart'ın `METODOLOJI active (plugin: PATH)` satırını **verbatim** kullan. Bulamıyorsan #20'deki çözümleme sırasına bak.
 3. Bir script'in arayüzünü hatırlamıyorsan `--help`'i `{metodoloji-root}`'tan koş (ör. `python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --help`; `blackboard.py` ve `workflow.py` `{metodoloji-root}/bmad/scripts/` altındadır — aynı kural). Motor ve CLI'lar kanoniktir; bu doküman onların özetidir.
-4. Bu runbook'u güncel sürümle uyumlu tut. Şüphede `README.md`, `HERMES.md`, `docs/OPENCODE.md`, `docs/bmad/*-methodology.md`, `templates/` ve `.plugin/plugin.json` ile çapraz kontrol et.
+4. Bu runbook'u güncel sürümle uyumlu tut. Şüphede `README.md`, `docs/CLAUDE.md`, `HERMES.md`, `docs/OPENCODE.md`, `docs/bmad/*-methodology.md`, `templates/` ve `.plugin/plugin.json` ile çapraz kontrol et.
 
 ---
 
@@ -200,6 +200,8 @@ Hedef projede .metodoloji/initialized var mı?
 | ----------------------- | ---------- | ------------------------------------------------------------------ |
 | Python                  | 3.11+      | `tomllib` için şart; motor `python3 → python → py` sırasıyla dener |
 | OpenHands / Claude Code | Güncel     | Plugin/hook API desteği                                            |
+| OpenCode                | v2         | TypeScript köprü ortak Python hook motorunu çağırır                  |
+| Hermes Agent            | Güncel     | `pre_tool_call` plugin API'si; `HERMES.md`'ye bak                    |
 | Git                     | 2.x        | Versiyon kontrol                                                   |
 | Shell                   | POSIX `sh` | Windows'ta Git Bash yeter                                          |
 
@@ -233,6 +235,8 @@ claude plugin enable metodoloji
 ```
 
 > Plugin **opt-in**'dir (`defaultEnabled: false`). Fail-closed guard hook'ları açıkça enable edilmeden çalışmaz.
+
+OpenCode ve Hermes kurulum adımları için [`docs/OPENCODE.md`](docs/OPENCODE.md) ve [`HERMES.md`](HERMES.md) belgelerine bak.
 
 Manuel kurulum (doğrulama):
 
@@ -934,7 +938,7 @@ hook-entry.sh stop     → stop (fail-open, report-only)
 
 - Runtime: 2. CLI arg &gt; `METODOLOJI_RUNTIME` env &gt; varsayılan `openhands`.
 - Python çözümleyici: `python3 → python → py`, sonra yaygın Windows yolları.
-- Motor/Python yoksa: pre/guard → `DENY` + exit 2 (fail-closed); quality/deploy/audit/stop/session\_start → sessiz geç (fail-open).
+- Motor/Python yok ama plugin kökü bulunuyorsa: pre/guard → `DENY` + exit 2 (fail-closed); quality/deploy hard/soft modunu uygular, soft modda uyarı verir; audit/session\_start geçer. Stop rapor-only kalır ve oturum kapanışını engellemeden raporun üretilemediğini iletir. Plugin kökü de bulunamazsa dispatcher politikayı okuyamaz: pre/guard deny verir, Stop kök eksikliğini raporlar, diğer modlar geçer.
 
 ### 9.8 Bash hedef tespiti
 
@@ -956,7 +960,7 @@ Arşiv bomba koruması (tar+zip): tek dosya ≤512MB, sıkışmış arşiv ≤64
 
 ### 9.9 Girdi normalizasyonu
 
-`normalize_hook_input()`: Claude `Write`/`Edit`/`MultiEdit` → `file_editor` (`file_path` → `path`), `Bash`/`PowerShell` → `terminal` (`cmd` → `command`); OpenHands aynen geçer; OpenCode `write`/`edit`/`patch` → `file_editor` (`filePath` → `path`, `patchText` → `paths`), `shell`/`bash` → `terminal`. Runtime `METODOLOJI_RUNTIME` (`--runtime=` flag) veya ham araç adından anlaşılır. **Bilinen sapma:** tanınmayan araç adı `unknown`'a normalize olur ve guard **uyarır**, deny vermez (bilmediği bir araç çağrıyı hard-bloklamasın diye).
+`normalize_hook_input()`: Claude `Write`/`Edit`/`MultiEdit` → `file_editor` (`file_path` → `path`), `Bash`/`PowerShell` → `terminal` (`cmd` → `command`); OpenHands aynen geçer; OpenCode `write`/`edit`/`patch` → `file_editor` (`filePath` → `path`, `patchText` → `paths`), `shell`/`bash` → `terminal`; Hermes `write_file`/`patch`/`multi_edit` ve `terminal` Hermes dalında normalize edilir, `execute_code` yazma hedefleri koddan çıkarılır. Runtime `METODOLOJI_RUNTIME` (`--runtime=` flag) veya ham araç adından anlaşılır. **Bilinen sapma:** tanınmayan araç adı `unknown`'a normalize olur ve guard **uyarır**, deny vermez (bilmediği bir araç çağrıyı hard-bloklamasın diye).
 
 ---
 
@@ -1498,5 +1502,5 @@ metodoloji/
 
 ### 20.4 Bakım notu
 
-Bu runbook'u güncel sürümle uyumlu tut. `README.md`, `HERMES.md`, `docs/OPENCODE.md`, `docs/bmad/*-methodology.md`, `.plugin/plugin.json` + `.claude-plugin/*.json` + `pyproject.toml`, `templates/` ve `scripts/` dosyalarını çapraz kontrol et. Lisans + BMAD atfı için `LICENSE` dosyasına bak.
+Bu runbook'u güncel sürümle uyumlu tut. `README.md`, `docs/CLAUDE.md`, `HERMES.md`, `docs/OPENCODE.md`, `docs/bmad/*-methodology.md`, `.plugin/plugin.json` + `.claude-plugin/*.json` + `pyproject.toml`, `templates/` ve `scripts/` dosyalarını çapraz kontrol et. Lisans + BMAD atfı için `LICENSE` dosyasına bak.
 

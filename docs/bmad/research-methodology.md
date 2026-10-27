@@ -236,7 +236,7 @@ This methodology is compliant with the following components:
 ### §11.1 Required Terms
 - **approved experiment**: only an experiment with `status: APPROVED` and a valid HMAC signature; otherwise code writing is **DENY**d.
 - **Hypothesis**: an AC awaiting experiment approval. Marked with the `[HYPOTHESIS]` tag, cannot be implemented.
-- **DENY**: the guard/stop hook's blocking decision. Code writing or session closure is blocked.
+- **DENY**: the guard hook's blocking decision. Code writing is blocked when no verified experiment covers the target; Stop is report-only.
 - **QR (Quality Record)**: `docs/quality/QR-<sequence>.md` — required when the story is completed. Without QR approval, `done` is not accepted.
 - **IR (Implementation Readiness)**: `docs/development/IR-<sequence>.md` — Gate 1. Required before Sprint Planning.
 - **PR (Production Readiness)**: `docs/development/PR-<sequence>.md` — Gate 4. Required before deploy.

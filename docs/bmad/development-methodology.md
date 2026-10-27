@@ -246,7 +246,7 @@ Each stage depends on the output of the previous one. Every link of the chain re
 | Concept | Definition | Detail |
 |--------|-------|-------|
 | **APPROVED** | Experiment approval status | §3.4 - Story impl. prerequisite |
-| **DENY** | Guard/stop hook blocking decision | Code writing or session closure is blocked |
+| **DENY** | Guard hook blocking decision | Code writing is blocked when no verified experiment covers the target; Stop is report-only |
 | **Hypothesis** | AC awaiting experiment approval | `[HYPOTHESIS]` tag, cannot be implemented |
 | **QR** | Quality Record | `docs/quality/QR-XXX.md`, required after done |
 | **IR** | Implementation Readiness | `docs/development/IR-XXX.md`, Gate 1 |

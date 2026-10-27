@@ -511,13 +511,13 @@ Check .env hygiene: .env must not be tracked, .env.example must exist, and
 
 ### 6.2 Runtime dimension (does the prompt change?)
 
-| Thing | Claude Code | OpenHands | OpenCode |
-|---|---|---|---|
-| Install wording | `/plugin marketplace add …` + `/plugin install metodoloji@metodoloji` + `claude plugin enable metodoloji` | `install_plugin("github:yunusgungor/metodoloji")` | `"plugins": ["./opencode-plugin"]` in `opencode.jsonc` (or `opencode plugin add 'github:metodoloji/metodoloji#main::path:opencode-plugin'`) |
-| Slash prompts | `/metodoloji:*` work as-is | same prompts, executed through the runtime's skill/command surface | same prompts; `metodoloji_verify` / `metodoloji_audit` also appear as tools |
-| Everything else (free-form prompts, follow-ups, reports) | identical | identical | identical |
+| Thing | Claude Code | OpenHands | OpenCode | Hermes |
+|---|---|---|---|---|
+| Install wording | `/plugin marketplace add …` + `/plugin install metodoloji@metodoloji` + `claude plugin enable metodoloji` | `install_plugin("github:yunusgungor/metodoloji")` | `"plugins": ["./opencode-plugin"]` in `opencode.jsonc` (or `opencode plugin add 'github:metodoloji/metodoloji#main::path:opencode-plugin'`) | `hermes plugins install metodoloji/metodoloji` then `hermes plugins enable metodoloji` |
+| Slash prompts | `/metodoloji:*` work as-is | same prompts, executed through the runtime's skill/command surface | same prompts; `metodoloji_verify` / `metodoloji_audit` also appear as tools | Hermes commands use `/metodoloji`, `/metodoloji-init`, `/metodoloji-verify`, etc.; skills appear under `metodoloji:<name>` |
+| Everything else (free-form prompts, follow-ups, reports) | same goals; host surfaces differ | same goals; host surfaces differ | same goals; host surfaces differ | same goals; host surfaces differ |
 
-Rule of thumb: **only the install prompt differs between runtimes** — after that the prompts are the same because the agent normalises its own tool vocabulary.
+Rule of thumb: the goal and free-form prompts transfer between runtimes; install steps, slash command names and tool surfaces vary by host.
 
 ### 6.3 Mode dimension (what the same prompt will produce)
 
@@ -681,5 +681,5 @@ A **warning** (`methodology_warnings`, soft mode) means the agent got through wi
 
 ---
 
-**Closing note.** Keep this guide aligned with the current release: use `README.md`, `HERMES.md`, `docs/OPENCODE.md`, `templates/` and `.plugin/plugin.json` as the source of truth. Licence and BMAD attribution: `LICENSE`.
+**Closing note.** Keep this guide aligned with the current release: use `README.md`, `docs/CLAUDE.md`, `HERMES.md`, `docs/OPENCODE.md`, `templates/` and `.plugin/plugin.json` as the source of truth. Licence and BMAD attribution: `LICENSE`.
 

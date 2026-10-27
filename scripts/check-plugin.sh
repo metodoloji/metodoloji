@@ -1313,15 +1313,15 @@ else
 fi
 
 echo "== 5b) Hard gate enforcement mode (soft/hard) =="
-# quality/deploy/code/stop gates are config-gated: custom/config.toml [hooks].
-# quality+deploy default soft; code+stop default hard (fail-closed).
+# quality/deploy/code gates are config-gated: custom/config.toml [hooks].
+# quality+deploy default soft; code defaults hard; stop_guard is inert/back-compat.
 "$PY" - <<'PY'
 import tomllib, os, sys
 PLUGIN = os.environ.get("PLUGIN_ROOT") or "."
 PROJECT = os.environ.get("PROJECT_ROOT") or "."
 cfg = os.path.join(PLUGIN, "custom", "config.toml")
-qg, dg, cg, sg = "soft", "soft", "hard", "hard"
-src = "(no config — defaults: quality/deploy soft, code/stop hard)"
+qg, dg, cg, sg = "soft", "soft", "hard", "soft"
+src = "(no config — quality/deploy soft, code hard; stop_guard inert)"
 if os.path.isfile(cfg):
     try:
         d = tomllib.load(open(cfg, "rb"))

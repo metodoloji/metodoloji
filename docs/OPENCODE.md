@@ -1,7 +1,7 @@
 # OpenCode
 
-`metodoloji` ships a third runtime adapter — an [OpenCode](https://opencode.ai)
-plugin — alongside the Claude Code and OpenHands ones. It does **not**
+`metodoloji` ships an [OpenCode](https://opencode.ai) runtime adapter alongside
+the Claude Code, OpenHands, and Hermes adapters. It does **not**
 reimplement the methodology: every decision still comes from the shared Python
 hook engine (`hooks/engine/main.py`). The plugin is a thin TypeScript bridge that
 translates the OpenCode V2 plugin API to that engine's JSON contract.
@@ -13,7 +13,7 @@ OpenCode tool call
 opencode-plugin/src/index.ts      (TypeScript bridge)
       │  python hooks/engine/main.py --runtime=opencode <mode>   (stdin JSON → stdout JSON)
       ▼
-hooks/engine/…                    (the one engine all three runtimes use)
+hooks/engine/…                    (the one engine all four runtimes use)
 ```
 
 Because the engine is the single source of truth, a gate that blocks in Claude
