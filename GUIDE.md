@@ -939,7 +939,7 @@ hook-entry.sh stop     → stop (fail-open, report-only)
 
 - Runtime: 2. CLI arg &gt; `METODOLOJI_RUNTIME` env &gt; default `openhands`.
 - Python resolver: `python3 → python → py`, then common Windows paths.
-- If the engine/Python is missing but the plugin root is available: pre/guard → `DENY` + exit 2 (fail-closed); quality/deploy honor hard/soft mode, with a warning in soft mode; audit/session\_start pass. Stop stays report-only and surfaces an unavailable-report note without blocking session close. If the plugin root itself cannot be found, the dispatcher has no policy to read: pre/guard deny, Stop reports the missing root, and other modes pass.
+- If the engine/Python is missing but the plugin root is available: pre/guard → `DENY` + exit 2 (fail-closed); quality/deploy honor hard/soft mode, with a warning in soft mode; audit/session\_start pass. Stop stays report-only and surfaces an unavailable-report note without blocking session close. If the plugin root itself cannot be found, enforcement modes (pre/guard/quality/deploy) deny because policy cannot be resolved; Stop reports the missing root; audit/bootstrap/session\_start pass; unknown modes deny.
 
 ### 9.8 Bash target detection
 

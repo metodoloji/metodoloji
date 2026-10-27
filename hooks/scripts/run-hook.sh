@@ -85,11 +85,11 @@ if [ -n "$PLUGIN_ROOT" ] && [ -n "$USER" ]; then
     printf '%s' "$PLUGIN_ROOT" > "$_ROOT_CACHE" 2>/dev/null || true
 fi
 
-# Plugin root not located: pre/guard stay fail-closed (deny); report-only hooks
-# pass without blocking the tool/session.
+# Plugin root not located: enforcement modes deny because their policy cannot
+# be resolved; report-only hooks pass without blocking the tool/session.
 if [ -z "$PLUGIN_ROOT" ]; then
     case "$TARGET_HOOK" in
-        guard|pre)
+        guard|pre|quality|deploy)
             printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Methodology plugin root not found — fail-closed blocked."}}'
             exit 2
             ;;
@@ -97,7 +97,11 @@ if [ -z "$PLUGIN_ROOT" ]; then
             printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"Stop","additionalContext":"Methodology Stop report unavailable (plugin root not found)."}}'
             exit 0
             ;;
-        *)  exit 0 ;;
+        audit|bootstrap|session_start) exit 0 ;;
+        *)
+            printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Unknown methodology hook mode — fail-closed blocked."}}'
+            exit 2
+            ;;
     esac
 fi
 

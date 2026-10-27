@@ -938,7 +938,7 @@ hook-entry.sh stop     → stop (fail-open, report-only)
 
 - Runtime: 2. CLI arg &gt; `METODOLOJI_RUNTIME` env &gt; varsayılan `openhands`.
 - Python çözümleyici: `python3 → python → py`, sonra yaygın Windows yolları.
-- Motor/Python yok ama plugin kökü bulunuyorsa: pre/guard → `DENY` + exit 2 (fail-closed); quality/deploy hard/soft modunu uygular, soft modda uyarı verir; audit/session\_start geçer. Stop rapor-only kalır ve oturum kapanışını engellemeden raporun üretilemediğini iletir. Plugin kökü de bulunamazsa dispatcher politikayı okuyamaz: pre/guard deny verir, Stop kök eksikliğini raporlar, diğer modlar geçer.
+- Motor/Python yok ama plugin kökü bulunuyorsa: pre/guard → `DENY` + exit 2 (fail-closed); quality/deploy hard/soft modunu uygular, soft modda uyarı verir; audit/session\_start geçer. Stop rapor-only kalır ve oturum kapanışını engellemeden raporun üretilemediğini iletir. Plugin kökü bulunamazsa enforcement modları (pre/guard/quality/deploy) politika çözülemediği için deny verir; Stop kök eksikliğini raporlar; audit/bootstrap/session\_start geçer; tanınmayan mod deny verir.
 
 ### 9.8 Bash hedef tespiti
 
