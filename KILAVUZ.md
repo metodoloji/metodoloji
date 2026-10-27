@@ -962,7 +962,7 @@ Arşiv bomba koruması (tar+zip): tek dosya ≤512MB, sıkışmış arşiv ≤64
 
 ### 9.9 Girdi normalizasyonu
 
-`normalize_hook_input()`: Claude `Write`/`Edit`/`MultiEdit` → `file_editor` (`file_path` → `path`), `Bash`/`PowerShell` → `terminal` (`cmd` → `command`); OpenHands normalize edilmiş `file_editor`/`terminal` şemasını kullanır; OpenCode `write`/`edit`/`patch` → `file_editor` (`filePath` → `path`, `patchText` → `paths`), `shell`/`bash` → `terminal`; Hermes `write_file`/`patch`/`multi_edit` ve `terminal` Hermes dalında normalize edilir, `execute_code` yazma hedefleri koddan çıkarılır. Alan alias'ları runtime'lar arasında kanonikleştirilir: tüm dosya yolu seçicileri gate'e taşınır, farklı `command`/`cmd` değerlerinin ikisi de incelenir. Runtime `METODOLOJI_RUNTIME`/`--runtime=` değerinden, yoksa tanınan araç adlarının sözlüğünden anlaşılır. Bilinmeyen adların `command`/`cmd` payload'ları `terminal` gate'ine, standart yol + değişiklik içeriği ise `file_editor` gate'ine yönlendirilir. Hem shell hem dosya yazma imzası taşıyan payload `code_guard=hard` modunda deny, soft modda uyarı alır; çünkü tek araç şekli iki işlemi birlikte güvenle temsil edemez. Sınıflandırılamayan araçlar `unknown` kalır ve uyarılır.
+`normalize_hook_input()`: Claude `Write`/`Edit`/`MultiEdit` → `file_editor` (`file_path` → `path`), `Bash`/`PowerShell` → `terminal` (`cmd` → `command`); OpenHands normalize edilmiş `file_editor`/`terminal` şemasını kullanır; OpenCode `write`/`edit`/`patch` → `file_editor` (`filePath` → `path`, `patchText` → `paths`), `shell`/`bash` → `terminal`; Hermes `write_file`/`patch`/`multi_edit` ve `terminal` Hermes dalında normalize edilir, `execute_code` yazma hedefleri koddan çıkarılır. Alan alias'ları runtime'lar arasında kanonikleştirilir: tüm dosya yolu seçicileri gate'e taşınır, farklı `command`/`cmd` değerlerinin ikisi de incelenir. Runtime `METODOLOJI_RUNTIME`/`--runtime=` değerinden, yoksa tanınan araç adlarının sözlüğünden anlaşılır. Bilinmeyen adların `command`/`cmd` payload'ları `terminal` gate'ine, standart yol + değişiklik içeriği ise `file_editor` gate'ine yönlendirilir. Çakışan shell/dosya yazma imzaları ve hedefi olmayan komutlu file-editor payload'ları `code_guard=hard` modunda deny, soft modda uyarı alır; çünkü guard tüm olası hedefleri güvenle belirleyemez. Sınıflandırılamayan araçlar `unknown` kalır ve uyarılır.
 
 ---
 
@@ -1389,7 +1389,7 @@ Bu 60 madde "iyi pratik" değil, sistemin mekanik sınırlarıdır. Her birini i
 41. Audit senkron + fail-open — yavaşlık şikayeti audit'ten değil, genelde duplicate hook kaydından.
 42. "2 async PostToolUse hooks completed" görürsen duplicate kurulum var — manifest + `settings.json` + stale cache'i temizle.
 43. Duplicate Stop ("Ran 2 stop hooks") `/hooks` ile temizlenir — stop zaten bloklamaz, ama raporu ikiler.
-44. Bilinmeyen araçlarda `command`/`cmd` terminal gate'ine, `path` + yazma içeriği file gate'ine gider. Shell + dosya yazma imzası karışımı hard modda deny, soft modda uyarı alır. Diğer belirsiz araçlar uyarılır, deny edilmez — guard'ın yeni bir okuma aracında seni kitlememesi için.
+44. Bilinmeyen araçlarda `command`/`cmd` terminal gate'ine, `path` + yazma içeriği file gate'ine gider. Çakışan/eksik yazma payload'ları hard modda deny, soft modda uyarı alır. Diğer belirsiz araçlar uyarılır, deny edilmez — guard'ın yeni bir okuma aracında seni kitlememesi için.
 45. Arşiv limitleri (512MB/64MB/200k üye/2GB) — `tar/unzip` hedef taramasında bomba koruması var.
 
 **TOML/Blackboard/Çıktı (46–60):**

@@ -568,8 +568,15 @@ def normalize_hook_input(json_in: dict) -> dict:
         or ((candidate_path or has_paths) and has_mutation)
         or bool(patch_paths)
     )
+    missing_editor_target = (
+        tool_name in ("file_editor", "notebook_editor")
+        and not candidate_path
+        and not has_paths
+    )
     ambiguous_write_payload = bool(
-        candidate_command and str(candidate_command).strip() and has_file_write
+        candidate_command
+        and str(candidate_command).strip()
+        and (has_file_write or missing_editor_target)
     )
 
     if tool_name not in ("file_editor", "terminal", "notebook_editor"):

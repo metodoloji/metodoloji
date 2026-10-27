@@ -1594,8 +1594,8 @@ def guard(json_in: dict) -> dict:
 
     if norm.get("ambiguous_write_payload"):
         message = (
-            "Tool payload combines a shell command with a file-write operation; "
-            "the guard cannot safely judge both from one tool shape. Split the operations."
+            "Tool payload has conflicting or incomplete write fields; the guard cannot "
+            "identify every possible target safely. Split or correct the operation."
         )
         try:
             from .config import hook_gate_mode
