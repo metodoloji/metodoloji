@@ -866,7 +866,7 @@ Hook commands locate the plugin root themselves (`$CLAUDE_PLUGIN_ROOT`, `$METODO
 
 ### 9.2 Guard (PreToolUse) — Fail-Closed, runs first
 
-Scope: `Write`/`Edit`/`MultiEdit` + `Bash`/`PowerShell` + `file_editor`/`terminal`/`notebook_editor` (internally normalised to `file_editor`/`terminal`). `PowerShell` is Claude Code's shell tool on Windows; without it in the matcher, `Set-Content src/a.py ...` writes would never reach guard.
+Scope: `Write`/`Edit`/`MultiEdit` + `Bash`/`PowerShell` + `file_editor`/`terminal`/`notebook_editor` (internally normalised to `file_editor`/`terminal`). `PowerShell` is Claude Code's shell tool on Windows; without it in the matcher, `Set-Content src/a.py ...` writes would never reach guard. The PowerShell surface also recognizes common writing aliases (`sc`, `ac`, `clc`, `tee`, `si`, `ni`, `cpi`, `cp`, `copy`, `mi`, `mv`, `move`); aliases are not applied to Bash, where names such as `sc` and `tee` have different meanings.
 
 Behaviour:
 

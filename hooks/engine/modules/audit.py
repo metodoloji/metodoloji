@@ -150,7 +150,9 @@ def command_failure(tool_name: str, tool_output) -> tuple[str, str] | None:
     return None
 
 
-def is_readonly_call(tool_name: str, tool_input: dict) -> bool:
+def is_readonly_call(
+    tool_name: str, tool_input: dict, *, powershell: bool = False
+) -> bool:
     """True when the call cannot mutate project state (safe to skip logging)."""
     if tool_name == "terminal":
         cmd = str((tool_input or {}).get("command", "") or "")
@@ -160,7 +162,7 @@ def is_readonly_call(tool_name: str, tool_input: dict) -> bool:
             return False
         try:
             from .bash_targets import extract_bash_targets_ex
-            targets, dropped = extract_bash_targets_ex(cmd)
+            targets, dropped = extract_bash_targets_ex(cmd, powershell=powershell)
             # A dropped destination is still a write (the guard treats it as
             # one and warns); skip only when there is no static target AND
             # nothing was dropped, so the guard's blind spot is recorded in
@@ -568,7 +570,9 @@ def audit(json_in: dict) -> dict:
     # Read-only fast exit FIRST: ls/find/cat/git-status/file views carry no
     # methodology signal — skip the log write entirely (no I/O). Commit,
     # deploy, real file writes and known-failure outputs fall through below.
-    if failure is None and is_readonly_call(tool_name, tool_input):
+    if failure is None and is_readonly_call(
+            tool_name, tool_input,
+            powershell=norm["raw_tool_name"] == "PowerShell"):
         return {"decision": "allow"}
 
     # Project root anchored like guard/quality/deploy (cwd may differ under

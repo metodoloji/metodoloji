@@ -1634,7 +1634,9 @@ def guard(json_in: dict) -> dict:
 
     if tool_name == "terminal":
         command = tool_input.get("command", "")
-        targets, _var_drop = extract_bash_targets_ex(command)
+        targets, _var_drop = extract_bash_targets_ex(
+            command, powershell=norm["raw_tool_name"] == "PowerShell"
+        )
 
         # Check for secret references in command
         if _secret_ref(command):

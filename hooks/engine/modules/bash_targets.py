@@ -101,7 +101,9 @@ def _read_patch_targets(path: str, prefix: str = "") -> list[str]:
     return out
 
 
-def extract_bash_targets_ex(command: str) -> tuple[list[str], bool]:
+def extract_bash_targets_ex(
+    command: str, *, powershell: bool = False
+) -> tuple[list[str], bool]:
     """Return (file paths the command may write to, had_variable_drop).
 
     had_variable_drop is True when a write DESTINATION was collected and
@@ -116,7 +118,7 @@ def extract_bash_targets_ex(command: str) -> tuple[list[str], bool]:
     inert for ordinary shell input.
     """
     targets, dropped = _extract_raw(command)
-    ps_targets = _extract_powershell_targets(command)
+    ps_targets = _extract_powershell_targets(command, aliases=powershell)
     if ps_targets:
         targets = targets + ps_targets
         if not dropped:
@@ -241,9 +243,9 @@ def _interpreter_eval_hit(seg: list[str]) -> bool:
 # destination: `Set-Content src/a.py 'x'` yielded zero targets and the guard
 # allowed the write unconditionally. This bounded scanner covers the cmdlets
 # that create or modify files. Redirection (`>` / `>>`) is shared with POSIX
-# and is already handled by _extract_raw; aliases (sc/ni/oh/…) are deliberately
-# NOT matched — they collide with ordinary words, and the canonical names plus
-# redirection cover the documented failure.
+# and is already handled by _extract_raw. A small alias set is recognized only
+# when the caller knows the input came from Claude's PowerShell tool; globally
+# matching `sc` or `tee` would collide with ordinary POSIX commands/words.
 # NOTE: `Remove-Item` is deliberately ABSENT. Deletion is not a gated write in
 # this methodology — POSIX `rm`/`rm -rf` yields no target and is allowed — so
 # gating Remove-Item alone would make the guard stricter on Windows than on
@@ -296,7 +298,17 @@ def _ps_word_split(s: str) -> list[str]:
     return out
 
 
-def _extract_powershell_targets(command: str) -> list[str]:
+_PS_WRITE_ALIASES = {
+    # PowerShell's built-in aliases for file-writing cmdlets. They are enabled
+    # only for the PowerShell tool surface; several collide with POSIX words.
+    "sc": "set-content", "ac": "add-content", "clc": "clear-content",
+    "tee": "tee-object", "si": "set-item", "ni": "new-item",
+    "cpi": "copy-item", "cp": "copy-item", "copy": "copy-item",
+    "mi": "move-item", "mv": "move-item", "move": "move-item",
+}
+
+
+def _extract_powershell_targets(command: str, *, aliases: bool = False) -> list[str]:
     """Paths a PowerShell command may write to (bounded cmdlet scan).
 
     Best-effort: an empty result means "no cmdlet destination recognized",
@@ -324,6 +336,8 @@ def _extract_powershell_targets(command: str) -> list[str]:
             if not seg:
                 continue
             cmd = seg[0].replace("\\", "/").rsplit("/", 1)[-1].lower()
+            if aliases:
+                cmd = _PS_WRITE_ALIASES.get(cmd, cmd)
             if cmd not in _PS_WRITE_CMDLETS:
                 continue
             args = seg[1:]
