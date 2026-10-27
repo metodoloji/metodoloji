@@ -510,18 +510,33 @@ def normalize_hook_input(json_in: dict) -> dict:
     # Canonicalize common field aliases for every runtime branch, including
     # already-normalized tool names. Otherwise `terminal` + `cmd` or
     # `file_editor` + `filePath` looks like an empty/no-op call to the guard.
-    if tool_name == "terminal" and not str(tool_input.get("command") or "").strip():
-        command_alias = tool_input.get("cmd")
-        if command_alias is not None:
-            tool_input["command"] = str(command_alias)
-    elif tool_name in ("file_editor", "notebook_editor") and not str(
-        tool_input.get("path") or ""
-    ).strip():
-        for path_key in ("file_path", "filePath"):
-            path_alias = tool_input.get(path_key)
-            if path_alias is not None and str(path_alias).strip():
-                tool_input["path"] = str(path_alias)
-                break
+    if tool_name == "terminal":
+        commands = []
+        for command_key in ("command", "cmd"):
+            value = str(tool_input.get(command_key) or "").strip()
+            if value and value not in commands:
+                commands.append(value)
+        if commands:
+            # Inspect both aliases when they conflict; taking only one could
+            # hide a write target carried by the other.
+            tool_input["command"] = "\n".join(commands)
+    elif tool_name in ("file_editor", "notebook_editor"):
+        raw_paths = tool_input.get("paths")
+        path_values = raw_paths if isinstance(raw_paths, list) else (
+            [raw_paths] if raw_paths is not None else []
+        )
+        all_paths = []
+        for value in [*path_values, *(tool_input.get(key) for key in
+                                      ("path", "file_path", "filePath"))]:
+            path = str(value or "").strip()
+            if path and path not in all_paths:
+                all_paths.append(path)
+        if all_paths:
+            tool_input["path"] = all_paths[0]
+            if len(all_paths) > 1 or raw_paths is not None:
+                # guard() checks every entry in `paths`, so preserve every
+                # supplied spelling instead of silently preferring one.
+                tool_input["paths"] = all_paths
 
     # Infer common mutation payloads even for future tool names. If a single
     # call carries both shell and file-write signatures, a single normalized
@@ -548,7 +563,11 @@ def normalize_hook_input(json_in: dict) -> dict:
     }
     patch_text = tool_input.get("patchText") or tool_input.get("patch") or ""
     patch_paths = _opencode_patch_paths(patch_text)
-    has_file_write = ((candidate_path or has_paths) and has_mutation) or bool(patch_paths)
+    has_file_write = (
+        (tool_name in ("file_editor", "notebook_editor") and (candidate_path or has_paths))
+        or ((candidate_path or has_paths) and has_mutation)
+        or bool(patch_paths)
+    )
     ambiguous_write_payload = bool(
         candidate_command and str(candidate_command).strip() and has_file_write
     )
