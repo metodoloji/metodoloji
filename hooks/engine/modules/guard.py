@@ -1592,6 +1592,20 @@ def guard(json_in: dict) -> dict:
     root = repo_root(json_in)
     _soft_warnings: list[str] = []  # warn-only findings when code_guard=soft
 
+    if norm.get("ambiguous_write_payload"):
+        message = (
+            "Tool payload combines a shell command with a file-write operation; "
+            "the guard cannot safely judge both from one tool shape. Split the operations."
+        )
+        try:
+            from .config import hook_gate_mode
+            hard = hook_gate_mode("code_guard") == "hard"
+        except (Exception, SystemExit):
+            hard = True
+        if hard:
+            return {"decision": "deny", "reason": message}
+        return {"decision": "allow", "methodology_warnings": [message]}
+
     # Hot-path fast exits FIRST:
     if tool_name == "unknown":
         return {

@@ -523,40 +523,41 @@ def normalize_hook_input(json_in: dict) -> dict:
                 tool_input["path"] = str(path_alias)
                 break
 
-    # Unknown tool names with a conventional shell or file-write payload can
-    # still be routed through the normal gates. This catches future adapters
-    # that use a new name but preserve common command or path + mutation fields,
-    # while a genuinely unclassifiable tool remains visible as a warning.
+    # Infer common mutation payloads even for future tool names. If a single
+    # call carries both shell and file-write signatures, a single normalized
+    # tool cannot safely represent both; preserve that fact for guard().
+    candidate_command = tool_input.get("command") or tool_input.get("cmd")
+    path_keys = ("path", "file_path", "filePath")
+    candidate_path = next(
+        (str(tool_input.get(key) or "").strip() for key in path_keys
+         if str(tool_input.get(key) or "").strip()),
+        "",
+    )
+    candidate_paths = tool_input.get("paths")
+    has_paths = isinstance(candidate_paths, list) and any(
+        str(path).strip() for path in candidate_paths
+    )
+    mutation_keys = ("content", "new_string", "replacement", "patchText", "patch")
+    has_mutation = any(
+        key in tool_input and tool_input.get(key) is not None
+        for key in mutation_keys
+    )
+    action = str(tool_input.get("action") or "").strip().lower()
+    has_mutation = has_mutation or action in {
+        "write", "create", "edit", "replace", "patch", "delete", "remove"
+    }
+    patch_text = tool_input.get("patchText") or tool_input.get("patch") or ""
+    patch_paths = _opencode_patch_paths(patch_text)
+    has_file_write = ((candidate_path or has_paths) and has_mutation) or bool(patch_paths)
+    ambiguous_write_payload = bool(
+        candidate_command and str(candidate_command).strip() and has_file_write
+    )
+
     if tool_name not in ("file_editor", "terminal", "notebook_editor"):
-        candidate_command = tool_input.get("command") or tool_input.get("cmd")
         if candidate_command and str(candidate_command).strip():
             tool_name = "terminal"
             tool_input["command"] = str(candidate_command)
-
-        path_keys = ("path", "file_path", "filePath")
-        candidate_path = next(
-            (str(tool_input.get(key) or "").strip() for key in path_keys
-             if str(tool_input.get(key) or "").strip()),
-            "",
-        )
-        candidate_paths = tool_input.get("paths")
-        has_paths = isinstance(candidate_paths, list) and any(
-            str(path).strip() for path in candidate_paths
-        )
-        mutation_keys = ("content", "new_string", "replacement", "patchText", "patch")
-        has_mutation = any(
-            key in tool_input and tool_input.get(key) is not None
-            for key in mutation_keys
-        )
-        action = str(tool_input.get("action") or "").strip().lower()
-        has_mutation = has_mutation or action in {
-            "write", "create", "edit", "replace", "patch", "delete", "remove"
-        }
-        patch_text = tool_input.get("patchText") or tool_input.get("patch") or ""
-        patch_paths = _opencode_patch_paths(patch_text)
-        if tool_name != "terminal" and (
-            ((candidate_path or has_paths) and has_mutation) or patch_paths
-        ):
+        elif has_file_write:
             tool_name = "file_editor"
             if candidate_path:
                 tool_input.setdefault("path", candidate_path)
@@ -575,12 +576,15 @@ def normalize_hook_input(json_in: dict) -> dict:
     if tool_name not in ("file_editor", "terminal", "notebook_editor", "", None):
         tool_name = "unknown"
 
-    return {
+    normalized = {
         "tool_name": tool_name,
         "tool_input": tool_input,
         "raw_tool_name": raw_name,
         **{k: v for k, v in json_in.items() if k not in ("tool_name", "tool_input")},
     }
+    if ambiguous_write_payload:
+        normalized["ambiguous_write_payload"] = True
+    return normalized
 
 
 # MSYS/Cygwin drive form: '/c/Users/x' or '/cygdrive/c/Users/x'.
