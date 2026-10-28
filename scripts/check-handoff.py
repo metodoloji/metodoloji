@@ -878,6 +878,16 @@ def check_bounded_board_reads() -> int:
 VERDICT_VOCAB = ("CURRENT", "STALE", "UNKNOWN", "RETIRED")
 _WITNESS_EVENTS = ('"event": "witness"', '"event": "retire"')
 _RAW_PLANE = '"alerts"'
+# These are the only raw-plane roles outside blackboard.py: doctor compares the
+# stored alert payload with event-log replay as an integrity check, the handoff
+# editor preserves a signal's stable identity while replacing it in place, and
+# _waiting_signals is the single producer that annotates raw handoffs with the
+# freshness verdict. None of them delivers a raw alert as actionable work.
+_RAW_PLANE_MAINTENANCE = {
+    ("blackboard_diagnostics.py", "doctor"),
+    ("blackboard_handoff.py", "replace_handoff"),
+    ("blackboard_handoff.py", "_waiting_signals"),
+}
 
 
 def _freshness_scan_paths() -> list:
@@ -1035,7 +1045,9 @@ def check_freshness_contract() -> int:
         # 4. No surface may read the raw alert plane instead of the annotated one.
         for name, body, line in _module_functions(source):
             text = "\n".join(body)
-            if path.name != "blackboard.py" and _RAW_PLANE in text and "read_board" in text:
+            if (path.name != "blackboard.py" and _RAW_PLANE in text
+                    and "read_board" in text
+                    and (path.name, name) not in _RAW_PLANE_MAINTENANCE):
                 print(f"[ERROR] freshness: {path.name}:{name} (line {line}) reads "
                       f"the raw alert plane — those entries carry no verdict; "
                       f"go through pending_handoffs/pending_handoff_channels/"
@@ -1044,7 +1056,7 @@ def check_freshness_contract() -> int:
 
     if not problems:
         print(f"[OK]   freshness contract: {len(producers)} producer(s), "
-              f"{len(consumers)} verdict consumer(s), no raw-plane reader")
+              f"{len(consumers)} verdict consumer(s), no unannotated alert consumer")
     return problems
 
 

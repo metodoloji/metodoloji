@@ -293,13 +293,14 @@ The scope and the # map are in #16. Exit 0 = HEALTHY; on problems go to #17.
 python -m pytest -q             # 1100+ tests: hook engine, bridge, skills
 sh {metodoloji-root}/scripts/check-custom.sh      # bridge TOML static audit
 sh {metodoloji-root}/scripts/check-plugin.sh      # plugin structure audit (#0–#6h)
-sh scripts/check-methodology.sh # record format audit
+sh scripts/check-methodology.sh # record format audit (warn+exit 0 on a fresh install without records)
+python scripts/check-runtime-coverage.py # adapter-to-documentation drift check
 sh scripts/check-techdebt.sh    # tech-debt inventory audit
 python scripts/check-handoff.py # handoff wiring lint
 python scripts/check-triggers.py # trigger/description collision audit
 ```
 
-CI note: there is no `.github/workflows/` at the repo root — do not assume "CI runs on every push". After a change, run the 7 checks locally (pytest + 5 static checks + handoff lint).
+CI note: there is no `.github/workflows/` at the repo root — do not assume "CI runs on every push". After a change, run the 8 checks locally (pytest + 6 static checks + handoff lint).
 
 ### P2 — Greenfield (empty folder, recommended path)
 
@@ -1283,6 +1284,7 @@ sh {metodoloji-root}/scripts/check-plugin.sh --negtest
 sh {metodoloji-root}/scripts/check-custom.sh        # bridge TOML #0–#7
 python scripts/check-handoff.py   # handoff wiring lint
 sh scripts/check-methodology.sh   # project record format (warn+exit 0 on a fresh install without records)
+python scripts/check-runtime-coverage.py # adapter-to-documentation drift check
 sh scripts/check-techdebt.sh      # debt drift/ID/P0/orphan (also runs as #6b)
 python scripts/check-triggers.py  # trigger/description collision (also runs as #6f)
 ```

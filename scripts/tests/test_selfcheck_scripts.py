@@ -138,7 +138,7 @@ def test_audit_inventory_drift_is_named_per_surface(tmp_path):
             "python scripts/check-triggers.py  # trigger/description collision "
             "(also runs as #6f)\n", ""),
          "a §16 block that omits a shipped audit"),
-        ("KILAVUZ.md", kilavuz.replace("7 kontrolü yerelde", "6 kontrolü yerelde"),
+        ("KILAVUZ.md", kilavuz.replace("8 kontrolü yerelde", "7 kontrolü yerelde"),
          "a stale count claim"),
     )
     for index, (rel, mutated, label) in enumerate(cases):

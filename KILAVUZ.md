@@ -293,13 +293,14 @@ Kapsam ve # haritası #16'dadır. Exit 0 = HEALTHY; sorun varsa #17'ye geç.
 python -m pytest -q             # 1100+ test: hook motoru, bridge, skill
 sh {metodoloji-root}/scripts/check-custom.sh      # bridge TOML statik denetimi
 sh {metodoloji-root}/scripts/check-plugin.sh      # plugin yapı denetimi (#0–#6h)
-sh scripts/check-methodology.sh # kayıt format denetimi
+sh scripts/check-methodology.sh # kayıt format denetimi (kayıtsız tazede uyarılı exit 0)
+python scripts/check-runtime-coverage.py # adapter-belge kapsamı sapma denetimi
 sh scripts/check-techdebt.sh    # borç envanteri denetimi
 python scripts/check-handoff.py # handoff kablolama lint'i
 python scripts/check-triggers.py # trigger/description çakışma denetimi
 ```
 
-CI notu: repo kökünde `.github/workflows/` yoktur — "her push'ta CI koşar" varsayma. Değişiklikten sonra 7 kontrolü yerelde koş (pytest + 5 statik check + handoff lint).
+CI notu: repo kökünde `.github/workflows/` yoktur — "her push'ta CI koşar" varsayma. Değişiklikten sonra 8 kontrolü yerelde koş (pytest + 6 statik check + handoff lint).
 
 ### P2 — Greenfield (boş klasör, önerilen yol)
 
@@ -1282,6 +1283,7 @@ sh {metodoloji-root}/scripts/check-plugin.sh --negtest
 sh {metodoloji-root}/scripts/check-custom.sh        # bridge TOML #0–#7
 python scripts/check-handoff.py   # handoff wiring lint
 sh scripts/check-methodology.sh   # proje-kayıt formatı (kayıtsız tazede uyarılı exit 0)
+python scripts/check-runtime-coverage.py # adapter-belge kapsamı sapma denetimi
 sh scripts/check-techdebt.sh      # borç drift/ID/P0/orphan (#6b olarak da koşar)
 python scripts/check-triggers.py  # trigger/description çakışması (#6f olarak da koşar)
 ```

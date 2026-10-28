@@ -1469,8 +1469,9 @@ def test_guard_verify_cache_skips_reverify(tmp_path, monkeypatch):
 def test_guard_code_guard_soft_warns_not_denies(tmp_path, monkeypatch):
     """code_guard=soft (brownfield): unapproved write warns, still allows."""
     from modules.guard import guard
+    from modules import guard as guard_module
     from modules import config
-    monkeypatch.setattr(config, "hook_gate_mode",
+    monkeypatch.setattr(guard_module, "hook_gate_mode",
                         lambda key: "soft" if key == "code_guard" else "hard")
     monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
     monkeypatch.delenv("OPENHANDS_PROJECT_DIR", raising=False)

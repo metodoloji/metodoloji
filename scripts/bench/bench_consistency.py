@@ -157,7 +157,7 @@ _TEST_COUNT_RE = re.compile(r"#\s*([\d,]+)(\+?)\s+tests?\b")
 _AUDIT_COUNT_SPLIT_RE = re.compile(
     r"pytest \+ (\d+) static checks? \+ handoff lint|pytest \+ (\d+) statik check \+ handoff lint")
 _AUDIT_RANGE_RE = re.compile(r"#(\d[0-9a-z]*)\s*[–—−]\s*#(\d[0-9a-z]*)")
-_AUDIT_SCRIPT_RE = re.compile(r"check-[a-z]+\.(?:sh|py)")
+_AUDIT_SCRIPT_RE = re.compile(r"check-[a-z]+(?:-[a-z]+)*\.(?:sh|py)")
 _AUDIT_MAP_RE = re.compile(r"(?m)^\*\*# (?:map|haritası):\*\* (.+)$")
 _NUMBER_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
                  "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,

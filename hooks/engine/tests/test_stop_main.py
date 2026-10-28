@@ -650,11 +650,12 @@ def test_main_non_object_stdin_stop_is_report_only(tmp_path):
 
 
 def test_main_non_object_stdin_open_hook_allows(tmp_path):
-    """A non-blocking hook keeps its fail-open policy on non-object JSON."""
+    """A malformed audit payload preserves its report-only event schema."""
     r = _main_with_stdin("audit", "[]", tmp_path)
     assert r.returncode == 0, r.stderr
     out = json.loads(r.stdout)
-    assert out["hookSpecificOutput"]["permissionDecision"] == "allow"
+    assert out["hookSpecificOutput"]["hookEventName"] == "PostToolUse"
+    assert "permissionDecision" not in out["hookSpecificOutput"]
 
 
 def test_main_malformed_shapes_never_crash_decide_instead(tmp_path):

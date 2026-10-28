@@ -1,6 +1,6 @@
 # metodoloji
 
-![version](https://img.shields.io/badge/version-0.2.4-0b7285?style=flat-square) ![license](https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square) ![python](https://img.shields.io/badge/python-3.11%2B-3776ab?style=flat-square) ![tests](https://img.shields.io/badge/tests-1%2C400%2B-4c1?style=flat-square) ![runtimes](https://img.shields.io/badge/runtimes-Claude%20Code%20%7C%20OpenHands%20%7C%20OpenCode%20%7C%20Hermes-555?style=flat-square)
+![version](https://img.shields.io/badge/version-0.2.5-0b7285?style=flat-square) ![license](https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square) ![python](https://img.shields.io/badge/python-3.11%2B-3776ab?style=flat-square) ![tests](https://img.shields.io/badge/tests-1%2C400%2B-4c1?style=flat-square) ![runtimes](https://img.shields.io/badge/runtimes-Claude%20Code%20%7C%20OpenHands%20%7C%20OpenCode%20%7C%20Hermes-555?style=flat-square)
 
 **A methodology plugin that applies approval gates to coding-agent actions through supported runtime hooks.**
 
@@ -32,6 +32,7 @@ For **Claude Code**, **OpenHands**, **OpenCode**, and **Hermes**: a 6-stage reco
 - **Context that survives sessions.** The blackboard (`write --hot`, run lists, handoffs, canvases) carries focus and pending batons between skills and across windows.
 - **One manifest, two shell runtimes.** A single `hooks/hooks.json` serves both Claude Code and OpenHands; hook commands self-locate the plugin, and the engine fails closed when it cannot run.
 - **Four runtimes, one decision engine.** OpenCode and Hermes join Claude Code and OpenHands through adapters that call the same Python hook engine. The decision logic is shared; tool coverage and interception points differ by runtime. See [`docs/runtime-security-coverage.md`](docs/runtime-security-coverage.md), [`docs/OPENCODE.md`](docs/OPENCODE.md), and [`HERMES.md`](HERMES.md).
+- hook engine (main.py + modules/): pre, guard, quality, deploy, audit, stop, session_start.
 - **Declared workflow engine.** Multi-stage processes (`analyze → map → plan → apply → test → done`) run as a deterministic state machine that refuses a stage without evidence.
 
 ## How it works
@@ -219,7 +220,7 @@ The two runbooks are written **for the agent**, not the human: the user makes a 
 
 ## Contributing
 
-Issues and PRs are welcome — across the skills, the hook engine, the workflow kernel and the docs. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and the quality bar (tests + the seven checks above, conventional commits).
+Issues and PRs are welcome — across the skills, the hook engine, the workflow kernel and the docs. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and the quality bar (tests + the eight checks above, conventional commits).
 
 ## License
 

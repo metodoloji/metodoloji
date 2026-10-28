@@ -39,9 +39,10 @@ def test_powershell_code_write_denied_under_hard_gate(tmp_path, monkeypatch):
 
 
 def test_powershell_code_write_warns_under_soft_gate(tmp_path, monkeypatch):
+    import modules.guard as guard_module
     root = _code_project(tmp_path)
     _env(monkeypatch, root)
-    monkeypatch.setattr(config, "hook_gate_mode", lambda key: "soft")
+    monkeypatch.setattr(guard_module, "hook_gate_mode", lambda key: "soft")
     res = guard({"tool_name": "PowerShell",
                  "tool_input": {"command": "Out-File -FilePath src/a.py"}})
     assert res["decision"] == "allow"
