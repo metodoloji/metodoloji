@@ -1,0 +1,154 @@
+[
+  {
+    "id": "claude-write-code",
+    "runtime": "claude",
+    "tool_name": "Write",
+    "tool_input": { "file_path": "src/app.py", "content": "print('x')" },
+    "canonical_tool": "file_editor",
+    "canonical_paths": ["src/app.py"],
+    "decision": "deny",
+    "warning": false
+  },
+  {
+    "id": "claude-shell-write",
+    "runtime": "claude",
+    "tool_name": "Bash",
+    "tool_input": { "command": "echo x > src/shell.py" },
+    "canonical_tool": "terminal",
+    "canonical_paths": [],
+    "decision": "deny",
+    "warning": false
+  },
+  {
+    "id": "claude-document-write",
+    "runtime": "claude",
+    "tool_name": "Write",
+    "tool_input": { "file_path": "docs/notes.md", "content": "note" },
+    "canonical_tool": "file_editor",
+    "canonical_paths": ["docs/notes.md"],
+    "decision": "allow",
+    "warning": false
+  },
+  {
+    "id": "openhands-write-code",
+    "runtime": "openhands",
+    "tool_name": "file_editor",
+    "tool_input": { "path": "src/app.py", "content": "print('x')" },
+    "canonical_tool": "file_editor",
+    "canonical_paths": ["src/app.py"],
+    "decision": "deny",
+    "warning": false
+  },
+  {
+    "id": "openhands-shell-write",
+    "runtime": "openhands",
+    "tool_name": "terminal",
+    "tool_input": { "command": "echo x > src/shell.py" },
+    "canonical_tool": "terminal",
+    "canonical_paths": [],
+    "decision": "deny",
+    "warning": false
+  },
+  {
+    "id": "openhands-document-write",
+    "runtime": "openhands",
+    "tool_name": "file_editor",
+    "tool_input": { "path": "docs/notes.md", "content": "note" },
+    "canonical_tool": "file_editor",
+    "canonical_paths": ["docs/notes.md"],
+    "decision": "allow",
+    "warning": false
+  },
+  {
+    "id": "opencode-write-code",
+    "runtime": "opencode",
+    "tool_name": "write",
+    "tool_input": { "path": "src/app.py", "content": "print('x')" },
+    "canonical_tool": "file_editor",
+    "canonical_paths": ["src/app.py"],
+    "decision": "deny",
+    "warning": false
+  },
+  {
+    "id": "opencode-multifile-patch",
+    "runtime": "opencode",
+    "tool_name": "patch",
+    "tool_input": {
+      "patchText": "*** Begin Patch\n*** Add File: scratch/notes.md\n+x\n*** Update File: src/app.py\n@@\n-old\n+new\n*** End Patch\n"
+    },
+    "canonical_tool": "file_editor",
+    "canonical_paths": ["scratch/notes.md", "src/app.py"],
+    "decision": "deny",
+    "warning": false
+  },
+  {
+    "id": "opencode-document-write",
+    "runtime": "opencode",
+    "tool_name": "write",
+    "tool_input": { "path": "docs/notes.md", "content": "note" },
+    "canonical_tool": "file_editor",
+    "canonical_paths": ["docs/notes.md"],
+    "decision": "allow",
+    "warning": false
+  },
+  {
+    "id": "opencode-read-only",
+    "runtime": "opencode",
+    "tool_name": "read",
+    "tool_input": { "path": "src/app.py" },
+    "canonical_tool": "",
+    "canonical_paths": [],
+    "decision": "allow",
+    "warning": false
+  },
+  {
+    "id": "hermes-write-code",
+    "runtime": "hermes",
+    "tool_name": "write_file",
+    "tool_input": { "path": "src/app.py", "content": "print('x')" },
+    "canonical_tool": "file_editor",
+    "canonical_paths": ["src/app.py"],
+    "decision": "deny",
+    "warning": false
+  },
+  {
+    "id": "hermes-document-write",
+    "runtime": "hermes",
+    "tool_name": "write_file",
+    "tool_input": { "path": "docs/notes.md", "content": "note" },
+    "canonical_tool": "file_editor",
+    "canonical_paths": ["docs/notes.md"],
+    "decision": "allow",
+    "warning": false
+  },
+  {
+    "id": "hermes-read-only",
+    "runtime": "hermes",
+    "tool_name": "read_file",
+    "tool_input": { "path": "src/app.py" },
+    "canonical_tool": "",
+    "canonical_paths": [],
+    "decision": "allow",
+    "warning": false
+  },
+  {
+    "id": "hermes-execute-code-literal-write",
+    "runtime": "hermes",
+    "tool_name": "execute_code",
+    "tool_input": { "code": "open('src/app.py', 'w').write('x')" },
+    "canonical_tool": "file_editor",
+    "canonical_paths": ["src/app.py"],
+    "decision": "deny",
+    "warning": false
+  },
+  {
+    "id": "hermes-execute-code-runtime-path",
+    "runtime": "hermes",
+    "tool_name": "execute_code",
+    "tool_input": { "code": "p = input()\nopen(p, 'w').write('x')" },
+    "canonical_tool": "unknown",
+    "canonical_paths": [],
+    "decision": "allow",
+    "warning": true
+  }
+]

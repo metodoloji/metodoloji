@@ -29,6 +29,5 @@ docs/config.user.toml
 # Pre-migration legacy (kept one release for fallback reads; never written)
 bmad-output/config.user.toml
 
-# Local Node install (skills may shell out to npx tooling); never committed.
+# Local Node install (skills may shell out to npx tooling); lockfiles are tracked.
 node_modules/
-package-lock.json

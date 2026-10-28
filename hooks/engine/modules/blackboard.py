@@ -48,7 +48,6 @@ from enum import Enum  # NEW: For AlertKind (PHASE 4 #7)
 
 from . import freshness as fr
 
-
 # NEW: Structured alert taxonomy (PHASE 4 #7)
 class AlertKind(Enum):
     """Enumeration of valid alert kinds for type-safe alert posting.
@@ -118,10 +117,8 @@ HANDOFF_SIGNAL_TTL_SECONDS = 24 * 3600
 # Watcher stamps recorded by the engine, bounded.
 MAX_WATCHERS = 16
 
-
 class BoardError(Exception):
     """Raised internally; public API converts to fail-open defaults."""
-
 
 # --- Locking -----------------------------------------------------------------
 def _acquire_lock(lock_path: str):
@@ -176,7 +173,6 @@ def _acquire_lock(lock_path: str):
     f.close()
     return None
 
-
 def _release_lock(f) -> None:
     if f is None:
         return
@@ -202,7 +198,6 @@ def _release_lock(f) -> None:
         except OSError:
             pass
 
-
 # In-process serialization: one threading.Lock per board path. Windows
 # msvcrt byte-range locks proved unreliable as a same-process thread mutex
 # (transient double-acquire), so threads serialize here first, and the OS
@@ -210,13 +205,11 @@ def _release_lock(f) -> None:
 _THREAD_LOCKS: dict = {}
 _THREAD_LOCKS_GUARD = threading.Lock()
 
-
 def _thread_lock(lock_path: str) -> threading.Lock:
     with _THREAD_LOCKS_GUARD:
         if lock_path not in _THREAD_LOCKS:
             _THREAD_LOCKS[lock_path] = threading.Lock()
         return _THREAD_LOCKS[lock_path]
-
 
 @contextmanager
 def _board_lock(paths: dict):
@@ -228,7 +221,6 @@ def _board_lock(paths: dict):
             yield
         finally:
             _release_lock(f)
-
 
 # --- Paths -------------------------------------------------------------------
 def board_paths(project_root: str) -> dict:
@@ -242,7 +234,6 @@ def board_paths(project_root: str) -> dict:
         "lock": os.path.join(bb_dir, "blackboard.json.lock"),
     }
 
-
 # --- Snapshot handling --------------------------------------------------------
 def _empty_board() -> dict:
     # v4 adds the freshness planes (witness / retired). Both are empty by
@@ -254,7 +245,6 @@ def _empty_board() -> dict:
             "consumed": {}, "open_handoffs": {}, "witness": {},
             "retired": {},
             "updated": 0.0}
-
 
 def _read_snapshot(paths: dict) -> dict:
     try:
@@ -285,7 +275,6 @@ def _read_snapshot(paths: dict) -> dict:
         board["alerts"] = []
     return board
 
-
 def _write_snapshot_atomic(paths: dict, board: dict) -> None:
     import tempfile
     os.makedirs(paths["dir"], exist_ok=True)
@@ -298,7 +287,6 @@ def _write_snapshot_atomic(paths: dict, board: dict) -> None:
         f.flush()
         os.fsync(f.fileno())
     _replace_atomic(tmp, paths["snapshot"])
-
 
 def _replace_atomic(src: str, dst: str, attempts: int = 5) -> None:
     """os.replace with a bounded retry: Windows can transiently deny the
@@ -318,14 +306,12 @@ def _replace_atomic(src: str, dst: str, attempts: int = 5) -> None:
                 raise
             time.sleep(0.02 * (attempt + 1))
 
-
 # --- Event log ----------------------------------------------------------------
 def _append_event(paths: dict, event: dict) -> None:
     """Append one JSON line. Called under the board lock from mutations."""
     os.makedirs(os.path.dirname(paths["events"]), exist_ok=True)
     with open(paths["events"], "a", encoding="utf-8") as f:
         f.write(json.dumps(event, ensure_ascii=False, separators=(",", ":")) + "\n")
-
 
 def _truncate_events_if_needed(paths: dict) -> None:
     """Bound the event log. Runs under the board lock (from _mutate); only
@@ -345,7 +331,6 @@ def _truncate_events_if_needed(paths: dict) -> None:
         _replace_atomic(tmp, paths["events"])
     except OSError:
         pass
-
 
 # --- Public API ----------------------------------------------------------------
 def read_board(project_root: str) -> dict:
@@ -386,7 +371,6 @@ def read_board(project_root: str) -> dict:
     if board.get("hot_canvas") and board["hot_canvas"] not in board["canvases"]:
         board["hot_canvas"] = None
     return board
-
 
 def _replay_events(paths: dict) -> dict:
     """Fold the event log into a board (used to rebuild a lost snapshot).
@@ -438,416 +422,8 @@ def _replay_events(paths: dict) -> dict:
     
     return board
 
-
-# --- event fold -----------------------------------------------------------------
-def _apply_event(board: dict, ev: dict) -> None:
-    kind = ev.get("event")
-    if kind == "write":
-        key = str(ev.get("key", ""))[:200]
-        if key:
-            board["keys"][key] = {
-                "value": ev.get("value"),
-                "type": ev.get("type", "note"),
-                "updated": ev.get("ts", 0.0),
-            }
-            if ev.get("hot"):
-                board["hot"] = key
-            _cap_keys(board)
-    elif kind == "key-forget":
-        # Retire one key (event-sourced): replay folds the removal, so a
-        # rebuilt snapshot stays identical (no drift) — the cap is no longer
-        # the only way a key leaves the board.
-        _fkey = str(ev.get("key", ""))[:200]
-        if _fkey:
-            board["keys"].pop(_fkey, None)
-    elif kind == "tool":
-        # Audit tool-touch stamp (event-sourced): replay folds last_tool.*
-        # back after a snapshot rebuild — no drift, unlike the old
-        # snapshot-only fold.
-        tool = str(ev.get("tool", ""))[:100]
-        if tool:
-            entry = {
-                "value": str(ev.get("target", "")), "type": "tool",
-                "updated": ev.get("ts", 0.0),
-            }
-            # PreToolUse/PostToolUse phase stamp rides the event (HIGH #7):
-            # folded onto the key so the touch sequence survives replay.
-            if ev.get("hook_event"):
-                entry["hook_event"] = str(ev["hook_event"])[:40]
-            board["keys"][f"last_tool.{tool}"] = entry
-            _cap_keys(board)
-    elif kind == "hot":
-        if ev.get("key"):
-            board["hot"] = str(ev["key"])[:200]
-        elif ev.get("clear"):
-            board["hot"] = None
-    elif kind == "tag":
-        tag = str(ev.get("tag", ""))[:100]
-        if tag and tag not in board["tags"]:
-            board["tags"].append(tag)
-            while len(board["tags"]) > MAX_TAGS:
-                board["tags"].pop(0)
-    elif kind == "untag":
-        tag = str(ev.get("tag", ""))
-        if tag in board["tags"]:
-            board["tags"].remove(tag)
-    elif kind == "contribute":
-        board["contributions"].append({
-            "who": str(ev.get("who", ""))[:200],
-            "what": str(ev.get("what", ""))[:MAX_TEXT_LEN],
-            "ts": ev.get("ts", 0.0),
-        })
-        while len(board["contributions"]) > MAX_CONTRIBUTIONS:
-            board["contributions"].pop(0)
-    elif kind == "watch":
-        w = str(ev.get("watcher", ""))[:100]
-        if w:
-            board["watchers"][w] = ev.get("ts", 0.0)
-            while len(board["watchers"]) > MAX_WATCHERS:
-                oldest = min(board["watchers"], key=lambda k: board["watchers"][k])
-                board["watchers"].pop(oldest)
-    elif kind == "list_add":
-        key = str(ev.get("key", ""))[:200]
-        if key:
-            entry = board["keys"].setdefault(
-                key, {"value": [], "type": "list", "updated": 0.0})
-            if not isinstance(entry.get("value"), list):
-                entry["value"] = []
-            entry["type"] = "list"
-            entry["value"].append(str(ev.get("item", ""))[:MAX_LIST_ITEM_LEN])
-            entry["updated"] = ev.get("ts", 0.0)
-            while len(entry["value"]) > MAX_LIST_ITEMS:
-                entry["value"].pop(0)
-            _cap_keys(board)
-    elif kind == "list_remove":
-        key = str(ev.get("key", ""))[:200]
-        entry = board["keys"].get(key)
-        if entry and isinstance(entry.get("value"), list):
-            if ev.get("index") is not None:
-                try:
-                    entry["value"].pop(int(ev["index"]))
-                except (IndexError, ValueError, TypeError):
-                    pass
-            elif ev.get("item") is not None:
-                item = str(ev["item"])
-                if item in entry["value"]:
-                    entry["value"].remove(item)
-            entry["updated"] = ev.get("ts", 0.0)
-    elif kind == "list_clear":
-        key = str(ev.get("key", ""))[:200]
-        entry = board["keys"].get(key)
-        if entry and isinstance(entry.get("value"), list):
-            entry["value"] = []
-            entry["updated"] = ev.get("ts", 0.0)
-    elif kind == "link":
-        a, b = str(ev.get("a", ""))[:200], str(ev.get("b", ""))[:200]
-        rel = str(ev.get("relation", "related"))[:50]
-        if a and b and not any(
-                l["a"] == a and l["b"] == b and l["relation"] == rel
-                for l in board["links"]):
-            board["links"].append(
-                {"a": a, "b": b, "relation": rel, "ts": ev.get("ts", 0.0)})
-            while len(board["links"]) > MAX_LINKS:
-                board["links"].pop(0)
-    elif kind == "unlink":
-        a, b = str(ev.get("a", "")), str(ev.get("b", ""))
-        rel = ev.get("relation")
-        board["links"] = [
-            l for l in board["links"]
-            if not (l["a"] == a and l["b"] == b and (rel is None or l["relation"] == rel))]
-    elif kind == "canvas_create":
-        name = str(ev.get("name", ""))[:MAX_CANVAS_NAME]
-        if name and name not in board["canvases"]:
-            board["canvases"][name] = {
-                "grid": ev.get("grid"), "cells": {}, "watch": [], "updated": ev.get("ts", 0.0)}
-            if ev.get("focus"):
-                board["hot_canvas"] = name
-            _cap_canvases(board)
-    elif kind == "canvas_cell":
-        cv = board["canvases"].get(str(ev.get("name", ""))[:MAX_CANVAS_NAME])
-        if cv is not None:
-            cell = str(ev.get("cell", ""))[:MAX_CELL_ID]
-            if cell:
-                cv["cells"][cell] = {
-                    "content": str(ev.get("content", ""))[:MAX_CELL_LEN],
-                    "kind": str(ev.get("kind", "note"))[:20],
-                    "x": ev.get("x"), "y": ev.get("y"),
-                    "updated": ev.get("ts", 0.0),
-                }
-                if cv["cells"][cell]["kind"] == "auto":
-                    _cap_auto_cells(cv)
-                while len(cv["cells"]) > MAX_CELLS:
-                    oldest = min(cv["cells"], key=lambda c: cv["cells"][c].get("updated", 0.0))
-                    cv["cells"].pop(oldest)
-                cv["updated"] = ev.get("ts", 0.0)
-    elif kind == "canvas_remove":
-        cv = board["canvases"].get(str(ev.get("name", ""))[:MAX_CANVAS_NAME])
-        if cv is not None:
-            cv["cells"].pop(str(ev.get("cell", ""))[:MAX_CELL_ID], None)
-            cv["updated"] = ev.get("ts", 0.0)
-    elif kind == "canvas_move":
-        cv = board["canvases"].get(str(ev.get("name", ""))[:MAX_CANVAS_NAME])
-        if cv is not None:
-            src, dst = str(ev.get("cell", ""))[:MAX_CELL_ID], str(ev.get("to", ""))[:MAX_CELL_ID]
-            if src in cv["cells"] and dst and dst != src:
-                moved = dict(cv["cells"].pop(src))
-                moved["updated"] = ev.get("ts", 0.0)
-                if ev.get("x") is not None:
-                    moved["x"] = ev.get("x")
-                if ev.get("y") is not None:
-                    moved["y"] = ev.get("y")
-                cv["cells"][dst] = moved
-                cv["updated"] = moved["updated"]
-    elif kind == "canvas_resize":
-        cv = board["canvases"].get(str(ev.get("name", ""))[:MAX_CANVAS_NAME])
-        if cv is not None:
-            grid = ev.get("grid")
-            cv["grid"] = grid if isinstance(grid, list) and len(grid) == 2 else None
-            cv["updated"] = ev.get("ts", 0.0)
-    elif kind == "canvas_clear":
-        cv = board["canvases"].get(str(ev.get("name", ""))[:MAX_CANVAS_NAME])
-        if cv is not None:
-            cv["cells"] = {}
-            cv["updated"] = ev.get("ts", 0.0)
-    elif kind == "canvas_focus":
-        if ev.get("name"):
-            board["hot_canvas"] = str(ev["name"])[:MAX_CANVAS_NAME]
-        elif ev.get("clear"):
-            board["hot_canvas"] = None
-    elif kind == "canvas_watch":
-        cv = board["canvases"].get(str(ev.get("name", ""))[:MAX_CANVAS_NAME])
-        if cv is not None:
-            path = str(ev.get("path", ""))[:300]
-            if path and path not in cv["watch"]:
-                cv["watch"].append(path)
-                while len(cv["watch"]) > MAX_WATCH_PATHS:
-                    cv["watch"].pop(0)
-    elif kind == "canvas_unwatch":
-        cv = board["canvases"].get(str(ev.get("name", ""))[:MAX_CANVAS_NAME])
-        if cv is not None:
-            path = str(ev.get("path", ""))
-            if path in cv["watch"]:
-                cv["watch"].remove(path)
-    elif kind == "canvas_touch":
-        cv = board["canvases"].get(str(ev.get("name", ""))[:MAX_CANVAS_NAME])
-        if cv is not None:
-            path = str(ev.get("path", ""))[:MAX_CELL_ID]
-            if path:
-                cv["cells"][path] = {
-                    "content": str(ev.get("content", ""))[:MAX_CELL_LEN],
-                    "kind": "auto",
-                    "x": None, "y": None,
-                    "updated": ev.get("ts", 0.0),
-                }
-                _cap_auto_cells(cv)
-                while len(cv["cells"]) > MAX_CELLS:
-                    oldest = min(cv["cells"], key=lambda c: cv["cells"][c].get("updated", 0.0))
-                    cv["cells"].pop(oldest)
-                cv["updated"] = ev.get("ts", 0.0)
-    elif kind == "subscribe":
-        watcher = str(ev.get("watcher", ""))[:100]
-        pattern = str(ev.get("pattern", ""))[:200]
-        channel = str(ev.get("channel", "session"))[:MAX_CHANNEL_LEN]
-        if watcher and pattern and not any(
-                s["watcher"] == watcher and s["pattern"] == pattern
-                for s in board["subscriptions"]):
-            board["subscriptions"].append(
-                {"watcher": watcher, "pattern": pattern, "channel": channel,
-                 "ts": ev.get("ts", 0.0)})
-            while len(board["subscriptions"]) > MAX_SUBSCRIPTIONS:
-                board["subscriptions"].pop(0)
-    elif kind == "unsubscribe":
-        watcher, pattern = str(ev.get("watcher", "")), str(ev.get("pattern", ""))
-        board["subscriptions"] = [
-            s for s in board["subscriptions"]
-            if not (s["watcher"] == watcher and s["pattern"] == pattern)]
-    elif kind == "consume":
-        chan = str(ev.get("channel", ""))
-        # Fold the finished handshake into the board before dropping the
-        # waiting signal, so the consumed tally lives in the snapshot too
-        # (chain_health reads it there; no event-log replay). Deterministic
-        # and order-preserving, so a snapshot rebuild derives the same tally.
-        if chan.startswith("handoff."):
-            _receiver = chan[len("handoff."):]
-            _tally = board.get("consumed")
-            if not isinstance(_tally, dict):
-                _tally = board["consumed"] = {}
-            # Attribution reads the open-handoff LEDGER, not the (TTL-pruned)
-            # alert list: a handshake that completed days ago must still count
-            # after a rebuild even though its waiting alert has aged out. The
-            # ledger is event-sourced like every plane, so live and replay
-            # derive the same tally.
-            _ledger = board.get("open_handoffs")
-            _open = _ledger.pop(_receiver, []) if isinstance(_ledger, dict) else []
-            for _entry in _open:
-                _sender = (_entry[0] if isinstance(_entry, (list, tuple))
-                           and _entry else "unknown")
-                _tally.setdefault(_sender, {})
-                _tally[_sender][_receiver] = _tally[_sender].get(_receiver, 0) + 1
-            _cap_consumed(board)
-        board["alerts"] = [a for a in board["alerts"] if a["channel"] != chan]
-    elif kind == "alert":
-        alert = {
-            "id": ev.get("id", ""),
-            "channel": str(ev.get("channel", "session"))[:MAX_CHANNEL_LEN],
-            "kind": str(ev.get("kind", "info"))[:20],
-            "text": str(ev.get("text", ""))[:MAX_ALERT_TEXT],
-            "ts": ev.get("ts", 0.0),
-        }
-        # Persist the poster-attributed sender so snapshot readers keep the
-        # shared-namespace attribution the event log carries (TD-014: the
-        # diagnostic waiting set moved to the folded snapshot).
-        if ev.get("sender") and _SENDER_RE.match(str(ev.get("sender")).strip()):
-            alert["sender"] = str(ev.get("sender")).strip()
-        board["alerts"].append(alert)
-        # Open-handoff ledger: the attribution record a later consume folds
-        # into the persisted 'consumed' plane. Kept TTL-independent (only the
-        # alerts list ages out) so a rebuild still counts old handshakes.
-        if alert.get("kind") == "handoff":
-            _chan = str(alert.get("channel", ""))
-            if _chan.startswith("handoff."):
-                _recv = _chan[len("handoff."):]
-                _ledger = board.get("open_handoffs")
-                if not isinstance(_ledger, dict):
-                    _ledger = board["open_handoffs"] = {}
-                _ledger.setdefault(_recv, []).append([
-                    _signal_sender(str(alert.get("text", "")),
-                                   explicit=alert.get("sender")),
-                    float(alert.get("ts", 0.0) or 0.0)])
-                _cap_open_handoffs(board)
-        while len(board["alerts"]) > MAX_ALERTS:
-            board["alerts"].pop(0)
-        # NEW: Clean up stale handoff signals (CRITICAL #4)
-        _cleanup_stale_handoffs(board)
-    elif kind == "alert-edit":
-        # Correct an alert's text in place, by id (replace_handoff): the
-        # signal never disappears — replay folds the edit onto the original
-        # alert, preserving its id and original ts (age/staleness stays
-        # truthful). Sender is refreshed when the edit carries one.
-        target_id = str(ev.get("id", ""))
-        if target_id:
-            for a in board["alerts"]:
-                if a.get("id") == target_id:
-                    a["text"] = str(ev.get("text", ""))[:MAX_ALERT_TEXT]
-                    if ev.get("sender") and _SENDER_RE.match(str(ev.get("sender")).strip()):
-                        a["sender"] = str(ev.get("sender")).strip()
-                    break
-    elif kind == "witness":
-        # The claim's code-state anchor, written once by the write path. The
-        # board stores the ANCHOR, never a verdict: freshness is recomputed on
-        # every read (all a stored "fresh" flag could do is go stale silently).
-        target = str(ev.get("target", ""))[:200]
-        if target:
-            board["witness"][target] = {
-                "commit": str(ev.get("commit", "none"))[:64],
-                "tree": str(ev.get("tree", "none"))[:32],
-                "scope": str(ev.get("scope", "none"))[:32],
-                "ts": float(ev.get("ts", 0.0) or 0.0),
-            }
-            _cap_witness(board)
-    elif kind == "retire":
-        # "This no longer applies", event-sourced: the claim keeps its own ts
-        # (age stays truthful) but stops being delivered as live work.
-        target = str(ev.get("target", ""))[:200]
-        if target:
-            board["retired"][target] = {
-                "reason": str(ev.get("reason", ""))[:MAX_ALERT_TEXT],
-                "ts": float(ev.get("ts", 0.0) or 0.0),
-            }
-            _cap_retired(board)
-
-
-def _cap_witness(board: dict) -> None:
-    """Bound the witness plane, oldest anchor first (deterministic: replay
-    derives the same plane, so a rebuild cannot diverge from the live fold)."""
-    plane = board.get("witness")
-    if not isinstance(plane, dict):
-        board["witness"] = {}
-        return
-    while len(plane) > MAX_WITNESSES:
-        plane.pop(min(plane, key=lambda k: plane[k].get("ts", 0.0)))
-
-
-def _cap_retired(board: dict) -> None:
-    """Bound the retirement plane, oldest marker first."""
-    plane = board.get("retired")
-    if not isinstance(plane, dict):
-        board["retired"] = {}
-        return
-    while len(plane) > MAX_RETIRED:
-        plane.pop(min(plane, key=lambda k: plane[k].get("ts", 0.0)))
-
-
-def _cap_auto_cells(cv: dict) -> None:
-    autos = [c for c, v in cv["cells"].items() if v.get("kind") == "auto"]
-    while len(autos) > MAX_AUTO_CELLS:
-        oldest = min(autos, key=lambda c: cv["cells"][c].get("updated", 0.0))
-        cv["cells"].pop(oldest)
-        autos.remove(oldest)
-
-
-def _cap_open_handoffs(board: dict) -> None:
-    """Bound the open-handoff ledger (FIFO across receivers, insertion order).
-    Deterministic, so live mutation and replay derive the same ledger."""
-    ledger = board.get("open_handoffs")
-    if not isinstance(ledger, dict):
-        board["open_handoffs"] = {}
-        return
-    total = sum(len(v) for v in ledger.values() if isinstance(v, list))
-    while total > MAX_OPEN_HANDOFFS:
-        for _recv in list(ledger.keys()):
-            _lst = ledger[_recv]
-            if isinstance(_lst, list) and _lst:
-                _lst.pop(0)
-                total -= 1
-                if not _lst:
-                    ledger.pop(_recv, None)
-                break
-        else:
-            break
-
-
-def _cap_consumed(board: dict) -> None:
-    """Bound the folded 'consumed' tally (distinct sender names). Counts are
-    deterministic and order-preserving, so a rebuild derives the same plane."""
-    tally = board.get("consumed")
-    if not isinstance(tally, dict):
-        board["consumed"] = {}
-        return
-    while len(tally) > MAX_CONSUMED_SENDERS:
-        tally.pop(next(iter(tally)))
-
-
-def _cleanup_stale_handoffs(board: dict) -> None:
-    """Remove handoff signals older than TTL (24 hours).
-    
-    Prevents hung skills from blocking the chain indefinitely.
-    Called during every mutation to keep stale signals from accumulating.
-    (CRITICAL #4 / ISSUE #25: Skill timeout/crash handling)
-    """
-    now = time.time()
-    initial_count = len(board["alerts"])
-    board["alerts"] = [
-        a for a in board["alerts"]
-        if not (a.get("kind") == "handoff" and 
-                (now - (a.get("ts", 0.0))) > HANDOFF_SIGNAL_TTL_SECONDS)
-    ]
-    stale_removed = initial_count - len(board["alerts"])
-    if stale_removed > 0:
-        # Log that stale signals were cleaned up (for diagnostics)
-        # Could write to a stale-signal counter if needed
-        pass
-
-
-def _cap_canvases(board: dict) -> None:
-    while len(board["canvases"]) > MAX_CANVASES:
-        protected = {board.get("hot_canvas")}
-        candidates = [n for n in board["canvases"] if n not in protected]
-        if not candidates:
-            return  # never evict the focused canvas
-        oldest = min(candidates, key=lambda n: board["canvases"][n].get("updated", 0.0))
-        board["canvases"].pop(oldest)
-
+# Event-fold helpers live in blackboard_fold.py; their names are bound after
+# this module finishes loading, when the canonical constants are available.
 
 # Focus keys that must survive key-cap eviction: they carry the session
 # scope/status the hook engine and bmad-help route on. A busy board
@@ -877,32 +453,6 @@ _METHODOLOGY_MIRROR_KEYS = (
     ("PR-", "methodology.last_pr"),
 )
 
-
-def _cap_keys(board: dict) -> None:
-    while len(board["keys"]) > MAX_KEYS:
-        protected = set(_BRIDGE_KEYS)
-        if board.get("hot"):
-            protected.add(board["hot"])
-        oldest = min(
-            (k for k in board["keys"] if k not in protected),
-            key=lambda k: board["keys"][k].get("updated", 0.0),
-            default=None,
-        )
-        if oldest is None:
-            return  # everything left is protected — never evict the bridge/focus
-        board["keys"].pop(oldest)
-
-
-def _clear_hot_if_dangling(board: dict) -> None:
-    """After a write flood, the hot key/canvas may have been expired in a
-    previous snapshot generation while later 'hot' events re-set it. Never
-    surface a hot key or canvas that is not on the board."""
-    if board.get("hot") and board["hot"] not in board["keys"]:
-        board["hot"] = None
-    if board.get("hot_canvas") and board["hot_canvas"] not in board["canvases"]:
-        board["hot_canvas"] = None
-
-
 # --- alert routing ---------------------------------------------------------------
 def _route_alerts(paths: dict, board: dict, match: str, kind: str, text: str) -> None:
     """Route one alert to every subscription whose pattern matches `match`.
@@ -926,7 +476,6 @@ def _route_alerts(paths: dict, board: dict, match: str, kind: str, text: str) ->
         _append_event(paths, ev)
         _apply_event(board, ev)
 
-
 def _neighbor_channels(board: dict, node: str) -> list:
     """Channels implied by graph links: mutations on `node` may concern its
     neighbors — surfaced via the subscription of any watcher matching the
@@ -943,7 +492,6 @@ def _neighbor_channels(board: dict, node: str) -> list:
             except Exception:
                 continue
     return chans
-
 
 def _mutate(project_root: str, mutator) -> dict:
     """Run mutator(board)->(board, result) under lock with bounded retries.
@@ -978,7 +526,6 @@ def _mutate(project_root: str, mutator) -> dict:
             time.sleep(0.1)
     raise last_exc
 
-
 # --- freshness planes (witness / retired) ---------------------------------------
 # The board stores ANCHORS, the verdict is derived (modules/freshness.py). Write
 # paths stamp a witness in the SAME mutation scope as the claim itself (event
@@ -1002,7 +549,6 @@ def _witness_event(project_root: str, target: str, scope: str = ""):
     return {"event": "witness", "target": str(target)[:200],
             "commit": anchor["commit"], "tree": anchor["tree"],
             "scope": anchor["scope"], "ts": anchor["ts"]}
-
 
 def _retire_targets(board: dict, target: str) -> list:
     """Alert ids a retirement of `target` withdraws.
@@ -1031,7 +577,6 @@ def _retire_targets(board: dict, target: str) -> list:
             ids.append(a["id"])
     return ids
 
-
 def _retire_events(board: dict, target: str, reason: str, ts: float | None = None) -> list:
     """Retire events withdrawing `target` plus every signal that carries it."""
     t = str(target or "").strip()[:200]
@@ -1045,7 +590,6 @@ def _retire_events(board: dict, target: str, reason: str, ts: float | None = Non
                        "reason": str(f"retired with {t}")[:MAX_ALERT_TEXT],
                        "ts": now})
     return events
-
 
 def retire(project_root: str, target: str, reason: str = "") -> dict:
     """Withdraw a claim: "this no longer applies" as a first-class event.
@@ -1081,16 +625,13 @@ def retire(project_root: str, target: str, reason: str = "") -> dict:
         pass
     return ack
 
-
 def witness_map(project_root: str) -> dict:
     """Every stored witness anchor: {target: {commit, tree, scope, ts}}."""
     return dict(read_board(project_root).get("witness") or {})
 
-
 def retired_map(project_root: str) -> dict:
     """Every retirement marker: {target: {reason, ts}}."""
     return dict(read_board(project_root).get("retired") or {})
-
 
 # --- text keys -------------------------------------------------------------------
 def forget_key(project_root: str, key: str) -> dict:
@@ -1123,7 +664,6 @@ def forget_key(project_root: str, key: str) -> dict:
         return board, {"ok": True, "key": key, "removed": removed}
 
     return _mutate(project_root, mut)
-
 
 def write_key(project_root: str, key: str, value, *, type_: str = "note",
               hot: bool = False) -> dict:
@@ -1256,7 +796,6 @@ def write_key(project_root: str, key: str, value, *, type_: str = "note",
             pass
     return ack
 
-
 def set_hot(project_root: str, key: str | None) -> dict:
     """Focus one key (hot) or clear focus (key=None)."""
     if key:
@@ -1271,7 +810,6 @@ def set_hot(project_root: str, key: str | None) -> dict:
         return board, {"ok": True, "hot": board["hot"]}
 
     return _mutate(project_root, mut)
-
 
 # --- lists -----------------------------------------------------------------------
 def list_add(project_root: str, key: str, item: str) -> dict:
@@ -1296,7 +834,6 @@ def list_add(project_root: str, key: str, item: str) -> dict:
 
     return _mutate(project_root, mut)
 
-
 def list_clear(project_root: str, key: str) -> dict:
     """Remove every item from a list key (keeps the key, now an empty list).
     One-command close-out for run lists (pending/branches/failures)."""
@@ -1312,7 +849,6 @@ def list_clear(project_root: str, key: str) -> dict:
         return board, {"ok": True, "key": event["key"], "cleared": had}
 
     return _mutate(project_root, mut)
-
 
 def list_remove(project_root: str, key: str, *, item: str | None = None,
                 index: int | None = None) -> dict:
@@ -1339,7 +875,6 @@ def list_remove(project_root: str, key: str, *, item: str | None = None,
 
     return _mutate(project_root, mut)
 
-
 # --- graph links -------------------------------------------------------------------
 def link(project_root: str, a: str, b: str, relation: str = "related") -> dict:
     """Connect two nodes (key or canvas names) with a directed relation."""
@@ -1361,7 +896,6 @@ def link(project_root: str, a: str, b: str, relation: str = "related") -> dict:
 
     return _mutate(project_root, mut)
 
-
 def unlink(project_root: str, a: str, b: str, relation: str | None = None) -> dict:
     event = {"event": "unlink", "a": str(a).strip()[:200], "b": str(b).strip()[:200],
              "ts": time.time()}
@@ -1375,7 +909,6 @@ def unlink(project_root: str, a: str, b: str, relation: str | None = None) -> di
         return board, {"ok": True, "removed": before - len(board["links"])}
 
     return _mutate(project_root, mut)
-
 
 def neighbors(project_root: str, node: str, relation: str | None = None) -> list:
     """One-hop neighborhood (both link directions), optionally filtered."""
@@ -1394,7 +927,6 @@ def neighbors(project_root: str, node: str, relation: str | None = None) -> list
             seen.add(other)
             out.append({"node": other, "relation": l["relation"], "direction": direction})
     return out
-
 
 # --- canvases (dynamic surfaces) -----------------------------------------------------
 def _parse_grid(spec) -> list | None:
@@ -1415,7 +947,6 @@ def _parse_grid(spec) -> list | None:
     else:
         return None
     return grid
-
 
 def canvas_create(project_root: str, name: str, *, grid=None,
                   focus: bool = False) -> dict:
@@ -1475,7 +1006,6 @@ def canvas_create(project_root: str, name: str, *, grid=None,
 
     return _mutate(project_root, mut)
 
-
 def canvas_set(project_root: str, name: str, cell: str, content: str, *,
                kind: str = "note", x: int | None = None,
                y: int | None = None) -> dict:
@@ -1499,7 +1029,6 @@ def canvas_set(project_root: str, name: str, cell: str, content: str, *,
 
     return _mutate(project_root, mut)
 
-
 def canvas_remove(project_root: str, name: str, cell: str) -> dict:
     event = {"event": "canvas_remove", "name": str(name).strip()[:MAX_CANVAS_NAME],
              "cell": str(cell).strip()[:MAX_CELL_ID], "ts": time.time()}
@@ -1513,7 +1042,6 @@ def canvas_remove(project_root: str, name: str, cell: str) -> dict:
         return board, {"ok": True, "canvas": event["name"], "cell": event["cell"]}
 
     return _mutate(project_root, mut)
-
 
 def canvas_move(project_root: str, name: str, cell: str, to: str, *,
                 x: int | None = None, y: int | None = None) -> dict:
@@ -1534,7 +1062,6 @@ def canvas_move(project_root: str, name: str, cell: str, to: str, *,
 
     return _mutate(project_root, mut)
 
-
 def canvas_resize(project_root: str, name: str, grid) -> dict:
     event = {"event": "canvas_resize", "name": str(name).strip()[:MAX_CANVAS_NAME],
              "grid": _parse_grid(grid), "ts": time.time()}
@@ -1545,7 +1072,6 @@ def canvas_resize(project_root: str, name: str, grid) -> dict:
         return board, {"ok": True, "canvas": event["name"], "grid": event["grid"]}
 
     return _mutate(project_root, mut)
-
 
 def canvas_clear(project_root: str, name: str) -> dict:
     event = {"event": "canvas_clear", "name": str(name).strip()[:MAX_CANVAS_NAME],
@@ -1559,7 +1085,6 @@ def canvas_clear(project_root: str, name: str) -> dict:
         return board, {"ok": True, "canvas": event["name"], "cleared": had}
 
     return _mutate(project_root, mut)
-
 
 def canvas_focus(project_root: str, name: str | None) -> dict:
     """Focus one canvas (the engine surfaces it) or clear (name=None)."""
@@ -1576,7 +1101,6 @@ def canvas_focus(project_root: str, name: str | None) -> dict:
         return board, {"ok": True, "hot_canvas": board["hot_canvas"]}
 
     return _mutate(project_root, mut)
-
 
 def canvas_watch(project_root: str, name: str, path: str, *, remove: bool = False) -> dict:
     """Register a filesystem path prefix that feeds this canvas in real time:
@@ -1600,7 +1124,6 @@ def canvas_watch(project_root: str, name: str, path: str, *, remove: bool = Fals
 
     return _mutate(project_root, mut)
 
-
 def read_canvas(project_root: str, name: str) -> dict:
     """Read one canvas whole (cells + watch paths + grid)."""
     name = str(name).strip()[:MAX_CANVAS_NAME]
@@ -1611,7 +1134,6 @@ def read_canvas(project_root: str, name: str) -> dict:
     return {"ok": True, "canvas": name, "exists": True, "grid": cv.get("grid"),
             "cells": cv.get("cells", {}), "watch": cv.get("watch", []),
             "focused": board.get("hot_canvas") == name}
-
 
 def _touch_canvases(board: dict, paths: dict, tool: str, target: str) -> list:
     """Push one audited touch into every canvas watching a matching path.
@@ -1635,7 +1157,6 @@ def _touch_canvases(board: dict, paths: dict, tool: str, target: str) -> list:
                 touched.append(name)
                 break
     return touched
-
 
 def stamp_tool_event(project_root: str, tool_name: str, target: str, hook_event: str = "") -> dict:
     """Fold one tool touch into the board in a single lock scope.
@@ -1689,7 +1210,6 @@ def stamp_tool_event(project_root: str, tool_name: str, target: str, hook_event:
 
     return _mutate(project_root, mut)
 
-
 def canvas_touch(project_root: str, path: str, *, tool: str = "watch") -> dict:
     """Report one path touch to every canvas watching a matching prefix.
 
@@ -1704,7 +1224,6 @@ def canvas_touch(project_root: str, path: str, *, tool: str = "watch") -> dict:
     if not target:
         return {"ok": False, "error": "canvas-touch needs --path"}
     return stamp_tool_event(project_root, str(tool or "watch").strip() or "watch", target)
-
 
 def _watch_matches(watch_path: str, target: str) -> bool:
     """Normalize a watch-prefix match (agnostic to rel/abs, backslash, ./).
@@ -1723,7 +1242,6 @@ def _watch_matches(watch_path: str, target: str) -> bool:
     if not w or not t:
         return False
     return t == w or t.startswith(w + "/") or w.startswith(t + "/")
-
 
 # --- subscriptions & alerts ----------------------------------------------------------
 def subscribe(project_root: str, watcher: str, pattern: str, *,
@@ -1745,7 +1263,6 @@ def subscribe(project_root: str, watcher: str, pattern: str, *,
 
     return _mutate(project_root, mut)
 
-
 def unsubscribe(project_root: str, watcher: str, pattern: str) -> dict:
     event = {"event": "unsubscribe", "watcher": str(watcher).strip()[:100],
              "pattern": str(pattern).strip()[:200], "ts": time.time()}
@@ -1758,14 +1275,12 @@ def unsubscribe(project_root: str, watcher: str, pattern: str) -> dict:
 
     return _mutate(project_root, mut)
 
-
 def pending_alerts(project_root: str, channel: str | None = None) -> list:
     """Read-only: alerts awaiting a channel (all channels when None)."""
     alerts = read_board(project_root)["alerts"]
     if channel:
         return [a for a in alerts if a["channel"] == channel]
     return list(alerts)
-
 
 def consume_alerts(project_root: str, channel: str) -> list:
     """Take and clear one channel's alerts (engine consumption point).
@@ -1783,7 +1298,6 @@ def consume_alerts(project_root: str, channel: str) -> list:
         return _mutate(project_root, mut)
     except Exception:
         return []
-
 
 # --- hand-off signals (the skill chain handshake) ------------------------------------
 def post_handoff(project_root: str, to_skill: str, from_key: str, note: str = "",
@@ -1805,7 +1319,6 @@ def post_handoff(project_root: str, to_skill: str, from_key: str, note: str = ""
         return {"ok": False, "error": "empty --from-key"}
     return post_alert(project_root, f"handoff.{to_skill}", "handoff",
                       f"{from_key}: {str(note).strip()}", sender=sender)
-
 
 def replace_handoff(project_root: str, to_skill: str, from_key: str, note: str = "",
                     *, sender: str | None = None) -> dict:
@@ -1862,7 +1375,6 @@ def replace_handoff(project_root: str, to_skill: str, from_key: str, note: str =
 
     return _mutate(project_root, mut)
 
-
 # --- freshness annotation of waiting signals -------------------------------------
 # ONE scan, ONE derivation. pending_handoffs, pending_handoff_channels,
 # pending_handoff_freshness, recent_handoffs, chain_health, doctor and the
@@ -1873,7 +1385,6 @@ def _routed_skills() -> set:
     return (set(CHAIN) | set(METHODOLOGY_CHAIN) | sub_chain_skills()
             | CHAIN_ADJACENT
             | {s for hop in CHAIN_TERMINAL for s in hop})
-
 
 def _annotate_alert(project_root: str, alert: dict, board: dict) -> dict:
     """Derived freshness for one waiting signal — read-only, never raises.
@@ -1904,7 +1415,6 @@ def _annotate_alert(project_root: str, alert: dict, board: dict) -> dict:
         ann = {**ann, "verdict": fr.RETIRED,
                "reason": f"retired — {marker.get('reason') or 'no longer applies'}"}
     return ann
-
 
 def _waiting_signals(project_root: str, *, board: dict | None = None,
                      include_retired: bool = False) -> list:
@@ -1938,7 +1448,6 @@ def _waiting_signals(project_root: str, *, board: dict | None = None,
                         "anchor": ann["anchor"], "run_key": ann["run_key"]})
     return out
 
-
 def pending_handoffs(project_root: str, skill: str, *,
                      only_current: bool = False) -> list:
     """Un-consumed hand-off signals waiting for `skill` (read-only peek).
@@ -1952,7 +1461,6 @@ def pending_handoffs(project_root: str, skill: str, *,
     return [sig for sig in _waiting_signals(project_root)
             if sig["skill"] == skill
             and (not only_current or sig["verdict"] == fr.CURRENT)]
-
 
 def pending_handoff_channels(project_root: str) -> dict:
     """Skills with waiting hand-off signals: {skill: count} (engine peek —
@@ -1979,7 +1487,6 @@ def pending_handoff_channels(project_root: str) -> dict:
         if sig["skill"] in relay:
             counts[sig["skill"]] = counts.get(sig["skill"], 0) + 1
     return counts
-
 
 def pending_handoff_freshness(project_root: str) -> dict:
     """Per-routed-channel freshness breakdown of the waiting signals.
@@ -2017,7 +1524,6 @@ def pending_handoff_freshness(project_root: str) -> dict:
                  "label": fr.label(sig["verdict"], age),
                  "age_s": age, "reason": str(sig.get("reason", ""))})
     return out
-
 
 def recent_handoffs(project_root: str, limit: int = 3, *,
                     only_current: bool = False,
@@ -2069,7 +1575,6 @@ def recent_handoffs(project_root: str, limit: int = 3, *,
     for h in hits:
         h["age_s"] = int(h["age_s"])
     return hits[:limit]
-
 
 # --- chain health (hand-off diagnostics) ----------------------------------------------
 # The canonical delivery relay: each hop is one skill handing off to the next.
@@ -2254,7 +1759,6 @@ CHAIN_ADJACENT = {
     "wds-agent-freya-ux", "wds-agent-mimir-builder", "wds-agent-saga-analyst",
 }
 
-
 def sub_chain_skills() -> set:
     """Every skill named by any sub-chain hop (senders and receivers)."""
     return {s for hops in SUB_CHAINS.values() for hop in hops for s in hop}
@@ -2346,7 +1850,6 @@ _KEY_PREFIX_TO_SKILL = [
     ("story.", "bmad-create-story"),
 ]
 
-
 def _skill_for_run_key(key: str) -> str | None:
     """Owning skill for a run-key namespace — the producer side of the same
     table the hand-off diagnostic attributes with (watch-plane stamps and
@@ -2358,7 +1861,6 @@ def _skill_for_run_key(key: str) -> str | None:
             return skill
     return None
 
-
 # A skill token accepted as an explicit signal sender (same shape as the
 # channel budget allows). Anything else is ignored — attribution falls back to
 # the prefix rather than trusting a free-form string.
@@ -2367,7 +1869,6 @@ _SENDER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$")
 # A run key that names a record (`E-048`, `QR-001`): only these can supersede or
 # be superseded, so only these pay the cascade scan on the write path.
 _RECORD_KEY_RE = re.compile(r"^[A-Z]+-\d+$")
-
 
 def _signal_sender(text: str, explicit: str | None = None) -> str:
     """Attribute a hand-off signal to a sender skill.
@@ -2387,7 +1888,6 @@ def _signal_sender(text: str, explicit: str | None = None) -> str:
         if key.startswith(prefix):
             return skill
     return "unknown"
-
 
 def chain_health(project_root: str, *, now: float | None = None) -> dict:
     """Per-hop hand-off diagnostics for the delivery relay AND the methodology
@@ -2527,7 +2027,6 @@ def chain_health(project_root: str, *, now: float | None = None) -> dict:
             "retired": len(board.get("retired") or {}),
             "freshness_mode": fr.mode()}
 
-
 def waiting_hop_rows(health: dict) -> list:
     """Every hop holding a waiting signal, across ALL declared relays
     (delivery, methodology, every sub-chain) plus the unknown 'extra' bucket.
@@ -2539,10 +2038,8 @@ def waiting_hop_rows(health: dict) -> list:
     rows += [h for h in health.get("extra", []) if h.get("waiting")]
     return rows
 
-
 # --- doctor (one-glance diagnostic) ---------------------------------------------------
 _DOCTOR_CAP_WARN_PCT = 90  # warn when a plane is this close to its cap
-
 
 def _doctor_age(ts: float) -> str:
     """Human age of a timestamp ('2s', '5m', '3h', '6d')."""
@@ -2554,7 +2051,6 @@ def _doctor_age(ts: float) -> str:
     if age < 86400:
         return f"{age // 3600}h"
     return f"{age // 86400}d"
-
 
 def _doctor_drift(paths: dict, board: dict) -> dict:
     """Snapshot vs event-log replay comparison (tool-stamped keys excluded:
@@ -2574,7 +2070,6 @@ def _doctor_drift(paths: dict, board: dict) -> dict:
 
     in_sync = norm(replay) == norm(board)
     return {"in_sync": in_sync, "status": "ok" if in_sync else "warn"}
-
 
 def rotate_event_log(project_root: str, max_lines: int = 10000) -> dict:
     """Archive old event log entries and start fresh (MEDIUM #1 / ISSUE #60).
@@ -2643,7 +2138,6 @@ def rotate_event_log(project_root: str, max_lines: int = 10000) -> dict:
             "ok": False,
             "error": f"rotation failed: {str(e)[:200]}"
         }
-
 
 def doctor(project_root: str, *, post: bool = False) -> dict:
     """One-glance diagnostic for the whole board: gate, snapshot, event log,
@@ -2816,7 +2310,6 @@ def doctor(project_root: str, *, post: bool = False) -> dict:
     except Exception:
         pass  # Can't check session history, skip
 
-    
     # integrity: snapshot presence + drift
     snapshot_exists = os.path.exists(paths["snapshot"])
     drift = _doctor_drift(paths, board)
@@ -3034,7 +2527,6 @@ def doctor(project_root: str, *, post: bool = False) -> dict:
                                                   stale_session_hours)
     return report
 
-
 def _post_lifecycle_alerts(project_root: str, unclear: list,
                            stale_session_hours: int | None) -> int:
     """Produce the lifecycle alerts doctor detected (bounded, deduped, fail-open).
@@ -3071,7 +2563,6 @@ def _post_lifecycle_alerts(project_root: str, unclear: list,
         pass
     return posted
 
-
 # Announcement-state kinds: re-posting the identical sentence is not a new
 # fact. These dedup because MAX_ALERTS is a SHARED pool (32) that also holds
 # waiting hand-off signals — a lifecycle announcement repeated per turn would
@@ -3081,7 +2572,6 @@ _DEDUP_ALERT_KINDS = frozenset({AlertKind.RETIRED.value,
                                 AlertKind.CASCADE_INVALIDATION.value,
                                 AlertKind.STALE_SESSION.value,
                                 AlertKind.WITNESS_STALE.value})
-
 
 def post_alert(project_root: str, channel: str, kind: str, text: str,
                *, sender: str | None = None) -> dict:
@@ -3145,7 +2635,6 @@ def post_alert(project_root: str, channel: str, kind: str, text: str,
 
     return _mutate(project_root, mut)
 
-
 # --- contributions / watchers (unchanged surface) --------------------------------------
 def add_contribution(project_root: str, who: str, what: str) -> dict:
     if not str(who).strip():
@@ -3159,7 +2648,6 @@ def add_contribution(project_root: str, who: str, what: str) -> dict:
         return board, {"ok": True, "who": event["who"]}
 
     return _mutate(project_root, mut)
-
 
 def add_tag(project_root: str, tag: str) -> dict:
     tag = str(tag).strip()[:100]
@@ -3176,7 +2664,6 @@ def add_tag(project_root: str, tag: str) -> dict:
 
     return _mutate(project_root, mut)
 
-
 def remove_tag(project_root: str, tag: str) -> dict:
     tag = str(tag).strip()[:100]
 
@@ -3190,7 +2677,6 @@ def remove_tag(project_root: str, tag: str) -> dict:
 
     return _mutate(project_root, mut)
 
-
 def record_watcher(project_root: str, watcher: str) -> dict:
     event = {"event": "watch", "watcher": str(watcher).strip()[:100],
              "ts": time.time()}
@@ -3201,7 +2687,6 @@ def record_watcher(project_root: str, watcher: str) -> dict:
         return board, {"ok": True, "watcher": event["watcher"]}
 
     return _mutate(project_root, mut)
-
 
 # --- context & stats --------------------------------------------------------------------
 def compact_context(project_root: str) -> dict:
@@ -3276,7 +2761,6 @@ def compact_context(project_root: str) -> dict:
                 "reason": ann["reason"], "run_key": ann["run_key"],
                 "label": fr.label(ann["verdict"], ann["age_s"])}
 
-
     # NEW: Operator preferences and urgency (PHASE 3 #6)
     tags_list = list(board["tags"])
     priority = "normal"
@@ -3306,7 +2790,6 @@ def compact_context(project_root: str) -> dict:
         "alerts": len(board["alerts"]),
     }
 
-
 def stats(project_root: str) -> dict:
     board = read_board(project_root)
     paths = board_paths(project_root)
@@ -3334,3 +2817,12 @@ def stats(project_root: str) -> dict:
         "hot_canvas": board.get("hot_canvas"),
         "snapshot": paths["snapshot"],
     }
+
+
+# Import after the canonical module state is defined so the fold helpers can
+# read its constants and public test seams without a partial-import cycle.
+from .blackboard_fold import (  # noqa: E402
+    _apply_event, _cap_auto_cells, _cap_canvases, _cap_consumed, _cap_keys,
+    _cap_open_handoffs, _cap_retired, _cap_witness, _cleanup_stale_handoffs,
+    _clear_hot_if_dangling,
+)

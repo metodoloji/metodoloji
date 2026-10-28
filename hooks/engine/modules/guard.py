@@ -18,6 +18,15 @@ from .utils import (is_code_target, is_free, norm_path, normalize_hook_input,
 from .bash_targets import extract_bash_targets, extract_bash_targets_ex
 from . import plan as plan_mod
 from . import state as state_mod
+from .story_records import (
+    _AC_ID_RE, _EXPERIMENT_FIELD_RE, _HYPOTHESIS_RE, _MEASURED_FIELD_RE,
+    _STORY_BASENAME_RE, _TABLE_AC_COLUMNS, _TABLE_AC_ID_RE,
+    _TABLE_AC_KNOWN_TYPES, _TABLE_REFS_ROW_RE, _TASK_AC_RE, _TEST_FIELD_RE,
+    _TYPE_FIELD_RE, _frontmatter_block, _is_ac_table_header, _is_story_file,
+    _parse_ac_metadata, _parse_experiment_refs, _parse_table_ac_row,
+    _parse_task_ac_refs, _story_heredoc_body, _table_column_map,
+    _table_experiment_linked, _unchecked_story_write_warning,
+)
 
 # Import gate script — deferred: sys.exit at module level kills the entire process
 # (including audit which doesn't need the gate). Instead, gate is loaded lazily
@@ -41,10 +50,8 @@ def _load_gate():
         sys.stderr.write(f"metodoloji-hooks: gate import failed — {exc}\n")
         return False
 
-
 _LISTING_SEG_RE = re.compile(r"^\s*(ls|dir)(\s|$)", re.IGNORECASE)
 _ECHO_SEG_RE = re.compile(r"^\s*echo(\s|$)", re.IGNORECASE)
-
 
 def _secret_ref(s: str) -> bool:
     """True if s reaches for key material (fail-closed), False for a bare
@@ -75,7 +82,6 @@ def _secret_ref(s: str) -> bool:
         return True
     return False
 
-
 def _plan_record_verified(rec_path: str) -> bool:
     """HMAC-verified approval check for the plan layer (E-065).
 
@@ -87,7 +93,6 @@ def _plan_record_verified(rec_path: str) -> bool:
     rc, _scope = _cached_verify(rec_path)
     return rc == 0
 
-
 @lru_cache(maxsize=256)
 def _cached_scope(path: str, mtime_ns: int, size: int) -> str:
     if not _load_gate():
@@ -96,7 +101,6 @@ def _cached_scope(path: str, mtime_ns: int, size: int) -> str:
         return gate.record_scope(path)
     except Exception:
         return ""
-
 
 def record_scope_cached(path: str) -> str:
     """gate.record_scope with (mtime_ns, size)-based LRU cache."""
@@ -110,7 +114,6 @@ def record_scope_cached(path: str) -> str:
             return gate.record_scope(path)
         except Exception:
             return ""
-
 
 def verify_record(rec: str) -> tuple[int, str]:
     """Run gate verify on a record; return (rc, scope)."""
@@ -132,141 +135,10 @@ def verify_record(rec: str) -> tuple[int, str]:
             pass
         return 1, ""
 
-
 # Matches native story files (1-2-user-auth.md) AND methodology story records
 # (S-001.md, S-056-gate-id-guard.md). Basename-anchored: notes-S-001.md or
 # a/b-S-001.md/notes.md must NOT count as story files (substring match would
 # drag ordinary files into the story metadata chain).
-_STORY_BASENAME_RE = re.compile(r"^(?:\d+-\d+-[a-z][a-z0-9-]*\.md|S-\d+(?:-[a-z0-9-]+)?\.md)$", re.IGNORECASE)
-
-
-def _is_story_file(rel: str) -> bool:
-    """True when the path's basename is exactly a story filename."""
-    base = rel.replace("\\", "/").rsplit("/", 1)[-1]
-    return bool(_STORY_BASENAME_RE.match(base))
-
-
-def _unchecked_story_write_warning(rel: str) -> str:
-    """Warn-only notice when a terminal story write bypasses content checks."""
-    return (
-        f"{rel}: story write via terminal — its content is not visible to the "
-        f"guard before the write, so AC/chain validation did not run here "
-        f"(the PostToolUse audit enforces it after the fact)."
-    )
-
-
-def _story_heredoc_body(command: str, target: str) -> str | None:
-    """Return the literal heredoc payload a terminal command writes to `target`.
-
-    Best-effort parse of the canonical shell story-creation pattern
-    (`cat <<'EOF' > docs/.../S-002.md` or `cat > docs/.../S-002.md <<'EOF'`).
-    Returns None when the command does not write a plain heredoc to the story
-    target — in that case the payload is unknowable at guard time.
-
-    Note: callers only reach this for commands without `$` (variable targets
-    are dropped before story detection), so no shell expansion is needed.
-    """
-    m = re.search(r"<<\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1", command)
-    if not m:
-        return None
-    marker = m.group(2)
-    want = os.path.basename(target.replace("\\", "/"))
-    matched = None
-    for rm in re.finditer(r">\s*([^\s;|&'\"]+)", command):
-        if os.path.basename(rm.group(1)) == want:
-            matched = rm
-            break
-    if matched is None:
-        return None
-    # Everything after the heredoc marker's line, up to the bare terminator
-    # line, is the literal payload. The tail of the opening line (which may
-    # carry the `> file` redirect) is not payload.
-    body: list[str] = []
-    for line in command[m.end():].splitlines()[1:]:
-        if line.strip() == marker:
-            break
-        body.append(line)
-    return "\n".join(body) if body else None
-
-
-def _frontmatter_block(content: str) -> str:
-    """Return the YAML frontmatter body ('' when absent).
-
-    The closing fence must sit alone on its line: a body rule (`---`) never
-    ends the block early.
-    """
-    lines = content.splitlines()
-    if not lines or lines[0].strip() != "---":
-        return ""
-    for i in range(1, len(lines)):
-        if lines[i].strip() == "---":
-            return "\n".join(lines[1:i])
-    return ""
-
-
-def _parse_experiment_refs(content: str) -> list[dict]:
-    """Extract experiment_refs from YAML frontmatter of a story file.
-
-    Returns a list of dicts with keys: id, scope, status.
-    Returns empty list if no experiment_refs found or parsing fails.
-    """
-    frontmatter = _frontmatter_block(content)
-    if not frontmatter:
-        return []
-
-    # Find experiment_refs block — indentation-aware line parse. Only lines
-    # indented DEEPER than the experiment_refs key belong to the block; a
-    # top-level key (status: draft) ends it instead of merging into the ref.
-    refs: list[dict] = []
-    refs_indent: int | None = None
-    current: dict = {}
-    current_indent = 0
-    for line in frontmatter.splitlines():
-        if not line.strip():
-            continue
-        indent = len(line) - len(line.lstrip())
-        stripped = line.strip()
-        if refs_indent is None:
-            if stripped.startswith("experiment_refs"):
-                refs_indent = indent
-            continue
-        if indent <= refs_indent:
-            break  # back at top level — block is over
-        if stripped.startswith("- "):
-            if current:
-                refs.append(current)
-            current = {}
-            current_indent = indent
-            inner = stripped[2:].strip()
-            # Handle inline: - id: E-001
-            kv = inner.split(":", 1)
-            if len(kv) == 2:
-                current[kv[0].strip()] = kv[1].strip()
-        elif ":" in stripped and current and indent > current_indent:
-            kv = stripped.split(":", 1)
-            current[kv[0].strip()] = kv[1].strip()
-    if current:
-        refs.append(current)
-    return refs
-
-
-_TABLE_REFS_ROW_RE = re.compile(
-    r"^\s*\|\s*Experiment\s+Refs\s*\|([^|\n]*)\|", re.IGNORECASE | re.MULTILINE)
-
-
-def _table_experiment_linked(content: str) -> bool:
-    """Bridge table linkage: a field-table ``Experiment Refs`` row naming
-    E-NNN, or an AC-table Experiment column carrying E-NNN (same parser
-    the metadata check uses, so linkage and fields can never disagree
-    about what the table says)."""
-    refs_match = _TABLE_REFS_ROW_RE.search(content)
-    if refs_match and re.search(r"E-\d+", refs_match.group(1)):
-        return True
-    for ac in _parse_ac_metadata(content):
-        if re.fullmatch(r"E-\d+|STRUCT-\d{3}", ac.get("experiment", "")):
-            return True
-    return False
-
 
 def _dangling_structural_reason(content: str, root: str) -> str:
     """A cited STRUCT-NNN must resolve to a declaration on disk.
@@ -285,7 +157,6 @@ def _dangling_structural_reason(content: str, root: str) -> str:
                     f"docs/development/structural/{ref}.md — a structural "
                     f"reference has to resolve, exactly like an E record")
     return ""
-
 
 def _orphan_story_reason(content: str) -> str:
     """Reason text when a story has no link to any experiment (orphan);
@@ -331,7 +202,6 @@ def _orphan_story_reason(content: str) -> str:
         "to the experiment that validates it."
     )
 
-
 def _superseded_by(root: str, exp_id: str) -> str:
     """The record that re-measured `exp_id` (`Re-Measured-By`), or ''.
 
@@ -345,14 +215,12 @@ def _superseded_by(root: str, exp_id: str) -> str:
     except Exception:
         return ""
 
-
 def _cascade_warning(exp_id: str, superseded_by: str) -> str:
     """One advisory line: this story cites a decision a newer record replaced."""
     return (f"CASCADE INVALIDATION: {exp_id} was re-measured by "
             f"{superseded_by} — the decision is no longer the operative one; "
             f"re-point the AC at {superseded_by} or retire {exp_id} "
             f"explicitly.")
-
 
 def _validate_story_experiment_refs(content: str, root: str = "") -> tuple[bool, str, list]:
     """Validate that all experiment_refs in a story file point to approved records.
@@ -454,191 +322,13 @@ def _validate_story_experiment_refs(content: str, root: str = "") -> tuple[bool,
     # One line per superseded record, whatever cited it how many times.
     return True, "", list(dict.fromkeys(cascade_warnings))
 
+# --- Story metadata validation ---
 
-# --- AC Metadata Validation ---
-
-_AC_ID_RE = re.compile(r"\[AC-(\d+)\]")
-_TASK_AC_RE = re.compile(r"AC:\s*(AC-\d+)")
-_HYPOTHESIS_RE = re.compile(r"\[HYPOTHESIS\]")
-_EXPERIMENT_FIELD_RE = re.compile(r"Experiment:\s*(E-\d+|STRUCT-\d{3}|—|-)")
 # A Test id is `path::name` — a criterion decided by a unit test, not measured
 # and not declared structural. The name is required: "the tests cover it" is
 # exactly the claim this field exists to make checkable.
-_TEST_FIELD_RE = re.compile(r"^\s*-?\s*Test:\s*([^\n]+)", re.M)
-_MEASURED_FIELD_RE = re.compile(r"Measured:\s*(true|false)", re.IGNORECASE)
-_TYPE_FIELD_RE = re.compile(r"Type:\s*(agent-verifiable|user-evaluable|hybrid)", re.IGNORECASE)
 # _VERIFY_FIELD_RE and the DoD rules are shared with the audit's QR DoD check
 # (single source of truth in .utils).
-
-
-_TABLE_AC_ID_RE = re.compile(r"AC-(\d+)")
-_TABLE_AC_KNOWN_TYPES = ("agent-verifiable", "user-evaluable", "hybrid")
-_TABLE_AC_COLUMNS = ("ac", "status", "experiment", "test", "type", "measured", "verify")
-
-
-def _is_ac_table_header(cells: list[str]) -> bool:
-    """A header names the bridge columns (in any order) and carries no AC id."""
-    names = [c.strip().lower() for c in cells]
-    if _TABLE_AC_ID_RE.search(" ".join(names)):
-        return False
-    return sum(1 for c in names if c in _TABLE_AC_COLUMNS) >= 3
-
-
-def _table_column_map(header_cells: list[str]) -> dict[str, int]:
-    """Map bridge table columns (AC | Status | Experiment | Type | Measured | Verify)
-    to indices by header name; -1 when a column is absent."""
-    mapping: dict[str, int] = {}
-    lowered = [c.strip().lower() for c in header_cells]
-    for name in _TABLE_AC_COLUMNS:
-        try:
-            mapping[name] = lowered.index(name)
-        except ValueError:
-            mapping[name] = -1
-    if mapping["ac"] == -1 and lowered:
-        mapping["ac"] = 0
-    return mapping
-
-
-def _parse_table_ac_row(cells: list[str], col: dict[str, int], line: str) -> dict | None:
-    """Parse one bridge table AC row (| AC-001 | … |); None when not a data row.
-
-    Column positions come from the section's header row, so reordered
-    tables resolve identically. Values mirror the bracket dialect's
-    validity contract: unknown Type / non-boolean Measured normalize to
-    empty (the validator flags them), dash Verify is accepted exactly as
-    the bracket ``Verify:`` capture accepts it.
-    """
-    if len(cells) < 6:
-        return None
-    id_match = _TABLE_AC_ID_RE.search(cells[col["ac"]] if 0 <= col["ac"] < len(cells) else "")
-    if not id_match:
-        return None
-    ac_id = f"AC-{id_match.group(1)}"
-
-    def cell(name: str) -> str:
-        idx = col.get(name, -1)
-        return cells[idx].strip() if 0 <= idx < len(cells) else ""
-
-    experiment_raw = cell("experiment")
-    experiment_m = re.search(r"E-\d+|STRUCT-\d{3}", experiment_raw)
-    experiment = experiment_m.group(0) if experiment_m else (
-        experiment_raw if experiment_raw in ("—", "-") else "")
-    type_raw = cell("type").lower()
-    type_value = type_raw if type_raw in _TABLE_AC_KNOWN_TYPES else ""
-    measured_raw = cell("measured").lower()
-    measured = measured_raw if measured_raw in ("true", "false") else ""
-    verify = " ".join(cell("verify").split())
-    if len(cells) > 6 and col.get("verify", -1) >= 0:
-        extra = " ".join(c.strip() for c in cells[col["verify"] + 1:] if c.strip())
-        if extra:
-            verify = f"{verify} {extra}".strip() if verify else extra
-    return {
-        "id": ac_id,
-        "experiment": experiment,
-        "test": cell("test"),
-        "type": type_value,
-        "measured": measured,
-        "verify": verify,
-        "is_hypothesis": bool(_HYPOTHESIS_RE.search(line)),
-    }
-
-
-def _parse_ac_metadata(content: str) -> list[dict]:
-    """Parse Acceptance Criteria section and extract AC metadata.
-
-    Two dialects, one contract: bracket blocks (``[AC-001]`` + labeled
-    fields — the native-draft shape) and bridge table rows
-    (``| AC-001 | … |`` — the methodology-record shape per bridge §2.5b).
-    Table columns resolve through the section's own header row. An id
-    parsed from brackets wins on collision (first occurrence stands).
-
-    Returns list of dicts with keys: id, experiment, type, measured, verify, is_hypothesis.
-    """
-    acs = []
-    # Find Acceptance Criteria section. Methodology records title it
-    # "## Acceptance Criteria Details" while native drafts use the bare
-    # "## Acceptance Criteria" — both are the same section (bridge §2.5b).
-    ac_match = re.search(r"##\s+Acceptance\s+Criteria[^\n]*\n(.*?)(?=\n##\s|\Z)",
-                         content, re.DOTALL | re.IGNORECASE)
-    if not ac_match:
-        return acs
-    ac_section = ac_match.group(1)
-
-    # Table dialect first so bracket blocks keep first-occurrence priority
-    # on id collision (dedup below skips table ids already seen).
-    table_seen: dict[str, dict] = {}
-    col: dict[str, int] = {}
-    header_found = False
-    for line in ac_section.splitlines():
-        stripped = line.strip()
-        if not stripped.startswith("|"):
-            continue
-        cells = [c.strip() for c in stripped.strip("|").split("|")]
-        if not header_found and _is_ac_table_header(cells):
-            col = _table_column_map(cells)
-            header_found = True
-            continue
-        if not header_found:
-            col = _table_column_map(
-                ["ac", "status", "experiment", "test", "type", "measured", "verify"])
-            header_found = True
-        parsed = _parse_table_ac_row(cells, col, line)
-        if parsed and parsed["id"] not in table_seen:
-            table_seen[parsed["id"]] = parsed
-
-    # Split by AC identifiers
-    ac_blocks = re.split(r"(?=\[AC-\d+\])", ac_section)
-    for block in ac_blocks:
-        id_match = _AC_ID_RE.search(block)
-        if not id_match:
-            continue
-        ac_id = f"AC-{id_match.group(1)}"
-        experiment_m = _EXPERIMENT_FIELD_RE.search(block)
-        test_m = _TEST_FIELD_RE.search(block)
-        type_m = _TYPE_FIELD_RE.search(block)
-        measured_m = _MEASURED_FIELD_RE.search(block)
-        verify_m = _VERIFY_FIELD_RE.search(block)
-        is_hypothesis = bool(_HYPOTHESIS_RE.search(block))
-
-        acs.append({
-            "id": ac_id,
-            "experiment": experiment_m.group(1) if experiment_m else "",
-            "test": test_m.group(1).strip() if test_m else "",
-            "type": type_m.group(1) if type_m else "",
-            "measured": measured_m.group(1).lower() if measured_m else "",
-            "verify": verify_m.group(1).strip() if verify_m else "",
-            "is_hypothesis": is_hypothesis,
-        })
-    seen = {ac["id"] for ac in acs}
-    for ac_id, parsed in table_seen.items():
-        if ac_id not in seen:
-            acs.append(parsed)
-            seen.add(ac_id)
-    return acs
-
-
-def _parse_task_ac_refs(content: str) -> list[dict]:
-    """Parse Technical Tasks section and extract AC references.
-
-    Returns list of dicts with keys: task_text, ac_refs (list of AC IDs).
-    """
-    tasks = []
-    # Find Technical Tasks section
-    tt_match = re.search(r"##\s+Technical\s+Tasks\s*\n(.*?)(?=\n##\s|\Z)", content, re.DOTALL | re.IGNORECASE)
-    if not tt_match:
-        return tasks
-    tt_section = tt_match.group(1)
-
-    for line in tt_section.splitlines():
-        # Only capture top-level tasks (not indented subtasks)
-        if line.startswith("- [ ]") or line.startswith("- [x]"):
-            ac_refs = _TASK_AC_RE.findall(line)
-            tasks.append({
-                "task_text": line.strip(),
-                "ac_refs": ac_refs,
-            })
-    return tasks
-
 
 # Directories that can hold methodology records, relative to the project root.
 # `docs/` covers the canonical layout (docs/experiments, docs/development,
@@ -649,7 +339,6 @@ def _parse_task_ac_refs(content: str) -> list[dict]:
 _RECORD_SCAN_ROOTS = ("docs", "bmad-output", "_bmad-output", "design-artifacts")
 
 _RECORD_ID_RE = re.compile(r"[A-Z]+-\d+")
-
 
 def _check_duplicate_record_ids(root: str, rel_path: str,
                                record_type: str | None = None) -> tuple[bool, str]:
@@ -721,7 +410,6 @@ def _check_duplicate_record_ids(root: str, rel_path: str,
     except Exception as e:
         # Can't check, allow write (fail-open)
         return True, f"(duplicate check skipped: {str(e)[:100]})"
-
 
 def _validate_story_metadata(content: str) -> tuple[bool, str]:
     """Validate AC metadata, Task↔AC mapping, DoD structure, and STATUS field state machine.
@@ -801,14 +489,12 @@ def _validate_story_metadata(content: str) -> tuple[bool, str]:
         return False, "; ".join(issues[:5])  # Limit to 5 issues
     return True, ""
 
-
 # --- Methodology Chain Validation ---
 
 @lru_cache(maxsize=256)
 def _cached_text(path: str, mtime_ns: int, size: int) -> str:
     """Read a chain record, cached by (mtime_ns, size)."""
     return pathlib.Path(path).read_text(encoding="utf-8", errors="replace")
-
 
 def _chain_text(path: "pathlib.Path") -> str:
     try:
@@ -817,17 +503,14 @@ def _chain_text(path: "pathlib.Path") -> str:
         return path.read_text(encoding="utf-8", errors="replace")
     return _cached_text(str(path), st.st_mtime_ns, st.st_size)
 
-
 _RECORD_TITLE_RE = re.compile(r"^#\s+Methodology\s+Record\s*:", re.IGNORECASE | re.MULTILINE)
 _NATIVE_STORY_ROW_RE = re.compile(r"^\s*\|\s*Native\s+Story\s*\|", re.IGNORECASE | re.MULTILINE)
-
 
 def _is_methodology_record(content: str) -> bool:
     """True when the file under scan IS a generated methodology record
     (generator title or Native Story field row) rather than a draft
     awaiting one."""
     return bool(_RECORD_TITLE_RE.search(content) or _NATIVE_STORY_ROW_RE.search(content))
-
 
 def _plugin_script_cmd(script: str, *args: str) -> str:
     """A runnable command for one of the PLUGIN's own scripts.
@@ -841,7 +524,6 @@ def _plugin_script_cmd(script: str, *args: str) -> str:
     """
     from .utils import plugin_script_cmd
     return plugin_script_cmd(script, *args)
-
 
 def _qr_remedy(root: str, missing_keys: "list[str]") -> str:
     """One `create-qr-record.py --story <real file>` command per missing story.
@@ -859,7 +541,6 @@ def _qr_remedy(root: str, missing_keys: "list[str]") -> str:
     ]
     return "; ".join(cmds)
 
-
 # A cited experiment has to be *able* to back the criterion. The docstring of
 # _validate_methodology_chain has claimed this since it was written ("Every AC
 # must reference an approved experiment"), but the code only checked that the
@@ -868,7 +549,6 @@ def _qr_remedy(root: str, missing_keys: "list[str]") -> str:
 # three stories all cited the same withdrawn E-004: the chain read as valid, and
 # the matrix of ACs pointing at a record that measured nothing looked green.
 _INERT_EXPERIMENT_STATUSES = ("withdrawn", "rejected", "refused", "planned", "draft")
-
 
 def _cited_experiment_problem(ref: str, root: str) -> str:
     """Return why `E-NNN` cannot back an AC, or "" when it can."""
@@ -898,7 +578,6 @@ def _cited_experiment_problem(ref: str, root: str) -> str:
         f"nothing cannot back an acceptance criterion. Cite one that decided, or "
         f"rewrite the criterion so a test can decide it"
     )
-
 
 def _dangling_test_problem(content: str, root: str) -> str:
     """A cited Test must name a test that exists, or it backs nothing.
@@ -943,7 +622,6 @@ def _dangling_test_problem(content: str, root: str) -> str:
             return (f"{ac['id']} cites Test '{ref}', but {path_part.strip()} contains no test "
                     f"named '{name}' — the cited name has to appear in the file")
     return ""
-
 
 def _validate_methodology_chain(content: str, rel_path: str, root: str = "") -> tuple[bool, str]:
     """Validate that the methodology chain is intact for a story file.
@@ -1173,7 +851,6 @@ def _validate_methodology_chain(content: str, rel_path: str, root: str = "") -> 
         return False, "; ".join(issues[:3])
     return True, ""
 
-
 # Verified-scope cache: find_approved runs gate.verify (HMAC) over every
 # record per call. Cache per (mtime_ns, size) so the SAME call does not
 # re-verify one record for every write target it tests. Bounded (128 entries);
@@ -1190,7 +867,6 @@ def _validate_methodology_chain(content: str, rel_path: str, root: str = "") -> 
 # described a cross-call lifetime this process cannot have; both are gone
 # rather than left as documentation of a mechanism that never runs.
 _VERIFY_CACHE: dict[str, tuple[tuple[int, int], int, str, float]] = {}
-
 
 def _cached_verify(rec: str) -> tuple[int, str]:
     """verify_record, memoized by (mtime_ns, size) for THIS call only.
@@ -1217,7 +893,6 @@ def _cached_verify(rec: str) -> tuple[int, str]:
             _VERIFY_CACHE.pop(next(iter(_VERIFY_CACHE)))
         _VERIFY_CACHE[rec] = (key, rc, scope, time.time())
     return rc, scope
-
 
 def _record_freshness(root: str, rec_path: str) -> dict | None:
     """Derived freshness of an APPROVED record (E-053), or None when unavailable.
@@ -1252,12 +927,10 @@ def _record_freshness(root: str, rec_path: str) -> dict | None:
     except Exception:
         return None
 
-
 # Cap on the records a commit/deploy freshness row reads: the row must stay
 # cheap on the hot path (init-time commit), and a project past this many
 # experiment records has bigger inputs than a warning line.
 _FRESHNESS_ROW_MAX_RECORDS = 500
-
 
 def _freshness_chain_row(root: str, blocked_action: str) -> dict:
     """Derived freshness of every APPROVED record: report, or block on request.
@@ -1339,7 +1012,6 @@ def _freshness_chain_row(root: str, blocked_action: str) -> dict:
         f"{len(unknown)} unverifiable — " + ", ".join(shown)
         + (". This is a report, not a block: `[hooks] freshness = deny` / "
            "`[freshness] unknown_policy = deny` make it one.")]}
-
 
 def find_approved(target: str, recs_dir: str | None = None,
                   root: str = "") -> tuple[bool, str, dict | None]:
@@ -1455,7 +1127,6 @@ def find_approved(target: str, recs_dir: str | None = None,
         return False, best, None
     return False, advisory or "no approved experiment record", None
 
-
 # Instrument paths stage BEFORE approval: the gate refuses to measure a bench
 # in a free zone (scratch/tmp) and --run is the only measurement path, so a
 # bench that could only be written post-approval would deadlock every first
@@ -1465,12 +1136,10 @@ def find_approved(target: str, recs_dir: str | None = None,
 # never unlocks apps/**, src/** or any other code target.
 _INSTRUMENT_PREFIXES = ("scripts/bench/",)
 
-
 def _is_instrument_path(rel: str) -> bool:
     """True when the project-relative path is a measurement bench target."""
     p = norm_path(rel or "").lstrip("/")
     return any(p.startswith(prefix) for prefix in _INSTRUMENT_PREFIXES)
-
 
 def find_staged_instrument(target: str, root: str = "") -> tuple[bool, str]:
     """True when target is a bench staged by a well-formed undecided record.
@@ -1517,15 +1186,12 @@ def find_staged_instrument(target: str, root: str = "") -> tuple[bool, str]:
         return False, "staged-instrument check failed"
     return False, "no undecided record stages this bench"
 
-
 _STRUCTURAL_DIR = ("docs", "development", "structural")
 _STRUCTURAL_MIN_JUSTIFICATION = 40
-
 
 def _struct_field(text: str, name: str) -> str:
     m = re.search(rf"^-\s*\*\*{re.escape(name)}:\*\*\s*(.+)$", text, re.M)
     return m.group(1).strip() if m else ""
-
 
 def find_structural_declaration(target: str, root: str = "") -> tuple[bool, str]:
     """True when a Structural Scope record declares this path.
@@ -1583,7 +1249,6 @@ def find_structural_declaration(target: str, root: str = "") -> tuple[bool, str]
     except Exception:
         return False, "structural check failed"
     return False, "no structural declaration covers this path"
-
 
 def guard(json_in: dict) -> dict:
     """PreToolUse guard: block code writes without approved experiment record."""
@@ -1886,13 +1551,11 @@ def guard(json_in: dict) -> dict:
 
     return {"decision": "allow"}
 
-
 # --- Quality Gate (PreToolUse, terminal) ---
 
 def _is_absolute_target(rel: str) -> bool:
     """True when the (normalized) target path is not project-relative."""
     return bool(re.match(r"^[a-zA-Z]:[/\\]", rel) or rel[:1] == "/")
-
 
 def _out_of_root_note(rel: str, target: str = "") -> str:
     """Honest remediation text when the denied target lies outside the project.
@@ -1933,7 +1596,6 @@ def _out_of_root_note(rel: str, target: str = "") -> str:
             f"on this full path, so a record in this project can only cover it "
             f"via an absolute Code Scope entry, never a project-relative glob.")
 
-
 def _prior_attempts(root: str, rel: str) -> int:
     """Prior write attempts at the same target in the audit trail (bounded, fail-open).
 
@@ -1963,11 +1625,9 @@ def _prior_attempts(root: str, rel: str) -> int:
             n += 1
     return n
 
-
 def _is_git_commit(command: str) -> bool:
     """True if command is a git commit (or git commit -am, etc.)."""
     return bool(re.search(r"\bgit\b.*\bcommit\b", command))
-
 
 # Roots that can hold a story file, project-relative with the glob that names
 # a story in that root. Methodology records live in docs/development/stories
@@ -1989,7 +1649,6 @@ _STORY_READ_ROOTS = (
 _STORY_KEY_FIELD_RE = re.compile(
     r"\*\*Story key:\*\*\s*([A-Za-z0-9][A-Za-z0-9._-]*)", re.IGNORECASE)
 
-
 def _iter_story_files(root: str):
     """Story files across the methodology + Seçenek A native roots (sorted)."""
     for rel, pattern in _STORY_READ_ROOTS:
@@ -2001,7 +1660,6 @@ def _iter_story_files(root: str):
                 continue
             yield f
 
-
 # A story names the sprint it belongs to (`- **Sprint:** SP-001`); an SP record
 # names its IR, an IR its experiment. The id may carry further numeric segments
 # (a date-named record, `SP-2026-01-15` / `IR-2026-09-28`).
@@ -2009,14 +1667,12 @@ _SP_REF_RE = re.compile(r"\bSP-(\d+(?:-\d+)*)\b", re.IGNORECASE)
 _IR_REF_RE = re.compile(r"\bIR-(\d+(?:-\d+)*)\b", re.IGNORECASE)
 _E_REF_RE = re.compile(r"\bE-(\d+(?:-\d+)*)\b", re.IGNORECASE)
 
-
 def _first_heading(text: str) -> str:
     """A record's identity line (`# Sprint: SP-001 — …`) or "" when it has none."""
     for line in text.splitlines():
         if line.lstrip().startswith("#"):
             return line
     return ""
-
 
 def _record_id_token(match: "re.Match[str]") -> "re.Pattern[str]":
     """Regex matching the SAME record id a document references, zero-pad tolerant.
@@ -2032,7 +1688,6 @@ def _record_id_token(match: "re.Match[str]") -> "re.Pattern[str]":
     segs = [s.lstrip("0") or "0" for s in match.group(1).split("-")]
     body = "-".join(rf"0*{re.escape(s)}" for s in segs)
     return re.compile(rf"\b{re.escape(kind)}-{body}\b", re.IGNORECASE)
-
 
 # A record DECLARES its subject in a labelled field or table row, never in prose:
 # `scripts/sync-story-qr.py` calls the `| Story |` row "the fact" it trusts, and
@@ -2052,14 +1707,12 @@ _DECLARED_KEY_RE = re.compile(
     r"\b(?:S-\d+(?:-[a-z0-9-]+)?|\d+-\d+-[a-z][a-z0-9-]*)\b", re.IGNORECASE)
 _DECLARED_PATH_RE = re.compile(r"[\w./\\-]*[A-Za-z0-9_-]+\.md")
 
-
 def _names_in(text: str) -> set[str]:
     """Story keys / path stems appearing in a bare text (heading, id line)."""
     names = {k.lower() for k in _DECLARED_KEY_RE.findall(text)}
     names |= {pathlib.PurePosixPath(p.replace("\\", "/")).stem.lower()
               for p in _DECLARED_PATH_RE.findall(text)}
     return names
-
 
 def _declared_story_names(text: str) -> set[str]:
     """Story keys/paths a record DECLARES as its subject (never a prose mention)."""
@@ -2077,14 +1730,12 @@ def _declared_story_names(text: str) -> set[str]:
             names |= _names_in(nxt)
     return names
 
-
 def _declaration_covers(names: set[str], story_key: str, story_stem: str) -> bool:
     """True when a declaration names this story (its key or its file stem)."""
     if story_key.lower() in names or story_stem.lower() in names:
         return True
     # A bare `S-060` declaration covers `S-060-scope-guard-hermeticity.md`.
     return any(story_stem.lower().startswith(f"{n}-") for n in names)
-
 
 def _record_covers_story(text: str, path: pathlib.Path, story_key: str,
                          story_stem: str) -> bool:
@@ -2099,7 +1750,6 @@ def _record_covers_story(text: str, path: pathlib.Path, story_key: str,
         | _names_in(path.name)
     return _declaration_covers(names, story_key, story_stem)
 
-
 def _story_key_of(content: str, path: pathlib.Path) -> str:
     """The story key for a story file: explicit field, then title, then slug,
     then filename stem. Every caller needs the same precedence."""
@@ -2113,7 +1763,6 @@ def _story_key_of(content: str, path: pathlib.Path) -> str:
     if m:
         return m.group(1)
     return path.stem
-
 
 def _story_paths_for_keys(root: str, keys: "list[str]") -> dict[str, str]:
     """Map each missing story key to its project-relative file path.
@@ -2142,7 +1791,6 @@ def _story_paths_for_keys(root: str, keys: "list[str]") -> dict[str, str]:
             except ValueError:
                 found[key] = story_file.as_posix()
     return found
-
 
 def _methodology_mirror_map(root: str) -> dict[str, str]:
     """Native story name -> the methodology record key that mirrors it.
@@ -2178,7 +1826,6 @@ def _methodology_mirror_map(root: str) -> dict[str, str]:
                 pathlib.PurePosixPath(name.replace("\\", "/")).stem.lower(),
                 rec_key)
     return out
-
 
 def _find_done_stories_without_record(root: str, record_glob: str, record_dir: str,
                                       require_sp_ref: bool = False) -> list[str]:
@@ -2273,11 +1920,9 @@ def _find_done_stories_without_record(root: str, record_glob: str, record_dir: s
         missing.append(story_key)
     return missing
 
-
 def _find_done_stories_without_qr(root: str) -> list[str]:
     """Find stories with Status: done that lack a QR record."""
     return _find_done_stories_without_record(root, "QR-*.md", "docs/quality")
-
 
 def _find_done_stories_without_pr(root: str) -> list[str]:
     """Find stories with Status: done that lack a PR record.
@@ -2288,12 +1933,10 @@ def _find_done_stories_without_pr(root: str) -> list[str]:
     """
     return _find_done_stories_without_record(root, "PR-*.md", "docs/development")
 
-
 def _find_done_stories_without_sp(root: str) -> list[str]:
     """Find stories with Status: done that reference an SP but lack SP record."""
     return _find_done_stories_without_record(root, "SP-*.md", "docs/development",
                                              require_sp_ref=True)
-
 
 def _find_done_stories_without_ir(root: str) -> list[str]:
     """Find done stories when no IR record exists (Kapi 1 gate bypassed).
@@ -2327,7 +1970,6 @@ def _find_done_stories_without_ir(root: str) -> list[str]:
         missing.append(_story_key_of(content, story_file))
     return missing
 
-
 def _board_key_identity(content: str, path: pathlib.Path) -> str:
     """A story file's own identity for board-key resolution.
 
@@ -2343,7 +1985,6 @@ def _board_key_identity(content: str, path: pathlib.Path) -> str:
     if m:
         return m.group(1).strip()
     return extract_story_key_from_content(content) or path.stem
-
 
 def board_story_keys_without_records(root: str) -> list[str]:
     """Sprint-board story keys that resolve to no story record.
@@ -2394,7 +2035,6 @@ def board_story_keys_without_records(root: str) -> list[str]:
                 resolved.add(candidate.lower())
     return [k for k in keys if k.lower() not in resolved]
 
-
 def _check_all_stories_quality(root: str, blocked_action: str) -> dict:
     """Validate all stories in docs/development/stories for metadata, orphan links, and chain."""
     stories_dir = pathlib.Path(root) / "docs" / "development" / "stories"
@@ -2434,13 +2074,11 @@ def _check_all_stories_quality(root: str, blocked_action: str) -> dict:
             }
     return {"decision": "allow"}
 
-
 _QR_SECTION_RE = re.compile(
     r"##\s+Quality\s+Record\s*\(QR\).*?(?=\n##\s|\Z)",
     re.DOTALL | re.IGNORECASE)
 _QR_PATH_RE = re.compile(r"QR Record Path\*\*:\s*(docs/quality/QR-\d+\.md)")
 _QR_STATUS_RE = re.compile(r"^\s*-\s*\*\*Status:\*\*\s*(.+?)\s*$", re.MULTILINE)
-
 
 def _qr_table_has_pending(section: str) -> bool:
     """True if any DoD row in a QR table lacks a pass/fail mark."""
@@ -2451,7 +2089,6 @@ def _qr_table_has_pending(section: str) -> bool:
         if "✅" not in cells[1] and "❌" not in cells[1]:
             return True
     return False
-
 
 def _check_qr_table_coherence(root: str, blocked_action: str) -> dict:
     """Deny commit when a done story's embedded QR table still reads pending
@@ -2497,7 +2134,6 @@ def _check_qr_table_coherence(root: str, blocked_action: str) -> dict:
             ),
         }
     return {"decision": "allow"}
-
 
 def _check_scope_coverage(root: str) -> list[str]:
     """Edited files (work-tree + untracked) sitting outside every approved scope.
@@ -2599,7 +2235,6 @@ def _check_scope_coverage(root: str) -> list[str]:
         misses.append(norm)
     return misses, ran
 
-
 def quality(json_in: dict) -> dict:
     """Quality gate: block git commit if done stories lack IR, QR, or SP records,
     or if stories fail metadata/chain validation, or if a done story's
@@ -2688,7 +2323,6 @@ def quality(json_in: dict) -> dict:
         return {"decision": "allow", "methodology_warnings": fresh_warnings}
     return {"decision": "allow"}
 
-
 # --- Deploy Gate (PreToolUse, terminal) ---
 
 _DEPLOY_CMD_RE = re.compile(
@@ -2703,7 +2337,6 @@ _DEPLOY_CMD_RE = re.compile(
     r")"
 )
 
-
 def _apply_gate_strictness(result: dict, gate_key: str) -> dict:
     """Soft mode → a gate deny becomes warn-only allow.
 
@@ -2716,7 +2349,6 @@ def _apply_gate_strictness(result: dict, gate_key: str) -> dict:
     if hook_gate_mode(gate_key) != "hard":
         return {"decision": "allow", "methodology_warnings": [result["reason"]]}
     return result
-
 
 def _check_gate_records(root: str, blocked_action: str, include_pr: bool = False) -> dict:
     """Run the record-chain gate checks (IR → QR → SP → [PR]).
@@ -2778,7 +2410,6 @@ def _check_gate_records(root: str, blocked_action: str, include_pr: bool = False
             }
 
     return {"decision": "allow"}
-
 
 def pre(json_in: dict) -> dict:
     """Combined PreToolUse gate: guard + quality + deploy in ONE process.
@@ -2851,7 +2482,6 @@ def pre(json_in: dict) -> dict:
     except Exception:
         pass
     return {"decision": "allow"}
-
 
 def deploy(json_in: dict) -> dict:
     """Deploy gate: block deployment if done stories lack IR, QR, SP, or PR records.

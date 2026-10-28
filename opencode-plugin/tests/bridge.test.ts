@@ -1,4 +1,5 @@
 import assert from "node:assert/strict"
+import { readFileSync } from "node:fs"
 import { test } from "node:test"
 
 import { flushWarnings, interpret, isFailClosed, queueWarnings } from "../src/decide.ts"
@@ -12,6 +13,15 @@ function raw(stdout: string, overrides: Partial<RawRun> = {}): RawRun {
 function envelope(body: Record<string, unknown>): string {
   return JSON.stringify({ hookSpecificOutput: body })
 }
+
+const runtimeScenarios = JSON.parse(
+  readFileSync(new URL("../../hooks/engine/tests/fixtures/runtime-contract.json", import.meta.url), "utf8"),
+) as Array<{
+  id: string
+  runtime: string
+  tool_name: string
+  tool_input: Record<string, unknown>
+}>
 
 // --- map.ts -----------------------------------------------------------------
 
@@ -49,6 +59,22 @@ test("permissionToEngine targets every path a multi-file patch lists", () => {
     path: "src/a.py",
     paths: ["src/a.py", "src/b.py"],
   })
+})
+
+test("OpenCode adapter forwards every shared contract scenario unchanged", () => {
+  const scenarios = runtimeScenarios.filter((scenario) => scenario.runtime === "opencode")
+  assert.ok(scenarios.length > 0, "shared runtime fixture must include OpenCode")
+  for (const scenario of scenarios) {
+    assert.deepEqual(
+      toEngine(scenario.tool_name, scenario.tool_input, "/project"),
+      {
+        tool_name: scenario.tool_name,
+        tool_input: scenario.tool_input,
+        cwd: "/project",
+      },
+      scenario.id,
+    )
+  }
 })
 
 // --- decide.ts --------------------------------------------------------------

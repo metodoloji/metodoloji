@@ -20,7 +20,7 @@ Thank you for your interest in contributing to **Metodoloji**! We welcome contri
    pip install pytest
    ```
 
-3. **Run the Full Test Suite:**
+3. **Run the Full Test Suite locally:**
    All 1,400+ unit and integration tests must pass:
    ```bash
    pytest
@@ -34,6 +34,11 @@ Thank you for your interest in contributing to **Metodoloji**! We welcome contri
    # Run automated negative tests (ensures detection catches missing markers):
    sh scripts/check-plugin.sh --negtest
    ```
+
+Pull requests also run `.github/workflows/quality.yml`: the Python suite and
+plugin/record audits run on Python 3.11 and 3.12, and the OpenCode bridge suite
+runs separately on Node.js 22. The release-number workflow remains independent
+and only verifies/publishes version tags.
 
 ---
 

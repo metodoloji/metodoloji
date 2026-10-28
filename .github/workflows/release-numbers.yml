@@ -1,11 +1,12 @@
-# The ONLY CI pipeline in this repo (E-010 … E-014): keep the release number
-# true and publish the pointers. It writes NO version and creates NO commit —
+# The release-number pipeline (E-010 … E-014): keep the release number true
+# and publish the pointers. It writes NO version and creates NO commit —
 # the number is written into the commit that owns it, by the committed
 # pre-commit hook (.githooks/pre-commit, installed with
-# `git config core.hooksPath .githooks`). What is left for CI is what it can
-# do without lying: read the tree of every commit the push carried, compare it
+# `git config core.hooksPath .githooks`). This workflow reads the tree of every
+# commit the push carried, compares it
 # with the number that commit's position owns, and publish tags for the ones
-# that match. A mismatch is a red job naming the number it should be — the
+# that match. The separate quality workflow owns tests and audits. A mismatch
+# is a red job naming the number it should be — the
 # fix-up, if any, is a rebase or an amend by the author, never another commit
 # from a bot (that is what E-014 removed: two of the last four commits existed
 # only to hold a version).
@@ -18,9 +19,8 @@
 # Loop safety: there is no loop to break. This workflow pushes tags only, a
 # tag push does not match `branches: [main]`, and GITHUB_TOKEN pushes never
 # re-trigger workflows — so no guard, no bot commit, no [skip-version].
-# The six audits (pytest, check-plugin, check-custom, check-methodology,
-# check-techdebt, check-handoff) intentionally stay local — this workflow
-# never runs them; CI here is release-numbers only.
+# This workflow never runs tests or audits; CI validation lives in
+# `.github/workflows/quality.yml`.
 name: release-numbers
 
 on:
