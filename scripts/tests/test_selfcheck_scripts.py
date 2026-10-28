@@ -1175,3 +1175,27 @@ def test_opencode_bridge_suite_is_wired_into_the_bench():
     assert any("opencode bridge suite" in label for label in labels), labels
     tests = sorted((bench.ROOT / "opencode-plugin" / "tests").glob("*.test.ts"))
     assert tests, "the OpenCode port lost its test files"
+
+
+def test_skipped_bench_checks_are_reported_outside_accuracy(monkeypatch, capsys):
+    """An unavailable optional runtime reduces measured coverage, never counts green."""
+    bench = _load_bench()
+    monkeypatch.setattr(bench.shutil, "which", lambda _command: None)
+    assert (bench._run_opencode_tests() or "").startswith("SKIP:")
+
+    checks = [
+        ("available", lambda: None),
+        ("missing runtime", lambda: "SKIP: runtime unavailable"),
+        ("broken", lambda: "contract drift"),
+    ]
+    failures, skipped = bench._evaluate_checks(checks)
+    evaluated = len(checks) - len(skipped)
+    passed = evaluated - len(failures)
+    assert failures == [("broken", "contract drift")]
+    assert skipped == [("missing runtime", "runtime unavailable")]
+    assert (passed, evaluated, len(skipped), len(checks)) == (1, 2, 1, 3)
+    bench._print_metrics(passed, evaluated, len(skipped), len(checks))
+    output = capsys.readouterr().out
+    assert "consistency_accuracy=0.50 (1/2)" in output
+    assert "consistency_coverage=0.67 (2/3)" in output
+    assert "checks_skipped=1" in output

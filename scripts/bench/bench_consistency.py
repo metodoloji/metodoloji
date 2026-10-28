@@ -9,7 +9,7 @@ them was checked by anything.
 
 This bench turns each invariant into one independent check. A check is a claim
 about the repo, evaluated mechanically (regex/AST/subprocess) and reported
-pass/fail; the bench prints ``consistency_accuracy=(ok/total) (x/y)`` for the gate.
+pass/fail/skip; the bench prints measured accuracy and coverage for the gate.
 
 Checks are deliberately scoped to files that are LIVE documentation or shipped
 code. Historical records (docs/experiments/**, docs/research/**) are exempt:
@@ -43,6 +43,7 @@ import subprocess
 import sys
 import tempfile
 import tomllib
+from collections.abc import Callable
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 
@@ -3138,11 +3139,9 @@ def _run_opencode_tests() -> str | None:
         return "opencode-plugin/tests ships no *.test.ts"
     node = shutil.which("node")
     if node is None:
-        # Not a failure: Node is not a declared prerequisite for contributors
-        # who only touch the Python surfaces. The bench says so out loud rather
-        # than reporting a green it never measured.
-        print("  skip  opencode bridge suite (node is not installed)")
-        return None
+        # Node is optional for Python-only contributors, but an unrun suite is
+        # neither a pass nor evidence. The bench reports it outside the score.
+        return "SKIP: node is not installed; OpenCode suite was not measured"
     proc = subprocess.run([node, "--test"], cwd=port, capture_output=True, text=True,
                           encoding="utf-8", errors="replace", timeout=180,
                           stdin=subprocess.DEVNULL, env={**os.environ, "NO_COLOR": "1"})
@@ -4109,8 +4108,8 @@ def _check_story_ac_categories_documented() -> str | None:
     return "; ".join(problems) if problems else None
 
 
-def build_checks() -> list[tuple[str, object]]:
-    checks: list[tuple[str, object]] = []
+def build_checks() -> list[tuple[str, Callable[[], str | None]]]:
+    checks: list[tuple[str, Callable[[], str | None]]] = []
     for rel in DOC_FILES:
         checks.append((f"documented commands exist: {rel}", _check_documented_commands(rel)))
     checks.append(("engine mode lists equal the dispatch map (E-051)", _check_engine_mode_lists))
@@ -4261,6 +4260,30 @@ def build_checks() -> list[tuple[str, object]]:
     checks.append(("pytest suite green (falsifier)", _run_pytest))
     checks.append(("hooks.json in sync with generator", _run_hooks_json_sync))
     return checks
+
+
+def _evaluate_checks(checks: list[tuple[str, Callable[[], str | None]]]):
+    """Run checks and keep unmeasured checks out of the accuracy numerator and denominator."""
+    failures: list[tuple[str, str]] = []
+    skipped: list[tuple[str, str]] = []
+    for label, fn in checks:
+        try:
+            problem = fn()
+        except Exception as exc:  # a crashing check is a failing check
+            problem = f"check raised {type(exc).__name__}: {exc}"
+        if problem and problem.startswith("SKIP:"):
+            skipped.append((label, problem[5:].strip()))
+        elif problem:
+            failures.append((label, problem))
+    return failures, skipped
+
+
+def _print_metrics(passed: int, evaluated: int, skipped: int, total: int) -> None:
+    accuracy = passed / evaluated if evaluated else 0.0
+    coverage = evaluated / total if total else 0.0
+    print(f"consistency_accuracy={accuracy:.2f} ({passed}/{evaluated})")
+    print(f"consistency_coverage={coverage:.2f} ({evaluated}/{total})")
+    print(f"checks_skipped={skipped}")
 
 
 # --------------------------------------------------------------------------- #
@@ -4415,18 +4438,14 @@ def _run_broken_mode() -> int:
         print(f"broken-mode: seeded {len(mutations)} defects across "
               f"{len({rel for rel, _label, _fn in mutations})} files")
         checks = [c for c in build_checks() if "pytest suite green" not in c[0]]
-        failures = []
-        for label, fn in checks:
-            try:
-                problem = fn()
-            except Exception as exc:  # a crashing check is a failing check
-                problem = f"check raised {type(exc).__name__}: {exc}"
-            if problem:
-                failures.append(label)
+        failures, skipped = _evaluate_checks(checks)
         total = len(checks)
-        passed = total - len(failures)
-        print(f"broken-mode: {len(failures)}/{total} checks caught a seeded defect")
-        print(f"consistency_accuracy={passed / total if total else 0.0:.2f} ({passed}/{total})")
+        evaluated = total - len(skipped)
+        passed = evaluated - len(failures)
+        print(f"broken-mode: {len(failures)}/{evaluated} evaluated checks caught a seeded defect")
+        for label, reason in skipped:
+            print(f"  skip  {label}\n        {reason}")
+        _print_metrics(passed, evaluated, len(skipped), total)
     return 0
 
 
@@ -4440,25 +4459,25 @@ def main(argv: list[str] | None = None) -> int:
     if args.broken:
         return _run_broken_mode()
     checks = build_checks()
-    failures: list[tuple[str, str]] = []
-    for label, fn in checks:
-        try:
-            problem = fn()
-        except Exception as exc:  # a crashing check is a failing check
-            problem = f"check raised {type(exc).__name__}: {exc}"
-        if problem:
-            failures.append((label, problem))
-            print(f"  FAIL  {label}\n        {problem}")
-        else:
+    failures, skipped = _evaluate_checks(checks)
+    for label, problem in failures:
+        print(f"  FAIL  {label}\n        {problem}")
+    for label, reason in skipped:
+        print(f"  skip  {label}\n        {reason}")
+    failed_labels = {label for label, _ in failures}
+    skipped_labels = {label for label, _ in skipped}
+    for label, _fn in checks:
+        if label not in failed_labels and label not in skipped_labels:
             print(f"  ok    {label}")
 
     total = len(checks)
-    passed = total - len(failures)
-    value = passed / total if total else 0.0
+    evaluated = total - len(skipped)
+    passed = evaluated - len(failures)
     print()
     if failures:
-        print(f"FAILED: {len(failures)}/{total} consistency checks")
-    print(f"consistency_accuracy={value:.2f} ({passed}/{total})")
+        print(f"FAILED: {len(failures)}/{evaluated} evaluated consistency checks; "
+              f"{len(skipped)} skipped")
+    _print_metrics(passed, evaluated, len(skipped), total)
     return 0
 
 
