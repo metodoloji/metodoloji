@@ -9,7 +9,6 @@ experiment). Enforcement lives at write time (guard) and commit time
 
 import json
 import pathlib
-import re
 import sys
 import time
 
@@ -444,7 +443,7 @@ def stop(json_in: dict) -> dict:
             if stale:
                 # The same stale sentence the inject uses, on the stop surface:
                 # repeat the claim's state instead of asking for obedience.
-                labels = []
+                labels: list[str] = []
                 for skill, signals in stale.items():
                     labels.extend(
                         f"{s.get('run_key') or s.get('from') or '?'} "

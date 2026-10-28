@@ -137,7 +137,7 @@ def _claude_local_entries(data: dict, root: pathlib.Path) -> dict:
     if not isinstance(projects, dict):
         return {}
 
-    def norm(value: str) -> str:
+    def norm(value: str | pathlib.Path) -> str:
         return str(value).replace("\\", "/").rstrip("/").lower()
 
     me = {norm(root), norm(pathlib.Path(str(root)).resolve())}

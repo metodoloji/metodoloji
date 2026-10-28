@@ -11,6 +11,7 @@ import pathlib
 import re
 import sys
 import time
+from typing import Any
 
 from .config import log_file
 from .utils import dod_issues, has_dod_content, repo_root, scan_dod_items
@@ -236,7 +237,7 @@ def _redacted_input(tool_input: dict) -> dict:
     Paths, commands and flags stay whole (stop/guard need them); only
     potentially large or sensitive bodies are cut.
     """
-    redacted = {}
+    redacted: dict[str, Any] = {}
     for key, value in tool_input.items():
         if key in _BODY_KEYS and isinstance(value, str) and len(value) > _INPUT_PREVIEW_LEN:
             redacted[key] = value[:_INPUT_PREVIEW_LEN] + f"... [truncated {len(value)} chars]"
@@ -271,7 +272,7 @@ def _check_kopru_consumption(tool_name: str, tool_input: dict,
     which PostToolUse already reflects. Fail-open: an unreadable file
     returns no warning.
     """
-    warnings = []
+    warnings: list[str] = []
 
     if tool_name == "file_editor":
         path = tool_input.get("path", "")
@@ -616,7 +617,7 @@ def audit(json_in: dict) -> dict:
         import sys
         print(f"audit log write failed: {exc}", file=sys.stderr)
 
-    result = {"decision": "allow"}
+    result: dict[str, Any] = {"decision": "allow"}
     if warnings:
         result["methodology_warnings"] = warnings
     return result

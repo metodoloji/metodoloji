@@ -1,10 +1,10 @@
 # metodoloji
 
-![version](https://img.shields.io/badge/version-0.2.2-0b7285?style=flat-square) ![license](https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square) ![python](https://img.shields.io/badge/python-3.11%2B-3776ab?style=flat-square) ![tests](https://img.shields.io/badge/tests-1%2C400%2B-4c1?style=flat-square) ![runtimes](https://img.shields.io/badge/runtimes-Claude%20Code%20%7C%20OpenHands%20%7C%20OpenCode%20%7C%20Hermes-555?style=flat-square)
+![version](https://img.shields.io/badge/version-0.2.3-0b7285?style=flat-square) ![license](https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square) ![python](https://img.shields.io/badge/python-3.11%2B-3776ab?style=flat-square) ![tests](https://img.shields.io/badge/tests-1%2C400%2B-4c1?style=flat-square) ![runtimes](https://img.shields.io/badge/runtimes-Claude%20Code%20%7C%20OpenHands%20%7C%20OpenCode%20%7C%20Hermes-555?style=flat-square)
 
-**A methodology plugin that makes your coding agent ask permission — mechanically.**
+**A methodology plugin that applies approval gates to coding-agent actions through supported runtime hooks.**
 
-For **Claude Code**, **OpenHands**, **OpenCode**, and **Hermes**: a 6-stage record chain (`E → IR → SP → S → QR → PR`), hooks that block writes/commits/deploys outside an approved experiment, 129 skills, a blackboard that carries context across sessions, and a declared workflow engine. Compatible with the [BMad Method](https://github.com/bmad-code-org/BMAD-METHOD).
+For **Claude Code**, **OpenHands**, **OpenCode**, and **Hermes**: a 6-stage record chain (`E → IR → SP → S → QR → PR`), hooks that gate writes/commits/deploys using approved records, declared structural scope, and configured policy, 129 skills, a blackboard that carries context across sessions, and a declared workflow engine. Compatible with the [BMad Method](https://github.com/bmad-code-org/BMAD-METHOD).
 
 ---
 
@@ -31,7 +31,7 @@ For **Claude Code**, **OpenHands**, **OpenCode**, and **Hermes**: a 6-stage reco
 - **129 skills, 121 TOMLs, 33 BRIDGEs.** PRD, architecture, story, sprint, dev, code review, test/QA, retro and correction workflows for product, game and web/UX projects — customized per skill in up to three TOML layers.
 - **Context that survives sessions.** The blackboard (`write --hot`, run lists, handoffs, canvases) carries focus and pending batons between skills and across windows.
 - **One manifest, two shell runtimes.** A single `hooks/hooks.json` serves both Claude Code and OpenHands; hook commands self-locate the plugin, and the engine fails closed when it cannot run.
-- **Four runtimes, one engine.** OpenCode and Hermes join Claude Code and OpenHands through thin adapters that call the *same* Python hook engine. Runtime tool coverage still has documented limits; see [`docs/OPENCODE.md`](docs/OPENCODE.md) and [`HERMES.md`](HERMES.md).
+- **Four runtimes, one decision engine.** OpenCode and Hermes join Claude Code and OpenHands through adapters that call the same Python hook engine. The decision logic is shared; tool coverage and interception points differ by runtime. See [`docs/runtime-security-coverage.md`](docs/runtime-security-coverage.md), [`docs/OPENCODE.md`](docs/OPENCODE.md), and [`HERMES.md`](HERMES.md).
 - **Declared workflow engine.** Multi-stage processes (`analyze → map → plan → apply → test → done`) run as a deterministic state machine that refuses a stage without evidence.
 
 ## How it works
@@ -48,9 +48,9 @@ Three hooks guard the three moments that matter:
 
 | Hook | Watches | Behaviour |
 |---|---|---|
-| **guard** | `Write` / `Edit` / `Bash` / `PowerShell` | fail-closed — no covering VERIFIED experiment → `DENY` (or warn in soft mode) |
-| **quality** | `git commit` | chain check `IR → QR → SP`, plus story metadata and QR coherence |
-| **deploy** | deploy commands (`terraform`, `kubectl`, `docker`, `git push origin main`…) | chain check `IR → QR → SP → PR` |
+| **guard** | Adapter-mapped write and shell calls (runtime-specific; see [coverage matrix](docs/runtime-security-coverage.md)) | No covering VERIFIED experiment → `DENY` in hard mode; warn in soft mode |
+| **quality** | A mapped terminal command recognized as `git commit` | Chain check `IR → QR → SP`, plus story metadata and QR coherence |
+| **deploy** | A mapped terminal command matching the deploy-command rules | Chain check `IR → QR → SP → PR` |
 
 What it looks like in practice:
 
@@ -86,6 +86,11 @@ Multi-stage processes (`analyze → map → plan → apply → test → done`) r
 | Hermes Agent | current | fourth runtime — `plugin.yaml` + `pre_tool_call`, gates run in the gateway process ([HERMES.md](HERMES.md)) |
 | Git | 2.x | record and commit gating |
 | Shell | POSIX `sh` | Git Bash is enough on Windows |
+
+The Python engine currently runs from the plugin checkout; this repository is
+not published as an installable Python library. `pyproject.toml` carries project
+metadata and test configuration. OpenCode's npm package is a runtime bridge and
+still needs access to the methodology checkout that contains the Python engine.
 
 ## Quick start
 
@@ -138,7 +143,7 @@ The agent installs the `docs/` record skeleton (one time, never overwrites), cre
 
 > Add JWT authentication to the API under `src/auth/`.
 
-The agent picks the skills, writes the experiment, runs the measurement gate, and writes code only inside the approved scope. If there is no approved experiment, the guard blocks the write — that block *is* the system working.
+The agent picks the skills, writes the experiment, and runs the measurement gate. Product code requires a verified scope; measurement benches can be staged under an undecided record, while non-measurement structural work must use a declared structural scope. If a write is denied, the guard returns the reason so the agent can correct the record or scope.
 
 **4. Keep going through the chain:**
 
@@ -184,7 +189,7 @@ CI runs two separate workflows. `.github/workflows/quality.yml` runs the Python 
 
 ```
 metodoloji/
-├── hooks/engine/        # hook engine (main.py + modules/): pre, guard, quality, deploy, audit, stop, session_start
+├── hooks/engine/        # shared hook engine; gate policy and blackboard domains are split into modules
 ├── hooks/hooks.json     # generated dispatch manifest (sync-hooks-json.py --write)
 ├── skills/              # 129 skills (native bodies)
 ├── custom/              # 121 TOMLs (33 BRIDGE active) + config.toml (soft/hard)

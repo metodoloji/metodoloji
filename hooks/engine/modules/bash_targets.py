@@ -1,13 +1,12 @@
 """Bash command target extraction for BMAD hooks engine."""
 
-import os
 import pathlib
 import re
 import shlex
 
 from .archive import targets_from_tar, targets_from_unzip
 from .config import CODE_BASENAMES, CODE_DIRS, TAR_ARG_OPTS
-from .utils import is_code_target, norm_path
+from .utils import is_code_target
 
 
 def _space_out_redirects(command: str) -> str:

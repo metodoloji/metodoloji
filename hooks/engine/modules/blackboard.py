@@ -27,7 +27,8 @@ The board is a project-wide network, not a flat notebook:
 
 Design invariants (this module is the canonical canvas home — the old canvas
 doc was pruned; the code is the contract):
-- Fail-open: every public function returns a usable default on any error.
+- Read/report APIs fail open to safe defaults; mutation storage failures surface
+  to callers and must never be mistaken for successful writes.
 - Bounded: keys/lists/canvases/cells/links/alerts/events expire oldest-first.
 - No auto content generation: the board only holds what a writer (or an
   explicit watch registration) put there.
@@ -43,8 +44,10 @@ import re
 import sys
 import threading
 import time
+from collections.abc import Callable
 from contextlib import contextmanager
 from enum import Enum  # NEW: For AlertKind (PHASE 4 #7)
+from typing import Any, TypeVar
 
 from . import freshness as fr
 
@@ -118,31 +121,40 @@ HANDOFF_SIGNAL_TTL_SECONDS = 24 * 3600
 MAX_WATCHERS = 16
 
 class BoardError(Exception):
-    """Raised internally; public API converts to fail-open defaults."""
+    """Raised when a supported cross-process board lock cannot be acquired."""
+
+
+_LOCK_FAILED = object()
+_MutationResult = TypeVar("_MutationResult")
 
 # --- Locking -----------------------------------------------------------------
 def _acquire_lock(lock_path: str):
-    """Acquire an exclusive advisory lock; None only when locking is unsupported.
+    """Acquire an exclusive advisory lock.
+
+    Returns None only when this platform has no supported lock primitive, and
+    ``_LOCK_FAILED`` when a supported lock could not be acquired. Callers must
+    never treat lock failure as permission to perform an unlocked mutation.
 
     Windows: msvcrt.locking is byte-range based and non-blocking LK_NBLCK
     raises on contention — retry a bounded number of times with exponential backoff.
-    When the lock cannot be taken at all the caller proceeds unguarded (fail-open)
-    and the per-process tmp filename keeps the snapshot rename safe.
+    If the lock still cannot be acquired, the caller fails safely: reads return
+    an empty board and mutations surface the lock error. A unique temp filename
+    protects atomic replacement, but cannot protect an unlocked read-modify-write.
     (HIGH #2 / ISSUE #6: Windows lock retry with exponential backoff)
     """
     try:
         f = open(lock_path, "a+")
     except OSError:
-        return None
+        return _LOCK_FAILED
     try:
         import fcntl  # POSIX
-        fcntl.flock(f, fcntl.LOCK_EX)
+        fcntl.flock(f, fcntl.LOCK_EX)  # type: ignore[attr-defined]
         return f
     except ImportError:
         pass
     except OSError:
         f.close()
-        return None
+        return _LOCK_FAILED
     try:
         import msvcrt  # Windows
     except ImportError:
@@ -166,12 +178,12 @@ def _acquire_lock(lock_path: str):
                 # Exponential backoff: 10ms * 2^attempt, capped at max_backoff
                 sleep_time = min(base_backoff * (2 ** attempt), max_backoff)
                 time.sleep(sleep_time)
-            # else: last attempt failed, fall through to fail-open
+    # The lock primitive exists, but contention did not clear within the bound.
     
-    # FIXED: Fail-open (return None) instead of raising exception (HIGH #2 / ISSUE #6)
-    # The per-process tmp filename in _replace_atomic() keeps the snapshot rename safe
+    # A unique temp filename makes atomic replacement safe, but cannot make an
+    # unlocked read-modify-write safe; signal failure to the caller instead.
     f.close()
-    return None
+    return _LOCK_FAILED
 
 def _release_lock(f) -> None:
     if f is None:
@@ -187,7 +199,7 @@ def _release_lock(f) -> None:
         else:
             try:
                 import fcntl
-                fcntl.flock(f, fcntl.LOCK_UN)
+                fcntl.flock(f, fcntl.LOCK_UN)  # type: ignore[attr-defined]
             except (ImportError, OSError):
                 pass
     except Exception:
@@ -217,6 +229,8 @@ def _board_lock(paths: dict):
     tl = _thread_lock(paths["lock"])
     with tl:
         f = _acquire_lock(paths["lock"])
+        if f is _LOCK_FAILED:
+            raise BoardError("could not acquire blackboard lock")
         try:
             yield
         finally:
@@ -333,8 +347,8 @@ def _truncate_events_if_needed(paths: dict) -> None:
         pass
 
 # --- Public API ----------------------------------------------------------------
-def read_board(project_root: str) -> dict:
-    """Load the board snapshot (fail-open: empty board on any error)."""
+def _read_board_unchecked(project_root: str) -> dict:
+    """Load and migrate the board; the public wrapper handles read failures."""
     paths = board_paths(project_root)
     with _board_lock(paths):
         board = _read_snapshot(paths)
@@ -372,6 +386,14 @@ def read_board(project_root: str) -> dict:
         board["hot_canvas"] = None
     return board
 
+
+def read_board(project_root: str) -> dict:
+    """Load the board, returning an empty safe state when reading fails."""
+    try:
+        return _read_board_unchecked(project_root)
+    except Exception:
+        return _empty_board()
+
 def _replay_events(paths: dict) -> dict:
     """Fold the event log into a board (used to rebuild a lost snapshot).
     
@@ -391,20 +413,20 @@ def _replay_events(paths: dict) -> dict:
                     continue
                 try:
                     ev = json.loads(line)
-                except ValueError as e:
+                except ValueError:
                     # NEW: Skip malformed JSON but log for diagnostics
                     skipped_lines += 1
                     # Could emit warning, but silently skip for now (fail-open)
                     # In production, operator would see these in doctor output
                     continue
-                except Exception as e:
+                except Exception:
                     # Catch other errors (e.g., encoding, memory) and skip
                     skipped_lines += 1
                     continue
                 
                 try:
                     _apply_event(board, ev)
-                except Exception as e:
+                except Exception:
                     # NEW: If applying an event crashes, skip it but keep going
                     # (HIGH #1: Corruption recovery - keep as much state as possible)
                     skipped_lines += 1
@@ -412,7 +434,10 @@ def _replay_events(paths: dict) -> dict:
     except (OSError, UnicodeDecodeError):
         # A missing log is empty (OSError); a log that is not valid UTF-8 is
         # undecodable, so it too folds to an empty board instead of raising.
-        pass
+        # Discard any prefix already folded: returning a partial replay would
+        # make recovery depend on where corruption happened in the file.
+        board = _empty_board()
+        skipped_lines = 0
     
     # Store skipped line count for diagnostics (can be exposed in doctor())
     # For now, it's available but not used in output
@@ -493,12 +518,17 @@ def _neighbor_channels(board: dict, node: str) -> list:
                 continue
     return chans
 
-def _mutate(project_root: str, mutator) -> dict:
-    """Run mutator(board)->(board, result) under lock with bounded retries.
+def _mutate(
+    project_root: str,
+    mutator: Callable[[dict[str, Any]], tuple[dict[str, Any], _MutationResult]],
+) -> _MutationResult:
+    """Run mutator(board)->(board, result) under one lock scope.
 
     The whole read-modify-write is one lock scope, so concurrent writers
-    serialize and no update is lost. On lock exhaustion the mutation is
-    retried from a fresh read; only a persistent failure surfaces.
+    serialize and no update is lost. Lock acquisition performs its own bounded
+    retry; if it still fails, no mutation runs and the error surfaces. This
+    operation is never retried after entering the mutator: a storage failure
+    after event append could otherwise append the same event a second time.
 
     Handoff TTL is enforced HERE, on the shared mutation path, for every
     event kind (E-040): the old alert-branch-only placement let a snapshot
@@ -510,21 +540,17 @@ def _mutate(project_root: str, mutator) -> dict:
     is untouched.
     """
     paths = board_paths(project_root)
-    last_exc = None
-    for _ in range(3):
-        try:
-            with _board_lock(paths):
-                board = _read_snapshot(paths)
-                _cleanup_stale_handoffs(board)
-                board, result = mutator(board)
-                board["updated"] = time.time()
-                _write_snapshot_atomic(paths, board)
-                _truncate_events_if_needed(paths)
-                return result
-        except BoardError as exc:
-            last_exc = exc
-            time.sleep(0.1)
-    raise last_exc
+    # The first mutation needs a directory in which to create its lock file.
+    # Reads remain side-effect free for projects with no board yet.
+    os.makedirs(paths["dir"], exist_ok=True)
+    with _board_lock(paths):
+        board = _read_snapshot(paths)
+        _cleanup_stale_handoffs(board)
+        board, result = mutator(board)
+        board["updated"] = time.time()
+        _write_snapshot_atomic(paths, board)
+        _truncate_events_if_needed(paths)
+        return result
 
 # --- freshness planes (witness / retired) ---------------------------------------
 # The board stores ANCHORS, the verdict is derived (modules/freshness.py). Write
@@ -929,218 +955,62 @@ def neighbors(project_root: str, node: str, relation: str | None = None) -> list
     return out
 
 # --- canvases (dynamic surfaces) -----------------------------------------------------
-def _parse_grid(spec) -> list | None:
-    """Accept [w, h], "WxH" or None; returns a sane grid or None (free canvas)."""
-    if spec is None:
-        return None
-    if isinstance(spec, str):
-        try:
-            w, h = spec.lower().split("x", 1)
-            grid = [max(1, min(MAX_GRID, int(w))), max(1, min(MAX_GRID, int(h)))]
-        except (ValueError, AttributeError):
-            return None
-    elif isinstance(spec, (list, tuple)) and len(spec) == 2:
-        try:
-            grid = [max(1, min(MAX_GRID, int(spec[0]))), max(1, min(MAX_GRID, int(spec[1])))]
-        except (ValueError, TypeError):
-            return None
-    else:
-        return None
-    return grid
+def _parse_grid(*args, **kwargs):
+    """Compatibility delegate to the blackboard canvas service."""
+    from . import blackboard_canvas as service
+    return service._parse_grid(*args, **kwargs)
 
-def canvas_create(project_root: str, name: str, *, grid=None,
-                  focus: bool = False) -> dict:
-    """Create a new canvas or retrieve existing. 
-    
-    NEW: Bounds enforcement visible - checks MAX_CANVASES limit (MEDIUM #4 / ISSUE #63)
-    Oldest canvases are expired when limit is reached (except hot_canvas).
-    """
-    name = str(name).strip()[:MAX_CANVAS_NAME]
-    if not name:
-        return {"ok": False, "error": "empty canvas name"}
-    event = {"event": "canvas_create", "name": name, "grid": _parse_grid(grid),
-             "focus": bool(focus), "ts": time.time()}
+def canvas_create(*args, **kwargs):
+    """Compatibility delegate to the blackboard canvas service."""
+    from . import blackboard_canvas as service
+    return service.canvas_create(*args, **kwargs)
 
-    def mut(board):
-        existed = name in board["canvases"]
-        paths = board_paths(project_root)
-        _append_event(paths, event)
-        _apply_event(board, event)
-        
-        # NEW: Explicit bounds check - enforce MAX_CANVASES (MEDIUM #4 / ISSUE #63)
-        canvas_count = len(board["canvases"])
-        if canvas_count > MAX_CANVASES:
-            sys.stderr.write(f"metodoloji: bounds enforced — canvases {canvas_count}/{MAX_CANVASES}, "
-                           f"oldest expired\n")
-        
-        # Graph-plane derived edge (same scope, no nesting): a canvas focused
-        # at creation sits under a run — bind it to the focused run key with
-        # the `owns` relation so the graph plane carries the canvas↔run wiring
-        # neighbors() reads. One edge per canvas: an owner re-run under a new
-        # run key first unlinks the stale edge (event-sourced), then links the
-        # new owner; the same owner re-linking is a fold-dedup no-op. An
-        # unnamed run leaves no edge. The canvas namespace cannot collide with
-        # key namespaces (`canvas:` prefix on the graph), so the edge can
-        # never alias a run key.
-        if event["focus"]:
-            owner_key = board.get("hot")
-            if owner_key and owner_key != name:
-                canvas_node = f"canvas:{name}"
-                for edge in [l for l in board["links"]
-                             if l["relation"] == "owns" and l["b"] == canvas_node
-                             and l["a"] != owner_key]:
-                    _append_event(paths, {"event": "unlink", "a": edge["a"],
-                                          "b": canvas_node, "relation": "owns",
-                                          "ts": event["ts"]})
-                    _apply_event(board, {"event": "unlink", "a": edge["a"],
-                                         "b": canvas_node, "relation": "owns"})
-                if not any(l["a"] == owner_key and l["b"] == canvas_node
-                           and l["relation"] == "owns" for l in board["links"]):
-                    link_event = {"event": "link", "a": owner_key, "b": canvas_node,
-                                  "relation": "owns", "ts": event["ts"]}
-                    _append_event(paths, link_event)
-                    _apply_event(board, link_event)
-        _clear_hot_if_dangling(board)
-        return board, {"ok": True, "canvas": name, "grid": event["grid"],
-                       "existed": existed, "focused": board.get("hot_canvas") == name}
+def canvas_set(*args, **kwargs):
+    """Compatibility delegate to the blackboard canvas service."""
+    from . import blackboard_canvas as service
+    return service.canvas_set(*args, **kwargs)
 
-    return _mutate(project_root, mut)
+def canvas_remove(*args, **kwargs):
+    """Compatibility delegate to the blackboard canvas service."""
+    from . import blackboard_canvas as service
+    return service.canvas_remove(*args, **kwargs)
 
-def canvas_set(project_root: str, name: str, cell: str, content: str, *,
-               kind: str = "note", x: int | None = None,
-               y: int | None = None) -> dict:
-    """Write one cell in real time — the board's live mutation primitive."""
-    name = str(name).strip()[:MAX_CANVAS_NAME]
-    cell = str(cell).strip()[:MAX_CELL_ID]
-    if not name or not cell:
-        return {"ok": False, "error": "canvas-set needs --name and --cell"}
-    event = {"event": "canvas_cell", "name": name, "cell": cell,
-             "content": str(content)[:MAX_CELL_LEN], "kind": str(kind).strip()[:20] or "note",
-             "x": x, "y": y, "ts": time.time()}
+def canvas_move(*args, **kwargs):
+    """Compatibility delegate to the blackboard canvas service."""
+    from . import blackboard_canvas as service
+    return service.canvas_move(*args, **kwargs)
 
-    def mut(board):
-        paths = board_paths(project_root)
-        _append_event(paths, event)
-        _apply_event(board, event)
-        _route_alerts(paths, board, f"canvas:{name}", "canvas",
-                      f"canvas '{name}' cell '{cell}' set ({event['kind']})")
-        return board, {"ok": True, "canvas": name, "cell": cell,
-                       "cells": len(board["canvases"].get(name, {}).get("cells", {}))}
+def canvas_resize(*args, **kwargs):
+    """Compatibility delegate to the blackboard canvas service."""
+    from . import blackboard_canvas as service
+    return service.canvas_resize(*args, **kwargs)
 
-    return _mutate(project_root, mut)
+def canvas_clear(*args, **kwargs):
+    """Compatibility delegate to the blackboard canvas service."""
+    from . import blackboard_canvas as service
+    return service.canvas_clear(*args, **kwargs)
 
-def canvas_remove(project_root: str, name: str, cell: str) -> dict:
-    event = {"event": "canvas_remove", "name": str(name).strip()[:MAX_CANVAS_NAME],
-             "cell": str(cell).strip()[:MAX_CELL_ID], "ts": time.time()}
+def canvas_focus(*args, **kwargs):
+    """Compatibility delegate to the blackboard canvas service."""
+    from . import blackboard_canvas as service
+    return service.canvas_focus(*args, **kwargs)
 
-    def mut(board):
-        paths = board_paths(project_root)
-        _append_event(paths, event)
-        _apply_event(board, event)
-        _route_alerts(paths, board, f"canvas:{name}", "canvas",
-                      f"canvas '{name}' cell '{event['cell']}' removed")
-        return board, {"ok": True, "canvas": event["name"], "cell": event["cell"]}
+def canvas_watch(*args, **kwargs):
+    """Compatibility delegate to the blackboard canvas service."""
+    from . import blackboard_canvas as service
+    return service.canvas_watch(*args, **kwargs)
 
-    return _mutate(project_root, mut)
-
-def canvas_move(project_root: str, name: str, cell: str, to: str, *,
-                x: int | None = None, y: int | None = None) -> dict:
-    """Rename/reposition a cell (moves content, kind and watch state)."""
-    event = {"event": "canvas_move", "name": str(name).strip()[:MAX_CANVAS_NAME],
-             "cell": str(cell).strip()[:MAX_CELL_ID], "to": str(to).strip()[:MAX_CELL_ID],
-             "x": x, "y": y, "ts": time.time()}
-    if not event["name"] or not event["cell"] or not event["to"]:
-        return {"ok": False, "error": "canvas-move needs --name, --cell and --to"}
-
-    def mut(board):
-        cv = board["canvases"].get(event["name"])
-        moved = event["cell"] in (cv or {}).get("cells", {})
-        _append_event(board_paths(project_root), event)
-        _apply_event(board, event)
-        return board, {"ok": True, "canvas": event["name"], "from": event["cell"],
-                       "to": event["to"], "moved": moved}
-
-    return _mutate(project_root, mut)
-
-def canvas_resize(project_root: str, name: str, grid) -> dict:
-    event = {"event": "canvas_resize", "name": str(name).strip()[:MAX_CANVAS_NAME],
-             "grid": _parse_grid(grid), "ts": time.time()}
-
-    def mut(board):
-        _append_event(board_paths(project_root), event)
-        _apply_event(board, event)
-        return board, {"ok": True, "canvas": event["name"], "grid": event["grid"]}
-
-    return _mutate(project_root, mut)
-
-def canvas_clear(project_root: str, name: str) -> dict:
-    event = {"event": "canvas_clear", "name": str(name).strip()[:MAX_CANVAS_NAME],
-             "ts": time.time()}
-
-    def mut(board):
-        cv = board["canvases"].get(event["name"])
-        had = len((cv or {}).get("cells", {}))
-        _append_event(board_paths(project_root), event)
-        _apply_event(board, event)
-        return board, {"ok": True, "canvas": event["name"], "cleared": had}
-
-    return _mutate(project_root, mut)
-
-def canvas_focus(project_root: str, name: str | None) -> dict:
-    """Focus one canvas (the engine surfaces it) or clear (name=None)."""
-    if name:
-        event = {"event": "canvas_focus", "name": str(name).strip()[:MAX_CANVAS_NAME],
-                 "ts": time.time()}
-    else:
-        event = {"event": "canvas_focus", "clear": True, "ts": time.time()}
-
-    def mut(board):
-        _append_event(board_paths(project_root), event)
-        _apply_event(board, event)
-        _clear_hot_if_dangling(board)
-        return board, {"ok": True, "hot_canvas": board["hot_canvas"]}
-
-    return _mutate(project_root, mut)
-
-def canvas_watch(project_root: str, name: str, path: str, *, remove: bool = False) -> dict:
-    """Register a filesystem path prefix that feeds this canvas in real time:
-    every touch reported under the path lands as an auto cell.
-
-    The feed is writer-driven (see canvas_touch): the engine hot path is
-    blackboard-free, so a producer reports its own touches instead of the
-    PostToolUse hook pushing them."""
-    event = {"event": "canvas_unwatch" if remove else "canvas_watch",
-             "name": str(name).strip()[:MAX_CANVAS_NAME],
-             "path": str(path).strip()[:300], "ts": time.time()}
-    if not event["name"] or not event["path"]:
-        return {"ok": False, "error": "canvas-watch needs --name and --path"}
-
-    def mut(board):
-        _append_event(board_paths(project_root), event)
-        _apply_event(board, event)
-        cv = board["canvases"].get(event["name"], {})
-        return board, {"ok": True, "canvas": event["name"],
-                       "watch": list(cv.get("watch", []))}
-
-    return _mutate(project_root, mut)
-
-def read_canvas(project_root: str, name: str) -> dict:
-    """Read one canvas whole (cells + watch paths + grid)."""
-    name = str(name).strip()[:MAX_CANVAS_NAME]
-    board = read_board(project_root)
-    cv = board["canvases"].get(name)
-    if cv is None:
-        return {"ok": True, "canvas": name, "exists": False, "cells": {}}
-    return {"ok": True, "canvas": name, "exists": True, "grid": cv.get("grid"),
-            "cells": cv.get("cells", {}), "watch": cv.get("watch", []),
-            "focused": board.get("hot_canvas") == name}
+def read_canvas(*args, **kwargs):
+    """Compatibility delegate to the blackboard canvas service."""
+    from . import blackboard_canvas as service
+    return service.read_canvas(*args, **kwargs)
 
 def _touch_canvases(board: dict, paths: dict, tool: str, target: str) -> list:
     """Push one audited touch into every canvas watching a matching path.
 
     Called by stamp_tool_event in the same lock scope (no nesting).
     Returns touched canvas names."""
-    touched = []
+    touched: list[str] = []
     if not target:
         return touched
     for name, cv in board["canvases"].items():
@@ -1300,1268 +1170,106 @@ def consume_alerts(project_root: str, channel: str) -> list:
         return []
 
 # --- hand-off signals (the skill chain handshake) ------------------------------------
-def post_handoff(project_root: str, to_skill: str, from_key: str, note: str = "",
-                 *, sender: str | None = None) -> dict:
-    """Upstream→downstream hand-off signal: route an alert into the
-    `handoff.<to_skill>` channel (kind `handoff`, text `<from_key>: <note>`).
-    The signal waits there until the downstream skill consumes it — that
-    consumption completes the handshake.
+from .blackboard_handoff import (  # noqa: F401 — stable compatibility exports
+    CHAIN, CHAIN_TERMINAL, METHODOLOGY_CHAIN, SUB_CHAINS, CHAIN_ADJACENT)
 
-    `sender` is optional but authoritative: pass it whenever the run key's
-    namespace is shared by two stages (`story.` is written by BOTH
-    create-story and dev-story), so the diagnostic attributes the baton to the
-    stage that actually posted it instead of guessing from the prefix."""
-    to_skill = str(to_skill).strip()[:MAX_CHANNEL_LEN - len("handoff.")]  # channel budget
-    if not to_skill:
-        return {"ok": False, "error": "empty --to"}
-    from_key = str(from_key).strip()[:200]
-    if not from_key:
-        return {"ok": False, "error": "empty --from-key"}
-    return post_alert(project_root, f"handoff.{to_skill}", "handoff",
-                      f"{from_key}: {str(note).strip()}", sender=sender)
+def post_handoff(*args, **kwargs):
+    """Compatibility delegate to the handoff and signal delivery service."""
+    from . import blackboard_handoff as service
+    return service.post_handoff(*args, **kwargs)
 
-def replace_handoff(project_root: str, to_skill: str, from_key: str, note: str = "",
-                    *, sender: str | None = None) -> dict:
-    """Correct the note on a WAITING hand-off signal without dropping it.
+def replace_handoff(*args, **kwargs):
+    """Compatibility delegate to the handoff and signal delivery service."""
+    from . import blackboard_handoff as service
+    return service.replace_handoff(*args, **kwargs)
 
-    A hand-off is a bridge, not a message: consuming it to "fix a typo in the
-    note" clears the waiting signal, and downstream readers that peeked in the
-    gap saw a relay that no longer exists (real opencode session, 2026-09-30:
-    a close-out note with a drafting typo was corrected by consume → repost,
-    which silently dropped the signal for everyone reading between the two
-    calls). This replaces the alert text in place — the signal keeps its
-    original ts (so staleness/age stays truthful), stays in its channel, and
-    never disappears. The replaced alert id is stable (same id, new text), so
-    snapshot folds and dedup stay consistent.
+def _routed_skills(*args, **kwargs):
+    """Compatibility delegate to the handoff and signal delivery service."""
+    from . import blackboard_handoff as service
+    return service._routed_skills(*args, **kwargs)
 
-    No waiting signal from `from_key` → posts a fresh one (first-write
-    semantics, identical to post_handoff), so a correction to an already-
-    consumed handshake cannot resurrect the consumed bridge. Returns the same
-    ack shape as post_handoff plus `"replaced": True|False`.
-    """
-    to_skill = str(to_skill).strip()[:MAX_CHANNEL_LEN - len("handoff.")]  # channel budget
-    if not to_skill:
-        return {"ok": False, "error": "empty --to"}
-    from_key = str(from_key).strip()[:200]
-    if not from_key:
-        return {"ok": False, "error": "empty --from-key"}
-    channel = f"handoff.{to_skill}"
-    new_text = f"{from_key}: {str(note).strip()}"
-    waiting = [a for a in read_board(project_root)["alerts"]
-               if a.get("channel") == channel and a.get("kind") == "handoff"
-               and str(a.get("text", "")).startswith(f"{from_key}:")]
-    if not waiting:
-        # No waiting signal from this key: a correction is a first write.
-        # (A consumed handshake stays consumed — never resurrect it.)
-        ack = post_alert(project_root, channel, "handoff", new_text, sender=sender)
-        ack["replaced"] = False
-        return ack
+def _annotate_alert(*args, **kwargs):
+    """Compatibility delegate to the handoff and signal delivery service."""
+    from . import blackboard_handoff as service
+    return service._annotate_alert(*args, **kwargs)
 
-    def mut(board):
-        replaced = 0
-        for a in board["alerts"]:
-            if (a.get("channel") == channel and a.get("kind") == "handoff"
-                    and str(a.get("text", "")).startswith(f"{from_key}:") and a.get("id")):
-                ev = {"event": "alert-edit", "id": a["id"], "channel": channel,
-                      "kind": "handoff", "text": new_text, "ts": time.time()}
-                if sender and _SENDER_RE.match(str(sender).strip()):
-                    ev["sender"] = str(sender).strip()
-                _append_event(board_paths(project_root), ev)
-                _apply_event(board, ev)
-                replaced += 1
-        return board, {"ok": replaced > 0, "replaced": True, "count": replaced,
-                       "channel": channel,
-                       "root": board_paths(project_root)["root"]}
+def _waiting_signals(*args, **kwargs):
+    """Compatibility delegate to the handoff and signal delivery service."""
+    from . import blackboard_handoff as service
+    return service._waiting_signals(*args, **kwargs)
 
-    return _mutate(project_root, mut)
+def pending_handoffs(*args, **kwargs):
+    """Compatibility delegate to the handoff and signal delivery service."""
+    from . import blackboard_handoff as service
+    return service.pending_handoffs(*args, **kwargs)
 
-# --- freshness annotation of waiting signals -------------------------------------
-# ONE scan, ONE derivation. pending_handoffs, pending_handoff_channels,
-# pending_handoff_freshness, recent_handoffs, chain_health, doctor and the
-# session-start inject all read this, because a second parser is a second
-# opinion about whether a claim still holds (the project's own doctrine).
-def _routed_skills() -> set:
-    """Every known receiving skill (delivery + methodology + sub-chains)."""
-    return (set(CHAIN) | set(METHODOLOGY_CHAIN) | sub_chain_skills()
-            | CHAIN_ADJACENT
-            | {s for hop in CHAIN_TERMINAL for s in hop})
+def pending_handoff_channels(*args, **kwargs):
+    """Compatibility delegate to the handoff and signal delivery service."""
+    from . import blackboard_handoff as service
+    return service.pending_handoff_channels(*args, **kwargs)
 
-def _annotate_alert(project_root: str, alert: dict, board: dict) -> dict:
-    """Derived freshness for one waiting signal — read-only, never raises.
+def pending_handoff_freshness(*args, **kwargs):
+    """Compatibility delegate to the handoff and signal delivery service."""
+    from . import blackboard_handoff as service
+    return service.pending_handoff_freshness(*args, **kwargs)
 
-    A stored witness (written with the signal) wins; otherwise the claim is
-    dated by the commit that last touched the record its run key names. A
-    retirement (of the signal, its channel, or its run key) overrides both.
-    """
-    aid = str(alert.get("id", ""))
-    channel = str(alert.get("channel", ""))
-    key = fr.key_of(alert.get("text", ""))
-    markers = board.get("retired") or {}
-    retired = (aid in markers or channel in markers or bool(key and key in markers))
-    stored = (board.get("witness") or {}).get(aid) if aid else None
-    try:
-        ann = fr.annotate(project_root, key, stored=stored, retired=retired)
-    except Exception:
-        ann = {"verdict": fr.UNKNOWN, "reason": "freshness derivation failed",
-               "age_s": None, "changed": [], "changed_count": 0,
-               "run_key": key, "anchor": "none", "superseded_by": None}
-    if ann.get("age_s") is None:
-        try:
-            ann["age_s"] = max(0.0, time.time() - float(alert.get("ts", 0.0) or 0.0))
-        except (TypeError, ValueError):
-            ann["age_s"] = None
-    if retired and ann.get("verdict") != fr.RETIRED:
-        marker = markers.get(aid) or markers.get(channel) or markers.get(key) or {}
-        ann = {**ann, "verdict": fr.RETIRED,
-               "reason": f"retired — {marker.get('reason') or 'no longer applies'}"}
-    return ann
+def recent_handoffs(*args, **kwargs):
+    """Compatibility delegate to the handoff and signal delivery service."""
+    from . import blackboard_handoff as service
+    return service.recent_handoffs(*args, **kwargs)
 
-def _waiting_signals(project_root: str, *, board: dict | None = None,
-                     include_retired: bool = False) -> list:
-    """Every waiting hand-off signal, annotated with its derived freshness.
+from .blackboard_chain import (  # noqa: F401 — stable compatibility exports
+    _KEY_PREFIX_TO_SKILL, _SENDER_RE, _RECORD_KEY_RE)
 
-    Shaped for every reader: the alert's own fields (ts/text/id/channel/sender)
-    plus `skill`, `verdict`, `reason`, `age_s`, `changed_count`, `anchor`,
-    `run_key`. Retired signals are dropped unless explicitly asked for — a
-    withdrawn claim is not pending work.
-    """
-    board = board if board is not None else read_board(project_root)
-    out = []
-    # One batch: N signals on one board cost ONE head/diff/status read instead
-    # of N, and the cache dies with the scan so the next reader sees git as it
-    # is then (a wall-clock TTL here was measured hiding a commit — see
-    # freshness._BATCH).
-    with fr.batch():
-        for alert in board.get("alerts", []):
-            if not isinstance(alert, dict) or alert.get("kind") != "handoff":
-                continue
-            channel = str(alert.get("channel", ""))
-            if not channel.startswith("handoff."):
-                continue
-            ann = _annotate_alert(project_root, alert, board)
-            if ann["verdict"] == fr.RETIRED and not include_retired:
-                continue
-            out.append({**alert, "skill": channel[len("handoff."):],
-                        "verdict": ann["verdict"], "reason": ann["reason"],
-                        "age_s": ann["age_s"],
-                        "changed_count": ann["changed_count"],
-                        "anchor": ann["anchor"], "run_key": ann["run_key"]})
-    return out
+def sub_chain_skills(*args, **kwargs):
+    """Compatibility delegate to the handoff-chain health analysis service."""
+    from . import blackboard_chain as service
+    return service.sub_chain_skills(*args, **kwargs)
 
-def pending_handoffs(project_root: str, skill: str, *,
-                     only_current: bool = False) -> list:
-    """Un-consumed hand-off signals waiting for `skill` (read-only peek).
+def _skill_for_run_key(*args, **kwargs):
+    """Compatibility delegate to the handoff-chain health analysis service."""
+    from . import blackboard_chain as service
+    return service._skill_for_run_key(*args, **kwargs)
 
-    Each entry carries the DERIVED freshness verdict (`CURRENT` / `STALE` /
-    `UNKNOWN`) and the reason behind it, so a reader can say "this no longer
-    applies" instead of repeating the past. `only_current=True` drops the
-    claims the code state has moved past.
-    """
-    skill = str(skill).strip()[:MAX_CHANNEL_LEN - len("handoff.")]  # mirror post_handoff's budget
-    return [sig for sig in _waiting_signals(project_root)
-            if sig["skill"] == skill
-            and (not only_current or sig["verdict"] == fr.CURRENT)]
+def _signal_sender(*args, **kwargs):
+    """Compatibility delegate to the handoff-chain health analysis service."""
+    from . import blackboard_chain as service
+    return service._signal_sender(*args, **kwargs)
 
-def pending_handoff_channels(project_root: str) -> dict:
-    """Skills with waiting hand-off signals: {skill: count} (engine peek —
-    session_start announces, never consumes; the skill completes the shake).
+def chain_health(*args, **kwargs):
+    """Compatibility delegate to the handoff-chain health analysis service."""
+    from . import blackboard_chain as service
+    return service.chain_health(*args, **kwargs)
 
-    Routed skills only: the delivery relay (CHAIN) together with its DECLARED
-    terminal hops (CHAIN_TERMINAL — both ends, so the gate is routable without
-    naming it here), the methodology relay (METHODOLOGY_CHAIN), every sub-chain
-    member (SUB_CHAINS — discovery, alt_dev, …), the chain-adjacent surfaces
-    (CHAIN_ADJACENT — help, infrastructure, the loop orchestrator's automation
-    layer, the WDS backends), so a waiting signal addressed to any known skill
-    surfaces instead of being silently dropped. Off-relay channels stay out of
-    the session-start nudge — the skill-side CLI lists every channel: run the
-    plugin's ``bmad/scripts/blackboard.py handoffs`` (without `--skill`) from
-    the plugin root.
+def waiting_hop_rows(*args, **kwargs):
+    """Compatibility delegate to the handoff-chain health analysis service."""
+    from . import blackboard_chain as service
+    return service.waiting_hop_rows(*args, **kwargs)
 
-    Counts the SAME scan `pending_handoff_freshness` breaks down by verdict, so
-    the count and the breakdown can never disagree. Retired signals are not
-    waiting work and are excluded from both.
-    """
-    relay = _routed_skills()
-    counts = {}
-    for sig in _waiting_signals(project_root):
-        if sig["skill"] in relay:
-            counts[sig["skill"]] = counts.get(sig["skill"], 0) + 1
-    return counts
-
-def pending_handoff_freshness(project_root: str) -> dict:
-    """Per-routed-channel freshness breakdown of the waiting signals.
-
-    `{skill: {total, current, stale, unknown, oldest_age_s, stale_keys,
-    unknown_keys}}` — the data the session-start inject and doctor render. The
-    read that gives the delivery plane a third answer (E-052/E-053): a baton
-    the code moved past is reported as such instead of as live work.
-    """
-    relay = _routed_skills()
-    out: dict = {}
-    for sig in _waiting_signals(project_root):
-        skill = sig["skill"]
-        if skill not in relay:
-            continue
-        entry = out.setdefault(skill, {"total": 0, "current": 0, "stale": 0,
-                                       "unknown": 0, "oldest_age_s": None,
-                                       "stale_keys": [], "unknown_keys": [],
-                                       "freshness": []})
-        entry["total"] += 1
-        verdict = str(sig["verdict"]).lower()
-        entry[verdict if verdict in ("current", "stale", "unknown") else "unknown"] += 1
-        age = sig.get("age_s")
-        if isinstance(age, (int, float)):
-            if entry["oldest_age_s"] is None or age > entry["oldest_age_s"]:
-                entry["oldest_age_s"] = float(age)
-        key = sig.get("run_key")
-        if key and sig["verdict"] in (fr.STALE, fr.UNKNOWN):
-            bucket = ("stale_keys" if sig["verdict"] == fr.STALE
-                      else "unknown_keys")
-            if key not in entry[bucket]:
-                entry[bucket].append(key)
-            entry["freshness"].append(
-                {"key": key, "verdict": sig["verdict"],
-                 "label": fr.label(sig["verdict"], age),
-                 "age_s": age, "reason": str(sig.get("reason", ""))})
-    return out
-
-def recent_handoffs(project_root: str, limit: int = 3, *,
-                    only_current: bool = False,
-                    with_freshness: bool = False) -> list:
-    """Most recent un-consumed hand-off signals, relay-routed only (read-only).
-
-    The engine-side carrier for the close-out relay: skills post their
-    downstream baton via `mirror --to` and a later session can only see it if
-    some surface re-announces it — stop/session_start announce counts at the
-    edges, but mid-session every turn was silent (the 2026-09-23 mailjs
-    session forgot dev-story's baton to code-review one turn after the
-    close-out). Hook layer: guard/pre peeks this list and re-injects it via
-    PostToolUse warnings (throttled in audit.py); orient.py folds it into the
-    digest. Shaped for injection: newest first, at most `limit`, each entry
-    `{skill, from, note, age_s}`. Fail-open caller side; off-relay channels
-    stay out (same routing rule as pending_handoff_channels).
-    """
-    limit = max(1, min(int(limit), 10))
-    relay = _routed_skills()
-    now = time.time()
-    hits = []
-    for sig in _waiting_signals(project_root):
-        skill = sig["skill"]
-        if skill not in relay:
-            continue
-        if only_current and sig["verdict"] != fr.CURRENT:
-            continue
-        text = str(sig.get("text", ""))
-        age = sig.get("age_s")
-        if not isinstance(age, (int, float)):
-            age = max(0.0, now - float(sig.get("ts", 0.0) or 0.0))
-        hit = {
-            "skill": skill,
-            "from": text.split(":", 1)[0] if ":" in text else "",
-            "note": text.split(":", 1)[1].strip() if ":" in text else text,
-            "age_s": age,
-        }
-        if with_freshness:
-            # The verdict rides the note too (the inject reads `note`), so a
-            # stale baton cannot be re-announced as fresh work by a surface
-            # that only renders the table.
-            hit["verdict"] = sig["verdict"]
-            hit["reason"] = sig["reason"]
-        hits.append(hit)
-    # Freshest baton first. Sort on the raw float — same-second batons keep
-    # their post order stable (an int-rounded key would tie them and flip the
-    # order); the shape rounds age_s for display.
-    hits.sort(key=lambda h: h["age_s"])
-    for h in hits:
-        h["age_s"] = int(h["age_s"])
-    return hits[:limit]
-
-# --- chain health (hand-off diagnostics) ----------------------------------------------
-# The canonical delivery relay: each hop is one skill handing off to the next.
-# TOOL CHAIN: PRD → UX → Architecture → Spec → Epics → Story → Dev (7 skills,
-# 6 stage-to-stage hops) — the ordered hop list chain_health reports.
-CHAIN = [
-    "bmad-prd", "bmad-ux", "bmad-architecture", "bmad-spec",
-    "bmad-create-epics-and-stories", "bmad-create-story", "bmad-dev-story"
-]
-
-# TERMINAL HOPS: receivers that consume a relay signal and hand nothing on.
-# They ARE hops (a signal waits there and is consumed there), so they must be
-# declared — otherwise the terminal baton reports as off-chain 'extra' noise
-# and every consumer has to bolt the receiver on by hand. Declaring them here
-# (rather than appending to CHAIN) keeps the ordered relay's stage list exact
-# while chain_health, the session-start router and doctor pick them up as
-# first-class hops. Such chain rows carry `terminal: true`.
-CHAIN_TERMINAL = [
-    ("bmad-dev-story", "bmad-code-review"),
-]
-
-# METHODOLOGY CHAIN: Experiment → IR → Sprint Planning → Story → Quality Record →
-# Production Readiness. Not part of the ordered hop relay — stages receive
-# hand-offs by prefix attribution (table below) and surface under
-# chain_health's 'extra' when they hold waiting signals. stop.py consults
-# this set for chain-completion checks (single source of truth).
-METHODOLOGY_CHAIN = [
-    "bmad-research-experiment",                 # E (Experiment)
-    "bmad-check-implementation-readiness",      # IR (Implementation Readiness)
-    "bmad-sprint-planning",                     # SP (Sprint Planning)
-    "bmad-create-story",                        # S (Story)
-    "bmad-quality-record",                      # QR (Quality Record)
-    "bmad-production-readiness",                # PR (Production Readiness)
-]
-
-# SUB-CHAINS — the phase-based modular relays.
-#
-# The two canonical ordered relays (CHAIN, METHODOLOGY_CHAIN) are not the whole
-# hand-off contract: ideation, the alternative development branches, the QA
-# feeders and the governance/retro loops each relay work between stages too.
-# Every hop listed here is part of the contract, so its waiting signals MUST
-# surface in chain_health/doctor and must never be reported as off-chain
-# 'extra' noise (that bucket is reserved for genuinely unknown receivers).
-#
-# Adding a phase = adding one entry here; chain_health, doctor and the
-# session-start/stop relays all follow automatically.
-SUB_CHAINS: dict[str, list[tuple[str, str]]] = {
-    # Discovery — raw idea to a brief/PRD input (ideation + research fan-in).
-    "discovery": [
-        ("bmad-forge-idea", "bmad-product-brief"),
-        ("bmad-brainstorming", "bmad-product-brief"),
-        ("bmad-prfaq", "bmad-prd"),
-        ("bmad-product-brief", "bmad-prd"),
-        ("bmad-market-research", "bmad-product-brief"),
-        ("bmad-domain-research", "bmad-product-brief"),
-        ("bmad-technical-research", "bmad-product-brief"),
-        # CIS creative/strategy facilitators — brainstorming's siblings: they
-        # shape the raw problem, so a session that produced a direction worth
-        # building on feeds the brief.
-        ("bmad-cis-design-thinking", "bmad-product-brief"),
-        ("bmad-cis-innovation-strategy", "bmad-product-brief"),
-        ("bmad-cis-problem-solving", "bmad-product-brief"),
-        ("bmad-cis-storytelling", "bmad-product-brief"),
-    ],
-    # Alt-dev — shortcut (quick-dev) and unattended (dev-auto) implementations
-    # fan in on the same formal review gate the delivery relay terminates at.
-    "alt_dev": [
-        ("bmad-quick-dev", "bmad-code-review"),
-        ("bmad-dev-auto", "bmad-code-review"),
-        # The dev persona implements too (its BRIDGE carries S→QR→PR), so it is
-        # the third branch converging on the same formal review gate.
-        ("bmad-agent-dev", "bmad-code-review"),
-    ],
-    # Testing — the TEA toolbox feeds the quality record's mechanical checks
-    # (every one of these skills is a registered QR feeder: it adds evidence to
-    # an existing QR, it never opens a record of its own), plus TEA Academy
-    # routing the learner into the workflow chain it teaches.
-    "testing": [
-        ("bmad-testarch-atdd", "bmad-quality-record"),
-        ("bmad-testarch-automate", "bmad-quality-record"),
-        ("bmad-testarch-ci", "bmad-quality-record"),
-        ("bmad-testarch-framework", "bmad-quality-record"),
-        ("bmad-testarch-nfr", "bmad-quality-record"),
-        ("bmad-testarch-test-design", "bmad-quality-record"),
-        ("bmad-testarch-test-review", "bmad-quality-record"),
-        ("bmad-testarch-trace", "bmad-quality-record"),
-        ("bmad-qa-generate-e2e-tests", "bmad-quality-record"),
-        # Academy close-out recommends "start with Framework setup": the
-        # learner lands in the chain it just studied.
-        ("bmad-teach-me-testing", "bmad-testarch-framework"),
-    ],
-    # Governance — the hops that CLOSE the methodology loop: a retrospective's
-    # lessons become the next hypothesis, and a course correction lands on the
-    # planning surface that owns the backlog.
-    "governance": [
-        ("bmad-retrospective", "bmad-research-experiment"),
-        ("bmad-correct-course", "bmad-sprint-planning"),
-    ],
-    # Game Dev Suite (GDS) — the game vertical mirrors the canonical relay
-    # shape (ideation fan-in → design docs → readiness → planning → dev →
-    # review) with game-native artifacts, and re-uses the same patterns: QA
-    # tools feed the playtest record, retro/correct-course re-enter planning,
-    # the dev branches converge on the review gate.
-    "gds": [
-        # ideation & research fan-in on the brief (the discovery pattern)
-        ("gds-domain-research", "gds-create-game-brief"),
-        ("gds-brainstorm-game", "gds-create-game-brief"),
-        ("gds-create-game-brief", "gds-gdd"),
-        ("gds-create-narrative", "gds-gdd"),
-        # design gates — GDD is primary; a formal PRD is the optional
-        # alternative gate; both converge on architecture via UX.
-        ("gds-gdd", "gds-ux"),
-        ("gds-ux", "gds-game-architecture"),
-        ("gds-prd", "gds-game-architecture"),
-        # readiness → planning → dev (the IR twin and the planning relay)
-        ("gds-game-architecture", "gds-check-implementation-readiness"),
-        ("gds-check-implementation-readiness", "gds-sprint-planning"),
-        ("gds-sprint-planning", "gds-create-story"),
-        ("gds-create-story", "gds-dev-story"),
-        ("gds-dev-story", "gds-code-review"),
-        # QA feeders — their BRIDGE (already in the team TOMLs) adds evidence
-        # to the QR record the review session owns, never a record of their
-        # own: the bmad TEA feeder pattern, game-flavored. gds-playtest-plan is
-        # the seventh: it plans the playtest and its findings land in the same
-        # QR (its BRIDGE says so explicitly), so it signals the review too.
-        ("gds-playtest-plan", "gds-code-review"),
-        ("gds-test-design", "gds-code-review"),
-        ("gds-test-framework", "gds-code-review"),
-        ("gds-test-automate", "gds-code-review"),
-        ("gds-test-review", "gds-code-review"),
-        ("gds-e2e-scaffold", "gds-code-review"),
-        ("gds-performance-test", "gds-code-review"),
-        # governance — retro/correct-course re-enter planning (the loop,
-        # game-flavored; the review gate itself is terminal like its bmad twin)
-        ("gds-retrospective", "gds-sprint-planning"),
-        ("gds-correct-course", "gds-sprint-planning"),
-        # dev-branch variants converge on the same review gate
-        ("gds-quick-dev", "gds-code-review"),
-        ("gds-agent-game-dev", "gds-code-review"),
-        ("gds-agent-game-solo-dev", "gds-code-review"),
-        # reporter — live status next to the file-backed plan
-        ("gds-sprint-status", "gds-sprint-planning"),
-        # a forensic investigation's defect feeds course correction
-        ("gds-investigate", "gds-correct-course"),
-    ],
-    # Web Design Suite (WDS) — Freya's design pipeline: setup seeds the
-    # alignment sign-off, the brief flows through trigger mapping and
-    # scenarios into UX design, then the numbered build phases run in order;
-    # brownfield evolution re-enters at the brief (the WDS loop).
-    "wds": [
-        ("wds-0-project-setup", "wds-0-alignment-signoff"),
-        ("wds-0-alignment-signoff", "wds-1-project-brief"),
-        ("wds-1-project-brief", "wds-2-trigger-mapping"),
-        ("wds-2-trigger-mapping", "wds-3-scenarios"),
-        ("wds-3-scenarios", "wds-4-ux-design"),
-        ("wds-4-ux-design", "wds-5-agentic-development"),
-        ("wds-5-agentic-development", "wds-6-asset-generation"),
-        ("wds-6-asset-generation", "wds-7-design-system"),
-        # brownfield re-entry: evolution cycles inform the next brief
-        ("wds-8-product-evolution", "wds-1-project-brief"),
-    ],
-}
-
-# Skills that appear in no hop but are known chain-adjacent surfaces (the help
-# router, the infrastructure tools, the loop orchestrator's automation layer,
-# the WDS session backends). They post and relay nothing, so the hop relays
-# cannot carry them — but they must NOT surface as off-chain 'extra' noise
-# when a signal is (mis)addressed to them, and the lint still checks them.
-CHAIN_ADJACENT = {
-    "bmad-help",           # routes the user; never produces
-    "bmad-loop-setup", "bmad-loop-sweep", "bmad-loop-resolve",
-    "bmad-bmb-setup", "bmad-module-builder", "bmad-workflow-builder",
-    "bmad-customize", "bmad-checkpoint-preview", "bmad-eval-runner",
-    "memory", "sync",
-    # Vertical tooling — the GDS/WDS personas that only advise (architect,
-    # designer, tech-writer, freya/mimir/saga) and the documentation tools;
-    # the producing GDS personas (game-dev, solo-dev) are hop members above, as
-    # is the playtest-plan feeder (gds.playtest.<slug> → gds-code-review).
-    "gds-agent-game-architect", "gds-agent-game-designer",
-    "gds-agent-tech-writer", "gds-document-project",
-    "gds-generate-project-context",
-    "wds-agent-freya-ux", "wds-agent-mimir-builder", "wds-agent-saga-analyst",
-}
-
-def sub_chain_skills() -> set:
-    """Every skill named by any sub-chain hop (senders and receivers)."""
-    return {s for hops in SUB_CHAINS.values() for hop in hops for s in hop}
-
-# Run-key namespace prefix → the skill that owns the hand-off (sender attribution).
-_KEY_PREFIX_TO_SKILL = [
-    # METHODOLOGY CHAIN prefixes
-    ("E-", "bmad-research-experiment"),
-    ("IR-", "bmad-check-implementation-readiness"),
-    ("SP-", "bmad-sprint-planning"),
-    ("S-", "bmad-create-story"),
-    ("QR-", "bmad-quality-record"),
-    ("PR-", "bmad-production-readiness"),
-    # DISCOVERY CHAIN prefixes
-    ("forge.", "bmad-forge-idea"),
-    ("brainstorm.", "bmad-brainstorming"),
-    ("brief.", "bmad-product-brief"),
-    ("prfaq.", "bmad-prfaq"),
-    ("research.market.", "bmad-market-research"),
-    ("research.domain.", "bmad-domain-research"),
-    ("research.tech.", "bmad-technical-research"),
-    ("cis.design.", "bmad-cis-design-thinking"),
-    ("cis.innovation.", "bmad-cis-innovation-strategy"),
-    ("cis.solving.", "bmad-cis-problem-solving"),
-    ("cis.story.", "bmad-cis-storytelling"),
-    ("retro.", "bmad-retrospective"),
-    ("change.", "bmad-correct-course"),
-    # ALT DEV BRANCH prefixes (alternative implementations of the dev stage)
-    ("quickdev.", "bmad-quick-dev"),
-    ("devauto.", "bmad-dev-auto"),
-    ("agentdev.", "bmad-agent-dev"),
-    # TESTING CHAIN prefixes (TEA toolbox + academy — specific prefixes first)
-    ("test.atdd.", "bmad-testarch-atdd"),
-    ("test.automate.", "bmad-testarch-automate"),
-    ("test.ci.", "bmad-testarch-ci"),
-    ("test.framework.", "bmad-testarch-framework"),
-    ("test.nfr.", "bmad-testarch-nfr"),
-    ("test.design.", "bmad-testarch-test-design"),
-    ("test.review.", "bmad-testarch-test-review"),
-    ("test.trace.", "bmad-testarch-trace"),
-    ("test.e2e.", "bmad-qa-generate-e2e-tests"),
-    ("teach.", "bmad-teach-me-testing"),
-    # GDS prefixes (game vertical — specific before generic)
-    ("gds.quickdev.", "gds-quick-dev"),
-    ("gds.agentdev.", "gds-agent-game-dev"),
-    ("gds.solodev.", "gds-agent-game-solo-dev"),
-    ("gds.research.", "gds-domain-research"),
-    ("gds.brainstorm.", "gds-brainstorm-game"),
-    ("gds.brief.", "gds-create-game-brief"),
-    ("gds.narrative.", "gds-create-narrative"),
-    ("gds.gdd.", "gds-gdd"),
-    ("gds.ux.", "gds-ux"),
-    ("gds.prd.", "gds-prd"),
-    ("gds.architecture.", "gds-game-architecture"),
-    ("gds.ir.", "gds-check-implementation-readiness"),
-    ("gds.sp.", "gds-sprint-planning"),
-    ("gds.story.", "gds-create-story"),
-    ("gds.dev.", "gds-dev-story"),
-    ("gds.review.", "gds-code-review"),
-    ("gds.test.design.", "gds-test-design"),
-    ("gds.test.framework.", "gds-test-framework"),
-    ("gds.test.automate.", "gds-test-automate"),
-    ("gds.test.review.", "gds-test-review"),
-    ("gds.test.e2e.", "gds-e2e-scaffold"),
-    ("gds.test.perf.", "gds-performance-test"),
-    ("gds.playtest.", "gds-playtest-plan"),
-    ("gds.retro.", "gds-retrospective"),
-    ("gds.change.", "gds-correct-course"),
-    ("gds.status.", "gds-sprint-status"),
-    ("gds.investigate.", "gds-investigate"),
-    ("gds.", "gds-generic"),
-    # WDS prefixes (web design vertical — numbered phases before generic)
-    ("wds.setup.", "wds-0-project-setup"),
-    ("wds.signoff.", "wds-0-alignment-signoff"),
-    ("wds.brief.", "wds-1-project-brief"),
-    ("wds.trigger.", "wds-2-trigger-mapping"),
-    ("wds.scenario.", "wds-3-scenarios"),
-    ("wds.ux.", "wds-4-ux-design"),
-    ("wds.dev.", "wds-5-agentic-development"),
-    ("wds.asset.", "wds-6-asset-generation"),
-    ("wds.designsystem.", "wds-7-design-system"),
-    ("wds.evolve.", "wds-8-product-evolution"),
-    ("wds.", "wds-generic"),
-    ("prd.", "bmad-prd"),
-    ("ux.", "bmad-ux"),
-    ("architecture.", "bmad-architecture"),
-    ("spec.", "bmad-spec"),
-    ("epics.", "bmad-create-epics-and-stories"),
-    ("story.", "bmad-create-story"),
-]
-
-def _skill_for_run_key(key: str) -> str | None:
-    """Owning skill for a run-key namespace — the producer side of the same
-    table the hand-off diagnostic attributes with (watch-plane stamps and
-    canvas owner links must name stages the way chain_health names senders).
-    None for keys outside every known namespace (bridge keys, ad-hoc notes)."""
-    key = str(key or "").strip()
-    for prefix, skill in _KEY_PREFIX_TO_SKILL:
-        if key.startswith(prefix):
-            return skill
-    return None
-
-# A skill token accepted as an explicit signal sender (same shape as the
-# channel budget allows). Anything else is ignored — attribution falls back to
-# the prefix rather than trusting a free-form string.
-_SENDER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$")
-
-# A run key that names a record (`E-048`, `QR-001`): only these can supersede or
-# be superseded, so only these pay the cascade scan on the write path.
-_RECORD_KEY_RE = re.compile(r"^[A-Z]+-\d+$")
-
-def _signal_sender(text: str, explicit: str | None = None) -> str:
-    """Attribute a hand-off signal to a sender skill.
-
-    An explicit sender (recorded by the poster) wins over the from-key prefix:
-    run-key namespaces are shared (`story.` is written by BOTH create-story and
-    dev-story), so the prefix alone cannot name the stage that posted. Without
-    one, the from-key prefix decides (signal text is '<from-key>: <note>');
-    keys outside every known namespace (e.g. a QR record key) attribute to
-    'unknown' — they still surface under chain_health's 'extra', just unnamed."""
-    if explicit:
-        candidate = str(explicit).strip()
-        if _SENDER_RE.match(candidate):
-            return candidate
-    key = text.split(":", 1)[0].strip()
-    for prefix, skill in _KEY_PREFIX_TO_SKILL:
-        if key.startswith(prefix):
-            return skill
-    return "unknown"
-
-def chain_health(project_root: str, *, now: float | None = None) -> dict:
-    """Per-hop hand-off diagnostics for the delivery relay AND the methodology
-    relay: how many signals are waiting (downstream has not picked up) and how
-    many were consumed (handshake completed) on every hop — waiting
-    sender-attributed from the folded snapshot (poster sender persisted),
-    consumed folded into that same board.
-
-    - ``chain``: the ordered delivery relay (CHAIN, 7 skills → 6 hops) plus
-      its declared terminal hops (CHAIN_TERMINAL — the review gate that
-      consumes the last stage and signals nothing onward; such rows carry
-      ``terminal: true``).
-    - ``methodology_chain``: the ordered methodology relay (METHODOLOGY_CHAIN,
-      6 stages → 5 hops).
-    - ``sub_chains``: the phase-based modular relays (SUB_CHAINS), keyed by
-      phase name — 'discovery', 'alt_dev', …
-    - ``extra``: signals outside every declared relay (unknown receivers only).
-      The protocol is extensible, the diagnostic follows.
-    - ``stale``: waiting signals older than HANDOFF_SIGNAL_TTL_SECONDS —
-      the escalation path stop/session_start surface. Pass ``now`` in tests
-      for deterministic age computation.
-
-    One source, one contract (TD-014): ``waiting``, ``stale`` AND ``consumed``
-    all fold from the same snapshot skills read via ``pending_handoffs`` /
-    ``consume`` — the diagnostic can only see a board the readers can see.
-    Snapshot evictions (stale-cleanup, alert caps) and event-log rotation can
-    therefore never stage a divergence between the two views.
-    """
-    ref = now if now is not None else time.time()
-    board = read_board(project_root)
-    consumed: dict = {}  # (sender, receiver) -> count, from the folded board
-    for _sender, _receivers in (board.get("consumed") or {}).items():
-        if not isinstance(_receivers, dict):
-            continue
-        for _receiver, _count in _receivers.items():
-            try:
-                _n = int(_count)
-            except (TypeError, ValueError):
-                continue
-            if _n:
-                consumed[(_sender, _receiver)] = (
-                    consumed.get((_sender, _receiver), 0) + _n)
-    # Waiting + stale + consumed ALL read the folded board (single source):
-    # the same live truth pending_handoffs/consume see. Replay-only
-    # diagnostics are gone, so the diagnostic can only see a board the
-    # readers can see — evicted or log-rotated history cannot stage a
-    # divergence between the two views.
-    waiting: dict = {}   # (sender, receiver) -> count
-    stale: list = []     # waiting signals past TTL (age-based escalation)
-    verdicts: dict = {}  # (sender, receiver) -> {STALE: n, UNKNOWN: n}
-    unclear: list = []   # waiting signals the CODE STATE moved past (E-053)
-    for sig in _waiting_signals(project_root, board=board):
-        receiver = sig["skill"]
-        sender = _signal_sender(str(sig.get("text", "")), explicit=sig.get("sender"))
-        key = (sender, receiver)
-        waiting[key] = waiting.get(key, 0) + 1
-        verdict = str(sig.get("verdict") or fr.CURRENT).upper()
-        if verdict in (fr.STALE, fr.UNKNOWN):
-            verdicts.setdefault(key, {})
-            verdicts[key][verdict] = verdicts[key].get(verdict, 0) + 1
-            unclear.append({"from": sender, "to": receiver,
-                            "text": str(sig.get("text", "")),
-                            "verdict": verdict,
-                            "reason": str(sig.get("reason", "")),
-                            "run_key": str(sig.get("run_key", "")),
-                            "age_seconds": int(sig.get("age_s") or 0)})
-        try:
-            ts = float(sig.get("ts", 0.0) or 0.0)
-        except (TypeError, ValueError):
-            ts = 0.0
-        if ref - ts > HANDOFF_SIGNAL_TTL_SECONDS:
-            stale.append({"from": sender, "to": receiver,
-                          "text": str(sig.get("text", "")),
-                          "age_seconds": int(ref - ts), "verdict": verdict})
-
-    def hop_rows(sender_skill: str, receiver_skill: str) -> dict:
-        w = sum(v for (s, r), v in waiting.items() if s == sender_skill and r == receiver_skill)
-        c = sum(v for (s, r), v in consumed.items() if s == sender_skill and r == receiver_skill)
-        v = verdicts.get((sender_skill, receiver_skill), {})
-        if w:
-            status = "waiting"
-        elif w + c:
-            status = "clear"
-        else:
-            status = "idle"
-        # Age and CODE STATE are different questions: `stale` counts the clock,
-        # `stale_claims`/`unknown_claims` count the claims the code moved past
-        # (and those the anchor cannot settle). A hop can be perfectly fresh by
-        # age and already false by state — that was the whole defect (E-052).
-        return {"from": sender_skill, "to": receiver_skill,
-                "waiting": w, "consumed": c, "status": status,
-                "stale_claims": v.get(fr.STALE, 0),
-                "unknown_claims": v.get(fr.UNKNOWN, 0)}
-
-    chain = [hop_rows(a, b) for a, b in zip(CHAIN, CHAIN[1:])]
-    for a, b in CHAIN_TERMINAL:
-        chain.append({**hop_rows(a, b), "terminal": True})
-    methodology_chain = [hop_rows(a, b) for a, b in zip(METHODOLOGY_CHAIN, METHODOLOGY_CHAIN[1:])]
-    sub_chains = {name: [hop_rows(a, b) for a, b in hops]
-                  for name, hops in SUB_CHAINS.items()}
-    # NOTE: bmad-create-story is the bridge (present in both ordered relays);
-    # its fan-out to quality-record is a METHODOLOGY_CHAIN hop (S->QR). Every
-    # declared relay feeds 'seen', so only genuinely unknown receivers land in
-    # 'extra'.
-    seen = ({(h["from"], h["to"]) for h in chain} |
-            {(h["from"], h["to"]) for h in methodology_chain} |
-            {(h["from"], h["to"]) for hops in sub_chains.values() for h in hops})
-    # Chain-adjacent surfaces (help, infrastructure, the loop orchestrator's
-    # automation layer, the WDS backends) declare no hop, but a signal
-    # addressed to a KNOWN skill is still first-class diagnostic data — only
-    # genuinely unknown receivers land in 'extra'. They report as a single
-    # self-hop so their waiting count stays visible without inventing a relay.
-    extra: list = []
-    for r in sorted(CHAIN_ADJACENT - sub_chain_skills()):
-        w = sum(v for (s, rc), v in waiting.items() if rc == r)
-        c = sum(v for (s, rc), v in consumed.items() if rc == r)
-        if w or c:
-            extra.append({"from": "chain-adjacent", "to": r, "waiting": w,
-                          "consumed": c, "status": "waiting" if w else "clear"})
-    for (s, r) in sorted(set(list(waiting) + list(consumed))):
-        if (s, r) in seen:
-            continue
-        if r in CHAIN_ADJACENT:
-            continue  # already reported as a chain-adjacent row above
-        w, c = waiting.get((s, r), 0), consumed.get((s, r), 0)
-        extra.append({"from": s, "to": r, "waiting": w, "consumed": c,
-                      "status": "waiting" if w else "clear"})
-    total_waiting = sum(waiting.values())
-    return {"ok": True, "chain": chain, "methodology_chain": methodology_chain,
-            "sub_chains": sub_chains,
-            "extra": extra, "total_waiting": total_waiting, "stale": stale,
-            # Freshness dimension (E-053): derived from the same scan, keyed by
-            # claim, never stored. `stale` above is the clock; `unclear` is the
-            # code state. `retired` counts the claims explicitly withdrawn.
-            "unclear": unclear,
-            "freshness": fr.tally(unclear),
-            "retired": len(board.get("retired") or {}),
-            "freshness_mode": fr.mode()}
-
-def waiting_hop_rows(health: dict) -> list:
-    """Every hop holding a waiting signal, across ALL declared relays
-    (delivery, methodology, every sub-chain) plus the unknown 'extra' bucket.
-    One place, so a new sub-chain is picked up by every consumer."""
-    rows = [h for h in health.get("chain", []) if h.get("waiting")]
-    rows += [h for h in health.get("methodology_chain", []) if h.get("waiting")]
-    for hops in (health.get("sub_chains") or {}).values():
-        rows += [h for h in hops if h.get("waiting")]
-    rows += [h for h in health.get("extra", []) if h.get("waiting")]
-    return rows
-
-# --- doctor (one-glance diagnostic) ---------------------------------------------------
-_DOCTOR_CAP_WARN_PCT = 90  # warn when a plane is this close to its cap
+# --- doctor (one-glance diagnostic) ----------------------------------------
+_DOCTOR_CAP_WARN_PCT = 90  # compatibility constant for existing readers
 
 def _doctor_age(ts: float) -> str:
-    """Human age of a timestamp ('2s', '5m', '3h', '6d')."""
-    age = int(max(0, time.time() - (ts or 0)))
-    if age < 60:
-        return f"{age}s"
-    if age < 3600:
-        return f"{age // 60}m"
-    if age < 86400:
-        return f"{age // 3600}h"
-    return f"{age // 86400}d"
+    from .blackboard_diagnostics import _doctor_age as impl
+    return impl(ts)
 
 def _doctor_drift(paths: dict, board: dict) -> dict:
-    """Snapshot vs event-log replay comparison (tool-stamped keys excluded:
-    last_tool.* are event-sourced like everything else; excluded here because
-    they are high-churn skill-side touch stamps, not meaningful state for
-    drift)."""
-    replay = _replay_events(paths)
-
-    def norm(b: dict) -> dict:
-        keys = {k: v for k, v in b["keys"].items() if v.get("type") != "tool"}
-        return {"keys": keys, "tags": b["tags"], "canvases": b["canvases"],
-                "consumed": b.get("consumed", {}),
-                "open_handoffs": b.get("open_handoffs", {}),
-                "links": b["links"], "subscriptions": b["subscriptions"],
-                "alerts": b["alerts"], "hot": b["hot"],
-                "hot_canvas": b["hot_canvas"]}
-
-    in_sync = norm(replay) == norm(board)
-    return {"in_sync": in_sync, "status": "ok" if in_sync else "warn"}
+    from .blackboard_diagnostics import _doctor_drift as impl
+    return impl(paths, board)
 
 def rotate_event_log(project_root: str, max_lines: int = 10000) -> dict:
-    """Archive old event log entries and start fresh (MEDIUM #1 / ISSUE #60).
-    
-    Strategy:
-    1. Read all events from current log
-    2. Rebuild snapshot from all events (to capture current state)
-    3. Archive old events to logs/events-YYYY-MM-DD-HHmmss.log.gz
-    4. Truncate current event log (fresh start)
-    5. Append session_marker to new log
-    
-    Returns (ok, rotated_file, lines_archived, message).
-    """
-    paths = board_paths(project_root)
-    events_path = pathlib.Path(paths["events"])
-    
-    if not events_path.exists():
-        return {"ok": False, "error": "no event log to rotate"}
-    
-    try:
-        # 1. Read all events
-        all_events = []
-        with open(events_path, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    try:
-                        all_events.append(json.loads(line))
-                    except (json.JSONDecodeError, ValueError):
-                        pass  # Skip corrupted lines
-        
-        if not all_events or len(all_events) < max_lines:
-            return {"ok": False, "message": f"log has {len(all_events)} lines (threshold: {max_lines})"}
-        
-        # 2. Rebuild snapshot from all events to capture current state
-        board_rebuilt = _replay_events(paths)
-        
-        # 3. Archive old events to timestamped file
-        import gzip
-        import datetime
-        now = datetime.datetime.now()
-        archive_name = f"events-{now.strftime('%Y-%m-%d-%H%M%S')}.log.gz"
-        archive_path = events_path.parent / archive_name
-        
-        # Write compressed archive
-        with gzip.open(archive_path, "wt", encoding="utf-8") as f:
-            for event in all_events:
-                f.write(json.dumps(event, ensure_ascii=False) + "\n")
-        
-        # 4. Truncate current event log
-        with open(events_path, "w", encoding="utf-8") as f:
-            pass  # Empty file
-        
-        # 5. Append session marker to new log (if not already there)
-        # This will be done by the next record_session_start()
-        
-        return {
-            "ok": True,
-            "archived_to": str(archive_path),
-            "lines_archived": len(all_events),
-            "message": f"Archived {len(all_events)} events to {archive_name}; event log rotated"
-        }
-    
-    except Exception as e:
-        return {
-            "ok": False,
-            "error": f"rotation failed: {str(e)[:200]}"
-        }
+    """Stable board API for the separate event-log archive service."""
+    from .blackboard_archive import rotate_event_log as rotate
+    return rotate(project_root, max_lines=max_lines)
 
 def doctor(project_root: str, *, post: bool = False) -> dict:
-    """One-glance diagnostic for the whole board: gate, snapshot, event log,
-    state counts, cap usage, focus, chain health, FRESHNESS, integrity
-    (snapshot/event drift, tmp residue) and watch paths. Verdict is HEALTHY iff
-    no warnings.
-    
-    NEW: Supports --rotate flag to archive old event logs (MEDIUM #1)
-    NEW: Includes record ID uniqueness check (MEDIUM #2 / ISSUE #61)
-    NEW: Detects stale sessions (SessionStart without Stop) (MEDIUM #5 / ISSUE #64)
-    NEW (E-053): reports the derived freshness of every waiting claim, and — when
-    `post=True` — PRODUCES the lifecycle alerts the board's taxonomy declares
-    (`witness_stale`, `cascade_invalidation`, `stale_session`). The default stays
-    read-only: a diagnostic must not mutate the thing it measures.
-    """
-    stale_session_hours: int | None = None
-    paths = board_paths(project_root)
-    warnings = []
-    board = read_board(project_root)
-
-    # gate
-    gate_known, gate_on = True, True
-    try:
-        from .config import blackboard_enabled
-        gate_on = bool(blackboard_enabled())
-    except Exception:
-        gate_known = False
-
-    # event log
-    lines = garbage = 0
-    try:
-        with open(paths["events"], encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                lines += 1
-                try:
-                    json.loads(line)
-                except ValueError:
-                    garbage += 1
-        events_exist = lines > 0
-    except OSError:
-        events_exist = False
-    if garbage:
-        warnings.append(f"event log carries {garbage} unparseable line(s) "
-                        "(tolerated, but investigate the writer)")
-    # Rotation hint (MEDIUM #1 / ISSUE #60 surface): _truncate_events_if_needed
-    # silently keeps the newest MAX_EVENTS lines at every mutation; the
-    # operator-facing surface for "the log hit its bound and history was
-    # dropped" is this warning, pointing at `rotate` (archive + fresh log).
-    if events_exist and lines >= MAX_EVENTS:
-        from .utils import plugin_script_cmd as _plugin_cmd
-        warnings.append(f"event log at bound ({lines}/{MAX_EVENTS} lines) — "
-                        "oldest events were already dropped by the truncation "
-                        f"guard; archive history with "
-                        f"`{_plugin_cmd('bmad/scripts/blackboard.py', 'rotate')}`")
-
-    # caps
-    cells_per_canvas = {name: len(cv.get("cells", {}))
-                        for name, cv in board["canvases"].items()}
-    caps = {
-        "keys": (len(board["keys"]), MAX_KEYS),
-        "tags": (len(board["tags"]), MAX_TAGS),
-        "contributions": (len(board["contributions"]), MAX_CONTRIBUTIONS),
-        "canvases": (len(board["canvases"]), MAX_CANVASES),
-        "cells": (sum(cells_per_canvas.values()), MAX_CELLS * MAX_CANVASES),
-        "links": (len(board["links"]), MAX_LINKS),
-        "subscriptions": (len(board["subscriptions"]), MAX_SUBSCRIPTIONS),
-        "alerts": (len(board["alerts"]), MAX_ALERTS),
-    }
-    cap_warnings = []
-    for name, (used, cap) in caps.items():
-        if used * 100 >= _DOCTOR_CAP_WARN_PCT * cap:
-            cap_warnings.append(f"{name} {used}/{cap} (≥{_DOCTOR_CAP_WARN_PCT}% — "
-                                "oldest will expire soon)")
-    warnings.extend(cap_warnings)
-
-    # NEW: Check if snapshot rebuild from events works (corruption recovery)
-    replay_for_check = _replay_events(paths)
-    skipped = replay_for_check.get("_metadata", {}).get("replay_skipped_lines", 0)
-    if skipped > 0:
-        warnings.append(f"event log replay skipped {skipped} line(s) during rebuild "
-                        "(corruption detected, but auto-recovered by skipping bad lines)")
-    
-    # NEW: Check for duplicate record IDs (MEDIUM #2 / ISSUE #61)
-    # Record IDs live in filenames (E-001.md, IR-002.md, …) scattered across
-    # the canonical layout (check-methodology.sh CHECK 2):
-    #   E → docs/experiments;  IR/SP/S/PR → docs/development;
-    #   S → docs/development/stories;  QR → docs/quality.
-    # The old per-type table pointed at directories that don't exist
-    # (docs/stories, docs/quality-records, …), so this scan silently never
-    # ran. Scanning the real layout catches a same-ID copy under the wrong
-    # directory (an archive subdir, a second artifacts tree, the legacy
-    # docs/stories location) — the duplicate shapes that actually occur.
-    root = os.path.abspath(project_root or os.getcwd())
-    seen_ids = {}  # record ID → first directory it was seen in
-    scan_dirs = [
-        "docs/experiments", "docs/development", "docs/development/stories",
-        "docs/quality",
-    ]
-
-    for rec_dir in scan_dirs:
-        rec_path = pathlib.Path(root) / rec_dir
-        if not rec_path.exists():
-            continue
-
-        for record_file in rec_path.glob("*.md"):
-            match = re.match(r"^([A-Z]+-\d+)\.md$", record_file.name)
-            if not match:
-                continue
-            record_id = match.group(1)
-
-            if record_id in seen_ids:
-                warnings.append(
-                    f"Duplicate record ID '{record_id}' detected in {rec_dir} "
-                    f"(first seen in {seen_ids[record_id]}; record IDs must be "
-                    f"globally unique per type)"
-                )
-            else:
-                seen_ids[record_id] = rec_dir
-    
-    # NEW: Detect stale sessions (MEDIUM #5 / ISSUE #64)
-    # Look for SessionStart without corresponding Stop in recent history
-    try:
-        last_session_start = None
-        last_session_stop = None
-        last_session_id = ""
-        session_count = 0
-        current_session_id = ""
-        
-        with open(paths["events"], "r", encoding="utf-8") as f:
-            for line in f:
-                try:
-                    entry = json.loads(line)
-                except (json.JSONDecodeError, ValueError):
-                    continue
-                
-                entry_type = entry.get("type", "")
-                if entry_type == "session_marker":
-                    if entry.get("hook_event") == "SessionStart":
-                        last_session_start = entry.get("ts", 0.0)
-                        last_session_id = entry.get("session_id", "")
-                        current_session_id = last_session_id
-                        session_count += 1
-                
-                elif entry_type == "session_stop":
-                    last_session_stop = entry.get("ts", 0.0)
-        
-        # Check if there's an unclosed session
-        if last_session_start and (last_session_stop is None or last_session_start > last_session_stop):
-            session_age = time.time() - last_session_start
-            stale_threshold = 3600  # 1 hour
-            
-            if session_age > stale_threshold:
-                hours = int(session_age / 3600)
-                stale_session_hours = hours
-                warnings.append(
-                    f"Stale session detected: SessionStart {hours}h+ ago without Stop "
-                    f"(hung session? agent crash?)"
-                )
-        
-        # NEW: Check multi-session isolation (MEDIUM #6 / ISSUE #65)
-        # If more than one session, track session boundaries
-        if session_count > 1:
-            warnings.append(
-                f"Multi-session log detected: {session_count} sessions tracked "
-                f"(use session_id for isolation). Current: {current_session_id[:12]}..."
-            )
-    except Exception:
-        pass  # Can't check session history, skip
-
-    # integrity: snapshot presence + drift
-    snapshot_exists = os.path.exists(paths["snapshot"])
-    drift = _doctor_drift(paths, board)
-    if not drift["in_sync"]:
-        warnings.append("snapshot drifts from the event log — delete "
-                        "blackboard.json to force a rebuild")
-
-    # tmp residue (crash leftovers, snapshot dir + event-log dir)
-    tmp_files = []
-    try:
-        for d in (paths["dir"], os.path.dirname(paths["events"])):
-            if os.path.isdir(d):
-                tmp_files.extend(os.path.join(d, f) for f in os.listdir(d)
-                                 if f.endswith(".tmp"))
-    except OSError:
-        pass
-    if tmp_files:
-        warnings.append(f"{len(tmp_files)} leftover .tmp file(s) under "
-                        f"{paths['dir']} — safe to delete")
-
-    # chain (delivery + methodology relays + every sub-chain).
-    # A waiting baton is the designed post-close state, NOT a defect: a close
-    # that hands off downstream always leaves one unclaimed signal, so counting
-    # it into the verdict made every healthy close read NEEDS ATTENTION (real
-    # opencode session, 2026-09-30). It is surfaced three ways instead: the
-    # informational warnings list (read-only report), checks.chain (status:
-    # "signal" with its own verdict), and the skill close-step text that names
-    # unclaimed signals explicitly. Waiting-signal warnings therefore do NOT
-    # poison the verdict — only genuine health findings do. Stale (> TTL) stays
-    # a health warning: a >24h baton means a crashed/hung skill.
-    chain = chain_health(project_root)
-    chain_warnings: list = []  # signal-state warnings — informational, not health
-    if chain["total_waiting"] > 0:
-        waiting_hops = [f"{h['from']}->{h['to']}" for h in waiting_hop_rows(chain)]
-        chain_warnings.append(f"{chain['total_waiting']} unclaimed hand-off signal(s) "
-                              f"({', '.join(waiting_hops)}) -- PROACTIVE, see chain-health")
-    
-    # Stale handoff escalation: folded-snapshot ages (TD-014 — the snapshot
-    # is the live truth skills can claim; a log-only age stages a
-    # divergence, not staleness). Oldest-first so operators triage the
-    # longest-waiting baton first. The diagnosis is split by DERIVED verdict
-    # (E-053): a >24h baton whose claim still holds is a crashed/hung skill,
-    # while one whose scope changed is obsolete WORK — the engine used to call
-    # both "hung skill" and so mis-prescribed the remedy for the second.
-    stale = chain.get("stale", [])
-    if stale:
-        stale_sorted = sorted(stale, key=lambda s: -s.get("age_seconds", 0))
-        oldest = stale_sorted[0]
-        obsolete = [s for s in stale
-                    if str(s.get("verdict", "")).upper() == fr.STALE]
-        if obsolete:
-            warnings.append(
-                f"{len(stale)} STALE hand-off signal(s) (> 24h old) — "
-                f"{len(obsolete)} name decisions the code has already moved "
-                f"past (obsolete work, not a hung skill); oldest: "
-                f"{oldest['from']}->{oldest['to']} — retire them "
-                f"(`handoff --retire <key> --reason \"…\"`) or re-post, then "
-                f"consume the channel")
-        else:
-            warnings.append(f"{len(stale)} STALE hand-off signal(s) "
-                            f"(> 24h old, claims still current) -- skill "
-                            f"crashed/hung? oldest: {oldest['from']}->"
-                            f"{oldest['to']} -- claim via handoffs --skill "
-                            f"<downstream>, then consume")
-
-    # Focus liveness: a hot key with a finished bridge `status` is the stale
-    # hand-off this engine used to hand bmad-help (2026-09-21 real session:
-    # status="complete" while hot="ux.mailjs" and discovery in flight).
-    # write_key now corrects exactly this on the hot write, so the warning
-    # catches boards written before that (or by a hand-edited event log).
-    # An unset status is no claim at all — never warn on it.
-    bridge_entry = board["keys"].get("status")
-    bridge_status = str(bridge_entry.get("value", "")).strip() \
-        if isinstance(bridge_entry, dict) else ""
-    focus_stale = bool(board.get("hot")) and bridge_status.lower() in (
-        "complete", "done")
-    if focus_stale:
-        warnings.append(
-            f"focus says '{bridge_status}' but '{board['hot']}' is hot — the "
-            f"live run never marked itself in-progress (write `--key status "
-            f"--value in-progress`); readers route on status"
-        )
-
-    # Blocked-run tag (blackboard full-integration P1): `blocked` is the
-    # stalls-the-run marker from the tag vocabulary (GUIDE §14). A board
-    # carrying it names its hot run so the operator triages the stall
-    # instead of re-deriving state. Informational severity stays with the
-    # verdict logic (any warning → NEEDS ATTENTION).
-    if "blocked" in (board.get("tags") or []):
-        _hot_name = board.get("hot") or "(no hot focus)"
-        warnings.append(
-            f"board tagged 'blocked' — run '{_hot_name}' is stalled; "
-            f"clear with `untag --tag blocked` once it moves"
-        )
-
-    # Graph orphans (blackboard full-integration, informational only): a link
-    # endpoint with no key or canvas on the board. A forward edge legitimately
-    # precedes its downstream run key (the run lands at the next close-out),
-    # so — like waiting batons (SIGNAL) — this never touches the verdict; it
-    # names the endpoints so the operator can tell a pending downstream apart
-    # from a mis-slugged key (e.g. a literal `<slug>` pasted from a template).
-    # Bounded to keep doctor bounded.
-    _nodes = set(board["keys"])
-    _nodes.update(board["canvases"])
-    _nodes.update(f"canvas:{n}" for n in board["canvases"])
-    _orphans: list = []
-    for _l in board["links"]:
-        for _end in (_l.get("a"), _l.get("b")):
-            if _end and _end not in _nodes and _end not in _orphans:
-                _orphans.append(_end)
-
-    # watch paths (informational: missing prefixes may be created later)
-    watch = [{"canvas": name, "path": w, "exists": os.path.exists(w)}
-             for name, cv in board["canvases"].items()
-             for w in cv.get("watch", [])]
-
-    # methodology relay progress (informational: which E→IR→SP→S→QR→PR
-    # stages stamped their run key — empty = relay not started on this board)
-    methodology = {}
-    for stage, key in (("E", "methodology.last_experiment"),
-                       ("IR", "methodology.last_ir"),
-                       ("SP", "methodology.last_sp"),
-                       ("S", "methodology.last_story"),
-                       ("QR", "methodology.last_qr"),
-                       ("PR", "methodology.last_pr")):
-        entry = board["keys"].get(key)
-        if entry and isinstance(entry, dict) and str(entry.get("value", "")).strip():
-            methodology[stage] = str(entry.get("value"))[:80]
-
-    # Freshness plane (E-053): the DERIVED verdict of every waiting claim, plus
-    # the claims explicitly withdrawn. Informational by itself — a signal whose
-    # scope moved is report-only noise until it also ages out (the health case
-    # above). This is also the reader that turns the declared-but-dead alert
-    # taxonomy into produced data: doctor --post emits the lifecycle kinds.
-    freshness_report = {}
-    unclear = chain.get("unclear", [])
-    retired_count = len(board.get("retired") or {})
-    try:
-        freshness_report = pending_handoff_freshness(project_root)
-    except Exception:
-        freshness_report = {}
-    fresh_tally = fr.tally(unclear)
-    # `[freshness] unknown_policy = "silent"` keeps "unverifiable" out of the
-    # warnings (a legacy corpus has nothing else to report) while the tally
-    # keeps counting it — the fact is never lost, only not repeated.
-    report_unknown = fr.unknown_policy() != "silent"
-    if fresh_tally[fr.STALE] or (fresh_tally[fr.UNKNOWN] and report_unknown):
-        counts = f"{fresh_tally[fr.STALE]} stale"
-        tail = ""
-        if report_unknown:
-            counts += f", {fresh_tally[fr.UNKNOWN]} unknown"
-            tail = " or cannot be anchored"
-        chain_warnings.append(
-            f"{len(unclear)} waiting signal(s) name decisions the code has "
-            f"moved past{tail} ({counts}) — verify, then retire or re-post "
-            f"(checks.freshness.inject)")
-    stale_verdicts = [s for s in stale
-                      if str(s.get("verdict", "")).upper() == fr.STALE]
-
-    checks = {
-        "gate": {"known": gate_known, "on": gate_on,
-                 "status": "ok" if gate_known else "info"},
-        "snapshot": {"exists": snapshot_exists,
-                     "version": board.get("version"),
-                     "age": _doctor_age(board.get("updated", 0.0)),
-                     "status": "ok"},
-        "events": {"exists": events_exist, "lines": lines, "garbage": garbage,
-                   "status": "ok" if not garbage else "warn"},
-        "caps": {"usage": {k: {"used": u, "cap": c}
-                           for k, (u, c) in caps.items()},
-                 "status": "ok" if not cap_warnings else "warn"},
-        "focus": {"hot": board.get("hot"), "hot_canvas": board.get("hot_canvas"),
-                  "bridge_status": bridge_status,
-                  "status": "warn" if focus_stale else "ok"},
-        "drift": drift,
-        "residue": {"tmp_files": tmp_files,
-                    "status": "ok" if not tmp_files else "warn"},
-        "chain": {"total_waiting": chain["total_waiting"],
-                  "waiting_hops": waiting_hop_rows(chain),
-                  "stale": chain.get("stale", []),
-                  # "signal" = waiting batons exist (designed post-close state,
-                  # announce-only); "warn" = STALE ones exist (crashed skill).
-                  "verdict": ("HEALTHY" if not chain_warnings and not stale
-                              else "NEEDS ATTENTION" if stale else "SIGNAL"),
-                  "status": ("ok" if not chain_warnings and not stale
-                             else "warn" if stale else "signal")},
-        "watch": {"paths": watch, "status": "info" if watch else "ok"},
-        "graph": {"edges": len(board["links"]), "orphans": _orphans[:10],
-                  "status": "info"},
-        "methodology": {"progress": methodology,
-                        "status": "info" if methodology else "ok"},
-        "freshness": {"mode": fr.mode(),
-                      "witnesses": len(board.get("witness") or {}),
-                      "retired": retired_count,
-                      "report": freshness_report,
-                      "unclear": unclear[:10],
-                      "tally": fresh_tally,
-                      # A >24h signal that is ALSO stale by code state is a
-                      # health finding (its remedy is retire/re-post, not
-                      # "restart the skill"); otherwise freshness is info.
-                      "status": ("warn" if stale_verdicts
-                                 else "info" if unclear else "ok")},
-    }
-    report = {"ok": True, "root": paths["root"],
-              "verdict": "HEALTHY" if not warnings else "NEEDS ATTENTION",
-              "checks": checks,
-              "warnings": warnings,
-              # Signal-state findings (waiting batons): report-only, never part
-              # of the health verdict. The close-step contract surfaces these
-              # alongside the verdict instead of reading NEEDS ATTENTION as
-              # "the close failed".
-              "signal_warnings": chain_warnings}
-    if post:
-        report["posted"] = _post_lifecycle_alerts(project_root, unclear,
-                                                  stale_session_hours)
-    return report
+    from .blackboard_diagnostics import doctor as impl
+    return impl(project_root, post=post)
 
 def _post_lifecycle_alerts(project_root: str, unclear: list,
                            stale_session_hours: int | None) -> int:
-    """Produce the lifecycle alerts doctor detected (bounded, deduped, fail-open).
-
-    Split out so the default diagnostic stays read-only: only an explicit
-    `doctor --post` writes. Every kind emitted here already has a consumer —
-    the session-start inject and `alerts --channel session` — which is what
-    makes the board's declared taxonomy a working plane instead of dead names
-    (E-053, F-06). Bounded to 5 signals so a flooded board cannot evict real
-    batons from the shared 32-slot alert pool.
-    """
-    posted = 0
-    try:
-        for sig in (unclear or [])[:5]:
-            if str(sig.get("verdict", "")).upper() != fr.STALE:
-                continue
-            kind = (AlertKind.CASCADE_INVALIDATION.value
-                    if "superseded by" in str(sig.get("reason", ""))
-                    else AlertKind.WITNESS_STALE.value)
-            post_alert(
-                project_root, "session", kind,
-                f"{sig.get('run_key') or sig.get('from')}: {sig.get('reason')} "
-                f"(waiting for {sig.get('to')}, "
-                f"{int(sig.get('age_seconds') or 0) // 3600}h) — retire or re-post",
-                sender="doctor")
-            posted += 1
-        if stale_session_hours:
-            post_alert(
-                project_root, "session", AlertKind.STALE_SESSION.value,
-                f"stale session: SessionStart {stale_session_hours}h+ ago "
-                f"without Stop (hung session? agent crash?)", sender="doctor")
-            posted += 1
-    except Exception:
-        pass
-    return posted
+    from .blackboard_diagnostics import _post_lifecycle_alerts as impl
+    return impl(project_root, unclear, stale_session_hours)
 
 # Announcement-state kinds: re-posting the identical sentence is not a new
 # fact. These dedup because MAX_ALERTS is a SHARED pool (32) that also holds
@@ -2821,7 +1529,7 @@ def stats(project_root: str) -> dict:
 
 # Import after the canonical module state is defined so the fold helpers can
 # read its constants and public test seams without a partial-import cycle.
-from .blackboard_fold import (  # noqa: E402
+from .blackboard_fold import (  # noqa: E402,F401 — canonical fold helpers and compatibility exports
     _apply_event, _cap_auto_cells, _cap_canvases, _cap_consumed, _cap_keys,
     _cap_open_handoffs, _cap_retired, _cap_witness, _cleanup_stale_handoffs,
     _clear_hot_if_dangling,

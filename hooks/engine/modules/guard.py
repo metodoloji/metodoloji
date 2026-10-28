@@ -9,16 +9,18 @@ import subprocess
 import sys
 import time
 from functools import lru_cache
+from typing import Any
 
 from .config import (GATE_DIR, SCOPE_GIT_TIMEOUT_SECONDS, _BMD_DIR,
                      _KEY_ACCESS_IN_CONTENT, hook_gate_mode, story_status)
 from .utils import (is_code_target, is_free, norm_path, normalize_hook_input,
                     rel_to_root, repo_root, extract_story_key_from_content,
-                    dod_issues, _VERIFY_FIELD_RE)
-from .bash_targets import extract_bash_targets, extract_bash_targets_ex
+                    dod_issues, _VERIFY_FIELD_RE)  # noqa: F401 — compatibility imports
+from .bash_targets import extract_bash_targets, extract_bash_targets_ex  # noqa: F401
 from . import plan as plan_mod
-from . import state as state_mod
-from .story_records import (
+from . import state as state_mod  # noqa: F401 — consumed by story-quality service
+from .deploy_gate import DEPLOY_CMD_RE as _DEPLOY_CMD_RE  # noqa: F401 — compatibility export
+from .story_records import (  # noqa: F401 — stable guard compatibility surface
     _AC_ID_RE, _EXPERIMENT_FIELD_RE, _HYPOTHESIS_RE, _MEASURED_FIELD_RE,
     _STORY_BASENAME_RE, _TABLE_AC_COLUMNS, _TABLE_AC_ID_RE,
     _TABLE_AC_KNOWN_TYPES, _TABLE_REFS_ROW_RE, _TASK_AC_RE, _TEST_FIELD_RE,
@@ -95,7 +97,7 @@ def _plan_record_verified(rec_path: str) -> bool:
 
 @lru_cache(maxsize=256)
 def _cached_scope(path: str, mtime_ns: int, size: int) -> str:
-    if not _load_gate():
+    if not _load_gate() or gate is None:
         return ""
     try:
         return gate.record_scope(path)
@@ -108,7 +110,7 @@ def record_scope_cached(path: str) -> str:
         st = pathlib.Path(path).stat()
         return _cached_scope(path, st.st_mtime_ns, st.st_size)
     except OSError:
-        if not _load_gate():
+        if not _load_gate() or gate is None:
             return ""
         try:
             return gate.record_scope(path)
@@ -117,7 +119,7 @@ def record_scope_cached(path: str) -> str:
 
 def verify_record(rec: str) -> tuple[int, str]:
     """Run gate verify on a record; return (rc, scope)."""
-    if not _load_gate():
+    if not _load_gate() or gate is None:
         return 1, ""
     try:
         rec_path = pathlib.Path(rec)
@@ -290,11 +292,12 @@ def _validate_story_experiment_refs(content: str, root: str = "") -> tuple[bool,
             ), []
         rc, _ = verify_record(str(exp_file))
         if rc != 0:
+            verify_command = _plugin_script_cmd(
+                'skills/bmad-research-experiment/scripts/run_experiment.py',
+                '--verify', '--record', str(exp_file))
             return False, (
                 f"Experiment record {exp_id} is not verified (rc={rc}). "
-                f"Run: {_plugin_script_cmd(
-                    'skills/bmad-research-experiment/scripts/run_experiment.py',
-                    '--verify', '--record', str(exp_file))}"
+                f"Run: {verify_command}"
             ), []
         superseded = _superseded_by(root, exp_id)
         if superseded:
@@ -623,233 +626,11 @@ def _dangling_test_problem(content: str, root: str) -> str:
                     f"named '{name}' — the cited name has to appear in the file")
     return ""
 
-def _validate_methodology_chain(content: str, rel_path: str, root: str = "") -> tuple[bool, str]:
-    """Validate that the methodology chain is intact for a story file.
+def _validate_methodology_chain(*args, **kwargs):
+    """Compatibility delegate to the story-quality chain validator."""
+    from . import story_quality as service
+    return service._validate_methodology_chain(*args, **kwargs)
 
-    Checks:
-    - If story status is 'done', QR record must exist
-    - If story status is 'review', methodology record must exist
-    - If story references SP-XXX, SP record must exist
-    - If story references SP-XXX, SP must reference IR which must reference E (backreference chain)
-    - Every AC must reference an approved experiment E-NNN
-
-    Returns (is_valid, reason).
-    """
-    from .config import MAX_DUPLICATE_CHECK_RECORDS, MAX_STORY_COUNT
-    
-    issues = []
-    if not root:
-        root = repo_root({})
-    root = os.path.abspath(root)
-
-    # Extract story status via the shared reader (field form or bridge
-    # table row). Line-start anchored so indented YAML 'status:' keys never
-    # match (same rationale as _validate_story_metadata).
-    status = story_status(content)
-    if not status:
-        return True, ""  # No status = not a story file
-
-    # Story key, the shared precedence MINUS the filename fallback: the explicit
-    # `- **Story key:** …` field first (a native draft's `# Story 1.1: …` title
-    # used to be read as the key "1.1:", so the gate then hunted a QR record for
-    # `1.1:` and a correctly-declared native story could never satisfy it), then
-    # the title, then an N-N-slug anywhere, then the path. An S-record generated
-    # by create-methodology-record.py has none of those, and skipping it here is
-    # deliberate: this function validates STORY files, and widening it to the
-    # generated records is a separate decision (they carry a `| Sprint Ref |`
-    # claim, not a story's own `Sprint:` field).
-    story_key = ""
-    m_key = _STORY_KEY_FIELD_RE.search(content)
-    if m_key:
-        story_key = m_key.group(1).strip()
-    if not story_key:
-        story_key = extract_story_key_from_content(content)
-    if not story_key:
-        key_match = re.search(r"(\d+-\d+-[a-z][a-z0-9-]+)", content, re.IGNORECASE)
-        if key_match:
-            story_key = key_match.group(1)
-    if not story_key:
-        key_match = re.search(r"(\d+-\d+-[a-z][a-z0-9-]+)", rel_path, re.IGNORECASE)
-        if key_match:
-            story_key = key_match.group(1)
-    story_stem = pathlib.Path(rel_path).stem
-    if not story_key:
-        return True, ""
-
-    # Check 1: If status is 'done', QR record must exist.
-    # ponytail: read each QR file at most once per story write — the chain
-    # cache below keeps (mtime_ns, size) so repeated writes don't re-read
-    # unchanged records.
-    if status == "done":
-        qr_dir = pathlib.Path(root) / "docs" / "quality"
-        if qr_dir.is_dir():
-            # Look for QR record that references this story
-            found_qr = False
-            count = 0
-            for qr_file in qr_dir.glob("QR-*.md"):
-                count += 1
-                if count > MAX_DUPLICATE_CHECK_RECORDS:  # Bounds check (MEDIUM #11)
-                    break
-                try:
-                    qr_content = _chain_text(qr_file)
-                    if _record_covers_story(qr_content, qr_file, story_key,
-                                            story_stem):
-                        found_qr = True
-                        break
-                except OSError:
-                    pass
-            if not found_qr:
-                issues.append(
-                    f"Story status is 'done' but no QR record found for {story_key}. "
-                    f"A QR covers a story only when it DECLARES it (a `| Story | … |` "
-                    f"row or a `- **Story:** …` field) — a mention in the body is "
-                    f"not a record. Run: "
-                    f"{_plugin_script_cmd('scripts/create-qr-record.py', '--story', rel_path)}"
-                )
-
-    # Check 2: If status is 'review', methodology record must exist.
-    # Self-evident records skip the peer hunt: a file that IS a generated
-    # methodology record (title `# Methodology Record:` or a `| Native
-    # Story |` field row) cannot lack one — hunting peers for it only
-    # matched on coincidence (a debug log quoting the slug). Native-shaped
-    # drafts without record markers are still hunted exactly as before.
-    if status in ("review", "done") and not _is_methodology_record(content):
-        meth_dir = pathlib.Path(root) / "docs" / "development" / "stories"
-        if meth_dir.is_dir():
-            # S-014 fix (E-010, GATE-OK-E-010-44abfab68a12b8b4f46ba8984dfa3f89):
-            # exclude the story file itself from the methodology search. The
-            # story mentions its own key, so without this check, the glob
-            # trivially matched and the methodology check false-positived.
-            target_name = pathlib.Path(rel_path).name
-            found_meth = False
-            count = 0
-            for meth_file in meth_dir.glob("S-*.md"):
-                count += 1
-                if count > MAX_STORY_COUNT:  # Bounds check (MEDIUM #11)
-                    break
-                if meth_file.name == target_name:
-                    continue
-                try:
-                    meth_content = _chain_text(meth_file)
-                    if _record_covers_story(meth_content, meth_file, story_key,
-                                            story_stem):
-                        found_meth = True
-                        break
-                except OSError:
-                    pass
-            if not found_meth:
-                issues.append(
-                    f"Story status is '{status}' but no methodology record found for {story_key}. "
-                    f"A record covers a story when it declares it (`| Native Story | … |` "
-                    f"or a Story field) or its own title/filename names it. "
-                    f"Run: {_plugin_script_cmd('scripts/create-methodology-record.py', '--story', rel_path)}"
-                )
-
-    # Check 3: If story references SP-XXX, SP record must exist AND backreference chain S→SP→IR→E
-    sprint_match = _SP_REF_RE.search(content)
-    if sprint_match:
-        sp_id = sprint_match.group(0)  # e.g. SP-001
-        # Same segment-wise id match the done-story gate uses: the record may
-        # be named by the story key OR by the sprint id, and the id comparison
-        # must not let a different sprint of the same year stand in.
-        sp_token = _record_id_token(sprint_match)
-        dev_dir = pathlib.Path(root) / "docs" / "development"
-        if dev_dir.is_dir():
-            found_sp = False
-            sp_file_found = None
-            for sp_file in dev_dir.glob("SP-*.md"):
-                try:
-                    sp_content = _chain_text(sp_file)
-                    # The id must be the record's identity (filename or heading),
-                    # not a passing body mention — see _find_done_stories_without_sp.
-                    if (story_key in sp_content
-                            or sp_token.search(sp_file.name)
-                            or sp_token.search(_first_heading(sp_content))):
-                        found_sp = True
-                        sp_file_found = sp_file
-                        break
-                except OSError:
-                    pass
-            if not found_sp:
-                issues.append(
-                    f"Story references {sp_id} but no SP record found for {story_key}. "
-                    f"Run bmad-sprint-planning to create SP record."
-                )
-            else:
-                # NEW: Check backreference chain S→SP→IR→E (HIGH #4 / HIGH #8)
-                # SP must reference IR, IR must reference E
-                if sp_file_found:
-                    sp_content = _chain_text(sp_file_found)
-                    # Look for IR-NNN reference in SP
-                    ir_match = _IR_REF_RE.search(sp_content)
-                    if ir_match:
-                        ir_id = ir_match.group(0)
-                        # The id must be the IR record's OWN identity (filename or
-                        # heading): an IR record that merely names IR-001 ("what
-                        # IR-001 left open") is not the record the SP points at.
-                        ir_token = _record_id_token(ir_match)
-                        found_ir = False
-                        ir_file_found = None
-                        for ir_file in dev_dir.glob("IR-*.md"):
-                            if ir_file.name.startswith("_"):
-                                continue
-                            try:
-                                ir_content = _chain_text(ir_file)
-                            except OSError:
-                                continue
-                            if (ir_token.search(ir_file.name)
-                                    or ir_token.search(_first_heading(ir_content))):
-                                found_ir = True
-                                ir_file_found = ir_file
-                                break
-                        if not found_ir:
-                            issues.append(
-                                f"SP {sp_id} references {ir_id} but IR record not found. "
-                                f"Create IR record before sprint planning."
-                            )
-                        else:
-                            # Check if IR references E
-                            if ir_file_found:
-                                ir_content = _chain_text(ir_file_found)
-                                # Look for E-NNN reference in IR. The IR body IS the
-                                # declaration of its research inputs (`- **Research
-                                # inputs:** E-001, D-005`), so a labelled id is the
-                                # link here — unlike the story→record links above,
-                                # there is no separate identity channel to prefer.
-                                e_match = _E_REF_RE.search(ir_content)
-                                if not e_match:
-                                    issues.append(
-                                        f"IR record {ir_id} does not reference any Experiment (E-NNN). "
-                                        f"IR must trace back to an approved experiment."
-                                    )
-                    else:
-                        # NEW: SP exists but does NOT reference any IR (HIGH #4 - orphaned detection)
-                        issues.append(
-                            f"SP record {sp_id} does not reference any Implementation Readiness (IR) record. "
-                            f"Stories cannot be planned without IR. Create IR record first."
-                        )
-
-    # Check 4: a cited experiment must still be able to back a criterion.
-    # Without this the "approved experiment" requirement was a docstring: an AC
-    # citing a withdrawn or rejected record read as valid everywhere.
-    for ac in _parse_ac_metadata(content):
-        if ac.get("test"):
-            continue  # decided by a named test — Check 5 resolves that instead
-        ref = ac.get("experiment", "")
-        if not re.fullmatch(r"E-\d+", ref or ""):
-            continue
-        problem = _cited_experiment_problem(ref, root)
-        if problem:
-            issues.append(problem)
-
-    # Check 5: a test-decided criterion must name a test that exists.
-    dangling_test = _dangling_test_problem(content, root)
-    if dangling_test:
-        issues.append(dangling_test)
-
-    if issues:
-        return False, "; ".join(issues[:3])
-    return True, ""
 
 # Verified-scope cache: find_approved runs gate.verify (HMAC) over every
 # record per call. Cache per (mtime_ns, size) so the SAME call does not
@@ -905,7 +686,7 @@ def _record_freshness(root: str, rec_path: str) -> dict | None:
     """
     try:
         from . import freshness as fr
-        if not fr.enabled() or not _load_gate():
+        if not fr.enabled() or not _load_gate() or gate is None:
             return None
         path = pathlib.Path(rec_path)
         text = path.read_text(encoding="utf-8", errors="replace")
@@ -953,7 +734,7 @@ def _freshness_chain_row(root: str, blocked_action: str) -> dict:
         # `_load_gate()` returns a BOOL and binds the module to `gate` — the
         # record parser comes from that module (same single source the
         # verification path uses), never from a second parser here.
-        if not _load_gate() or globals().get("gate") is None:
+        if not _load_gate() or gate is None:
             return {"decision": "allow"}
         record_fields = gate.record_fields
     except Exception:
@@ -1013,242 +794,33 @@ def _freshness_chain_row(root: str, blocked_action: str) -> dict:
         + (". This is a report, not a block: `[hooks] freshness = deny` / "
            "`[freshness] unknown_policy = deny` make it one.")]}
 
-def find_approved(target: str, recs_dir: str | None = None,
-                  root: str = "") -> tuple[bool, str, dict | None]:
-    """Find a VERIFIED record whose scope matches target.
+from .scope_gate import (  # noqa: F401 — stable guard compatibility exports
+    _INSTRUMENT_PREFIXES, _STRUCTURAL_DIR, _STRUCTURAL_MIN_JUSTIFICATION)
 
-    Returns ``(approved, detail, freshness)``. `freshness` is the derived
-    verdict of the record that opened the door (None when the plane is off):
-    under `[hooks] freshness = "deny"` a STALE approval does NOT unlock code,
-    and under the default `"warn"` it unlocks with the reason attached so the
-    caller can surface it — the write is never silently blessed by an approval
-    the code has moved past (E-053). Whether a verdict blocks is decided in ONE
-    place (`freshness.blocks`), so the write path, the commit gate and the
-    deploy gate cannot disagree — UNKNOWN joins STALE there only when
-    `[freshness] unknown_policy = "deny"`.
-    """
-    if not _load_gate():
-        return False, "gate script not available", None
-    target_rel = norm_path(target).lstrip("/")
-    if not root:
-        root = repo_root({})
-    recs_dir = recs_dir or "docs/experiments"
-    if pathlib.PurePosixPath(recs_dir).is_absolute():
-        return False, "absolute recs_dir rejected", None
-    base = pathlib.Path(root) / recs_dir
-    if not base.is_dir():
-        return False, "docs/experiments/ not found", None
-    key_missing = False
-    best = None
-    advisory = None
-    advisory_msg = (f"record {{rec}} is ADVISORY-BLOCKED (genuine token, "
-                    f"code stays closed: small sample, n unknown, or metric "
-                    f"mismatch — re-measure in a new record)")
+def find_approved(*args, **kwargs):
+    """Compatibility delegate to the scope and structure gate."""
+    from . import scope_gate as service
+    return service.find_approved(*args, **kwargs)
 
-    deferred = []
-    scope_error = set()
-    for rec in sorted(base.glob("*.md")):
-        if rec.name == "_template.md":
-            continue
-        try:
-            # Cheap scope pre-filter: cached file read, no gate key needed.
-            candidate = gate.scope_matches(record_scope_cached(str(rec)), target_rel)
-        except Exception:
-            candidate = False
-            scope_error.add(rec)
-        if not candidate:
-            deferred.append(rec)
-            continue
-        rc, _scope = _cached_verify(str(rec))
-        if rc == 3:
-            key_missing = True
-        elif rc == 2:
-            if advisory is None:
-                advisory = advisory_msg.format(rec=rec)
-        elif rc == 0:
-            fresh = _record_freshness(root, str(rec))
-            # Local import (the engine imports freshness lazily): without it the
-            # verdict comparison below raised NameError on every scope-matched
-            # APPROVED record, so the write path crashed instead of warning.
-            try:
-                from . import freshness as fr
-            except Exception:
-                fr = None
-            if fr and fresh and fresh["verdict"] in (fr.STALE, fr.UNKNOWN):
-                try:
-                    blocks = fr.blocks(fresh["verdict"])
-                except Exception:
-                    blocks = False
-                if fresh["verdict"] == fr.STALE:
-                    trouble = (
-                        f"but the code has moved past it: {fresh['reason']} "
-                        f"({fresh['changed'][:3] if fresh['changed'] else 'code state'} "
-                        f"changed after approval"
-                        f"{', witness ' + fresh['commit'][:12] if fresh['commit'] else ''}). ")
-                else:
-                    trouble = (f"but its code state cannot be established "
-                               f"here: {fresh['reason']}. ")
-                stale_msg = (
-                    f"record {rec} is APPROVED and scope-matched, "
-                    f"{trouble}"
-                    f"Re-measure in a new E record (add a plain "
-                    f"`- **Re-Measured-By:** E-NNN (date)` line to {rec.name}), or "
-                    f"declare this file in the current record's plan "
-                    f"(--amend-plan). "
-                    f"[hooks] freshness = deny blocks stale; "
-                    f"[freshness] unknown_policy = deny blocks unverifiable.")
-                if blocks:
-                    return False, stale_msg, fresh
-                return True, f"record {rec} (scope matched)", fresh
-            return True, f"record {rec} (scope matched)", fresh
+def _is_instrument_path(*args, **kwargs):
+    """Compatibility delegate to the scope and structure gate."""
+    from . import scope_gate as service
+    return service._is_instrument_path(*args, **kwargs)
 
-    for rec in deferred:
-        rc, _scope = _cached_verify(str(rec))
-        if rc == 3:
-            key_missing = True
-        elif rc == 2:
-            if advisory is None:
-                advisory = advisory_msg.format(rec=rec)
-        elif rc == 0 and rec not in scope_error and best is None:
-            best = f"record {rec} scope not matched"
+def find_staged_instrument(*args, **kwargs):
+    """Compatibility delegate to the scope and structure gate."""
+    from . import scope_gate as service
+    return service.find_staged_instrument(*args, **kwargs)
 
-    if key_missing:
-        return False, ("gate key not configured (" + _plugin_script_cmd(
-            'skills/bmad-research-experiment/scripts/run_experiment.py',
-            '--init-secret') + ")"), None
-    # A VERIFIED record that simply does not cover this target is the ACCURATE
-    # reason, and it must win over an advisory seeded by an unrelated record:
-    # with E-001 ADVISORY-BLOCKED and E-002 VERIFIED, a write to `lib/x.py`
-    # (outside BOTH scopes) was reported as "E-001 is ADVISORY-BLOCKED", which
-    # sends the agent off to re-measure E-001 instead of widening the scope it
-    # is actually missing. `advisory` still wins when no scope-mismatch exists,
-    # i.e. for the write the advisory record DOES cover.
-    if best:
-        return False, best, None
-    return False, advisory or "no approved experiment record", None
+def _struct_field(*args, **kwargs):
+    """Compatibility delegate to the scope and structure gate."""
+    from . import scope_gate as service
+    return service._struct_field(*args, **kwargs)
 
-# Instrument paths stage BEFORE approval: the gate refuses to measure a bench
-# in a free zone (scratch/tmp) and --run is the only measurement path, so a
-# bench that could only be written post-approval would deadlock every first
-# experiment under code_guard=hard. Staging is narrow: only scripts/bench/**
-# targets, only under a well-formed UNDECIDED record whose Code Scope covers
-# the bench path. Product code still requires a VERIFIED record — staging
-# never unlocks apps/**, src/** or any other code target.
-_INSTRUMENT_PREFIXES = ("scripts/bench/",)
-
-def _is_instrument_path(rel: str) -> bool:
-    """True when the project-relative path is a measurement bench target."""
-    p = norm_path(rel or "").lstrip("/")
-    return any(p.startswith(prefix) for prefix in _INSTRUMENT_PREFIXES)
-
-def find_staged_instrument(target: str, root: str = "") -> tuple[bool, str]:
-    """True when target is a bench staged by a well-formed undecided record.
-
-    Well-formed = all REQUIRED_DRAFT fields present, Experiment id names a
-    run, hypothesis claim parses, and no Decision written yet (placeholder
-    or empty). The record's Code Scope must cover the bench path. Any
-    unreadable record, parse failure or missing gate fails CLOSED (no allow).
-    """
-    if not _load_gate():
-        return False, "gate script not available"
-    try:
-        target_rel = norm_path(target).lstrip("/")
-        if not root:
-            root = repo_root({})
-        base = pathlib.Path(root) / "docs" / "experiments"
-        if not base.is_dir():
-            return False, "docs/experiments/ not found"
-        for rec in sorted(base.glob("*.md")):
-            if rec.name == "_template.md":
-                continue
-            try:
-                text = rec.read_text(encoding="utf-8", errors="replace")
-            except OSError:
-                continue
-            try:
-                fields = gate.record_fields(text)
-                if any(not fields.get(need) for need in gate.REQUIRED_DRAFT):
-                    continue
-                if gate.experiment_id_issue(text) is not None:
-                    continue
-                gate.hypothesis_claim(fields.get("Hypothesis", ""))
-                decision = (fields.get("Decision", "") or "").strip()
-                if decision and not gate._is_placeholder(decision):
-                    continue  # decided — the VERIFIED path owns it, not staging
-                if not gate.scope_matches(gate.record_scope(str(rec)), target_rel):
-                    continue
-            except (ValueError, AttributeError, TypeError):
-                continue
-            except Exception:
-                continue
-            return True, f"staged instrument for undecided {rec.name} (scope matched)"
-    except Exception:
-        return False, "staged-instrument check failed"
-    return False, "no undecided record stages this bench"
-
-_STRUCTURAL_DIR = ("docs", "development", "structural")
-_STRUCTURAL_MIN_JUSTIFICATION = 40
-
-def _struct_field(text: str, name: str) -> str:
-    m = re.search(rf"^-\s*\*\*{re.escape(name)}:\*\*\s*(.+)$", text, re.M)
-    return m.group(1).strip() if m else ""
-
-def find_structural_declaration(target: str, root: str = "") -> tuple[bool, str]:
-    """True when a Structural Scope record declares this path.
-
-    The honest third category. The guard knew two kinds of code: product code
-    (needs a VERIFIED experiment) and measurement benches (stage under an
-    undecided record). Code that carries no empirical claim had neither — a
-    scaffold, a CI workflow, a layout shell, a wiring module. The only way past
-    was to invent a hypothesis, and a fabricated experiment is a worse outcome
-    than an admitted exemption: a subagent in a consuming project did exactly
-    that, writing a fake E-001 to obtain permission to save an HTML file.
-
-    A structural record says, in public: this code makes no claim that could be
-    measured, here is why, and a QR must ratify it. Deliberately narrow:
-
-      - never covers scripts/bench/** — a bench needs a real experiment, and
-        this path must not become a way around the instrument rule;
-      - Status must be 'declared' or 'ratified'; anything else is ignored;
-      - a Scope glob and a justification of at least 40 characters are both
-        required, because an unexplained exemption is the abuse case;
-      - an approved record wins: this check is only reached when no approval
-        covered the path, so it can never downgrade a measured claim;
-      - every write warns, so the exemption is never invisible in a session.
-    """
-    try:
-        if not root:
-            root = repo_root({})
-        base = pathlib.Path(root).joinpath(*_STRUCTURAL_DIR)
-        if not base.is_dir():
-            return False, "no structural declarations"
-        target_rel = norm_path(target).lstrip("/")
-        if not target_rel:
-            return False, "empty target"
-        for rec in sorted(base.glob("*.md")):
-            if rec.name.startswith("_"):
-                continue
-            try:
-                text = rec.read_text(encoding="utf-8", errors="replace")
-            except OSError:
-                continue
-            status = _struct_field(text, "Status").lower()
-            if status not in ("declared", "ratified"):
-                continue
-            if len(_struct_field(text, "Justification")) < _STRUCTURAL_MIN_JUSTIFICATION:
-                continue
-            scope = _struct_field(text, "Scope").replace("`", "")
-            patterns = [p for p in re.split(r"[,\s]+", scope) if p]
-            for pat in patterns:
-                try:
-                    if gate.scope_matches(pat, target_rel):
-                        return True, (f"structural scope declared in {rec.name} "
-                                      f"(status: {status}, unmeasured)")
-                except Exception:
-                    continue
-    except Exception:
-        return False, "structural check failed"
-    return False, "no structural declaration covers this path"
+def find_structural_declaration(*args, **kwargs):
+    """Compatibility delegate to the scope and structure gate."""
+    from . import scope_gate as service
+    return service.find_structural_declaration(*args, **kwargs)
 
 def guard(json_in: dict) -> dict:
     """PreToolUse guard: block code writes without approved experiment record."""
@@ -1451,8 +1023,10 @@ def guard(json_in: dict) -> dict:
             # the crash into "received no input" on the FIRST write an approval
             # was supposed to unlock (found in a live Hermes session: E-002 was
             # APPROVED and src/app.py still could not be written).
+            fr: Any = None
             try:
-                from . import freshness as fr
+                from . import freshness as freshness_module
+                fr = freshness_module
             except Exception:
                 fr = None
             # The approval opened the door, but a door is not a promise: when
@@ -1484,13 +1058,14 @@ def guard(json_in: dict) -> dict:
             if _is_instrument_path(rel):
                 staged, staged_msg = find_staged_instrument(rel, root=root)
                 if staged:
+                    measurement_command = _plugin_script_cmd(
+                        'skills/bmad-research-experiment/scripts/run_experiment.py',
+                        '--record', 'docs/experiments/E-XXX.md',
+                        '--run', '<cmd>')
                     _soft_warnings.append(
                         f"{rel}: {staged_msg} — instrument staging only; the "
                         f"decision still requires a gate measurement run: "
-                        f"{_plugin_script_cmd(
-                            'skills/bmad-research-experiment/scripts/run_experiment.py',
-                            '--record', 'docs/experiments/E-XXX.md',
-                            '--run', '<cmd>')}, "
+                        f"{measurement_command}, "
                         f"and product code stays closed until VERIFIED")
                     continue
             if not _is_instrument_path(rel):
@@ -1500,12 +1075,12 @@ def guard(json_in: dict) -> dict:
                         f"{rel}: {smsg} — this write is NOT backed by a measurement; "
                         f"a QR must ratify the declaration before the story closes.")
                     continue
+            run_command = _plugin_script_cmd(
+                'skills/bmad-research-experiment/scripts/run_experiment.py',
+                '--record', 'docs/experiments/E-XXX.md', '--run', '<cmd>')
             msg = (f"No approved experiment record for {rel}: {detail}. "
                    f"Create a hypothesis, measure, and get approval with "
-                   f"{_plugin_script_cmd(
-                       'skills/bmad-research-experiment/scripts/run_experiment.py',
-                       '--record', 'docs/experiments/E-XXX.md',
-                       '--run', '<cmd>')}")
+                   f"{run_command}")
             msg += _out_of_root_note(rel, target)
             if _is_instrument_path(rel):
                 msg += (f" Note: '{rel}' is a measurement bench — benches "
@@ -1522,22 +1097,24 @@ def guard(json_in: dict) -> dict:
             # the operation's plan can absorb the file WITHOUT re-measurement
             # (mechanically chained, HMAC-signed). Replaces the retry loop the
             # old static deny text fed (_prior_attempts history).
+            amend_command = _plugin_script_cmd(
+                'skills/bmad-research-experiment/scripts/run_experiment.py',
+                '--amend-plan', 'docs/experiments/E-XXX.md',
+                '--files', rel, '--reason', '"<why>"')
             msg += (f" Plan path (E-065): if '{rel}' belongs to this operation's "
                     f"declared plan, add it without re-measuring: "
-                    f"{_plugin_script_cmd(
-                        'skills/bmad-research-experiment/scripts/run_experiment.py',
-                        '--amend-plan', 'docs/experiments/E-XXX.md',
-                        '--files', rel, '--reason', '\"<why>\"')}. "
+                    f"{amend_command}. "
                     f"A decided record refuses amendment — open a new E record instead.")
             try:
                 tries = _prior_attempts(root, rel)
                 if tries >= 3:
+                    next_command = _plugin_script_cmd(
+                        'skills/bmad-research-experiment/scripts/run_experiment.py',
+                        '--record', '<rec>', '--run', '<cmd>')
                     msg += (f" This is attempt #{tries + 1} on the same target — retrying "
                             f"the write cannot succeed. Next: create docs/experiments/E-XXX.md "
                             f"from docs/experiments/_template.md with this target in Code Scope, "
-                            f"then run {_plugin_script_cmd(
-                                'skills/bmad-research-experiment/scripts/run_experiment.py',
-                                '--record', '<rec>', '--run', '<cmd>')}. ")
+                            f"then run {next_command}. ")
             except Exception:
                 pass
 
@@ -1638,504 +1215,112 @@ def _is_git_commit(command: str) -> bool:
 # not firing (fikir deep-check 2026-10-01: "sprint vs sprint-status" confusion
 # was, underneath, a done story the gate could not see). Templates (`_*.md`)
 # and the sprint-status board (`.yaml`) are not stories and are skipped.
-_STORY_READ_ROOTS = (
-    ("docs/development/stories", "S-*.md"),
-    ("docs/development/native", "*.md"),
-)
+from .story_quality import (  # noqa: F401 — stable guard compatibility surface
+    _STORY_READ_ROOTS, _STORY_KEY_FIELD_RE, _SP_REF_RE, _IR_REF_RE, _E_REF_RE,
+    _SUBJECT_LABEL_RE, _DECLARED_KEY_RE, _DECLARED_PATH_RE, _QR_SECTION_RE,
+    _QR_PATH_RE, _QR_STATUS_RE)
 
-# Native story drafts name their key explicitly (`- **Story key:** 1-1-slug`);
-# the title line is prose (`# Story 1.1: …`) and key extraction from it yields
-# junk, so the explicit field wins when present.
-_STORY_KEY_FIELD_RE = re.compile(
-    r"\*\*Story key:\*\*\s*([A-Za-z0-9][A-Za-z0-9._-]*)", re.IGNORECASE)
+def _iter_story_files(*args, **kwargs):
+    """Compatibility delegate to the story-quality service."""
+    from . import story_quality as service
+    return service._iter_story_files(*args, **kwargs)
 
-def _iter_story_files(root: str):
-    """Story files across the methodology + Seçenek A native roots (sorted)."""
-    for rel, pattern in _STORY_READ_ROOTS:
-        base = pathlib.Path(root) / rel
-        if not base.is_dir():
-            continue
-        for f in sorted(base.glob(pattern)):
-            if f.name.startswith("_") or not f.is_file():
-                continue
-            yield f
+def _first_heading(*args, **kwargs):
+    """Compatibility delegate to the story-quality service."""
+    from . import story_quality as service
+    return service._first_heading(*args, **kwargs)
 
-# A story names the sprint it belongs to (`- **Sprint:** SP-001`); an SP record
-# names its IR, an IR its experiment. The id may carry further numeric segments
-# (a date-named record, `SP-2026-01-15` / `IR-2026-09-28`).
-_SP_REF_RE = re.compile(r"\bSP-(\d+(?:-\d+)*)\b", re.IGNORECASE)
-_IR_REF_RE = re.compile(r"\bIR-(\d+(?:-\d+)*)\b", re.IGNORECASE)
-_E_REF_RE = re.compile(r"\bE-(\d+(?:-\d+)*)\b", re.IGNORECASE)
+def _record_id_token(*args, **kwargs):
+    """Compatibility delegate to the story-quality service."""
+    from . import story_quality as service
+    return service._record_id_token(*args, **kwargs)
 
-def _first_heading(text: str) -> str:
-    """A record's identity line (`# Sprint: SP-001 — …`) or "" when it has none."""
-    for line in text.splitlines():
-        if line.lstrip().startswith("#"):
-            return line
-    return ""
+def _names_in(*args, **kwargs):
+    """Compatibility delegate to the story-quality service."""
+    from . import story_quality as service
+    return service._names_in(*args, **kwargs)
 
-def _record_id_token(match: "re.Match[str]") -> "re.Pattern[str]":
-    """Regex matching the SAME record id a document references, zero-pad tolerant.
+def _declared_story_names(*args, **kwargs):
+    """Compatibility delegate to the story-quality service."""
+    from . import story_quality as service
+    return service._declared_story_names(*args, **kwargs)
 
-    Segment-wise on purpose. `SP-9` must still find `SP-009.md` (the record
-    convention zero-pads, story rows often don't), but `SP-2026-01-15` must NOT
-    find `SP-2026-11-02` — a leading-number-only match let ANY sprint of the
-    same year satisfy a story's reference, so the SP gate could pass with the
-    wrong record and no January record at all (found by the 2026-10-01 scratch
-    run of bmad-sprint-planning, whose SKILL named the record `SP-{date}`).
-    """
-    kind = match.group(0).split("-", 1)[0]
-    segs = [s.lstrip("0") or "0" for s in match.group(1).split("-")]
-    body = "-".join(rf"0*{re.escape(s)}" for s in segs)
-    return re.compile(rf"\b{re.escape(kind)}-{body}\b", re.IGNORECASE)
+def _declaration_covers(*args, **kwargs):
+    """Compatibility delegate to the story-quality service."""
+    from . import story_quality as service
+    return service._declaration_covers(*args, **kwargs)
 
-# A record DECLARES its subject in a labelled field or table row, never in prose:
-# `scripts/sync-story-qr.py` calls the `| Story |` row "the fact" it trusts, and
-# `scripts/create-qr-record.py` writes exactly that row; the QR/PR templates write
-# `- **Story:**` / `- **Stories:**`. A declaration's indented continuation lines
-# belong to it — the SP template lists its story keys as sub-bullets under
-# `- **Stories:**`.
-_SUBJECT_LABEL_RE = re.compile(
-    r"^(?P<indent>[ \t]*)(?:[-*][ \t]+)?\|?[ \t]*\*{0,2}"
-    r"(?P<label>stor(?:y|ies)|story key|story keys|native story|target)"
-    r"\*{0,2}[ \t]*[:|]",
-    re.IGNORECASE)
+def _record_covers_story(*args, **kwargs):
+    """Compatibility delegate to the story-quality service."""
+    from . import story_quality as service
+    return service._record_covers_story(*args, **kwargs)
 
-# Story identifiers a declaration may use: the methodology key (`S-001`,
-# `S-001-slug`) or the native key (`1-1-slug`). `.md` paths are reduced to stems.
-_DECLARED_KEY_RE = re.compile(
-    r"\b(?:S-\d+(?:-[a-z0-9-]+)?|\d+-\d+-[a-z][a-z0-9-]*)\b", re.IGNORECASE)
-_DECLARED_PATH_RE = re.compile(r"[\w./\\-]*[A-Za-z0-9_-]+\.md")
+def _story_key_of(*args, **kwargs):
+    """Compatibility delegate to the story-quality service."""
+    from . import story_quality as service
+    return service._story_key_of(*args, **kwargs)
 
-def _names_in(text: str) -> set[str]:
-    """Story keys / path stems appearing in a bare text (heading, id line)."""
-    names = {k.lower() for k in _DECLARED_KEY_RE.findall(text)}
-    names |= {pathlib.PurePosixPath(p.replace("\\", "/")).stem.lower()
-              for p in _DECLARED_PATH_RE.findall(text)}
-    return names
+def _story_paths_for_keys(*args, **kwargs):
+    """Compatibility delegate to the story-quality service."""
+    from . import story_quality as service
+    return service._story_paths_for_keys(*args, **kwargs)
 
-def _declared_story_names(text: str) -> set[str]:
-    """Story keys/paths a record DECLARES as its subject (never a prose mention)."""
-    names: set[str] = set()
-    lines = text.splitlines()
-    for i, line in enumerate(lines):
-        m = _SUBJECT_LABEL_RE.match(line)
-        if not m:
-            continue
-        names |= _names_in(line[m.end():])
-        indent = len(m.group("indent"))
-        for nxt in lines[i + 1:]:
-            if not nxt.strip() or len(nxt) - len(nxt.lstrip()) <= indent:
-                break
-            names |= _names_in(nxt)
-    return names
+def _methodology_mirror_map(*args, **kwargs):
+    """Compatibility delegate to the story-quality service."""
+    from . import story_quality as service
+    return service._methodology_mirror_map(*args, **kwargs)
 
-def _declaration_covers(names: set[str], story_key: str, story_stem: str) -> bool:
-    """True when a declaration names this story (its key or its file stem)."""
-    if story_key.lower() in names or story_stem.lower() in names:
-        return True
-    # A bare `S-060` declaration covers `S-060-scope-guard-hermeticity.md`.
-    return any(story_stem.lower().startswith(f"{n}-") for n in names)
+def _find_done_stories_without_record(*args, **kwargs):
+    """Compatibility delegate to the story-quality service."""
+    from . import story_quality as service
+    return service._find_done_stories_without_record(*args, **kwargs)
 
-def _record_covers_story(text: str, path: pathlib.Path, story_key: str,
-                         story_stem: str) -> bool:
-    """A record covers a story when it DECLARES it or its identity names it.
+def _find_done_stories_without_qr(*args, **kwargs):
+    """Compatibility delegate to the story-quality service."""
+    from . import story_quality as service
+    return service._find_done_stories_without_qr(*args, **kwargs)
 
-    Never when the story key merely appears somewhere in the body: the shipped
-    QR-015 named 1-1-bench-in-ci only inside a regression note about a moved
-    test path, and that mention alone counted as the story's quality record
-    (2026-10-01 audit of the same looseness fixed for SP ids).
-    """
-    names = _declared_story_names(text) | _names_in(_first_heading(text)) \
-        | _names_in(path.name)
-    return _declaration_covers(names, story_key, story_stem)
+def _find_done_stories_without_pr(*args, **kwargs):
+    """Compatibility delegate to the story-quality service."""
+    from . import story_quality as service
+    return service._find_done_stories_without_pr(*args, **kwargs)
 
-def _story_key_of(content: str, path: pathlib.Path) -> str:
-    """The story key for a story file: explicit field, then title, then slug,
-    then filename stem. Every caller needs the same precedence."""
-    m = _STORY_KEY_FIELD_RE.search(content)
-    if m:
-        return m.group(1).strip()
-    key = extract_story_key_from_content(content)
-    if key:
-        return key
-    m = re.search(r"(\d+-\d+-[a-z][a-z0-9-]+)", content, re.IGNORECASE)
-    if m:
-        return m.group(1)
-    return path.stem
+def _find_done_stories_without_sp(*args, **kwargs):
+    """Compatibility delegate to the story-quality service."""
+    from . import story_quality as service
+    return service._find_done_stories_without_sp(*args, **kwargs)
 
-def _story_paths_for_keys(root: str, keys: "list[str]") -> dict[str, str]:
-    """Map each missing story key to its project-relative file path.
+def _find_done_stories_without_ir(*args, **kwargs):
+    """Compatibility delegate to the story-quality service."""
+    from . import story_quality as service
+    return service._find_done_stories_without_ir(*args, **kwargs)
 
-    A remedy the gate prints must name the file the operator actually has, not
-    a literal ``S-XXX`` placeholder — the observed E-028 session hand-substituted
-    the path (and then the script path failed too). Reuses ``_iter_story_files``
-    and ``_story_key_of`` so the mapping is the SAME precedence the gate itself
-    matched the story by; a key that resolves to nothing is left out (the caller
-    falls back to the key).
-    """
-    wanted = set(keys)
-    found: dict[str, str] = {}
-    if not wanted:
-        return found
-    base = pathlib.Path(root)
-    for story_file in _iter_story_files(root):
-        try:
-            content = story_file.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            continue
-        key = _story_key_of(content, story_file)
-        if key in wanted and key not in found:
-            try:
-                found[key] = story_file.relative_to(base).as_posix()
-            except ValueError:
-                found[key] = story_file.as_posix()
-    return found
+def _board_key_identity(*args, **kwargs):
+    """Compatibility delegate to the story-quality service."""
+    from . import story_quality as service
+    return service._board_key_identity(*args, **kwargs)
 
-def _methodology_mirror_map(root: str) -> dict[str, str]:
-    """Native story name -> the methodology record key that mirrors it.
+def board_story_keys_without_records(*args, **kwargs):
+    """Compatibility delegate to the story-quality service."""
+    from . import story_quality as service
+    return service.board_story_keys_without_records(*args, **kwargs)
 
-    A generated record names its native story in its own ``| Native Story |``
-    row (read by ``_declared_story_names``), so the link is readable without
-    guessing. Keys are both the declared key and its path stem, lowercased.
-    E-032: the commit gate read this link only native -> record; a QR covering
-    the record left the mirrored native story looking unrecorded.
-    """
-    out: dict[str, str] = {}
-    stories_dir = pathlib.Path(root) / "docs" / "development" / "stories"
-    if not stories_dir.is_dir():
-        return out
-    for rec in sorted(stories_dir.glob("S-*.md")):
-        if rec.name.startswith("_"):
-            continue
-        try:
-            text = rec.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            continue
-        if not _is_methodology_record(text):
-            continue
-        # The record's own FILE STEM is the key a record of this kind is
-        # matched by (`_declaration_covers` compares against `story_stem`), so
-        # a QR declaring `| Story | S-002 |` names S-002.md. `_story_key_of`
-        # deliberately returns the NATIVE slug for a generated record, which
-        # is not what such a declaration carries.
-        rec_key = rec.stem
-        for name in _declared_story_names(text):
-            out.setdefault(name.lower(), rec_key)
-            out.setdefault(
-                pathlib.PurePosixPath(name.replace("\\", "/")).stem.lower(),
-                rec_key)
-    return out
+def _check_all_stories_quality(*args, **kwargs):
+    """Compatibility delegate to the story-quality service."""
+    from . import story_quality as service
+    return service._check_all_stories_quality(*args, **kwargs)
 
-def _find_done_stories_without_record(root: str, record_glob: str, record_dir: str,
-                                      require_sp_ref: bool = False) -> list[str]:
-    """Find stories with Status: done that lack a record of the given type.
+def _qr_table_has_pending(*args, **kwargs):
+    """Compatibility delegate to the story-quality service."""
+    from . import story_quality as service
+    return service._qr_table_has_pending(*args, **kwargs)
 
-    Args:
-        record_glob: glob for record files (e.g. 'QR-*.md', 'SP-*.md').
-        record_dir: directory to scan (project-relative, e.g. 'docs/quality').
-        require_sp_ref: only check stories that reference an SP record.
+def _check_qr_table_coherence(*args, **kwargs):
+    """Compatibility delegate to the story-quality service."""
+    from . import story_quality as service
+    return service._check_qr_table_coherence(*args, **kwargs)
 
-    Returns list of story keys (e.g. '1-2-user-auth' or 'S-001') missing the record.
-    """
-    rec_dir = pathlib.Path(root) / record_dir
-
-    # Collect all record content to search for story references.
-    # rec_id_texts holds what counts as a record's OWN identity — its filename
-    # plus its heading line, never its body — for the SP numeric-id match;
-    # rec_content is the plain concatenation the story-key search reads.
-    rec_id_texts: list[str] = []
-    rec_names: set[str] = set()
-    if rec_dir.is_dir():
-        for rec_file in rec_dir.glob(record_glob):
-            try:
-                text = rec_file.read_text(encoding="utf-8", errors="replace")
-            except OSError:
-                continue
-            rec_id_texts.append(rec_file.name)
-            rec_id_texts.append(_first_heading(text))
-            rec_names |= _declared_story_names(text)
-
-    missing: list[str] = []
-    mirror: dict[str, str] | None = None
-    for story_file in _iter_story_files(root):
-        try:
-            content = story_file.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            continue
-        if story_status(content) != "done":
-            continue
-        sp_ref = None
-        if require_sp_ref:
-            # Only check stories that reference an SP record
-            sp_ref = _SP_REF_RE.search(content)
-            if not sp_ref:
-                continue
-        story_key = _story_key_of(content, story_file)
-        # Identity, not prose: some record of this kind must DECLARE the story
-        # (a `Story`/`Stories` field or table row, or the SP template's Stories
-        # list). A body mention used to be enough — see _record_covers_story.
-        if _declaration_covers(rec_names, story_key, story_file.stem):
-            continue
-        # A generated methodology record is the SAME work unit as the story it
-        # mirrors: its `| Native Story |` field names that story, and
-        # scripts/sync-story-qr.py resolves its QR through exactly that hop
-        # ("a methodology record owns its QR through the native story it
-        # names"). Read the same link here, or a QR that declares the native
-        # story (QR-014 -> S-056) leaves the generated record (S-057) looking
-        # unrecorded while the reconciler already calls it owned.
-        if any(_declaration_covers(rec_names, n, n)
-               for n in _declared_story_names(content)):
-            continue
-        # …and the SAME hop read BACKWARDS (E-032): a QR that covers the
-        # generated methodology record also covers the native story that record
-        # mirrors — they are ONE work unit. Without this, a QR declaring
-        # `| Story | S-002 |` left the done native story `1-2-…` looking
-        # unrecorded, and the observed session's `git commit` was denied on it
-        # although the reconciler already called the pair owned.
-        if mirror is None:
-            mirror = _methodology_mirror_map(root)
-        mirror_key = (mirror.get(story_key.lower())
-                      or mirror.get(story_file.stem.lower()))
-        if mirror_key and _declaration_covers(
-                rec_names, mirror_key,
-                pathlib.PurePosixPath(mirror_key).stem):
-            continue
-        # SP records may be referenced by ID even when the story key isn't in
-        # content. ID equality is NUMERIC and SEGMENT-WISE (SP-9 == SP-009 —
-        # the record-name convention zero-pads while the story row often
-        # doesn't; a string match false-denied every padded record, fikir
-        # deep-check 2026-10-01) and the id must appear in some record's own
-        # IDENTITY — its filename or heading — never merely in a body: a bare
-        # substring check let SP-12 match SP-123's name (different sprint!), a
-        # leading-number-only check let SP-2026-01-15 match SP-2026-11-02 (same
-        # year), and a body-wide check let record N's "SP-002 opens next …"
-        # mention satisfy sprint 2's stories before their record existed
-        # (2026-10-01 second-sprint run; the shipped records really do carry
-        # forward references like "carried to SP-004").
-        if sp_ref is not None:
-            sp_token = _record_id_token(sp_ref)
-            if any(sp_token.search(entry) for entry in rec_id_texts):
-                continue
-        missing.append(story_key)
-    return missing
-
-def _find_done_stories_without_qr(root: str) -> list[str]:
-    """Find stories with Status: done that lack a QR record."""
-    return _find_done_stories_without_record(root, "QR-*.md", "docs/quality")
-
-def _find_done_stories_without_pr(root: str) -> list[str]:
-    """Find stories with Status: done that lack a PR record.
-
-    Restored: the deploy gate (Gate 4) calls this when include_pr is set;
-    commit 48ed1f2 dropped the definition while the call site survived,
-    raising NameError at deploy time.
-    """
-    return _find_done_stories_without_record(root, "PR-*.md", "docs/development")
-
-def _find_done_stories_without_sp(root: str) -> list[str]:
-    """Find stories with Status: done that reference an SP but lack SP record."""
-    return _find_done_stories_without_record(root, "SP-*.md", "docs/development",
-                                             require_sp_ref=True)
-
-def _find_done_stories_without_ir(root: str) -> list[str]:
-    """Find done stories when no IR record exists (Kapi 1 gate bypassed).
-
-    IR is a project-level readiness record — if ANY done stories exist but
-    NO IR records exist in docs/development/, the readiness gate was skipped.
-    Returns list of story keys if IR is missing, empty list if IR exists.
-    """
-    dev_dir = pathlib.Path(root) / "docs" / "development"
-
-    # Check if ANY IR record exists
-    has_ir = False
-    if dev_dir.is_dir():
-        for ir_file in dev_dir.glob("IR-*.md"):
-            if ir_file.name.startswith("_"):
-                continue
-            has_ir = True
-            break
-    if has_ir:
-        return []  # IR gate was evaluated — OK
-
-    # No IR records exist — check if there are done stories
-    missing: list[str] = []
-    for story_file in _iter_story_files(root):
-        try:
-            content = story_file.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            continue
-        if story_status(content) != "done":
-            continue
-        missing.append(_story_key_of(content, story_file))
-    return missing
-
-def _board_key_identity(content: str, path: pathlib.Path) -> str:
-    """A story file's own identity for board-key resolution.
-
-    Deliberately NOT ``_story_key_of``'s last fallback (an ``N-N-slug`` anywhere
-    in the body): a METHODOLOGY record names its subject by label, so a slug in
-    its prose is a mention, not an identity. Measured while closing E-046 — a
-    record whose regression note named a since-renamed story resolved that
-    board key by itself, and the phantom read as covered. The story gate keeps
-    the wider precedence because it validates story files, where a draft may
-    carry its key only in the body.
-    """
-    m = _STORY_KEY_FIELD_RE.search(content)
-    if m:
-        return m.group(1).strip()
-    return extract_story_key_from_content(content) or path.stem
-
-def board_story_keys_without_records(root: str) -> list[str]:
-    """Sprint-board story keys that resolve to no story record.
-
-    Every chain rule in this module starts from a story FILE
-    (``_iter_story_files``) and looks outward, so a key the board carries with
-    no story behind it is invisible to all of them. Measured 2026-10-15 on a
-    board carrying ``9-9-ghost-story-that-does-not-exist``: the gates returned
-    nothing, ``check-methodology.sh`` never printed the key, and the only trace
-    was an in-progress count one too high — a nudge to go verify records for a
-    story that does not exist. CHECK 6's opening comment had promised this hunt
-    ("stories in sprint-status that lack methodology records") since the
-    counting was written; nothing implemented it.
-
-    A key resolves when a story file is NAMED by it (``_board_key_identity``: the
-    explicit field, the title, else the filename) or when a record DECLARES it —
-    the vocabulary the write-time gates use, where a prose mention deliberately
-    does not count (``_record_covers_story``).
-    """
-    from .config import MAX_STORY_COUNT  # noqa: PLC0415 — same bound as the gate
-
-    summary = state_mod.sprint_summary(root)
-    if not summary.get("found"):
-        return []  # no board: there are no keys to resolve
-    keys: list[str] = sorted(summary.get("stories", {}))
-    if not keys:
-        return []
-    wanted = {k.lower() for k in keys}
-    resolved: set[str] = set()
-    seen = 0
-    for story_file in _iter_story_files(root):
-        seen += 1
-        if seen > MAX_STORY_COUNT:  # Bounds check (MEDIUM #11)
-            break
-        try:
-            content = _chain_text(story_file)
-        except OSError:
-            continue
-        identity = _board_key_identity(content, story_file).lower()
-        if identity in wanted:
-            resolved.add(identity)
-        if story_file.stem.lower() in wanted:
-            resolved.add(story_file.stem.lower())
-        for candidate in keys:
-            if candidate.lower() in resolved:
-                continue
-            if _record_covers_story(content, story_file, candidate, candidate):
-                resolved.add(candidate.lower())
-    return [k for k in keys if k.lower() not in resolved]
-
-def _check_all_stories_quality(root: str, blocked_action: str) -> dict:
-    """Validate all stories in docs/development/stories for metadata, orphan links, and chain."""
-    stories_dir = pathlib.Path(root) / "docs" / "development" / "stories"
-    if not stories_dir.is_dir():
-        return {"decision": "allow"}
-    for s_file in sorted(stories_dir.glob("S-*.md")):
-        if s_file.name.startswith("_"):
-            continue
-        try:
-            content = s_file.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            continue
-        valid, reason = _validate_story_metadata(content)
-        if not valid:
-            return {
-                "decision": "deny",
-                "reason": f"{blocked_action}: Story metadata validation failed for {s_file.name}: {reason}",
-            }
-        orphan = _orphan_story_reason(content)
-        if orphan:
-            return {
-                "decision": "deny",
-                "reason": f"{blocked_action}: Story experiment validation failed for {s_file.name}: {orphan}",
-            }
-        dangling = _dangling_structural_reason(content, root)
-        if dangling:
-            return {
-                "decision": "deny",
-                "reason": f"{blocked_action}: Structural reference failed for {s_file.name}: {dangling}",
-            }
-        rel = rel_to_root(root, str(s_file))
-        valid, reason = _validate_methodology_chain(content, rel, root)
-        if not valid:
-            return {
-                "decision": "deny",
-                "reason": f"{blocked_action}: Methodology chain validation failed for {s_file.name}: {reason}",
-            }
-    return {"decision": "allow"}
-
-_QR_SECTION_RE = re.compile(
-    r"##\s+Quality\s+Record\s*\(QR\).*?(?=\n##\s|\Z)",
-    re.DOTALL | re.IGNORECASE)
-_QR_PATH_RE = re.compile(r"QR Record Path\*\*:\s*(docs/quality/QR-\d+\.md)")
-_QR_STATUS_RE = re.compile(r"^\s*-\s*\*\*Status:\*\*\s*(.+?)\s*$", re.MULTILINE)
-
-def _qr_table_has_pending(section: str) -> bool:
-    """True if any DoD row in a QR table lacks a pass/fail mark."""
-    for line in section.splitlines():
-        cells = [c.strip() for c in line.strip().strip("|").split("|")]
-        if len(cells) < 2 or not re.match(r"DoD-\d+", cells[0]):
-            continue
-        if "✅" not in cells[1] and "❌" not in cells[1]:
-            return True
-    return False
-
-def _check_qr_table_coherence(root: str, blocked_action: str) -> dict:
-    """Deny commit when a done story's embedded QR table still reads pending
-    while its QR record is APPROVED (SP-020 structural gap: approval never
-    propagated back, and nothing alarmed because no reader checked the
-    embedded copy).
-
-    Conservative by design: files without a QR section, without a QR
-    pointer, with an unreadable QR file, or whose QR is not APPROVED are
-    skipped, never denied — other checks own those cases."""
-    stories_dir = pathlib.Path(root) / "docs" / "development" / "stories"
-    if not stories_dir.is_dir():
-        return {"decision": "allow"}
-    for s_file in sorted(stories_dir.glob("S-*.md")):
-        if s_file.name.startswith("_"):
-            continue
-        try:
-            content = s_file.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            continue
-        if story_status(content) != "done":
-            continue
-        m = _QR_SECTION_RE.search(content)
-        if not m or not _qr_table_has_pending(m.group(0)):
-            continue
-        pm = _QR_PATH_RE.search(content)
-        if not pm:
-            continue
-        try:
-            qr_text = (pathlib.Path(root) / pm.group(1)).read_text(
-                encoding="utf-8", errors="replace")
-        except OSError:
-            continue
-        qm = _QR_STATUS_RE.search(qr_text)
-        if not qm or qm.group(1).strip() != "APPROVED":
-            continue
-        return {
-            "decision": "deny",
-            "reason": (
-                f"{blocked_action}: {s_file.name} is done and its QR record "
-                f"is APPROVED, but its embedded QR table still reads "
-                f"pending. Run: {_plugin_script_cmd('scripts/sync-story-qr.py', '--apply')}"
-            ),
-        }
-    return {"decision": "allow"}
-
-def _check_scope_coverage(root: str) -> list[str]:
+def _check_scope_coverage(root: str) -> tuple[list[str], bool]:
     """Edited files (work-tree + untracked) sitting outside every approved scope.
 
     Mirror of check-plugin §3b at commit time (warn-only here — the write-time
@@ -2149,17 +1334,18 @@ def _check_scope_coverage(root: str) -> list[str]:
     plugin_root = pathlib.Path(__file__).resolve().parents[3]
     gate_scripts = plugin_root / "skills" / "bmad-research-experiment" / "scripts"
     if not (gate_scripts / "run_experiment.py").is_file():
-        return []  # engine without its gate companion — fail-open
+        return [], False  # engine without its gate companion — fail-open
     sys.path.insert(0, str(gate_scripts))
     try:
         import run_experiment as gate_mod  # type: ignore
     except Exception:
-        return []  # fail-open: the mirror must never block commits on its own
-    # Drop the insert so repeated calls don't pile the same path onto sys.path.
-    try:
-        sys.path.remove(str(gate_scripts))
-    except (ValueError, NameError):
-        pass
+        return [], False  # fail-open: this mirror must never block commits alone
+    finally:
+        # Remove on success and failure; repeated calls must not pile paths up.
+        try:
+            sys.path.remove(str(gate_scripts))
+        except ValueError:
+            pass
     edited: list[str] = []
     ran = True
     # F1/T-09: envelope over the 10s PreToolUse budget — each git call gets
@@ -2188,9 +1374,9 @@ def _check_scope_coverage(root: str) -> list[str]:
                     # empty output as evidence of a clean tree.
                     return [], False
                 break
-            except OSError:
+            except (OSError, subprocess.TimeoutExpired):
                 if attempt == 2:
-                    return [], False  # git unavailable — fail-open, not ran
+                    return [], False  # git unavailable/timed out — fail-open, not ran
         edited += [l.strip() for l in out.stdout.splitlines() if l.strip()]
 
     scopes = []
@@ -2236,106 +1422,9 @@ def _check_scope_coverage(root: str) -> list[str]:
     return misses, ran
 
 def quality(json_in: dict) -> dict:
-    """Quality gate: block git commit if done stories lack IR, QR, or SP records,
-    or if stories fail metadata/chain validation, or if a done story's
-    embedded QR table contradicts its APPROVED QR record (coherence)."""
-    norm = normalize_hook_input(json_in)
-    tool_name = norm["tool_name"]
-    if tool_name != "terminal":
-        return {"decision": "allow"}
-
-    command = norm["tool_input"].get("command", "")
-    if not _is_git_commit(command):
-        return {"decision": "allow"}
-
-    root = repo_root(json_in)
-    root = os.path.abspath(root)
-
-    # 0. Freshness row (E-053): the commit is the last place the question "does
-    #    this approval still apply to this code?" can be asked before the work
-    #    leaves the tree. Report-only at the shipped modes — see
-    #    _freshness_chain_row.
-    res_fresh = _freshness_chain_row(root, "git commit blocked")
-    if res_fresh.get("decision") == "deny":
-        return _apply_gate_strictness(res_fresh, "quality_gate")
-    fresh_warnings = list(res_fresh.get("methodology_warnings") or [])
-
-    # 1. Gate record checks (IR → QR → SP)
-    res_gate = _check_gate_records(root, "git commit blocked")
-    if res_gate.get("decision") == "deny":
-        return _apply_gate_strictness(res_gate, "quality_gate")
-
-    # 2. Story metadata and methodology chain validation
-    res_stories = _check_all_stories_quality(root, "git commit blocked")
-    if res_stories.get("decision") == "deny":
-        return _apply_gate_strictness(res_stories, "quality_gate")
-
-    # 3. Embedded QR-table coherence (SP-020 structural fix: approval must
-    #    propagate back into done stories' own tables)
-    res_coherence = _check_qr_table_coherence(root, "git commit blocked")
-    if res_coherence.get("decision") == "deny":
-        return _apply_gate_strictness(res_coherence, "quality_gate")
-
-    # 4. Scope-coverage mirror (check-plugin §3b, warn-only at commit time):
-    #    edited files outside every approved Code Scope surface here so the
-    #    gap is visible when the commit happens, not in a later audit. The
-    #    warning is also posted to the board's "scope" channel (replace
-    #    semantics: consume-then-post — MAX_ALERTS=32 is a shared pool and
-    #    one alert per uncovered state must not evict waiting hand-offs).
-    #    A commit warning scrolls away with the transcript; the board is
-    #    project-persistent, so the next session's startup peek still sees
-    #    the debt. A verified-clean commit CONSUMES the channel: remediation
-    #    (the last uncovered edit fixed or scoped) is the only path that
-    #    clears the debt. A git-outage run (empty result with ran=False)
-    #    deliberately touches nothing — an infrastructure failure must not
-    #    be able to silently forgive a real coverage gap. Fail-open twice
-    #    over: a missing/corrupt/disabled board changes nothing here, and
-    #    the hook decision is allow regardless.
-    try:
-        misses, ran = _check_scope_coverage(root)
-    except Exception:
-        misses, ran = [], False
-    if misses:
-        warn = ("SCOPE COVERAGE: " + ", ".join(misses[:3])
-                + (f" (+{len(misses) - 3} more)" if len(misses) > 3 else "")
-                + " — outside every approved Code Scope; open an E record with "
-                  "this file in its scope before relying on these edits")
-        try:
-            from .config import blackboard_enabled
-            if blackboard_enabled():
-                from . import blackboard as bb
-                bb.consume_alerts(root, "scope")
-                bb.post_alert(root, "scope", "warn", warn, sender="quality-gate")
-        except Exception:
-            pass  # board unavailable — the transcript warning already fired
-        return {"decision": "allow", "methodology_warnings": [warn] + fresh_warnings}
-    if ran:
-        # Verified clean (git answered, records evaluated) — clear the debt.
-        try:
-            from .config import blackboard_enabled
-            if blackboard_enabled():
-                from . import blackboard as bb
-                bb.consume_alerts(root, "scope")
-        except Exception:
-            pass  # board unavailable — nothing to clear, nothing to block
-
-    if fresh_warnings:
-        return {"decision": "allow", "methodology_warnings": fresh_warnings}
-    return {"decision": "allow"}
-
-# --- Deploy Gate (PreToolUse, terminal) ---
-
-_DEPLOY_CMD_RE = re.compile(
-    r"(?i)(?:"
-    r"\bterraform\s+(?:apply|destroy|plan)\b|"
-    r"\bkubectl\s+(?:apply|rollout|deploy)\b|"
-    r"\bdocker\s+(?:compose\s+)?(?:up|deploy)\b|"
-    r"\bansible\s+(?:playbook|deploy)\b|"
-    r"\bgit\s+push\s+(?:origin|upstream)\s+(?:main|master|production|prod)\b|"
-    r"\b部署\b|"
-    r"\bdeploy\b"
-    r")"
-)
+    """Run commit quality checks (kept as the stable guard-module entrypoint)."""
+    from .quality_gate import quality as run_quality_gate
+    return run_quality_gate(json_in, guard_module=sys.modules[__name__])
 
 def _apply_gate_strictness(result: dict, gate_key: str) -> dict:
     """Soft mode → a gate deny becomes warn-only allow.
@@ -2351,65 +1440,12 @@ def _apply_gate_strictness(result: dict, gate_key: str) -> dict:
     return result
 
 def _check_gate_records(root: str, blocked_action: str, include_pr: bool = False) -> dict:
-    """Run the record-chain gate checks (IR → QR → SP → [PR]).
-
-    Shared by quality() and deploy(). Returns a deny dict with reason, or
-    {"decision": "allow"} when all required records exist.
-    """
-    # Check IR (Gate 1 — project-level readiness)
-    missing_ir = _find_done_stories_without_ir(root)
-    if missing_ir:
-        return {
-            "decision": "deny",
-            "reason": (
-                f"{blocked_action}: {len(missing_ir)} done story(s) exist but no Implementation Readiness (IR) record. "
-                f"Stories: {', '.join(missing_ir)}. "
-                f"Run bmad-check-implementation-readiness to create IR record."
-            ),
-        }
-
-    # Check QR (Gate 3)
-    missing_qr = _find_done_stories_without_qr(root)
-    if missing_qr:
-        return {
-            "decision": "deny",
-            "reason": (
-                f"{blocked_action}: {len(missing_qr)} story(s) marked 'done' lack Quality Record (QR). "
-                f"Stories: {', '.join(missing_qr)}. "
-                f"A QR covers a story only when it DECLARES it (a `| Story | … |` row "
-                f"or a `- **Story:** …` field; a mention in the body is not a record). "
-                f"Create QR with: {_qr_remedy(root, missing_qr)}"
-            ),
-        }
-
-    # Check SP (Gate 2)
-    missing_sp = _find_done_stories_without_sp(root)
-    if missing_sp:
-        return {
-            "decision": "deny",
-            "reason": (
-                f"{blocked_action}: {len(missing_sp)} story(s) reference SP but lack Sprint Planning record. "
-                f"Stories: {', '.join(missing_sp)}. "
-                f"Run bmad-sprint-planning to create SP record."
-            ),
-        }
-
-    # Check PR (Gate 4 — deploy only)
-    if include_pr:
-        missing_pr = _find_done_stories_without_pr(root)
-        if missing_pr:
-            return {
-                "decision": "deny",
-                "reason": (
-                    f"{blocked_action}: {len(missing_pr)} story(s) lack Production Readiness (PR) record. "
-                    f"Stories: {', '.join(missing_pr)}. "
-                    f"A PR record covers a release's stories when it DECLARES them "
-                    f"(`- **Stories:** S-001, S-002` or a `| Story | … |` row). "
-                    f"Create PR record before deploying."
-                ),
-            }
-
-    return {"decision": "allow"}
+    """Run shared IR → QR → SP → [PR] checks via the stable guard surface."""
+    from .record_chain_gate import check_gate_records
+    return check_gate_records(
+        root, blocked_action, include_pr=include_pr,
+        guard_module=sys.modules[__name__],
+    )
 
 def pre(json_in: dict) -> dict:
     """Combined PreToolUse gate: guard + quality + deploy in ONE process.
@@ -2449,7 +1485,7 @@ def pre(json_in: dict) -> dict:
             except Exception:
                 hard = True
             if hard:
-                out = {"decision": "deny", "reason": warning}
+                out: dict[str, Any] = {"decision": "deny", "reason": warning}
                 if warnings:
                     out["methodology_warnings"] = warnings
                 return out
@@ -2484,39 +1520,6 @@ def pre(json_in: dict) -> dict:
     return {"decision": "allow"}
 
 def deploy(json_in: dict) -> dict:
-    """Deploy gate: block deployment if done stories lack IR, QR, SP, or PR records.
-
-    This is the Gate 1+2+3+4 enforcement — stories marked 'done' must have:
-    - An Implementation Readiness record (IR) in docs/development/ (Gate 1)
-    - A Sprint Planning record (SP) in docs/development/ (if story references SP, Gate 2)
-    - A Quality Record (QR) in docs/quality/ (Gate 3)
-    - A Production Readiness (PR) record in docs/development/ (Gate 4)
-    
-    Also verifies the methodology chain E→IR→SP→S→QR→PR is complete for production.
-    """
-    norm = normalize_hook_input(json_in)
-    tool_name = norm["tool_name"]
-    if tool_name != "terminal":
-        return {"decision": "allow"}
-
-    command = norm["tool_input"].get("command", "")
-    if not command or not _DEPLOY_CMD_RE.search(command):
-        return {"decision": "allow"}
-
-    root = repo_root(json_in)
-    root = os.path.abspath(root)
-
-    # Gate record checks (IR → QR → SP → PR), same rationale as quality():
-    # _check_gate_records carries the gate-specific messages; PR (Gate 4) is
-    # deploy-only via include_pr=True. The freshness row rides the same
-    # decision (E-053): a deploy is the most expensive place to obey a claim
-    # the code moved past, so it is asked here too — report-only at the
-    # shipped modes, a block under the deny modes.
-    res = _check_gate_records(root, "Deploy blocked", include_pr=True)
-    if res.get("decision") != "deny":
-        fresh = _freshness_chain_row(root, "Deploy blocked")
-        if fresh.get("decision") == "deny":
-            res = fresh
-        elif fresh.get("methodology_warnings"):
-            res = dict(fresh)
-    return _apply_gate_strictness(res, "deploy_guard")
+    """Run deployment checks (kept as the stable guard-module entrypoint)."""
+    from .deploy_gate import deploy as run_deploy_gate
+    return run_deploy_gate(json_in, guard_module=sys.modules[__name__])

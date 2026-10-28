@@ -135,10 +135,11 @@ def _read_config_section(section: str) -> dict:
     except OSError:
         return {}
     cached = _SECTION_CACHE.get(section)
+    parsed: dict[str, str]
     if cached is not None and cached[0] == key:
         parsed = cached[1]
     else:
-        parsed: dict[str, str] = {}
+        parsed = {}
         try:
             text = _HOOKS_CFG.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):

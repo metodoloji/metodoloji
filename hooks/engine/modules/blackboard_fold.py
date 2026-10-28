@@ -123,10 +123,11 @@ def _apply_event(board: dict, ev: dict) -> None:
                 board["links"].pop(0)
     elif kind == "unlink":
         a, b = str(ev.get("a", "")), str(ev.get("b", ""))
-        rel = ev.get("relation")
+        unlink_relation = ev.get("relation")
         board["links"] = [
             l for l in board["links"]
-            if not (l["a"] == a and l["b"] == b and (rel is None or l["relation"] == rel))]
+            if not (l["a"] == a and l["b"] == b
+                    and (unlink_relation is None or l["relation"] == unlink_relation))]
     elif kind == "canvas_create":
         name = str(ev.get("name", ""))[:_bb.MAX_CANVAS_NAME]
         if name and name not in board["canvases"]:

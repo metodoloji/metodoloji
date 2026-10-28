@@ -245,7 +245,7 @@ def _parse_ac_metadata(content: str) -> list[dict]:
 
     Returns list of dicts with keys: id, experiment, type, measured, verify, is_hypothesis.
     """
-    acs = []
+    acs: list[dict] = []
     # Find Acceptance Criteria section. Methodology records title it
     # "## Acceptance Criteria Details" while native drafts use the bare
     # "## Acceptance Criteria" — both are the same section (bridge §2.5b).
@@ -313,7 +313,7 @@ def _parse_task_ac_refs(content: str) -> list[dict]:
 
     Returns list of dicts with keys: task_text, ac_refs (list of AC IDs).
     """
-    tasks = []
+    tasks: list[dict] = []
     # Find Technical Tasks section
     tt_match = re.search(r"##\s+Technical\s+Tasks\s*\n(.*?)(?=\n##\s|\Z)", content, re.DOTALL | re.IGNORECASE)
     if not tt_match:

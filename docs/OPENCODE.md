@@ -16,9 +16,11 @@ opencode-plugin/src/index.ts      (TypeScript bridge)
 hooks/engine/…                    (the one engine all four runtimes use)
 ```
 
-Because the engine is the single source of truth, a gate that blocks in Claude
-Code blocks identically here. The bridge adds no second opinion, so the
-runtimes cannot drift apart.
+The engine is the single source of truth for gate decisions, so the decision
+rules do not need to be reimplemented in each runtime. Interception coverage is
+not identical: each adapter can only inspect the tools and payloads exposed by
+its host. See the [runtime security coverage matrix](runtime-security-coverage.md)
+for the supported write paths and known gaps.
 
 ---
 

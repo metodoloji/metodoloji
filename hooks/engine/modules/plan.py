@@ -471,7 +471,8 @@ def append_amendment(text: str, seq: int, date: str, files: list[str],
         lines.append("- **Amendments:** 1")
         lines.append(entry)
     else:
-        raw = _AMENDMENTS_RE.match(lines[counter_idx].strip()).group(1).strip()
+        counter_match = _AMENDMENTS_RE.match(lines[counter_idx].strip())
+        raw = counter_match.group(1).strip() if counter_match else ""
         if _AMEND_NONE_RE.match(raw):
             lines[counter_idx] = "- **Amendments:** 1"
         else:

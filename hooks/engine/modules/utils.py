@@ -4,6 +4,7 @@ import ast
 import os
 import pathlib
 import re
+from typing import Any
 
 from .config import (
     CODE_BASENAMES,
@@ -98,7 +99,7 @@ def _coerce_tool_input(raw) -> dict:
     if not isinstance(raw, dict):
         rendered = _coerce_json_scalar(raw)
         return {"command": rendered} if rendered else {}
-    out = {}
+    out: dict[str, Any] = {}
     for k, x in raw.items():
         if k in ("path", "file_path") and isinstance(x, (list, tuple)):
             # Preserve the malformed shape for normalize_hook_input(); joining
@@ -268,9 +269,15 @@ def _hermes_const_value(node, consts: dict) -> str | None:
         func = node.func
         if (func.attr == "join" and isinstance(func.value, ast.Attribute)
                 and func.value.attr == "path"):
-            parts = [_hermes_const_value(arg, consts) for arg in node.args]
-            if parts and all(part is not None for part in parts):
-                return "/".join(p for p in parts if p)  # type: ignore[arg-type]
+            path_parts: list[str] = []
+            for arg in node.args:
+                part = _hermes_const_value(arg, consts)
+                if part is None:
+                    return None
+                if part:
+                    path_parts.append(part)
+            if node.args:
+                return "/".join(path_parts)
     return None
 
 
@@ -626,7 +633,7 @@ def normalize_hook_input(json_in: dict) -> dict:
             tool_name = "file_editor"
             if candidate_path:
                 tool_input.setdefault("path", candidate_path)
-            if has_paths:
+            if isinstance(candidate_paths, list) and has_paths:
                 tool_input["paths"] = [str(path) for path in candidate_paths if str(path).strip()]
             if patch_paths:
                 tool_input["paths"] = patch_paths

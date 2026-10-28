@@ -67,6 +67,7 @@ DOC_FILES = (
     "KILAVUZ.md",
     "HERMES.md",
     "docs/OPENCODE.md",
+    "docs/runtime-security-coverage.md",
 )
 # The stop-semantics and canvas-feed claims live in the runbooks/guides, not
 # only in README.md; the old canvas home was pruned.
@@ -89,15 +90,26 @@ ENGINE_MODULES = (
     "hooks/engine/modules/audit.py",
     "hooks/engine/modules/bash_targets.py",
     "hooks/engine/modules/blackboard.py",
+    "hooks/engine/modules/blackboard_archive.py",
+    "hooks/engine/modules/blackboard_canvas.py",
+    "hooks/engine/modules/blackboard_chain.py",
+    "hooks/engine/modules/blackboard_diagnostics.py",
+    "hooks/engine/modules/blackboard_fold.py",
+    "hooks/engine/modules/blackboard_handoff.py",
     "hooks/engine/modules/config.py",
+    "hooks/engine/modules/deploy_gate.py",
     "hooks/engine/modules/freshness.py",
     "hooks/engine/modules/guard.py",
     "hooks/engine/modules/mirror.py",
     "hooks/engine/modules/plan.py",
+    "hooks/engine/modules/quality_gate.py",
+    "hooks/engine/modules/record_chain_gate.py",
+    "hooks/engine/modules/scope_gate.py",
     "hooks/engine/modules/state.py",
     "hooks/engine/modules/stop.py",
+    "hooks/engine/modules/story_records.py",
+    "hooks/engine/modules/story_quality.py",
     "hooks/engine/modules/utils.py",
-    "hooks/engine/main.py",
 )
 
 # `<sh|bash|python> <path>.py|.sh` inside a command line. The token must contain a

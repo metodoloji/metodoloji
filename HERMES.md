@@ -77,9 +77,10 @@ bu yüzden `commands/*.md` prosedürleri skill olarak da kaydedilir
 /metodoloji-audit               # zincir boşlukları + gate durumu
 ```
 
-Kapı reddettiğinde bu **sistemin çalıştığı** anlamına gelir: onaylı bir deney
-kapsamı olmadan kod yazılmaz. Reddin gerekçesi tool sonucunda modele döner,
-ajan kaydı düzeltip yeniden dener.
+Kapı reddettiğinde gerekçe tool sonucunda modele döner. Ürün kodu doğrulanmış
+deney kapsamı ister; ölçüm tezgâhı kararsız bir kayıt altında aşamalanabilir;
+ölçülebilir iddia taşımayan yapısal işler ise gerekçeli yapısal beyanla
+tanımlanır. Ajan reddin nedenine göre kaydı, kapsamı veya yapısal beyanı düzeltir.
 
 ## Diğer runtime'larla eşleme
 
@@ -97,6 +98,13 @@ adlarını iç sözleşmeye çevirir. `patch` adı OpenCode ile ortak olduğu i�
 dal **runtime'a sabitlenmiştir**, isim tahminine bırakılmaz.
 
 ## Hata politikası (fail-closed nerede?)
+
+Bu hook'lar Hermes'in araç çağrılarına uygulanır; Metodoloji işletim sistemi
+seviyesinde bir sandbox değildir. `computer_use` varsayılan olarak dosya
+kapısının dışında kalır; çalışma-anında çözülemeyen `execute_code` yolları da
+ayar `deny` yapılmadıkça uyarı verip devam edebilir. Diğer runtime'larla ortak
+karar mantığı ve kapsama sınırları için
+[runtime güvenlik kapsamı tablosuna](docs/runtime-security-coverage.md) bakın.
 
 - `pre` (guard + quality + deploy): motor yoksa, çökerse veya 12 saniyede
   yanıt vermezse çağrı **bloklanır**. Motorun kendi politikasıyla aynı.

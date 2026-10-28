@@ -51,7 +51,21 @@ and only verifies/publishes version tags.
 
 ### Hook Engine Modifications
 - The hook engine lives in `hooks/engine/` (`main.py` and `modules/`).
-- Must support four-runtime execution (**Claude Code**, **OpenHands**, **OpenCode** and **Hermes**); each adapter reaches the shared engine so a methodology decision cannot drift by runtime.
+- Gate orchestration is separated by decision path: `modules/guard.py` keeps
+  the stable hook surface, `modules/quality_gate.py` handles commit checks,
+  `modules/deploy_gate.py` handles deployment checks, and
+  `modules/record_chain_gate.py` owns the shared IR/QR/SP/PR chain;
+  `modules/scope_gate.py` handles approval scope, staged instruments, and
+  structural declarations; `modules/story_quality.py` owns story and record
+  chain validation, while `modules/story_records.py` holds the shared parsers.
+- Blackboard canvases, handoffs, chain health, diagnostics, and event-log
+  rotation live in `modules/blackboard_canvas.py`,
+  `modules/blackboard_handoff.py`, `modules/blackboard_chain.py`,
+  `modules/blackboard_diagnostics.py`, and `modules/blackboard_archive.py`;
+  `blackboard.py` remains the stable API and event/state core. Keep host
+  payload normalization and shared verification helpers behind these surfaces;
+  do not duplicate gate decisions in runtime adapters.
+- Must support four-runtime execution (**Claude Code**, **OpenHands**, **OpenCode** and **Hermes**). Adapters share the methodology decision engine, while their interception coverage remains runtime-specific; document any coverage changes in `docs/runtime-security-coverage.md`.
 - Fail-closed dispatch for `pre`/`guard` (a missing engine denies, exit 2); fail-open for `audit` and dispatcher root discovery (`run-hook.sh`). `stop` is report-only and never blocks; an unavailable report is surfaced as context. Inside the engine, gate strictness is per-config-key (`code_guard`/`quality_gate`/`deploy_guard`).
 - Every engine change must include unit tests in `hooks/engine/tests/`.
 
