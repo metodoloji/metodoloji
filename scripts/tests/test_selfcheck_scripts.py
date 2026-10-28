@@ -1181,21 +1181,27 @@ def test_skipped_bench_checks_are_reported_outside_accuracy(monkeypatch, capsys)
     """An unavailable optional runtime reduces measured coverage, never counts green."""
     bench = _load_bench()
     monkeypatch.setattr(bench.shutil, "which", lambda _command: None)
-    assert (bench._run_opencode_tests() or "").startswith("SKIP:")
+    skipped_result = bench._run_opencode_tests()
+    assert isinstance(skipped_result, bench._SkippedCheck)
+    assert "node is not installed" in skipped_result.reason
 
     checks = [
         ("available", lambda: None),
-        ("missing runtime", lambda: "SKIP: runtime unavailable"),
+        ("missing runtime", lambda: bench._SkippedCheck("runtime unavailable")),
+        ("skip-looking error", lambda: "SKIP: contract drift"),
         ("broken", lambda: "contract drift"),
     ]
     failures, skipped = bench._evaluate_checks(checks)
     evaluated = len(checks) - len(skipped)
     passed = evaluated - len(failures)
-    assert failures == [("broken", "contract drift")]
+    assert failures == [
+        ("skip-looking error", "SKIP: contract drift"),
+        ("broken", "contract drift"),
+    ]
     assert skipped == [("missing runtime", "runtime unavailable")]
-    assert (passed, evaluated, len(skipped), len(checks)) == (1, 2, 1, 3)
+    assert (passed, evaluated, len(skipped), len(checks)) == (1, 3, 1, 4)
     bench._print_metrics(passed, evaluated, len(skipped), len(checks))
     output = capsys.readouterr().out
-    assert "consistency_accuracy=0.50 (1/2)" in output
-    assert "consistency_coverage=0.67 (2/3)" in output
+    assert "consistency_accuracy=0.33 (1/3)" in output
+    assert "consistency_coverage=0.75 (3/4)" in output
     assert "checks_skipped=1" in output

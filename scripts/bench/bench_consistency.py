@@ -3126,7 +3126,16 @@ def _check_hermes_manifest_matches_registration() -> str | None:
     return "; ".join(problems) if problems else None
 
 
-def _run_opencode_tests() -> str | None:
+class _SkippedCheck:
+    """A check that could not be measured; keep this distinct from failures."""
+
+    __slots__ = ("reason",)
+
+    def __init__(self, reason: str) -> None:
+        self.reason = reason
+
+
+def _run_opencode_tests() -> str | _SkippedCheck | None:
     """E-074: the OpenCode port's suite must actually run and pass.
 
     22 tests pin the bridge contract (payload mapping, fail-closed decisions and
@@ -3141,7 +3150,7 @@ def _run_opencode_tests() -> str | None:
     if node is None:
         # Node is optional for Python-only contributors, but an unrun suite is
         # neither a pass nor evidence. The bench reports it outside the score.
-        return "SKIP: node is not installed; OpenCode suite was not measured"
+        return _SkippedCheck("node is not installed; OpenCode suite was not measured")
     proc = subprocess.run([node, "--test"], cwd=port, capture_output=True, text=True,
                           encoding="utf-8", errors="replace", timeout=180,
                           stdin=subprocess.DEVNULL, env={**os.environ, "NO_COLOR": "1"})
@@ -4108,8 +4117,8 @@ def _check_story_ac_categories_documented() -> str | None:
     return "; ".join(problems) if problems else None
 
 
-def build_checks() -> list[tuple[str, Callable[[], str | None]]]:
-    checks: list[tuple[str, Callable[[], str | None]]] = []
+def build_checks() -> list[tuple[str, Callable[[], str | _SkippedCheck | None]]]:
+    checks: list[tuple[str, Callable[[], str | _SkippedCheck | None]]] = []
     for rel in DOC_FILES:
         checks.append((f"documented commands exist: {rel}", _check_documented_commands(rel)))
     checks.append(("engine mode lists equal the dispatch map (E-051)", _check_engine_mode_lists))
@@ -4262,7 +4271,7 @@ def build_checks() -> list[tuple[str, Callable[[], str | None]]]:
     return checks
 
 
-def _evaluate_checks(checks: list[tuple[str, Callable[[], str | None]]]):
+def _evaluate_checks(checks: list[tuple[str, Callable[[], str | _SkippedCheck | None]]]):
     """Run checks and keep unmeasured checks out of the accuracy numerator and denominator."""
     failures: list[tuple[str, str]] = []
     skipped: list[tuple[str, str]] = []
@@ -4271,8 +4280,8 @@ def _evaluate_checks(checks: list[tuple[str, Callable[[], str | None]]]):
             problem = fn()
         except Exception as exc:  # a crashing check is a failing check
             problem = f"check raised {type(exc).__name__}: {exc}"
-        if problem and problem.startswith("SKIP:"):
-            skipped.append((label, problem[5:].strip()))
+        if isinstance(problem, _SkippedCheck):
+            skipped.append((label, problem.reason))
         elif problem:
             failures.append((label, problem))
     return failures, skipped
