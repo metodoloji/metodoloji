@@ -30,6 +30,7 @@ Thank you for your interest in contributing to **Metodoloji**! We welcome contri
    ```bash
    # Verify gate key, engine drift, bridge runtime visibility, and tech debt:
    sh scripts/check-plugin.sh
+   python scripts/check-runtime-coverage.py
 
    # Run automated negative tests (ensures detection catches missing markers):
    sh scripts/check-plugin.sh --negtest

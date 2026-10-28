@@ -39,6 +39,7 @@ jobs:
           sh scripts/check-techdebt.sh
           python scripts/check-handoff.py
           python scripts/check-triggers.py
+          python scripts/check-runtime-coverage.py
 
   opencode:
     name: OpenCode bridge tests

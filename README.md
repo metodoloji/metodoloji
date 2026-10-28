@@ -1,6 +1,6 @@
 # metodoloji
 
-![version](https://img.shields.io/badge/version-0.2.3-0b7285?style=flat-square) ![license](https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square) ![python](https://img.shields.io/badge/python-3.11%2B-3776ab?style=flat-square) ![tests](https://img.shields.io/badge/tests-1%2C400%2B-4c1?style=flat-square) ![runtimes](https://img.shields.io/badge/runtimes-Claude%20Code%20%7C%20OpenHands%20%7C%20OpenCode%20%7C%20Hermes-555?style=flat-square)
+![version](https://img.shields.io/badge/version-0.2.4-0b7285?style=flat-square) ![license](https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square) ![python](https://img.shields.io/badge/python-3.11%2B-3776ab?style=flat-square) ![tests](https://img.shields.io/badge/tests-1%2C400%2B-4c1?style=flat-square) ![runtimes](https://img.shields.io/badge/runtimes-Claude%20Code%20%7C%20OpenHands%20%7C%20OpenCode%20%7C%20Hermes-555?style=flat-square)
 
 **A methodology plugin that applies approval gates to coding-agent actions through supported runtime hooks.**
 
@@ -178,6 +178,7 @@ python -m pytest -q                # 1,400+ tests: hook engine, bridges, skills
 sh scripts/check-plugin.sh         # plugin structure audit (#0–#6h)
 sh scripts/check-custom.sh         # bridge TOML static audit
 sh scripts/check-methodology.sh    # record format audit
+python scripts/check-runtime-coverage.py  # adapter-to-documentation drift check
 sh scripts/check-techdebt.sh       # tech-debt inventory audit
 python scripts/check-handoff.py    # handoff wiring lint
 python scripts/check-triggers.py   # trigger/description collision audit
@@ -201,6 +202,9 @@ metodoloji/
 ```
 
 ## Documentation
+
+See [Architecture and failure boundaries](docs/architecture.md) for module
+ownership, mutation guarantees, and runtime validation limits.
 
 | Guide                              | Audience                                                                   |
 | ---------------------------------- | -------------------------------------------------------------------------- |

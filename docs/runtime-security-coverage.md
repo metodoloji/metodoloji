@@ -6,10 +6,10 @@ surface: an engine can only decide on calls the host adapter sends to it.
 
 | Runtime | Interception surface | Write and shell coverage | Known limits |
 | --- | --- | --- | --- |
-| Claude Code | `PreToolUse` and `PostToolUse` hooks from `hooks/hooks.json` | The manifest matches `Write`, `Edit`, `MultiEdit`, `Bash`, and `PowerShell`. | Coverage depends on the host emitting a matching hook event and payload. Direct filesystem writes outside those tool calls are outside the gate. |
+| Claude Code | `PreToolUse` and `PostToolUse` hooks from `hooks/hooks.json` | Manifest matchers: `Write`, `Edit`, `MultiEdit`, `Bash`, `PowerShell`, `file_editor`, and `terminal`. | Coverage depends on the host emitting a matching hook event and payload. Direct filesystem writes outside those tool calls are outside the gate. |
 | OpenHands | The shared hook manifest and `file_editor` / `terminal` matchers | `file_editor` and `terminal` calls are routed through the same engine. | Coverage depends on the installed OpenHands version and its hook payloads. Direct filesystem writes outside the hook are outside the gate. |
-| OpenCode | V2 `execute.before`, plus optional permission fallback; `execute.after` for audit | `write`, `edit`, `patch`, and shell tools are mapped to the engine. The permission fallback is enabled by default to catch some nested writes. | Unknown tools are allowed with a warning. The fallback can be disabled. OpenCode 1.x requires the separate V1 entry. See [OpenCode setup and coverage](OPENCODE.md). |
-| Hermes | In-process `pre_tool_call`; `on_session_end` is report-only | `write_file`, `patch`, `multi_edit`, `notebook_edit`, `terminal`, and `execute_code` are routed to the engine. | Dynamic `execute_code` targets may not be resolved; the default is warning, with an optional deny setting. `computer_use` does not pass through the file-level gate and is allowed by default; `block_gui_tools=true` disables it. See [Hermes settings and limits](../HERMES.md). |
+| OpenCode | V2 `execute.before`, plus optional permission fallback; `execute.after` for audit | Write aliases: `write`, `edit`, `multiedit`, `patch`, `apply_patch`; shell aliases: `bash`, `shell`. | Unknown tools are allowed with a warning. The fallback can be disabled. OpenCode 1.x requires the separate V1 entry. See [OpenCode setup and coverage](OPENCODE.md). |
+| Hermes | In-process `pre_tool_call`; `on_session_end` is report-only | `write_file`, `patch`, `multi_edit`, `notebook_edit`, `terminal`, `execute_code`, and conditional `process_manage` writes/submits are routed through the adapter. | Dynamic `execute_code` targets may not be resolved; the default is warning, with an optional deny setting. `computer_use` does not pass through the file-level gate and is allowed by default; `block_gui_tools=true` disables it. See [Hermes settings and limits](../HERMES.md). |
 
 ## Shared policy
 
@@ -30,3 +30,6 @@ installation; this plugin is not an operating-system sandbox.
 When adding a runtime or changing a tool mapping, update this matrix and the
 runtime-specific installation guide in the same change. Document which calls
 are denied, warned, or not observed, including any default-off or opt-in layer.
+Run `python scripts/check-runtime-coverage.py` to ensure the mapped tool names
+remain present in this matrix. This static check catches documentation drift; it
+does not exercise a live host runtime.

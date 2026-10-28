@@ -7,8 +7,8 @@ that owns it, so no second commit has to exist to carry it. The six local
 audits never move into CI either. Two halves, one binary outcome:
 
 * ENFORCE — every manifest check-plugin §6d3 treats as one truth (both
-  plugin.json, both marketplace.json, the OpenCode plugin.json + its npm
-  package.json, pyproject.toml) must already agree
+  plugin.json, both marketplace.json, the OpenCode plugin.json, npm
+  package.json and package-lock.json, pyproject.toml) must already agree
   before anything is written; skew exits non-zero with the offending values
   and touches nothing. A stale marketplace cache serving an old tree under an
   unchanged version number is exactly the failure §6d3 names — the bump must
@@ -43,7 +43,7 @@ import versioning  # noqa: E402  (the rule lives in one place, E-013)
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
-# The §6d3 agreement set — these eight must share one version, always.
+# The §6d3 agreement set — these nine must share one version, always.
 # The OpenCode package's manifest and its npm `package.json` join the set: a
 # published plugin pinned to a different number than the tree it wraps is the
 # same skew §6d3 exists to catch, one runtime further out.
@@ -54,6 +54,7 @@ MANIFESTS = (
     ".plugin/marketplace.json",
     ".opencode-plugin/plugin.json",
     "opencode-plugin/package.json",
+    "opencode-plugin/package-lock.json",
     "plugin.yaml",          # Hermes Agent manifest (hermes_adapter.py reads it)
     "pyproject.toml",
 )
@@ -69,7 +70,7 @@ DERIVED = (
 #   * `.githooks/pre-commit` keeps `FILES` — the list it refuses an unstaged
 #     edit in and `git add`s after the bump (a manifest the bump writes but the
 #     hook does not stage is a skewed tree in the very commit that owns the
-#     number), plus a prose count ("The ten files whose version claims");
+#     number), plus a prose count ("The eleven files whose version claims");
 #   * `scripts/check-plugin.sh` §6d3 carried a literal second copy of the
 #     manifests, so a new manifest's skew would be invisible to the audit that
 #     exists to catch skew;
@@ -126,6 +127,26 @@ def read_version(root: pathlib.Path) -> str:
         if not m:
             raise BumpError(f"no version found in {rel}")
         seen[rel] = m.group(1) if rel.endswith(".toml") else m.group(2)
+        if rel == "opencode-plugin/package-lock.json":
+            try:
+                lock = json.loads(text)
+                lock_version = lock.get("version")
+                lock_root = lock.get("packages", {}).get("")
+                if not isinstance(lock_version, str):
+                    raise ValueError("top-level version is missing")
+                if not isinstance(lock_root, dict) or not lock_root.get("version"):
+                    raise ValueError("packages[''].version is missing")
+                if lock_version != seen[rel]:
+                    raise ValueError(
+                        "top-level version does not match the version field parsed"
+                    )
+                if lock_root["version"] != lock_version:
+                    raise BumpError(
+                        "version skew inside opencode-plugin/package-lock.json: "
+                        f"top-level={lock_version}, packages['']={lock_root['version']}"
+                    )
+            except (json.JSONDecodeError, AttributeError, TypeError, ValueError) as exc:
+                raise BumpError(f"invalid opencode-plugin/package-lock.json: {exc}") from exc
     values = set(seen.values())
     if len(values) != 1:
         raise BumpError("version skew: "
@@ -208,7 +229,18 @@ def bump(root: pathlib.Path, by: int | None = None, target: str | None = None,
         pattern = _version_re(rel)
         if pattern.search(text) is None:
             raise BumpError(f"no version found in {rel}")
-        if rel.endswith(".toml"):
+        if rel == "opencode-plugin/package-lock.json":
+            data = json.loads(text)
+            data["version"] = new
+            root_package = data.get("packages", {}).get("")
+            if not isinstance(root_package, dict):
+                raise BumpError("packages[''] is missing in opencode-plugin/package-lock.json")
+            root_package["version"] = new
+            updated = json.dumps(data, ensure_ascii=False, indent=2)
+            if text.endswith("\n"):
+                updated += "\n"
+            count = 1
+        elif rel.endswith(".toml"):
             updated, count = pattern.subn(f'version = "{new}"', text, count=1)
         else:
             updated, count = pattern.subn(

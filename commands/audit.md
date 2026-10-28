@@ -34,15 +34,24 @@ Mechanically audits the plugin's own integrity and the record discipline in the 
 4. Approved experiment inventory: run `--verify` on each E record and report the
    VERIFIED/FORGED distribution (`/metodoloji:verify` logic).
 
-5. Hook configuration: read the `quality_gate`/`deploy_guard`/`code_guard`/
-   `stop_guard` values in `custom/config.toml [hooks]` (soft/hard). That file
-   is plugin-global policy (every project shares it; the hook engine reads
-   only that file — there is no per-project override). Shipped values are
-   explicit and win over code fallback defaults (quality/deploy soft,
-   code hard when a key is absent). Brownfield projects relax ONLY
-   `code_guard` to soft until the first VERIFIED scope exists, then
-   re-harden; flag any softened `quality_gate` / `deploy_guard` as
-   over-softening.
+5. Runtime coverage and hook configuration:
+   - Identify the active host runtime from the current session/tool context. Do
+     not infer that every installed adapter is active. If the runtime cannot be
+     identified, report it as unknown.
+   - Read the matching row in
+     `{metodoloji-root}/docs/runtime-security-coverage.md` and report which
+     write/shell calls are intercepted, which are warning-only, and which paths
+     are outside the hook boundary. Never summarize this as “all writes are
+     protected.”
+   - Read the `quality_gate`/`deploy_guard`/`code_guard`/
+     `stop_guard` values in `custom/config.toml [hooks]` (soft/hard). That file
+     is plugin-global policy (every project shares it; the hook engine reads
+     only that file — there is no per-project override). Shipped values are
+     explicit and win over code fallback defaults (quality/deploy soft,
+     code hard when a key is absent). Brownfield projects relax ONLY
+     `code_guard` to soft until the first VERIFIED scope exists, then
+     re-harden; flag any softened `quality_gate` / `deploy_guard` as
+     over-softening.
 
 6. Blackboard working context (fail-open — a missing/corrupt board is
    reported, never a failure of the audit itself):
@@ -83,8 +92,22 @@ Never reference the gate key file in a shell command (`ls`/`cat` of any
 `gate-key` path is guard-denied); check gate state via the orient digest's
 `gate_key` line or `{metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --check-secret`.
 
-7. Result report: PASS/FAIL list + fix suggestions (include the board verdict
-   from step 6: NEEDS ATTENTION items are fixes, SIGNAL batons are info). If you find an issue requiring a
+7. Result report: PASS/FAIL list + fix suggestions. Include the identified
+   runtime (or `unknown`), its concrete coverage gaps and the configured gate
+   modes, along with the board verdict from step 6 (`NEEDS ATTENTION` items are
+   fixes; `SIGNAL` batons are informational). Use this runtime summary:
+
+   ```text
+   Runtime: <Claude Code | OpenHands | OpenCode V1/V2 | Hermes | unknown>
+   Gate modes: code_guard=<soft|hard>; quality_gate=<soft|hard>; deploy_guard=<soft|hard>
+   Intercepted calls: <tool names from the runtime matrix>
+   Warning-only calls: <tools or dynamic targets that can continue>
+   Outside hook coverage: <GUI/direct filesystem/other documented gaps, or none listed>
+   Host integration: <covered by CI contract tests | not exercised in this environment>
+   ```
+
+   Mark unknown runtime behavior explicitly; do not infer host-level enforcement
+   from a passing Python decision-engine check. If you find an issue requiring a
    negative test (e.g. bridge cannot resolve), show the script's
    break→catch→restore output; prove the custom/ drift check is live with
    `{metodoloji-root}/scripts/check-custom.sh --negtest`.

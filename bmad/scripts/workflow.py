@@ -143,6 +143,10 @@ def main(argv=None) -> int:
             return _emit(engine.history(root, args.slug, limit=args.limit))
     except spec_mod.SpecError as exc:
         return _emit({"ok": False, "error": str(exc)})
+    except engine.store.WorkflowStoreError as exc:
+        return _emit({"ok": False, "error": str(exc)})
+    except OSError as exc:
+        return _emit({"ok": False, "error": f"workflow storage error: {exc}"})
     return _emit({"ok": False, "error": f"unknown command {args.cmd}"})
 
 

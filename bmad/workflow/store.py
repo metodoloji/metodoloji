@@ -1,10 +1,10 @@
-"""Workflow state store — self-contained, atomic, event-sourced, fail-open.
+"""Workflow state store — self-contained, atomic, event-sourced.
 
 The kernel owns its storage so it does not depend on any legacy subsystem:
 one JSON state file per run, one append-only event log per project, an
 exclusive advisory lock around every mutation, and atomic replace on write.
-A crashed or concurrent writer can never truncate state, and a missing or
-corrupt file degrades to "empty" rather than raising into the caller.
+Reads of missing or corrupt state degrade to "empty"; a failed mutation lock
+is an error and never grants permission to write without serialization.
 
 Layout (project-relative)::
 
@@ -12,18 +12,44 @@ Layout (project-relative)::
         specs/<slug>.json      # the workflow definition, versioned with the project
         <slug>.state.json      # current run state (single source of truth)
         events.jsonl           # append-only audit of every transition
-        workflow.lock          # advisory lock (best-effort)
+        workflow.lock          # cross-process advisory lock (mutations fail closed)
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import tempfile
+import threading
 import time
+from contextlib import contextmanager
 
 from .paths import outside, root_of
 
 _DEFAULT_DIR = os.path.join(".metodoloji", "workflow")
+
+
+class WorkflowStoreError(RuntimeError):
+    """A workflow mutation could not be serialized or persisted safely."""
+
+
+class WorkflowConflictError(WorkflowStoreError):
+    """The state changed after a caller read it; its stale write was refused."""
+
+
+_THREAD_LOCKS: dict[str, threading.Lock] = {}
+_THREAD_LOCKS_GUARD = threading.Lock()
+
+
+def _thread_lock(lock_path: str) -> threading.Lock:
+    key = os.path.abspath(lock_path)
+    with _THREAD_LOCKS_GUARD:
+        lock = _THREAD_LOCKS.get(key)
+        if lock is None:
+            lock = threading.Lock()
+            _THREAD_LOCKS[key] = lock
+        return lock
 
 
 def safe_slug(slug: str) -> str:
@@ -69,28 +95,35 @@ def state_path(project_root: str, slug: str) -> str:
 _state_path = state_path
 
 
-# --- locking (best-effort, cross-platform, fail-open) -------------------------
+# --- locking (cross-platform, fail-closed for mutations) ----------------------
 
 def _acquire_lock(lock_path: str):
     try:
         os.makedirs(os.path.dirname(lock_path), exist_ok=True)
         f = open(lock_path, "a+")
-    except OSError:
-        return None
+    except OSError as exc:
+        raise WorkflowStoreError(f"cannot open workflow lock: {exc}") from exc
     try:
         import fcntl
-        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-        return f
     except ImportError:
-        pass
-    except OSError:
+        fcntl = None
+    if fcntl is not None:
+        for attempt in range(100):
+            try:
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                return f
+            except BlockingIOError:
+                time.sleep(min(0.01 * (2 ** attempt), 0.1))
+            except OSError as exc:
+                f.close()
+                raise WorkflowStoreError(f"cannot acquire workflow lock: {exc}") from exc
         f.close()
-        return None
+        raise WorkflowStoreError("workflow lock is busy; mutation was not written")
     try:
         import msvcrt
     except ImportError:
         f.close()
-        return None
+        raise WorkflowStoreError("no supported workflow lock is available")
     f.seek(0)
     for attempt in range(100):
         try:
@@ -99,7 +132,7 @@ def _acquire_lock(lock_path: str):
         except OSError:
             time.sleep(min(0.01 * (2 ** attempt), 0.1))
     f.close()
-    return None  # fail-open: proceed unguarded (atomic replace still protects)
+    raise WorkflowStoreError("workflow lock is busy; mutation was not written")
 
 
 def _release_lock(f) -> None:
@@ -126,24 +159,53 @@ def _release_lock(f) -> None:
             pass
 
 
+@contextmanager
+def _mutation_lock(lock_path: str):
+    """Serialize threads first, then processes, for one workflow store.
+
+    OS advisory-lock behavior differs for threads on Windows and POSIX. The
+    local mutex gives same-process callers one ordering before the file lock
+    coordinates independent processes.
+    """
+    local = _thread_lock(lock_path)
+    with local:
+        file_lock = _acquire_lock(lock_path)
+        try:
+            yield
+        finally:
+            _release_lock(file_lock)
+
+
 # --- atomic IO ----------------------------------------------------------------
 
 def _atomic_write(path: str, text: str) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = f"{path}.{os.getpid()}.tmp"
-    with open(tmp, "w", encoding="utf-8", newline="\n") as fh:
-        fh.write(text)
-    os.replace(tmp, path)
-
-
-def _append_event(project_root: str, event: dict) -> None:
-    p = paths(project_root)
-    os.makedirs(p["base"], exist_ok=True)
+    fd, tmp = tempfile.mkstemp(prefix=f".{os.path.basename(path)}.",
+                               suffix=".tmp", dir=os.path.dirname(path))
     try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(text)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, path)
+    finally:
+        try:
+            os.unlink(tmp)
+        except FileNotFoundError:
+            pass
+
+
+def _append_event(project_root: str, event: dict) -> str | None:
+    p = paths(project_root)
+    try:
+        os.makedirs(p["base"], exist_ok=True)
         with open(p["events"], "a", encoding="utf-8", newline="\n") as fh:
             fh.write(json.dumps(event, ensure_ascii=False) + "\n")
-    except OSError:
-        pass  # fail-open: the audit trail must never block a transition
+    except OSError as exc:
+        # State is already committed at this point. Keep it authoritative, but
+        # return a warning so the caller can report the missing audit event.
+        return f"workflow state was saved, but its audit event could not be written: {exc}"
+    return None
 
 
 # --- public API ---------------------------------------------------------------
@@ -164,20 +226,69 @@ def read_state(project_root: str, slug: str) -> dict:
     return data if isinstance(data, dict) else {}
 
 
-def write_state(project_root: str, slug: str, state: dict) -> dict:
-    """Persist the run state atomically and append one audit event."""
-    lock = _acquire_lock(paths(project_root)["lock"])
+def read_state_for_update(project_root: str, slug: str) -> dict:
+    """Read state with an opaque revision token for safe read-modify-write.
+
+    The token hashes the exact bytes on disk, so older states without an
+    ``updated_at`` field receive the same lost-update protection as new ones.
+    It is transient and is removed before any state is serialized.
+    """
+    path = _state_path(project_root, slug)
     try:
+        with open(path, "rb") as fh:
+            raw = fh.read()
+        data = json.loads(raw.decode("utf-8"))
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    data["_store_revision"] = hashlib.sha256(raw).hexdigest()
+    return data
+
+
+def write_state(project_root: str, slug: str, state: dict, *,
+                allow_overwrite: bool = False) -> dict:
+    """Persist state atomically and return any secondary audit-log warning."""
+    with _mutation_lock(paths(project_root)["lock"]):
+        target = _state_path(project_root, slug)
+        expected_revision = state.get("_store_revision")
+        if os.path.exists(target):
+            try:
+                with open(target, "rb") as fh:
+                    current_raw = fh.read()
+                current = json.loads(current_raw.decode("utf-8"))
+            except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+                raise WorkflowStoreError(
+                    f"workflow state is unreadable; refusing to overwrite {target}: {exc}"
+                ) from exc
+            if not isinstance(current, dict):
+                raise WorkflowStoreError(
+                    f"workflow state is not an object; refusing to overwrite {target}"
+                )
+            if expected_revision is None:
+                if not allow_overwrite:
+                    raise WorkflowConflictError(
+                        f"workflow '{slug}' already exists; refusing a concurrent create"
+                    )
+            elif hashlib.sha256(current_raw).hexdigest() != expected_revision:
+                raise WorkflowConflictError(
+                    f"workflow '{slug}' changed since it was read; reload it before retrying"
+                )
+        elif expected_revision is not None:
+            raise WorkflowConflictError(
+                f"workflow '{slug}' was removed since it was read; mutation was not written"
+            )
         state = dict(state)
+        state.pop("_store_revision", None)
         state["updated_at"] = time.time()
-        _atomic_write(_state_path(project_root, slug), json.dumps(state, ensure_ascii=False, indent=1))
-        _append_event(project_root, {
+        _atomic_write(target, json.dumps(state, ensure_ascii=False, indent=1))
+        warning = _append_event(project_root, {
             "ts": time.time(), "event": "state", "slug": slug,
             "status": state.get("status"), "current": state.get("current"),
             "completed": state.get("completed", []),
         })
-    finally:
-        _release_lock(lock)
+    if warning:
+        state["_store_warning"] = warning
     return state
 
 
@@ -190,7 +301,8 @@ def list_slugs(project_root: str) -> list[str]:
     return sorted(n[: -len(".state.json")] for n in names if n.endswith(".state.json"))
 
 
-def save_spec(project_root: str, spec: dict) -> str:
+def save_spec(project_root: str, spec: dict, *,
+              allow_overwrite: bool = False) -> str:
     """Copy a workflow definition into the project so the run is reproducible.
 
     The id is already refused outside `[a-z0-9._-]` by `spec.validate`, so this
@@ -198,11 +310,20 @@ def save_spec(project_root: str, spec: dict) -> str:
     file this writes must be reachable by the sanitized name every reader uses.
     """
     dest = os.path.join(paths(project_root)["specs"], f"{safe_slug(spec['id'])}.json")
-    lock = _acquire_lock(paths(project_root)["lock"])
-    try:
+    with _mutation_lock(paths(project_root)["lock"]):
+        if os.path.exists(dest) and not allow_overwrite:
+            try:
+                with open(dest, encoding="utf-8") as fh:
+                    existing = json.load(fh)
+            except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+                raise WorkflowStoreError(
+                    f"workflow spec is unreadable; refusing to overwrite {dest}: {exc}"
+                ) from exc
+            if existing != spec:
+                raise WorkflowConflictError(
+                    f"workflow spec '{spec['id']}' already exists with different content"
+                )
         _atomic_write(dest, json.dumps(spec, ensure_ascii=False, indent=2))
-    finally:
-        _release_lock(lock)
     return dest
 
 
