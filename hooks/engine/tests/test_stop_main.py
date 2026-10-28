@@ -753,8 +753,13 @@ def test_main_malformed_cwd_decides_not_crash(tmp_path):
 
 # --- recursion-class input (E-007) -------------------------------------------
 # Three sites, one policy: a deep or crashing turn must END in a decision.
-#  1) json.load raised RecursionError past the parser limit (~20k) — uncaught
-#     by (JSONDecodeError, ValueError, EOFError) -> ALL SEVEN modes rc=1.
+#  1) json.load RAISED RecursionError past the parser limit (~20k) on the
+#     interpreters of the day — uncaught by (JSONDecodeError, ValueError,
+#     EOFError) -> ALL SEVEN modes rc=1. CPython 3.14's decoder no longer
+#     raises at that depth (it parses a 20k-nested value happily), so the same
+#     payload now arrives as valid-but-pathological JSON: the class moved from
+#     "unparseable" to "not judgeable", and the depth bound below is what keeps
+#     the decision honest on both interpreters.
 #  2) a routing value nested >=500 deep recursed without bound in
 #     _coerce_json_scalar -> guard/pre/quality/deploy/audit rc=1 (fail-open).
 #  3) any other handler exception escaped main()'s unguarded handler call.
@@ -800,15 +805,24 @@ def test_main_deep_coercion_payload_decides_not_crash(tmp_path):
 
 
 def test_main_parser_overflow_payload_decides_not_crash(tmp_path):
-    """Depth-20000: json.load itself raises RecursionError — uncaught on every
-    mode before E-007. The input boundary must absorb it as bad input."""
+    """Depth-20000: on the interpreters that raise RecursionError in json.load
+    this was uncaught on every mode before E-007. On CPython 3.14 the decoder
+    parses it instead, so the payload reaches the depth bound as
+    valid-but-unjudgeable JSON. Either way the boundary must absorb it as bad
+    input and still emit a decision."""
     raw = _deep_command_raw(20000)
     for mode in _ALL_HOOK_MODES:
         _assert_decides(mode, _run_mode_raw(mode, raw, tmp_path))
 
 
 def test_main_fail_closed_hooks_deny_on_parser_overflow(tmp_path):
-    """The deny half of the parser contract: guard/pre deny on bad input."""
+    """The deny half of the parser contract: guard/pre deny on bad input.
+
+    This is the half that was actually broken in production shape: at depth
+    20000 CPython 3.14 parses the payload, _coerce_json_scalar bounded the
+    value to a "<list truncated at depth 32>" marker, and guard ALLOWED the
+    call — a fail-closed gate resolving a value it never received.
+    """
     raw = _deep_command_raw(20000)
     for mode in ("guard", "pre"):
         r = _run_mode_raw(mode, raw, tmp_path)

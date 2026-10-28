@@ -623,6 +623,58 @@ def test_coerce_json_scalar_shallow_renderings_unchanged():
     assert _coerce_json_scalar(5) == "5"
 
 
+def test_coerce_depth_probe_matches_the_render_bound():
+    """The probe and the renderer must agree on where truncation starts.
+
+    If the probe were looser than the renderer, a marker string would pass as a
+    value again (the fail-open this pins closed); if it were stricter, ordinary
+    argv-form commands would be denied. Assert AGREEMENT across the boundary
+    rather than a hand-counted depth: the renderer truncates a container found
+    at depth >= _COERCE_MAX_DEPTH, so the nesting count that first trips either
+    one is a property of both, not a literal to restate here.
+    """
+    from modules.utils import (_COERCE_MAX_DEPTH, _coerce_json_scalar,
+                               _exceeds_coerce_depth)
+    for depth in range(_COERCE_MAX_DEPTH - 2, _COERCE_MAX_DEPTH + 3):
+        value = _deep_list(depth)
+        assert _exceeds_coerce_depth(value) == ("truncated" in _coerce_json_scalar(value)), depth
+    assert not _exceeds_coerce_depth(_deep_list(_COERCE_MAX_DEPTH - 1))
+    assert _exceeds_coerce_depth(_deep_list(_COERCE_MAX_DEPTH + 1))
+
+
+def test_coerce_depth_probe_handles_dicts_and_leaves():
+    from modules.utils import _exceeds_coerce_depth
+    assert not _exceeds_coerce_depth("git status")
+    assert not _exceeds_coerce_depth(["ls", "-la"])
+    assert not _exceeds_coerce_depth({"a": {"b": {"c": 1}}})
+    deep_dict: dict = {}
+    cur = deep_dict
+    for _ in range(5000):
+        nxt: dict = {}
+        cur["k"] = nxt
+        cur = nxt
+    assert _exceeds_coerce_depth(deep_dict)
+
+
+def test_normalize_marks_truncated_routing_key():
+    """A truncated routing value must surface as a flag, not as its marker."""
+    from modules.utils import normalize_hook_input
+    norm = normalize_hook_input({"tool_name": "terminal",
+                                 "tool_input": {"command": _deep_list(20000)}})
+    assert norm["truncated_routing_key"] == "command"
+    # The marker must not also survive as a judgeable command string.
+    assert "truncated at depth" in norm["tool_input"]["command"]
+
+
+def test_normalize_leaves_shallow_payloads_unflagged():
+    from modules.utils import normalize_hook_input
+    for tool_input in ({"command": "git status"}, {"command": ["ls", "-la"]},
+                       {"path": "src/a.py", "content": "x = 1\n"}):
+        norm = normalize_hook_input({"tool_name": "terminal", "tool_input": tool_input})
+        assert "truncated_routing_key" not in norm, tool_input
+
+
+
 def test_normalize_deep_routing_value_decides_not_crash():
     """Through normalize (the live caller): a depth-500 path coerces, not raises."""
     from modules.utils import normalize_hook_input

@@ -34,9 +34,11 @@ payload and would silently redirect every gate to another project.
 from __future__ import annotations
 
 import hashlib
+import importlib
 import importlib.util
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -152,13 +154,28 @@ def agent_cwd() -> str:
 
 
 def plugin_version() -> str:
-    try:
-        import yaml  # Hermes ships PyYAML
+    """The plugin's own version, for the session header line.
 
-        data = yaml.safe_load((PLUGIN_ROOT / "plugin.yaml").read_text(encoding="utf-8"))
-        return str((data or {}).get("version") or "")
-    except Exception:
-        return ""
+    Hermes does NOT ship PyYAML: its YAML policy lives in ``hermes_yaml``,
+    backed by ruamel. A bare ``import yaml`` therefore failed in the gateway
+    and every session header read ``metodoloji-plugin: hermes vunknown`` — a
+    silent version report is worse than none, because the header is how a
+    stale plugin tree is noticed in the first place. Try PyYAML, then Hermes's
+    loader, then read the one top-level key directly so the version survives
+    a host with no YAML library at all.
+    """
+    text = (PLUGIN_ROOT / "plugin.yaml").read_text(encoding="utf-8")
+    for module_name in ("yaml", "hermes_yaml"):
+        try:
+            loader = importlib.import_module(module_name)
+            data = loader.safe_load(text)
+            version = str((data or {}).get("version") or "")
+            if version:
+                return version
+        except Exception:
+            continue
+    match = re.search(r"^version:[ \t]*[\"']?([^\"'\s#]+)", text, re.MULTILINE)
+    return match.group(1) if match else ""
 
 
 def build_payload(tool_name: str, args: dict | None, *, cwd: str | None = None,

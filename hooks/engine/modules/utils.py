@@ -83,6 +83,35 @@ _COERCE_MAX_DEPTH = 32
 _COERCE_TOOL_KEYS = ("command", "cmd", "path", "file_path", "content")
 
 
+def _exceeds_coerce_depth(v, limit: int = None) -> bool:
+    """True when a routing value nests past what a real tool call can carry.
+
+    ``_coerce_json_scalar`` truncates past ``_COERCE_MAX_DEPTH`` so a wire
+    payload can never crash the engine — but truncation alone reduced a
+    pathological value to a harmless-looking string, and guard() then ALLOWED
+    it: a `command` shaped as a 20k-deep nested list (valid JSON on CPython
+    3.14, whose decoder no longer raises RecursionError at that depth) became
+    "<list truncated at depth 32>" and sailed through the fail-closed gate as
+    an ordinary unknown command. No real tool call nests 32 levels deep inside
+    a routing key, so past the bound the payload is not judgeable and the
+    normalizer must say so instead of inheriting the marker string's silence.
+
+    Iterative on purpose: this runs on the very input that defeated recursion.
+    """
+    bound = _COERCE_MAX_DEPTH if limit is None else limit
+    stack = [(v, 0)]
+    while stack:
+        node, depth = stack.pop()
+        if not isinstance(node, (list, tuple, dict)):
+            continue
+        if depth >= bound:
+            return True
+        children = node.values() if isinstance(node, dict) else node
+        stack.extend((child, depth + 1) for child in children)
+    return False
+
+
+
 def _coerce_tool_input(raw) -> dict:
     """Normalize the tool_input surface to a dict with stringified routing keys.
 
@@ -108,6 +137,10 @@ def _coerce_tool_input(raw) -> dict:
             out["_malformed_path_selector_list"] = True
         elif k in _COERCE_TOOL_KEYS:
             out[k] = _coerce_json_scalar(x)
+            if _exceeds_coerce_depth(x):
+                # The rendered string is a truncation marker, not a value the
+                # gate can judge — carry that fact alongside it.
+                out["_truncated_routing_key"] = k
         else:
             out[k] = x
     return out
@@ -538,6 +571,10 @@ def normalize_hook_input(json_in: dict) -> dict:
     ) or bool(
         tool_input.pop("_malformed_path_selector_list", False)
     )
+    # A routing key whose value had to be truncated is not a value any gate can
+    # judge. Keep the fact (guard denies it) instead of letting the marker
+    # string pass as an ordinary command (E-007's fail-closed half).
+    truncated_routing_key = tool_input.pop("_truncated_routing_key", "")
 
     # Canonicalize common field aliases for every runtime branch, including
     # already-normalized tool names. Otherwise `terminal` + `cmd` or
@@ -658,6 +695,8 @@ def normalize_hook_input(json_in: dict) -> dict:
     }
     if ambiguous_write_payload:
         normalized["ambiguous_write_payload"] = True
+    if truncated_routing_key:
+        normalized["truncated_routing_key"] = truncated_routing_key
     return normalized
 
 

@@ -843,6 +843,24 @@ def guard(json_in: dict) -> dict:
             return {"decision": "deny", "reason": message}
         return {"decision": "allow", "methodology_warnings": [message]}
 
+    if norm.get("truncated_routing_key"):
+        # The wire value nests past every plausible tool call, so the engine
+        # only ever saw a truncation marker. Allowing it would mean judging a
+        # value that was never transmitted — deny, exactly like unparseable
+        # input (E-007: the fail-closed half of the parser contract).
+        message = (
+            f"Tool payload field '{norm['truncated_routing_key']}' is nested past the "
+            "engine's depth bound; the value cannot be evaluated. "
+            "Send a flat payload."
+        )
+        try:
+            hard = hook_gate_mode("code_guard") == "hard"
+        except (Exception, SystemExit):
+            hard = True
+        if hard:
+            return {"decision": "deny", "reason": message}
+        return {"decision": "allow", "methodology_warnings": [message]}
+
     # Hot-path fast exits FIRST:
     if tool_name == "unknown":
         return {

@@ -293,6 +293,62 @@ def test_manifest_version_matches_pyproject():
         "plugin.yaml version must match pyproject.toml (check-plugin §6d3)"
 
 
+def _block_yaml(monkeypatch, blocked=("yaml", "hermes_yaml")):
+    """Make every YAML loader unavailable, by both import mechanisms.
+
+    ``importlib.import_module`` does not route through ``builtins.__import__``,
+    so patching one of them leaves the other free to succeed — a "fails without
+    PyYAML" test that quietly imports PyYAML anyway. Patch both, and assert the
+    loader really is unreachable before testing what the adapter does without
+    it.
+    """
+    import builtins
+    import importlib
+
+    real_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):
+        if name in blocked or name.split(".")[0] in blocked:
+            raise ImportError(f"{name} blocked by test")
+        return real_import(name, *args, **kwargs)
+
+    def fake_import_module(name, *args, **kwargs):
+        if name in blocked or name.split(".")[0] in blocked:
+            raise ImportError(f"{name} blocked by test")
+        return importlib.import_module(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    monkeypatch.setattr(importlib, "import_module", fake_import_module)
+    for name in blocked:
+        with pytest.raises(ImportError):
+            importlib.import_module(name)
+
+
+def test_plugin_version_is_reported_without_pyyaml(monkeypatch):
+    """`plugin_version()` must not depend on a library Hermes does not ship.
+
+    Hermes carries its YAML policy in ``hermes_yaml`` (ruamel) and has no
+    PyYAML, so the adapter's bare ``import yaml`` raised in the gateway and the
+    session header read ``metodoloji-plugin: hermes vunknown`` on every start.
+    """
+    import hermes_adapter as A
+
+    expected = re.search(r'(?m)^version:\s*(\S+)\s*$',
+                         (PLUGIN_ROOT / "plugin.yaml").read_text(encoding="utf-8")).group(1)
+    _block_yaml(monkeypatch, blocked=("yaml",))
+    assert A.plugin_version() == expected
+
+
+def test_plugin_version_survives_a_host_with_no_yaml_library(monkeypatch):
+    """Last resort is the manifest text itself, so the header is never silent."""
+    import hermes_adapter as A
+
+    expected = re.search(r'(?m)^version:\s*(\S+)\s*$',
+                         (PLUGIN_ROOT / "plugin.yaml").read_text(encoding="utf-8")).group(1)
+    _block_yaml(monkeypatch, blocked=("yaml", "hermes_yaml", "ruamel"))
+    assert A.plugin_version() == expected
+
+
 # --------------------------------------------------------------------------- #
 # Hermes-difference solutions (each one closes a documented gap)
 # --------------------------------------------------------------------------- #
