@@ -2958,6 +2958,12 @@ def _yaml_list(text: str, key: str) -> list[str] | None:
 
 def _provides_problems(declared: list[str], actual: list[str], what: str) -> list[str]:
     problems = []
+    declared_dups = sorted({item for item in declared if declared.count(item) > 1})
+    actual_dups = sorted({item for item in actual if actual.count(item) > 1})
+    if declared_dups:
+        problems.append(f"{what} declared more than once: {declared_dups}")
+    if actual_dups:
+        problems.append(f"{what} registered more than once: {actual_dups}")
     unregistered = sorted(set(declared) - set(actual))
     if unregistered:
         problems.append(f"{what} declared but never registered: {unregistered}")
@@ -2967,22 +2973,148 @@ def _provides_problems(declared: list[str], actual: list[str], what: str) -> lis
     return problems
 
 
+def _module_assignment(tree: ast.Module, name: str) -> ast.expr | None:
+    """Return a module-level assignment's value without executing plugin code."""
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and any(
+                isinstance(target, ast.Name) and target.id == name
+                for target in node.targets):
+            return node.value
+        if (isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name)
+                and node.target.id == name):
+            return node.value
+    return None
+
+
+def _function(tree: ast.Module, name: str) -> ast.FunctionDef | None:
+    return next((node for node in tree.body
+                 if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                 and node.name == name), None)
+
+
+def _calls_in(node: ast.AST, attribute: str) -> list[ast.Call]:
+    """Find calls to `obj.<attribute>` while ignoring nested function bodies."""
+    class Calls(ast.NodeVisitor):
+        found: list[ast.Call]
+
+        def __init__(self):
+            self.found = []
+
+        def visit_FunctionDef(self, child):
+            if child is node:
+                for statement in child.body:
+                    self.visit(statement)
+
+        visit_AsyncFunctionDef = visit_FunctionDef
+
+        def visit_Call(self, call):
+            if isinstance(call.func, ast.Attribute) and call.func.attr == attribute:
+                self.found.append(call)
+            self.generic_visit(call)
+
+    visitor = Calls()
+    visitor.visit(node)
+    return visitor.found
+
+
+def _has_registration_loop(function: ast.FunctionDef, table: str,
+                           method: str) -> bool:
+    return any(
+        isinstance(stmt, ast.For) and isinstance(stmt.iter, ast.Name)
+        and stmt.iter.id == table and bool(_calls_in(stmt, method))
+        for stmt in ast.walk(function)
+    )
+
+
+def _calls_named(node: ast.AST, name: str) -> list[ast.Call]:
+    class Calls(ast.NodeVisitor):
+        def __init__(self):
+            self.found = []
+
+        def visit_FunctionDef(self, child):
+            if child is node:
+                for statement in child.body:
+                    self.visit(statement)
+
+        visit_AsyncFunctionDef = visit_FunctionDef
+
+        def visit_Call(self, call):
+            if isinstance(call.func, ast.Name) and call.func.id == name:
+                self.found.append(call)
+            self.generic_visit(call)
+
+    visitor = Calls()
+    visitor.visit(node)
+    return visitor.found
+
+
+def _hermes_registration_names(init_source: str, tools_source: str) -> dict[str, list[str]]:
+    """Derive Hermes registrations from Python syntax, not source-text lookalikes."""
+    init = ast.parse(init_source)
+    tool_module = ast.parse(tools_source)
+    entry = _function(init, "register")
+    tool_entry = _function(tool_module, "register_tools")
+    if entry is None or tool_entry is None:
+        raise ValueError("Hermes registration entry point is missing")
+
+    hooks = []
+    for call in _calls_in(entry, "register_hook"):
+        if call.args and isinstance(call.args[0], ast.Constant) \
+                and isinstance(call.args[0].value, str):
+            hooks.append(call.args[0].value)
+
+    command_names: list[str] = []
+    command_table = _module_assignment(init, "COMMANDS")
+    command_loop = _has_registration_loop(entry, "COMMANDS", "register_command")
+    if command_loop and isinstance(command_table, (ast.Tuple, ast.List)):
+        for row in command_table.elts:
+            if (isinstance(row, (ast.Tuple, ast.List)) and row.elts
+                    and isinstance(row.elts[0], ast.Constant)
+                    and isinstance(row.elts[0].value, str)):
+                command_names.append(row.elts[0].value)
+
+    tool_names: list[str] = []
+    tool_table = _module_assignment(tool_module, "TOOLS")
+    tool_loop = _has_registration_loop(tool_entry, "TOOLS", "register_tool")
+    if tool_loop and isinstance(tool_table, (ast.Tuple, ast.List)):
+        for row in tool_table.elts:
+            if not (isinstance(row, (ast.Tuple, ast.List)) and row.elts
+                    and isinstance(row.elts[0], ast.Name)):
+                continue
+            schema = _module_assignment(tool_module, row.elts[0].id)
+            if not isinstance(schema, ast.Dict):
+                continue
+            for key, value in zip(schema.keys, schema.values):
+                if (isinstance(key, ast.Constant) and key.value == "name"
+                        and isinstance(value, ast.Constant)
+                        and isinstance(value.value, str)):
+                    tool_names.append(value.value)
+                    break
+
+    if not _calls_named(entry, "register_tools"):
+        raise ValueError("register() does not call register_tools()")
+    if not command_names or not tool_names or not hooks:
+        raise ValueError("one or more Hermes registrations could not be derived")
+    return {"provides_tools": tool_names, "provides_hooks": hooks,
+            "provides_commands": command_names}
+
+
 def _check_hermes_manifest_matches_registration() -> str | None:
     """E-074: `plugin.yaml` must declare exactly what `__init__.py` registers.
 
     The Hermes manifest is what the harness reads to decide which tools, hooks
     and commands exist. A tool added to `hermes_tools.py` but not listed here is
     invisible to the host; a hook listed but not registered never fires. Both
-    directions are silent failures, so both are measured.
+    directions are silent failures, so both are measured. Python AST inspection
+    follows the actual entry points and registration tables without importing
+    or executing plugin code.
     """
     yaml = _read("plugin.yaml")
     init = _read("__init__.py")
-    actual = {
-        "provides_tools": re.findall(r'(?m)^\s*"name":\s*"([^"]+)"',
-                                     _read("hermes_tools.py")),
-        "provides_hooks": re.findall(r'ctx\.register_hook\("([^"]+)"', init),
-        "provides_commands": re.findall(r'(?m)^\s*\("([^"]+)", _command_\w+', init),
-    }
+    try:
+        actual = _hermes_registration_names(init, _read("hermes_tools.py"))
+    except (SyntaxError, ValueError) as exc:
+        return f"Hermes registrations could not be derived: {exc}"
     problems: list[str] = []
     for key in _HERMES_PROVIDES:
         declared = _yaml_list(yaml, key)

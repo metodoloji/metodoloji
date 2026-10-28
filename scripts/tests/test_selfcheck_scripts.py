@@ -1132,6 +1132,42 @@ def test_hermes_manifest_drift_is_named(monkeypatch):
     assert problem and "pre_verify" in problem, problem
 
 
+def test_hermes_inventory_uses_python_registrations_not_text_matches(monkeypatch):
+    """Equivalent Python syntax passes, while an unregistered name is ignored."""
+    bench = _load_bench()
+    real_read = bench._read
+
+    def fake_read(rel):
+        text = real_read(rel)
+        if rel == "__init__.py":
+            text = text.replace(
+                'ctx.register_hook("pre_verify", on_pre_verify)',
+                "ctx . register_hook ( 'pre_verify' , on_pre_verify )")
+            text += '\n# ctx.register_hook("ghost_hook", callback)\n'
+        elif rel == "hermes_tools.py":
+            text = text.replace(
+                '"name": "metodoloji_orient"',
+                "'name' : 'metodoloji_orient'", 1)
+            text += '\nUNREGISTERED_EXAMPLE = {"name": "ghost_tool"}\n'
+        return text
+
+    monkeypatch.setattr(bench, "_read", fake_read)
+    assert bench._check_hermes_manifest_matches_registration() is None
+
+
+def test_hermes_manifest_duplicate_registration_is_rejected():
+    """Set equality alone must not hide a duplicate host registration."""
+    bench = _load_bench()
+    actual_dups = bench._provides_problems(
+        ["metodoloji_orient"], ["metodoloji_orient", "metodoloji_orient"],
+        "provides_tools")
+    declared_dups = bench._provides_problems(
+        ["metodoloji_orient", "metodoloji_orient"], ["metodoloji_orient"],
+        "provides_tools")
+    assert any("registered more than once" in problem for problem in actual_dups)
+    assert any("declared more than once" in problem for problem in declared_dups)
+
+
 def test_opencode_bridge_suite_is_wired_into_the_bench():
     """E-074: the port's tests only guard anything if a runner executes them."""
     bench = _load_bench()
