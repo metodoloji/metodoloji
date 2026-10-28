@@ -2880,6 +2880,7 @@ def _run_hooks_json_sync() -> str | None:
 # manifest listed 125 skills; the OpenCode port's 22-test suite had no runner
 # outside a manual `npm test`).
 _SKILL_MANIFEST = "bmad/_config/skill-manifest.csv"
+_SKILL_MANIFEST_COLUMNS = ("canonicalId", "name", "description", "module", "path")
 
 
 def _manifest_rows(text: str) -> list[dict[str, str]]:
@@ -2891,6 +2892,17 @@ def _manifest_problems(rows: list[dict[str, str]], skill_dirs: set[str],
     """Pure half of the manifest check, so the falsifiers can feed it rows."""
     ids = [r.get("canonicalId", "") for r in rows]
     problems: list[str] = []
+    malformed = []
+    for n, row in enumerate(rows, start=2):
+        if None in row or any(not (row.get(column) or "").strip()
+                              for column in _SKILL_MANIFEST_COLUMNS):
+            malformed.append(row.get("canonicalId") or f"row {n}")
+    if malformed:
+        problems.append(f"manifest rows have missing/empty fields: {malformed[:5]}")
+    misnamed = sorted(r.get("canonicalId", "?") for r in rows
+                      if r.get("name") != r.get("canonicalId"))
+    if misnamed:
+        problems.append(f"manifest names differ from canonicalId: {misnamed[:5]}")
     dups = sorted({i for i in ids if i and ids.count(i) > 1})
     if dups:
         problems.append(f"duplicate canonicalId(s): {dups[:5]}")
@@ -2920,9 +2932,14 @@ def _check_skill_manifest_completeness() -> str | None:
     as the README counts.
     """
     try:
-        rows = _manifest_rows(_read(_SKILL_MANIFEST))
+        text = _read(_SKILL_MANIFEST)
+        rows = _manifest_rows(text)
     except FileNotFoundError:
         return f"{_SKILL_MANIFEST} is missing"
+    header = next(csv.reader(io.StringIO(text)), [])
+    if tuple(header) != _SKILL_MANIFEST_COLUMNS:
+        return (f"{_SKILL_MANIFEST} columns are {header!r}; expected "
+                f"{list(_SKILL_MANIFEST_COLUMNS)!r}")
     dirs = {p.name for p in (ROOT / "skills").iterdir() if p.is_dir()}
     problems = _manifest_problems(rows, dirs, lambda rel: (ROOT / rel).is_file())
     return "; ".join(problems) if problems else None

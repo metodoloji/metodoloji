@@ -1089,6 +1089,25 @@ def test_skill_manifest_drift_is_named():
     problems = bench._manifest_problems(misfiled, dirs, exists)
     assert any("skills/<id>/SKILL.md" in p for p in problems), problems
 
+    incomplete = rows[:-1] + [dict(rows[-1], description="")]
+    problems = bench._manifest_problems(incomplete, dirs, exists)
+    assert any("missing/empty fields" in p for p in problems), problems
+
+    misnamed = rows[:-1] + [dict(rows[-1], name="another-skill")]
+    problems = bench._manifest_problems(misnamed, dirs, exists)
+    assert any("names differ from canonicalId" in p for p in problems), problems
+
+
+def test_skill_manifest_schema_is_exact(monkeypatch):
+    """A parseable but renamed/missing CSV column must not pass the inventory check."""
+    bench = _load_bench()
+    real_read = bench._read
+    monkeypatch.setattr(bench, "_read", lambda rel: (
+        real_read(rel).replace('"canonicalId","name"', '"canonical_id","name"', 1)
+        if rel == "bmad/_config/skill-manifest.csv" else real_read(rel)))
+    problem = bench._check_skill_manifest_completeness()
+    assert problem and "columns are" in problem, problem
+
 
 def test_hermes_manifest_declares_exactly_what_it_registers():
     """E-074: plugin.yaml and the Hermes registration agree in both directions."""
