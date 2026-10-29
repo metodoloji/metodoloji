@@ -20,7 +20,7 @@ hooks   pre_tool_call   → engine ``pre``   (guard + quality + deploy; can BLOC
         on_session_end  → engine ``stop``  (session report; never blocks)
 skills  every ``skills/*/SKILL.md`` in the repository, namespaced ``metodoloji:<name>``
 cmds    /metodoloji, /metodoloji-init, /metodoloji-gate-setup, /metodoloji-verify,
-        /metodoloji-audit
+        /metodoloji-audit, /metodoloji-add
 
 Hard rule: a gated tool call is blocked ONLY by an explicit engine denial. A
 crash, timeout or unreadable answer from the engine blocks too (fail closed);
@@ -32,6 +32,8 @@ from __future__ import annotations
 import json
 import logging
 import os
+import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
@@ -433,6 +435,42 @@ def _command_audit(raw_args: str) -> str:
     return _cmd_json(handle_audit({"scope": scope}))
 
 
+def _command_add(raw_args: str) -> str:
+    """Prepare an external-context draft; the agent completes the analysis.
+
+    Hermes command handlers return text to the user, not to the model, so this
+    does the deterministic half and hands back the exact instruction the user
+    can give the agent. `/metodoloji:init` has the same shape: mutate the
+    project from the gateway, then point at the next command.
+    """
+    source = raw_args.strip()
+    if not source:
+        return ("Usage: /metodoloji-add <repository URL | docs URL | local PDF/Markdown file>\n"
+                "Then ask the agent to complete the prepared entry and run finalize.")
+    script = Path(__file__).resolve().parent / "scripts" / "external-context.py"
+    try:
+        run = subprocess.run(
+            [sys.executable, str(script), "prepare", "--project-root", agent_cwd(),
+             "--source", source, "--json"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            timeout=30, stdin=subprocess.DEVNULL)
+    except (OSError, subprocess.SubprocessError) as exc:
+        return f"metodoloji-add: could not prepare the entry: {exc}"
+    try:
+        payload = json.loads(run.stdout or "{}")
+    except ValueError:
+        payload = {}
+    if run.returncode != 0 or not payload.get("ok"):
+        detail = payload.get("error") or (run.stderr or "").strip() or "prepare failed"
+        return f"metodoloji-add: {detail}"
+    return (
+        f"Prepared external-context draft: {payload['entry']} ({payload['source_kind']}).\n"
+        "Ask the agent to complete it: read commands/add.md from the plugin, analyze the "
+        "source exhaustively against this project, fill every section, then run\n"
+        f"  python3 {script} finalize --project-root {agent_cwd()} --slug {payload['slug']}\n"
+        "Finalize validates the entry and updates docs/research/external/README.md.")
+
+
 def _command_gate_setup(_raw_args: str) -> str:
     """One-time gate key creation — the 4th canonical command.
 
@@ -460,6 +498,7 @@ COMMANDS = (
     ("metodoloji-gate-setup", _command_gate_setup, "Create the machine-local gate key once (never regenerated)."),
     ("metodoloji-verify", _command_verify, "Verify an experiment record's HMAC gate token."),
     ("metodoloji-audit", _command_audit, "Methodology health check ([full] runs check-plugin.sh)."),
+    ("metodoloji-add", _command_add, "Prepare an external-context entry from a repository/docs URL or local file."),
 )
 
 

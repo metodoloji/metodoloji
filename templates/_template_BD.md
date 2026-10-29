@@ -20,6 +20,7 @@ Mode B/D outputs land in `docs/research/`:
 - **Domain Research** (`docs/research/domain-*.md`): Literature reviews, expert interviews, case analysis
 - **Market Research** (`docs/research/market-*.md`): Market sizing, competitor analysis, competitive landscape
 - **Technical Research** (`docs/research/technical-*.md`): Technology evaluation, architecture research, feasibility studies
+- **Reusable external technology context** (`docs/research/external/<slug>/`): Versioned analysis of a framework, library, service, documentation set, or integrated project; see `docs/research/external/README.md` and `docs/research/external/_template.md`.
 
 ## Running Mode B/D Skills
 

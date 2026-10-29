@@ -24,6 +24,10 @@ source_verification: true
 
 [Research overview and methodology will be appended here]
 
+## External Technology Inventory
+
+List candidate and selected external libraries, frameworks, services, and integrated projects. Record intended role, version/ref, primary documentation/repository sources and access date, compatibility, integration boundary, maintenance/license/security findings, alternatives, and unresolved risks. Use `N/A` with a reason when the project does not depend on external technology.
+
 ---
 
 <!-- Content will be appended sequentially through research workflow steps -->

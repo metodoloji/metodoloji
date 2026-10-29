@@ -15,28 +15,31 @@ probe further):
    Claude Code — do not depend on them, do not echo them to "verify".)
 2. Fixed checkout `~/.claude/plugins/marketplaces/metodoloji/`
 3. Versioned cache `~/.claude/plugins/cache/metodoloji/metodoloji/*`
-   (newest first; e.g. `.../0.2.6/` on Claude Code v2.1.x)
+   (newest first; e.g. `.../0.2.7/` on Claude Code v2.1.x)
 4. OpenHands install directory `~/.openhands/plugins/installed/metodoloji/`
 
 (An old `~/.claude/plugins/cache/yunusgungor/metodoloji/*` path appears in
 older docs — it does not exist on current Claude Code layouts. Do not probe
 it first; it is a last-resort fallback only.)
 
-## Init is one-time
+## Init is safe to re-run for repairs
 
-Init runs **once per project**. Its completion is recorded by the marker
-`{project-root}/.metodoloji/initialized`, which the SessionStart hook reads: the
-marker present means every downstream skill (`bmad-prd`, `bmad-architecture`, …)
-must **not** re-run init. Re-running the whole skeleton flow at each step is
-wasted work and makes the chain look like it re-initializes the project.
+The marker `{project-root}/.metodoloji/initialized` records the first installation.
+When it is present, first inspect `{metodoloji-root}/bmad/scripts/skeleton.py --status`: if the installed
+directories and templates are complete, report "already installed" and stop.
+If the plugin has added a directory or template since the last init, run
+`{metodoloji-root}/bmad/scripts/skeleton.py --install` to add only missing assets. This is idempotent and never
+overwrites user files; the marker's original initialization date is preserved.
+Do not re-run init on every skill activation — only for initial setup or when
+status reports an incomplete skeleton.
 
 ## Steps
 
-0. **Already initialized?** If `{project-root}/.metodoloji/initialized` exists and
-   the user did not pass `--force`, do **not** create or copy anything. Say
-   "already installed" (report the marker's `initialized_at` / `plugin_version`),
-   print the next step (`/metodoloji:audit`), and finish. Run the remaining steps
-   only when the marker is missing or `--force` is passed.
+0. **Check existing installation.** Run `{metodoloji-root}/bmad/scripts/skeleton.py --status --json --project-root {project-root}`.
+   - Marker present and `problems` empty: say "already installed" (report the marker's `initialized_at` / `plugin_version`), print `/metodoloji:audit`, and finish.
+   - Marker present with an incomplete-skeleton problem: continue to Step 1 without `--force`; the installer will add missing assets and preserve existing files.
+   - Marker absent: continue to Step 1 for initial installation.
+   - Use `--force` only when the user explicitly requests replacing existing templates.
 
 1. **Run the installer** — this command is the contract; the script is the
    executable half of it, so the slash command and any other harness
@@ -92,6 +95,7 @@ wasted work and makes the chain look like it re-initializes the project.
      doc and `check-methodology.sh` CHECK 2/5 — `docs/development/QR-NNN.md`
      stays accepted as the legacy location)
    - `docs/research/` — Mode B/D documentary records
+   - `docs/research/external/` — reusable, versioned analysis of external technologies and integrated projects
    - `docs/design/` — Mode C documentary records
    - `docs/design/prds/` — PRD outputs
    - `docs/design/ux-designs/` — UX design outputs
@@ -101,6 +105,8 @@ wasted work and makes the chain look like it re-initializes the project.
 3. The installer copies these templates (do not overwrite — preserve existing):
    - `{metodoloji-root}/templates/_template_E.md` → `docs/experiments/_template.md`
    - `{metodoloji-root}/templates/_template_BD.md` → `docs/research/_template.md`
+   - `{metodoloji-root}/templates/external-context-README.md` → `docs/research/external/README.md`
+   - `{metodoloji-root}/templates/external-context.md` → `docs/research/external/_template.md`
    - `{metodoloji-root}/templates/_template_C.md` → `docs/design/_template.md`
    - `{metodoloji-root}/templates/_template_IR.md` → `docs/development/_template_IR.md`
    - `{metodoloji-root}/templates/_template_SP.md` → `docs/development/_template_SP.md`

@@ -50,6 +50,9 @@ Start with integration patterns research approach:
 - System interoperability approaches
 - Microservices integration patterns
 - Event-driven architectures and messaging
+- Integration of selected third-party libraries/frameworks and separately developed projects
+
+For each candidate dependency or integrated project, identify its exact name and version/ref, the official documentation and source repository where available, supported runtime/platform versions, public integration interfaces, setup/configuration needs, data and control flow, failure behavior, maintenance/release status, license, security advisories, and known constraints. Prefer primary sources. If docs are incomplete, inspect the repository's implementation, examples, tests, and release history; distinguish observed facts from assumptions and cite URLs plus access date. Compare alternatives when the choice materially affects architecture, risk, or cost.
 
 **Let me search for current integration patterns insights.**"
 
@@ -69,6 +72,7 @@ Search the web: "{{research_topic}} microservices integration patterns"
 - Research integration platform and middleware solutions
 - Analyze microservices architecture patterns and approaches
 - Study event-driven systems and messaging patterns
+- Verify integration claims against the candidate's current official docs and repository, not generic ecosystem summaries alone
 
 ### 3. Analyze and Aggregate Results
 
@@ -101,6 +105,12 @@ When saving to document, append these Level 2 and Level 3 sections:
 
 ```markdown
 ## Integration Patterns Analysis
+
+### External Dependencies and Integrated Projects
+
+| Candidate | Intended role | Version/ref | Primary sources reviewed | Compatibility and integration boundary | Maintenance/license/security | Risks, gaps, and alternatives |
+|---|---|---|---|---|---|---|
+| [name] | [role] | [version/ref] | [docs/repository URLs; access date] | [runtime support, APIs, data/control flow] | [findings or unknown] | [constraints, assumptions, alternatives] |
 
 ### API Design Patterns
 

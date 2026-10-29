@@ -80,6 +80,30 @@ def test_install_is_idempotent_and_preserves_local_edits(tmp_path):
     assert edited.read_bytes() == (PLUGIN / "templates" / "_template_E.md").read_bytes()
 
 
+def test_status_detects_incomplete_existing_skeleton_and_install_repairs_it(tmp_path):
+    """An older marker must not hide templates/directories added by an upgrade."""
+    sk.install(tmp_path)
+    external = tmp_path / "docs/research/external"
+    (external / "README.md").unlink()
+    (external / "_template.md").unlink()
+    external.rmdir()
+    (tmp_path / "docs/design/architecture").rmdir()
+
+    state = sk.status(tmp_path)
+    assert state["installed"] is True  # marker/core probes still exist
+    assert state["ok"] is False
+    assert any("record skeleton is incomplete" in p for p in state["problems"])
+    assert "docs/research/external" in state["missing_directories"]
+    assert "docs/research/external/README.md" in state["missing_templates"]
+
+    repaired = sk.install(tmp_path)
+    assert repaired["ok"] is True
+    assert repaired["marker_written"] is False
+    assert sk.status(tmp_path)["problems"] == []
+    assert (external / "README.md").read_bytes() == \
+        (PLUGIN / "templates/external-context-README.md").read_bytes()
+
+
 def test_status_reports_both_drift_directions(tmp_path):
     # skeleton without marker (the regression that made every skill re-hint init)
     sk.install(tmp_path)

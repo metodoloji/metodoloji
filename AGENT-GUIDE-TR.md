@@ -36,11 +36,12 @@
 
 ### 1.2 İki tür prompt
 
-1. **Slash prompt'ları** — dört sabit komut. Harfiyen söyleyin; kurulum yüzeyi bunlardır:
+1. **Slash prompt'ları** — beş sabit komut. Harfiyen söyleyin; kurulum yüzeyi bunlardır:
    - `/metodoloji:init` — projenize `docs/` kayıt iskeletini kurar (bir kez; sonraki çağrılar no-op)
    - `/metodoloji:gate-setup` — makineye özel gate anahtarını üretir (makine başına bir kez; asla gösterilmez, asla paylaşılmaz)
    - `/metodoloji:verify` — tek deney kaydını doğrular: `VERIFIED` / `FORGED` / `REJECTED` / `ADVISORY-BLOCK`
    - `/metodoloji:audit` — tam sağlık raporu: eklenti bütünlüğü, bridge bağlantısı, kayıt zinciri boşlukları, gate modları
+   - `/metodoloji:add <kaynak>` — bir repository URL'sini, dokümantasyon sitesini veya yerel PDF/Markdown kaynağını projeye göre analiz edip eksiksiz bir external-context kaydı oluşturur
 2. **Serbest prompt'lar** — doğal dil. Her işe yarayan şablon:
 
 ```

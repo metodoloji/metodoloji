@@ -1540,12 +1540,15 @@ for _s in (sys.stdout, sys.stderr):
 # never fix a MISS here).
 PAIRS = [
     ("experiments E", "templates/_template_E.md", "docs/experiments/_template.md"),
+    ("research BD", "templates/_template_BD.md", "docs/research/_template.md"),
     ("development IR", "templates/_template_IR.md", "docs/development/_template_IR.md"),
     ("development SP", "templates/_template_SP.md", "docs/development/_template_SP.md"),
     ("development QR", "templates/_template_QR.md", "docs/development/_template_QR.md"),
     ("development PR", "templates/_template_PR.md", "docs/development/_template_PR.md"),
     ("development S", "templates/_template_S.md", "docs/development/stories/_template_S.md"),
     ("development PM", "templates/_template_PM.md", "docs/development/incidents/_template_PM.md"),
+    ("external context README", "templates/external-context-README.md", "docs/research/external/README.md"),
+    ("external context template", "templates/external-context.md", "docs/research/external/_template.md"),
     ("development README", "templates/README.md", "docs/development/README.md"),
 ]
 

@@ -61,6 +61,7 @@ Gereksinimler: Hermes Agent (plugin + `pre_tool_call` API'si), Python 3.11+
 | komut | `/metodoloji-gate-setup` | Gate key'i bir kez oluştur (varsa yeniden üretmez) |
 | komut | `/metodoloji-verify <kayıt>` | Tek kaydı doğrula |
 | komut | `/metodoloji-audit [full]` | Sağlık kontrolü |
+| komut | `/metodoloji-add <kaynak>` | Repository/docs URL'si veya yerel PDF/Markdown için external-context taslağı hazırlar; ajan analizi tamamlayıp `finalize` eder |
 
 Hermes'te slash komutu işleyicisi metni **kullanıcıya** döndürür, modele değil —
 bu yüzden `commands/*.md` prosedürleri skill olarak da kaydedilir
@@ -75,6 +76,7 @@ bu yüzden `commands/*.md` prosedürleri skill olarak da kaydedilir
 ... çalışma: ajan E kaydı açar, ölçer, APPROVED alır ...
 /metodoloji-verify docs/experiments/E-001.md
 /metodoloji-audit               # zincir boşlukları + gate durumu
+/metodoloji-add <kaynak>        # external-context taslağı + ajan analizi talimatı
 ```
 
 Kapı reddettiğinde gerekçe tool sonucunda modele döner. Ürün kodu doğrulanmış

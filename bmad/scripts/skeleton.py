@@ -44,6 +44,7 @@ DIRECTORIES = (
     "docs/development/structural",
     "docs/quality",
     "docs/research",
+    "docs/research/external",
     "docs/design",
     "docs/design/prds",
     "docs/design/ux-designs",
@@ -55,6 +56,8 @@ DIRECTORIES = (
 TEMPLATE_PAIRS = (
     ("_template_E.md", "docs/experiments/_template.md"),
     ("_template_BD.md", "docs/research/_template.md"),
+    ("external-context-README.md", "docs/research/external/README.md"),
+    ("external-context.md", "docs/research/external/_template.md"),
     ("_template_C.md", "docs/design/_template.md"),
     ("_template_IR.md", "docs/development/_template_IR.md"),
     ("_template_SP.md", "docs/development/_template_SP.md"),
@@ -310,6 +313,15 @@ def status(project_root: pathlib.Path) -> dict:
         problems.append("skeleton installed but .metodoloji/initialized is missing")
     if marker and not skeleton:
         problems.append("marker present but no skeleton copy found — stale marker")
+    if marker and skeleton and (missing_dirs or missing_templates):
+        missing = []
+        if missing_dirs:
+            missing.append("directories: " + ", ".join(missing_dirs))
+        if missing_templates:
+            missing.append("templates: " + ", ".join(missing_templates))
+        problems.append(
+            "record skeleton is incomplete — " + "; ".join(missing) +
+            "; repair safely with skeleton.py --install (existing files are preserved)")
     if absent_sources:
         problems.append("plugin ships no templates/: " + ", ".join(absent_sources))
     return {

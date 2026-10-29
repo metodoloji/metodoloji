@@ -1,6 +1,6 @@
 # metodoloji
 
-![version](https://img.shields.io/badge/version-0.2.6-0b7285?style=flat-square) ![license](https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square) ![python](https://img.shields.io/badge/python-3.11%2B-3776ab?style=flat-square) ![tests](https://img.shields.io/badge/tests-1%2C400%2B-4c1?style=flat-square) ![runtimes](https://img.shields.io/badge/runtimes-Claude%20Code%20%7C%20OpenHands%20%7C%20OpenCode%20%7C%20Hermes-555?style=flat-square)
+![version](https://img.shields.io/badge/version-0.2.7-0b7285?style=flat-square) ![license](https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square) ![python](https://img.shields.io/badge/python-3.11%2B-3776ab?style=flat-square) ![tests](https://img.shields.io/badge/tests-1%2C400%2B-4c1?style=flat-square) ![runtimes](https://img.shields.io/badge/runtimes-Claude%20Code%20%7C%20OpenHands%20%7C%20OpenCode%20%7C%20Hermes-555?style=flat-square)
 
 **A methodology plugin that applies approval gates to coding-agent actions through supported runtime hooks.**
 
@@ -14,7 +14,7 @@ For **Claude Code**, **OpenHands**, **OpenCode**, and **Hermes**: a 6-stage reco
 - [How it works](#how-it-works)
 - [Requirements](#requirements)
 - [Quick start](#quick-start)
-- [The four commands](#the-four-commands)
+- [The five commands](#the-five-commands)
 - [Two rules that save you pain](#two-rules-that-save-you-pain)
 - [Verify your install](#verify-your-install)
 - [Project layout](#project-layout)
@@ -131,12 +131,12 @@ hermes plugins enable metodoloji
 
 > The plugin ships `plugin.yaml` + `register(ctx)` at the repo root, so the
 > Git install is the whole package — 5 tools, 6 hooks, the full skill catalog
-> and 5 slash commands. Details, limits and the fail-closed contract:
+> and 6 slash commands. Details, limits and the fail-closed contract:
 > [`HERMES.md`](HERMES.md).
 
 **2. Set up your project** (once):
 
-> Run `/metodoloji:init`, then `/metodoloji:gate-setup`, then `/metodoloji:audit`.
+> Run `/metodoloji:init`, then `/metodoloji:gate-setup`, then `/metodoloji:audit`. After a plugin update, init can be re-run safely to add newly shipped directories/templates; it never replaces existing project files.
 
 The agent installs the `docs/` record skeleton (one time, never overwrites), creates your machine-local gate key (one time per machine, never printed), and reports project health.
 
@@ -152,14 +152,15 @@ The agent picks the skills, writes the experiment, and runs the measurement gate
 
 The agent advances `E → IR → SP → S → code → QR → commit → PR → deploy`, verifying each link.
 
-## The four commands
+## The five commands
 
 | Tell the agent | What happens |
 |---|---|
-| `/metodoloji:init` | Installs the `docs/` skeleton + templates into your project (one time; re-runs are no-ops) |
+| `/metodoloji:init` | Installs the `docs/` skeleton + templates; safe re-runs add only missing assets and preserve existing files |
 | `/metodoloji:gate-setup` | Creates the machine-local gate key (one time per machine; never shared, never in the repo) |
 | `/metodoloji:verify` | Checks one experiment record: `VERIFIED` (code allowed), `FORGED`, `REJECTED` or `ADVISORY-BLOCK` |
 | `/metodoloji:audit` | Full health check: plugin integrity, bridge wiring, record-chain gaps, gate modes |
+| `/metodoloji:add <source>` | Analyzes a repository URL, docs site, or local PDF/Markdown source against this project and registers a complete `docs/research/external/<slug>/context.md`; the analysis is agent-led, scaffold/validation/indexing are mechanical |
 
 **How a task flows:** you state the goal → the agent researches and plans with skills (`bmad-prd`, `bmad-architecture`, `bmad-sprint-planning`…) → it opens an experiment, measures, gets `APPROVED` → implements inside the verified scope → records the quality review → commits. Multi-step work is carried over the blackboard (`write --hot`, run lists, handoffs), so context survives across sessions.
 
@@ -196,7 +197,7 @@ metodoloji/
 ├── skills/              # 129 skills (native bodies)
 ├── custom/              # 121 TOMLs (33 BRIDGE active) + config.toml (soft/hard)
 ├── bmad/                # module data (bmm, cis, gds, wds, tea, core, bmb, loop) + scripts/
-├── templates/           # record templates (_template_E/IR/SP/QR/PR/S/PM/BD/C/STRUCT + README/tech-debt/scratch)
+├── templates/           # _template_E/IR/SP/QR/PR/S/PM/BD/C/STRUCT + README/tech-debt/scratch-README/external-context-README/external-context
 ├── commands/            # /metodoloji:init, gate-setup, verify, audit (.md)
 ├── scripts/             # static checks, record generators, bench harness, sync-hooks-json
 └── docs/                # engine notes, bmad manifestos, record templates, native outputs

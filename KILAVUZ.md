@@ -148,7 +148,7 @@ Hedef projede .metodoloji/initialized var mı?
 1. **SessionStart bağlamını oku** (motor otomatik basar): zincir hatırlatıcı + gate key durumu + init durumu + **proje durumu** (kayıt envanteri + sprint satırı: review/in-progress story'ler, epic-lag bayrakları) + bekleyen handoff varsa PROACTIVE dürtme + board'da E/IR/SP/S/QR/PR run key varsa zincir ilerlemesi (`Chain progress`). Oturumu bu satırlarla aç, ezberle değil.
 2. **`METODOLOJI active (plugin: PATH)` satırını not et** — `{metodoloji-root}` bu; verbatim kullan, arama yapma (#20).
 3. **Durum yoklaması:** bekleyen handoff (`handoffs`), açık run list, `hot` anahtarı (#14). Kullanıcıya "nerede kaldık" özetini bir cümlede ver.
-4. **Uyarıları yorumla:** "marker var → init'i tekrar çalıştırma", "marker yok → bir kez çalıştır", iskelet var + marker yok → **bozuk init** (tek seferlik onarım: `python3 {metodoloji-root}/bmad/scripts/skeleton.py --install`).
+4. **Durumu yorumla:** marker'lı iskelet tamamsa işlem gerekmez; başlatılmış projede eksik dizin/şablon varsa zararsız `python3 {metodoloji-root}/bmad/scripts/skeleton.py --install` yalnızca eksikleri tamamlar; iskelet var + marker yok ise aynı komutla **bozuk init** onarılır.
 5. **Kullanıcı isteğini al** → #3 karar ağacına bağla ve hangi playbook'u koşacağını söyle.
 
 **Yapma:** Oturum başında toplu denetim koşma (`{metodoloji-root}/scripts/check-plugin.sh` \~65s sürer) — kullanıcı istemedikçe P22'ye bırak.
@@ -1210,7 +1210,7 @@ python3 {metodoloji-root}/bmad/scripts/blackboard.py hot --clear
 
 ## 15. Komut Referansı
 
-### 15.1 Dört slash komut (kullanıcı adına sen koşarsın)
+### 15.1 Beş slash komut (kullanıcı adına sen koşarsın)
 
 
 | Komut                    | Sen ne yaparsın                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
@@ -1218,6 +1218,7 @@ python3 {metodoloji-root}/bmad/scripts/blackboard.py hot --clear
 | `/metodoloji:init`       | `{project-root}` altına dizin+template kur. **Bir kez** çalışır ve `.metodoloji/initialized` marker'ını yazar; marker varsa kısa devre yapıp "already installed" der (yeniden kurmak için `--force`). Mevcutu ezmez. Manifestoları kopyalamaz. Gate key yoksa uyarır. Brownfield notu basar. Özet yazdırır (`/metodoloji:audit` sonraki adım).                                                                                                                                                                                                                  |
 | `/metodoloji:gate-setup` | `~/.bmad/gate-key` varsa "already installed" deyip bitir (üzerine YAZMA). Yoksa `--init-secret` koş. 0600 kontrol et. İçeriği **asla** yazdırma/kopyalama/taşıma. Örnek `GATE-OK-...` çıktısı = tamam. Sonraki adım: ilk E kaydı.                                                                                                                                                                                                                                                                                                                               |
 | `/metodoloji:verify`     | Tek kaydı doğrula: `python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --verify --record {project-root}/docs/experiments/<id>.md`. `VERIFIED` = scope açık; `FORGED` = kaydı yeniden üret; `REJECTED` = hipotezi revize et; `ADVISORY-BLOCK` (exit 2) = yeni kayıtta yeniden ölç (kodu açmaz).                                                                                                                                                                                                                                 |
+| `/metodoloji:add <kaynak>` | Bir repository URL'sini, dokümantasyon sitesini veya yerel PDF/Markdown dosyasını projeye göre analiz edip `{project-root}/docs/research/external/<slug>/context.md` kaydını oluştur. Önce `{metodoloji-root}/scripts/external-context.py prepare` (ezmeyen taslak), sonra harness'in repository/web/dosya araçlarıyla analiz, tüm template bölümlerini doldur, `finalize` (doğrula + index) ve `check`. Kayıt kanıttır — kod yazma izni vermez. Mevcut kayıt `external-context.py refresh` ile yeniden doğrulanır (analiz korunur, `Status: draft` olur, yeni tarih yazılır), ardından finalize index'i günceller. `check`, bir index satırı kaydıyla artık uyuşmadığında (isim, analiz edilen ref veya tarih) sıfırdan çıkar; atlanmış `finalize` sessizce geçmez. Yarım kalan taslak `external-context.py discard` ile `.archive/` altına taşınır (silinmez); reviewed kayıt için `--force` gerekir. |
 | `/metodoloji:audit`      | Sağlık kontrolü: (1) `sh {metodoloji-root}/scripts/check-plugin.sh` koş + özetle (exit 0 = HEALTHY). (2) Custom-odaklı rapor istenirse `{metodoloji-root}/scripts/check-custom.sh` (#0–#7). (3) `{project-root}/docs/experiments/` + `docs/development/` kayıtlarını listele, zincir boşluklarını not et (S var QR yok gibi). (4) Her E'ye `--verify` koş, VERIFIED/FORGED dağılımını raporla. (5) `custom/config.toml [hooks]` soft/hard değerlerini oku. (6) Board: `doctor --json` + `stats` + `chain-health` (HEALTHY/SIGNAL = geç, NEEDS ATTENTION = düzelt; event-log bound'da `rotate`). (7) PASS/FAIL + düzeltme önerisi. Bridge şüphesinde `{metodoloji-root}/scripts/check-custom.sh --negtest` ile break→catch→restore kanıtı göster. |
 
 
@@ -1452,7 +1453,7 @@ metodoloji/
 ├── skills/                              # 129 skill (native gövde)
 ├── custom/                              # 121 TOML (33 BRIDGE aktif) + config.toml (soft/hard)
 ├── bmad/                                # modül verisi (bmm,cis,gds,wds,tea,core,bmb,loop,_config) + scripts/ (blackboard, workflow, orient, resolve_config, resolve_customization, skeleton)
-├── templates/                           # _template_E/IR/SP/QR/PR/S/PM/BD/C/STRUCT + README/tech-debt/scratch-README
+├── templates/                           # _template_E/IR/SP/QR/PR/S/PM/BD/C/STRUCT + README/tech-debt/scratch-README/external-context-README/external-context
 ├── commands/                            # /metodoloji:init, gate-setup, verify, audit (.md)
 ├── scripts/                             # check-plugin/custom/methodology/techdebt, check-handoff, create-*-record, sync-*, bench/
 ├── docs/                                # CLAUDE.md, bmad manifestoları, kayıt şablonları (experiments/development/quality/research/design) + native çıktılar (development/native/)

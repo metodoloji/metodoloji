@@ -59,6 +59,8 @@ Search the web: "technology adoption strategies migration"
 - Gradual adoption vs big bang strategies
 - Legacy system modernization approaches
 - Vendor evaluation and selection criteria
+- Adoption and integration plan for each selected external library, framework, service, or integrated project
+- Version pinning/upgrade policy, license and security review, maintenance ownership, and replacement strategy
 
 ### 3. Web Search for Development Workflows
 
@@ -99,6 +101,10 @@ When saving to document, append these Level 2 and Level 3 sections:
 
 [Technology adoption analysis with source citations]
 _Source: [URL]_
+
+### External Dependency Adoption and Integration
+
+For each recommended dependency or integrated project, summarize its role, selected version/ref, official documentation and repository sources reviewed (with access date), runtime compatibility, integration boundary and data/control flow, configuration and operational requirements, maintenance/release health, license/security findings, known gaps, viable alternatives, and upgrade/replacement plan. Treat unknowns as explicit risks. Link unresolved feasibility claims to a proposed E-id experiment rather than presenting them as settled decisions.
 
 ### Development Workflows and Tooling
 

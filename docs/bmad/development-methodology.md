@@ -40,6 +40,11 @@ development_status:
 
 ## §3 Story Creation (Mode C)
 
+### §3.0 External Dependency Readiness
+- Stories that introduce or materially change an external library, framework, service, or integrated project must reference the researched choice and version/ref, primary documentation/repository evidence, compatibility and integration boundary, and relevant license/security/maintenance risks.
+- Implementation readiness must flag missing or stale dependency evidence as a planning gap. Version-sensitive facts are rechecked before implementation; unresolved feasibility assumptions require an approved, scoped experiment before code is written.
+- At story implementation and code review, discover and read relevant registered external contexts under `docs/research/external/`; use the analyzed version/ref and its stated constraints, and revalidate current sources when versions differ. Record the context path/version in the story or review evidence when it affects a decision.
+
 ### §3.1 Story Creation
 - The story file is created with `bmad-create-story`
 - Story metadata is required: Experiment, Type, Measured, Verify
@@ -101,6 +106,7 @@ experiment_refs:
 - Red-green-refactor loop
 - Test first development
 - Implementation on a per-AC basis
+- Before implementation, resolve relevant registered external contexts for the story/dependencies and recheck version-sensitive primary sources; apply their integration constraints and note stale or conflicting findings.
 - **A documentary decision does NOT grant code writing permission**
 
 ### §4.1.1 Git Operations
@@ -158,6 +164,7 @@ experiment_refs:
 
 ### §6.1 Review Process
 - Adversarial review with `bmad-code-review`
+- Resolve registered external contexts relevant to changed files and dependencies; check the implementation against the analyzed APIs, versions, constraints, and integration boundary, and flag stale or mismatched context.
 - Parallel review layers:
   - **Blind Hunter:** General code quality
   - **Edge Case Hunter:** Edge case analysis

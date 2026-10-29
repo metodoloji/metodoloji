@@ -38,11 +38,12 @@
 
 ### 1.2 Two kinds of prompt
 
-1. **Slash prompts** — four fixed commands. Say them verbatim; they are the whole setup surface:
+1. **Slash prompts** — five fixed commands. Say them verbatim; they are the whole setup surface:
    - `/metodoloji:init` — install the `docs/` record skeleton in your project (once; later calls are no-ops)
    - `/metodoloji:gate-setup` — create the machine-local gate key (once per machine; never printed, never shared)
    - `/metodoloji:verify` — check one experiment record: `VERIFIED` / `FORGED` / `REJECTED` / `ADVISORY-BLOCK`
    - `/metodoloji:audit` — full health report: plugin integrity, bridge wiring, record-chain gaps, gate modes
+   - `/metodoloji:add <source>` — analyze a repository URL, docs site, or local PDF/Markdown source and register a complete external-context entry
 2. **Free-form prompts** — natural language. The template that always works:
 
 ```
