@@ -4694,6 +4694,73 @@ def _check_external_context_source_identity_contract() -> str | None:
     return None
 
 
+def _check_external_context_index_transaction_contract() -> str | None:
+    """E-095: the index rebuild is part of the mutation's transaction.
+
+    `finalize` and `discard` rebuilt the index last, so a malformed README left
+    review evidence written or an entry archived while the command reported
+    failure. The index is now preflighted before any mutation, and an
+    unexpected rebuild error restores the README and the entry. This check pins
+    the discarded draft staying live on the structural failure and a healthy
+    README still archiving it; the unexpected-error rollback is pinned by the
+    registry unit tests and the focused bench.
+    """
+    import importlib.util
+
+    script = ROOT / "scripts/external-context.py"
+    if not script.is_file():
+        return "external-context CLI is missing"
+    spec = importlib.util.spec_from_file_location(
+        "external_context_index_transaction", script)
+    if spec is None or spec.loader is None:
+        return "external-context CLI cannot be loaded"
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    with tempfile.TemporaryDirectory() as tmp:
+        project = pathlib.Path(tmp) / "project"
+        registry = project / "docs/research/external"
+        registry.mkdir(parents=True)
+        (registry / "_template.md").write_text(
+            (ROOT / "templates/external-context.md").read_text(encoding="utf-8"),
+            encoding="utf-8")
+        readme = registry / "README.md"
+        readme.write_text(
+            (ROOT / "templates/external-context-README.md").read_text(
+                encoding="utf-8"), encoding="utf-8")
+        try:
+            module.prepare(project, "https://github.com/mastra-ai/mastra")
+        except Exception as exc:
+            return f"the discard probe could not prepare: {exc}"
+        entry = registry / "mastra" / "context.md"
+        readme.write_text("# Registry\n\nNo generated section here.\n",
+                          encoding="utf-8")
+        entry_before, readme_before = entry.read_bytes(), readme.read_bytes()
+        try:
+            module.discard(project, "mastra", today="2026-10-31")
+        except module.ContextError as exc:
+            if "Registered contexts" not in str(exc):
+                return f"the index refusal did not name the section: {exc}"
+            if not entry.is_file() or entry.read_bytes() != entry_before:
+                return "a failed index rebuild left the entry archived or changed"
+            if readme.read_bytes() != readme_before:
+                return "a failed index rebuild changed the README"
+        except Exception as exc:
+            return f"the index probe raised {type(exc).__name__}: {exc}"
+        else:
+            return "a malformed index did not stop discard"
+        readme.write_text(
+            (ROOT / "templates/external-context-README.md").read_text(
+                encoding="utf-8"), encoding="utf-8")
+        try:
+            result = module.discard(project, "mastra", today="2026-10-31")
+        except Exception as exc:
+            return f"a healthy README did not archive the draft: {exc}"
+        if not result.get("ok") or not any(
+                (registry / ".archive").glob("*-mastra/context.md")):
+            return "a healthy README did not archive the draft"
+    return None
+
+
 def _check_external_context_draft_discovery_contract() -> str | None:
     """E-088: discovery never hands a workflow an unreviewed draft as context.
 
@@ -5194,6 +5261,8 @@ def build_checks() -> list[tuple[str, Callable[[], str | _SkippedCheck | None]]]
                    _check_external_context_write_boundary_contract))
     checks.append(("external context source identity is canonical (E-094)",
                    _check_external_context_source_identity_contract))
+    checks.append(("external context index rebuild is transactional (E-095)",
+                   _check_external_context_index_transaction_contract))
     checks.append(("external context drafts are not registered context (E-088)",
                    _check_external_context_draft_discovery_contract))
     checks.append(("opencode bridge suite runs and passes (E-074)",

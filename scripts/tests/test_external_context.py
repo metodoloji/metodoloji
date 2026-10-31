@@ -622,6 +622,70 @@ def test_failed_finalize_leaves_the_entry_byte_identical(tmp_path):
     assert "| reviewed |" not in entry.read_text(encoding="utf-8")
 
 
+def test_failed_index_rebuild_leaves_finalize_untouched(tmp_path):
+    """E-095: the index rebuild belongs to the finalize transaction."""
+    root = _project(tmp_path)
+    entry = _complete(root)
+    readme = root / "docs/research/external/README.md"
+    readme.write_text("# Registry\n\nNo generated section here.\n",
+                      encoding="utf-8")
+    before, readme_before = entry.read_bytes(), readme.read_bytes()
+    with pytest.raises(tool.ContextError, match="Registered contexts"):
+        tool.finalize(root, "mastra", today="2026-10-31")
+    assert entry.read_bytes() == before
+    assert readme.read_bytes() == readme_before
+
+
+def test_failed_index_write_rolls_finalize_back(tmp_path, monkeypatch):
+    """E-095: an unexpected index error restores the entry byte-for-byte."""
+    root = _project(tmp_path)
+    entry = _complete(root)
+    before = entry.read_bytes()
+
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("index write failed")
+
+    monkeypatch.setattr(tool, "_write_index", boom)
+    with pytest.raises(RuntimeError, match="index write failed"):
+        tool.finalize(root, "mastra", today="2026-10-31")
+    assert entry.read_bytes() == before
+
+
+def test_failed_index_rebuild_leaves_discard_in_place(tmp_path):
+    """E-095: a malformed index must not archive the entry anyway."""
+    root = _project(tmp_path)
+    prepared = tool.prepare(root, "https://github.com/mastra-ai/mastra")
+    entry = root / prepared["entry"]
+    readme = root / "docs/research/external/README.md"
+    readme.write_text("# Registry\n\nNo generated section here.\n",
+                      encoding="utf-8")
+    readme_before = readme.read_bytes()
+    with pytest.raises(tool.ContextError, match="Registered contexts"):
+        tool.discard(root, "mastra", today="2026-10-31")
+    assert entry.is_file()
+    archive = root / "docs/research/external/.archive"
+    assert not any(archive.glob("*"))
+    assert readme.read_bytes() == readme_before
+
+
+def test_failed_index_write_rolls_discard_back(tmp_path, monkeypatch):
+    """E-095: a moved entry returns to the registry when indexing fails."""
+    root = _project(tmp_path)
+    prepared = tool.prepare(root, "https://github.com/mastra-ai/mastra")
+    entry = root / prepared["entry"]
+    before = entry.read_bytes()
+
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("index write failed")
+
+    monkeypatch.setattr(tool, "_write_index", boom)
+    with pytest.raises(RuntimeError, match="index write failed"):
+        tool.discard(root, "mastra", today="2026-10-31")
+    assert entry.read_bytes() == before
+    archive = root / "docs/research/external/.archive"
+    assert not any(archive.glob("*-mastra*"))
+
+
 def test_check_and_list_accept_a_pinned_today(tmp_path):
     """E-092: freshness is injectable, not read from the wall clock."""
     root = _project(tmp_path)

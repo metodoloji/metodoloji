@@ -122,19 +122,21 @@ def read_text(path: Path) -> str:
         raise ContextError(f"cannot read {path}: {exc.strerror or exc}") from exc
 
 
-def atomic_write_text(path: Path, text: str) -> None:
-    """Write UTF-8 with LF newlines, then replace atomically.
+def atomic_write_bytes(path: Path, data: bytes) -> None:
+    """Replace a file with exact bytes, atomically.
 
     A crash mid-write must never leave a half-regenerated entry or index. The
     temporary file lives beside the target so `os.replace` stays on one
-    filesystem (atomic on POSIX and on Windows for same-volume renames).
+    filesystem (atomic on POSIX and on Windows for same-volume renames). Bytes
+    rather than text matter for rollback: restoring a snapshot must not
+    normalise the newlines of a file this command did not create.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(
         prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent))
     try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
-            handle.write(text)
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(data)
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(tmp_name, path)
@@ -142,6 +144,11 @@ def atomic_write_text(path: Path, text: str) -> None:
         with contextlib.suppress(OSError):
             os.unlink(tmp_name)
         raise
+
+
+def atomic_write_text(path: Path, text: str) -> None:
+    """Write UTF-8 with LF newlines, then replace atomically."""
+    atomic_write_bytes(path, text.encode("utf-8"))
 
 
 @contextlib.contextmanager

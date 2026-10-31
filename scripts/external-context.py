@@ -20,6 +20,7 @@ records what it actually inspected, and `finalize` refuses placeholders.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import re
 import shutil
@@ -58,6 +59,7 @@ from external_context_common import (  # noqa: E402
     SCHEMA_VERSION,
     STATUSES,
     ContextError,
+    atomic_write_bytes,
     atomic_write_text,
     cell,
     classify_source,
@@ -520,15 +522,71 @@ def _generated_block(entries: list[dict]) -> str:
     return f"{BEGIN_MARKER}\n{body}\n{END_MARKER}"
 
 
+def _index_text(root: Path) -> tuple[Path, str, bool]:
+    """The index path, its text (seeding from the template if absent), and
+    whether it already existed.
+
+    Reading is shared by `_write_index` and `_index_precheck` so a structural
+    refusal cannot disagree with the writer about which text counts.
+    """
+    index = root / PROJECT_README_REL
+    if index.is_file():
+        return index, read_text(index), True
+    seeded = Path(__file__).resolve().parents[1] / PLUGIN_README_REL
+    if not seeded.is_file():
+        raise ContextError("registry README is missing and no template is available")
+    return index, read_text(seeded), False
+
+
+def _index_anchor_ok(text: str) -> bool:
+    return (BEGIN_MARKER in text and END_MARKER in text) \
+        or "## Registered contexts" in text
+
+
+def _index_precheck(root: Path) -> tuple[Path, bytes | None]:
+    """Prove the index can be regenerated before any entry is mutated.
+
+    `finalize` and `discard` used to write/move the entry first and rebuild the
+    index last, so a malformed README left the entry changed (or archived) while
+    the command reported failure. E-092 claims a command either completes and is
+    indexed or leaves the entry untouched; this preflight is that claim's other
+    half for the deterministic failures.
+    """
+    index, text, existed = _index_text(root)
+    if not _index_anchor_ok(text):
+        raise ContextError("registry README has no '## Registered contexts' section")
+    return index, (index.read_bytes() if existed else None)
+
+
+def _restore_index(index: Path, before: bytes | None) -> None:
+    """Put the README back exactly as the failed command found it."""
+    if before is None:
+        with contextlib.suppress(OSError):
+            index.unlink()
+        return
+    with contextlib.suppress(OSError):
+        atomic_write_bytes(index, before)
+
+
+def _restore_text(path: Path, before: bytes | None) -> None:
+    """Undo a candidate write; None means nothing was written."""
+    if before is not None:
+        with contextlib.suppress(OSError):
+            atomic_write_bytes(path, before)
+
+
+def _restore_move(path: Path, source: Path) -> None:
+    """Move an archived entry back after a failed index rebuild."""
+    with contextlib.suppress(OSError):
+        if path.exists() and not source.exists():
+            shutil.move(str(path), str(source))
+
+
 def _write_index(root: Path, registry: Path) -> tuple[bool, str]:
     """Regenerate the README index from the entries themselves (F-16)."""
-    index = root / PROJECT_README_REL
-    if not index.is_file():
-        seeded = Path(__file__).resolve().parents[1] / PLUGIN_README_REL
-        if not seeded.is_file():
-            raise ContextError("registry README is missing and no template is available")
-        atomic_write_text(index, read_text(seeded))
-    text = read_text(index)
+    index, text, existed = _index_text(root)
+    if not existed:
+        atomic_write_text(index, text)
     entries = _entries(registry)
     block = _generated_block(entries)
     if BEGIN_MARKER in text and END_MARKER in text:
@@ -641,9 +699,18 @@ def finalize(project_root: str | Path, slug: str, today: str | None = None) -> d
             return {"ok": False, "action": "finalize", "entry": _rel(root, entry),
                     "findings": errors, "warnings": warnings,
                     "next": "fix the findings and re-run finalize"}
-        if candidate != text:
-            atomic_write_text(entry, candidate)
-        changed, line = _write_index(root, registry)
+        # The index rebuild is part of the same transaction: a malformed
+        # README must fail before the review evidence is written.
+        index, index_before = _index_precheck(root)
+        entry_before = entry.read_bytes() if candidate != text else None
+        try:
+            if candidate != text:
+                atomic_write_text(entry, candidate)
+            changed, line = _write_index(root, registry)
+        except BaseException:
+            _restore_text(entry, entry_before)
+            _restore_index(index, index_before)
+            raise
         entries = _entries(registry)
         own = next((item for item in entries if item["slug"] == slug), None)
         return {"ok": True, "action": "finalize", "entry": _rel(root, entry),
@@ -717,6 +784,9 @@ def discard(project_root: str | Path, slug: str, force: bool = False,
         # archive directory would move the entry outside the project without
         # any entry-level guard noticing. Refuse before creating or moving.
         require_inside_target(archive_root, registry, _rel(root, archive_root))
+        # As in `finalize`, prove the index can be rebuilt before the move; a
+        # failure afterwards must put the entry back, not leave it archived.
+        index, index_before = _index_precheck(root)
         archive_root.mkdir(parents=True, exist_ok=True)
         stamp = utc_stamp()
         target = archive_root / f"{stamp}-{slug}"
@@ -725,18 +795,25 @@ def discard(project_root: str | Path, slug: str, force: bool = False,
             suffix += 1
             target = archive_root / f"{stamp}-{slug}-{suffix}"
         require_inside_target(target, registry, _rel(root, target))
-        shutil.move(str(entry_dir), str(target))
-        note = (
-            f"# Archived external context: {heading_name(text, slug)}\n\n"
-            f"- **Archived on:** {day}\n"
-            f"- **Previous status:** {status or 'unknown'}\n"
-            f"- **Analyzed on:** {fields.get('analyzed on', 'unknown')}\n"
-            f"- **Analyzed version/ref:** "
-            f"{fields.get('analyzed version/ref', 'unknown')}\n"
-            f"- **Last reviewed on:** {last_reviewed or 'never'}\n"
-            f"- **Reason:** {reason or 'not recorded'}\n")
-        atomic_write_text(target / "ARCHIVED.md", note)
-        changed, _line = _write_index(root, registry)
+        try:
+            shutil.move(str(entry_dir), str(target))
+            note = (
+                f"# Archived external context: {heading_name(text, slug)}\n\n"
+                f"- **Archived on:** {day}\n"
+                f"- **Previous status:** {status or 'unknown'}\n"
+                f"- **Analyzed on:** {fields.get('analyzed on', 'unknown')}\n"
+                f"- **Analyzed version/ref:** "
+                f"{fields.get('analyzed version/ref', 'unknown')}\n"
+                f"- **Last reviewed on:** {last_reviewed or 'never'}\n"
+                f"- **Reason:** {reason or 'not recorded'}\n")
+            atomic_write_text(target / "ARCHIVED.md", note)
+            changed, _line = _write_index(root, registry)
+        except BaseException:
+            with contextlib.suppress(OSError):
+                (target / "ARCHIVED.md").unlink()
+            _restore_move(target, entry_dir)
+            _restore_index(index, index_before)
+            raise
     return {"ok": True, "action": "discard", "slug": slug,
             "archived": _rel(root, target), "index_updated": changed}
 
