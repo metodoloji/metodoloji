@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 from typing import Any
 
 try:  # Hermes imports plugins as a package (hermes_plugins.<name>)
@@ -262,13 +263,33 @@ def handle_audit(params: dict, **kwargs) -> str:
     output = proc.stdout or ""
     errors = [line for line in output.splitlines() if line.startswith("[ERROR]")]
     status = [line for line in output.splitlines() if line.startswith("STATUS:")]
+    registry_ok = True
+    registry: dict[str, Any] = {}
+    registry_script = PLUGIN_ROOT / "scripts" / "external-context.py"
+    if registry_script.is_file():
+        try:
+            registry_proc = subprocess.run(
+                [sys.executable, str(registry_script), "check",
+                 "--project-root", cwd, "--strict", "--json"],
+                capture_output=True, text=True, timeout=60.0, cwd=cwd,
+            )
+            registry = json.loads(registry_proc.stdout or "{}")
+            registry_ok = registry_proc.returncode == 0
+        except (OSError, subprocess.TimeoutExpired, ValueError) as exc:
+            registry_ok = False
+            registry = {"error": f"external-context check failed: {exc}"}
+    else:
+        registry_ok = False
+        registry = {"error": f"missing {registry_script}"}
     return _json({
-        "success": proc.returncode == 0,
+        "success": proc.returncode == 0 and registry_ok,
         "scope": scope,
         "project_root": cwd,
         "status": status[-1] if status else "unknown",
         "error_count": len(errors),
         "errors": errors[:40],
+        "registry_ok": registry_ok,
+        "registry": registry,
         "tail": output.strip().splitlines()[-25:],
     })
 

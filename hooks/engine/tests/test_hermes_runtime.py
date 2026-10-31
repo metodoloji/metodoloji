@@ -253,13 +253,27 @@ def test_blocked_call_is_not_audited(plugin_module, monkeypatch):
     assert len(audited) == 1
 
 
-def test_commands_resolve_under_package_import(plugin_module, monkeypatch):
+def test_commands_resolve_under_package_import(plugin_module, monkeypatch, tmp_path):
     """Every slash command must work when the plugin is a package.
 
     `from hermes_tools import …` inside a handler raised
     "No module named 'hermes_tools'" in a live Hermes session: the modules are
     `hermes_plugins.<name>.hermes_tools`, so only relative imports resolve.
+
+    The argument is a real source path because `/metodoloji-add` runs `prepare`,
+    so the command must write into a temporary project — never the live registry
+    this test would otherwise leave dirty for `external-context.py check`.
     """
+    registry = tmp_path / "docs" / "research" / "external"
+    registry.mkdir(parents=True)
+    (registry / "_template.md").write_bytes(
+        (PLUGIN_ROOT / "templates" / "external-context.md").read_bytes())
+    (registry / "README.md").write_bytes(
+        (PLUGIN_ROOT / "templates" / "external-context-README.md").read_bytes())
+    source = tmp_path / "source.md"
+    source.write_text("# Source\n", encoding="utf-8")
+    monkeypatch.setattr(plugin_module, "agent_cwd", lambda: str(tmp_path))
+
     digest = {"success": True, "digest": {"project_root": "/tmp/proj",
                                           "plugin_version": "9.9.9", "records": {}}}
     monkeypatch.setattr(plugin_module, "handle_orient", lambda *a, **k: json.dumps(digest))
@@ -276,7 +290,7 @@ def test_commands_resolve_under_package_import(plugin_module, monkeypatch):
     }))
 
     for name, handler, _description in plugin_module.COMMANDS:
-        text = handler("docs/experiments/E-001.md")
+        text = handler(str(source))
         assert isinstance(text, str) and text.strip(), f"/{name} returned nothing"
     assert "/tmp/proj" in plugin_module._command_status("")
     assert "VERIFIED" in plugin_module._command_verify("docs/experiments/E-001.md")

@@ -2876,6 +2876,44 @@ def _run_pytest() -> str | None:
     return None
 
 
+def _run_registry_isolation() -> str | None:
+    """E-090: the Hermes command test must not write into the live registry.
+
+    The test drives every slash command with a real source path, so
+    `/metodoloji-add` runs `prepare`. If the test forgets to point `agent_cwd`
+    at its temporary project, a full-suite run leaves a draft entry behind and
+    `external-context.py check --strict` fails immediately afterwards. Snapshot
+    the entry set around the test and clean up anything it added so one
+    regression cannot poison the next check.
+    """
+    registry = ROOT / "docs/research/external"
+    if not registry.is_dir():
+        return "the external-context registry is missing"
+    before = {path.relative_to(registry) for path in registry.glob("*/context.md")}
+    proc = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q",
+         "hooks/engine/tests/test_hermes_runtime.py"
+         "::test_commands_resolve_under_package_import"],
+        cwd=ROOT, capture_output=True, text=True, encoding="utf-8",
+        errors="replace", timeout=120, stdin=subprocess.DEVNULL)
+    after = {path.relative_to(registry) for path in registry.glob("*/context.md")}
+    added = sorted(after - before)
+    for rel in added:
+        entry = registry / rel
+        try:
+            entry.unlink()
+            entry.parent.rmdir()
+        except OSError:
+            pass
+    if added:
+        return f"the command test wrote live registry entries: {[str(p) for p in added]}"
+    if proc.returncode != 0:
+        tail = (proc.stdout or "").strip().splitlines()[-3:]
+        return f"the command test failed: {' | '.join(tail)}"
+    return None
+
+
+
 def _run_hooks_json_sync() -> str | None:
     proc = subprocess.run([sys.executable, "scripts/sync-hooks-json.py", "--check"],
                           cwd=ROOT, capture_output=True, text=True,
@@ -4294,13 +4332,47 @@ def _check_external_context_refresh_contract() -> str | None:
         (registry / "_template.md").write_text(
             (ROOT / "templates/external-context.md").read_text(encoding="utf-8"),
             encoding="utf-8")
+        (registry / "README.md").write_text(
+            (ROOT / "templates/external-context-README.md").read_text(
+                encoding="utf-8"), encoding="utf-8")
         entry = registry / "mastra/context.md"
         entry.parent.mkdir()
         entry.write_text(
-            "# Mastra Context\n\n- **Status:** reviewed\n"
-            "- **Analyzed on:** 2020-01-01\n\nanalysis-marker-keep\n",
+            "# Mastra Context\n\n"
+            "- **Schema:** 2\n"
+            "- **Status:** reviewed\n"
+            "- **Analyzed on:** 2020-01-01\n"
+            "- **Analyzed version/ref:** v0.30.0\n"
+            "- **Revalidate when:** version changes\n"
+            "- **Revalidate after:** 2099-01-01\n"
+            "- **Last reviewed on:** 2020-01-01\n"
+            "- **Reviewer:** bench\n"
+            "- **Project relevance:** agent workflow orchestration\n\n"
+            "## Sources inspected\n\n"
+            "| Source | Type | Version/ref and access date | What was inspected |\n"
+            "|---|---|---|---|\n"
+            "| https://github.com/mastra-ai/mastra | repository | v0.30.0; 2020-01-01 | README |\n\n"
+            "## Summary\n\nObserved: workflows run agents sequentially.\n\n"
+            "## Integration guidance\n\n"
+            "- **Supported runtimes/platforms:** node 20\n"
+            "- **Key interfaces and APIs:** Workflow, Agent\n"
+            "- **Data/control flow and boundary:** in-process\n"
+            "- **Setup/configuration:** @mastra/core\n"
+            "- **Failure modes and operational constraints:** serial execution\n"
+            "- **Compatibility/version constraints:** node >=20\n\n"
+            "## Maintenance, license, and security\n\nActively maintained, MIT.\n\n"
+            "## Risks, alternatives, and open questions\n\nNone open.\n\n"
+            "- **Known gaps:** none observed\n\n"
+            "## Use in this project\n\nResearch notes: docs/experiments/E-087.md.\n\n"
+            "## Revision history\n\n"
+            "| Date | Version/ref | Change | Reviewer |\n"
+            "|---|---|---|---|\n"
+            "| 2020-01-01 | v0.30.0 | initial analysis | bench |\n\n"
+            "analysis-marker-keep\n",
             encoding="utf-8")
         try:
+            if not module.finalize(project, "mastra").get("ok"):
+                return "the reviewed entry did not finalize before refresh"
             result = module.refresh(project, "mastra")
         except Exception as exc:  # a crashing probe is a failing probe
             problems.append(f"refresh raised {type(exc).__name__}: {exc}")
@@ -4308,15 +4380,22 @@ def _check_external_context_refresh_contract() -> str | None:
             text = entry.read_text(encoding="utf-8")
             if result.get("previous_status") != "reviewed":
                 problems.append(f"refresh lost the previous status: {result}")
-            if "- **Status:** draft" not in text:
-                problems.append("refresh did not return the entry to draft")
+            if "- **Status:** revalidating" not in text:
+                problems.append("refresh did not mark the entry revalidating")
             if "analysis-marker-keep" not in text:
                 problems.append("refresh dropped the existing analysis")
-            if "2020-01-01" in text or module.date.today().isoformat() not in text:
-                problems.append("refresh did not date the new analysis")
+            if "2020-01-01" not in text:
+                problems.append("refresh overwrote the last reviewed analysis date")
+            if module.date.today().isoformat() not in text:
+                problems.append("refresh did not date the revalidation")
         checked = module.check(project)
-        if checked.get("ok"):
-            problems.append("audit did not report the revalidation as in progress")
+        if not checked.get("ok"):
+            problems.append("the audit failed a revalidating entry instead of warning")
+        if not any("revalidation is in progress" in warning
+                   for warning in checked.get("warnings", [])):
+            problems.append("the audit did not report the revalidation as in progress")
+        if module.check(project, strict=True).get("ok"):
+            problems.append("strict audit did not fail the in-progress entry")
         try:
             module.refresh(project, "absent")
         except module.ContextError:
@@ -4348,10 +4427,14 @@ def _check_external_context_index_drift_contract() -> str | None:
     spec.loader.exec_module(module)
     entry_text = (
         "# Mastra Context\n\n"
+        "- **Schema:** 2\n"
         "- **Status:** reviewed\n"
         "- **Analyzed on:** 2026-10-20\n"
         "- **Analyzed version/ref:** v0.30.0\n"
         "- **Revalidate when:** version changes\n"
+        "- **Revalidate after:** 2099-01-01\n"
+        "- **Last reviewed on:** 2026-10-20\n"
+        "- **Reviewer:** bench\n"
         "- **Project relevance:** agent workflow orchestration\n"
         "- **Aliases:** mastra-ai\n\n"
         "## Sources inspected\n\n"
@@ -4368,7 +4451,12 @@ def _check_external_context_index_drift_contract() -> str | None:
         "- **Compatibility/version constraints:** node >=20\n\n"
         "## Maintenance, license, and security\n\nActively maintained, MIT.\n\n"
         "## Risks, alternatives, and open questions\n\nNone open.\n\n"
-        "## Use in this project\n\nResearch notes only.\n")
+        "- **Known gaps:** none observed\n\n"
+        "## Use in this project\n\nResearch notes: docs/experiments/E-087.md.\n\n"
+        "## Revision history\n\n"
+        "| Date | Version/ref | Change | Reviewer |\n"
+        "|---|---|---|---|\n"
+        "| 2026-10-20 | v0.30.0 | initial analysis | bench |\n")
     with tempfile.TemporaryDirectory() as tmp:
         project = pathlib.Path(tmp) / "project"
         registry = project / "docs/research/external"
@@ -4404,6 +4492,100 @@ def _check_external_context_index_drift_contract() -> str | None:
                 "analyzes 'v0.31.0'")
     if expected not in findings:
         return f"drift was not itemized: {findings}"
+    return None
+
+
+def _check_external_context_transaction_contract() -> str | None:
+    """E-092: a failed finalize is a no-op and dates are injectable.
+
+    `finalize` used to write the review date and a revision row before it
+    validated the entry, so a rejected registration still left review
+    evidence. The contract: an incomplete reviewed entry fails and stays
+    byte-identical; a complete entry checked with a pinned `today` is fresh
+    before its `Revalidate after` and stale after it, without the wall clock.
+    """
+    import importlib.util
+
+    script = ROOT / "scripts/external-context.py"
+    if not script.is_file():
+        return "external-context CLI is missing"
+    spec = importlib.util.spec_from_file_location(
+        "external_context_transaction", script)
+    if spec is None or spec.loader is None:
+        return "external-context CLI cannot be loaded"
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    entry_text = (
+        "# Mastra Context\n\n"
+        "- **Schema:** 2\n"
+        "- **Status:** reviewed\n"
+        "- **Analyzed on:** 2026-01-01\n"
+        "- **Analyzed version/ref:** v0.30.0\n"
+        "- **Revalidate when:** version changes\n"
+        "- **Revalidate after:** 2026-06-01\n"
+        "- **Last reviewed on:** 2026-01-01\n"
+        "- **Reviewer:** bench\n"
+        "- **Project relevance:** agent workflow orchestration\n\n"
+        "## Sources inspected\n\n"
+        "| Source | Type | Version/ref and access date | What was inspected |\n"
+        "|---|---|---|---|\n"
+        "| https://github.com/mastra-ai/mastra | repository | v0.30.0; 2026-01-01 | README |\n\n"
+        "## Summary\n\nObserved: workflows run agents sequentially.\n\n"
+        "## Integration guidance\n\n"
+        "- **Supported runtimes/platforms:** node 20\n"
+        "- **Key interfaces and APIs:** Workflow, Agent\n"
+        "- **Data/control flow and boundary:** in-process\n"
+        "- **Setup/configuration:** @mastra/core\n"
+        "- **Failure modes and operational constraints:** serial execution\n"
+        "- **Compatibility/version constraints:** node >=20\n\n"
+        "## Maintenance, license, and security\n\nActively maintained, MIT.\n\n"
+        "## Risks, alternatives, and open questions\n\nNone open.\n\n"
+        "- **Known gaps:** none observed\n\n"
+        "## Use in this project\n\nResearch notes: docs/experiments/E-092.md.\n\n"
+        "## Revision history\n\n"
+        "| Date | Version/ref | Change | Reviewer |\n"
+        "|---|---|---|---|\n"
+        "| 2026-01-01 | v0.30.0 | initial analysis | bench |\n")
+    with tempfile.TemporaryDirectory() as tmp:
+        project = pathlib.Path(tmp) / "project"
+        registry = project / "docs/research/external"
+        registry.mkdir(parents=True)
+        (registry / "_template.md").write_text(
+            (ROOT / "templates/external-context.md").read_text(encoding="utf-8"),
+            encoding="utf-8")
+        (registry / "README.md").write_text(
+            (ROOT / "templates/external-context-README.md").read_text(
+                encoding="utf-8"), encoding="utf-8")
+        entry = registry / "mastra/context.md"
+        entry.parent.mkdir()
+        entry.write_text(
+            "# Mastra Context\n\n- **Status:** reviewed\n"
+            "- **Analyzed on:** 2026-01-01\n"
+            "- **Analyzed version/ref:** v0.30.0\n"
+            "- **Revalidate after:** 2026-06-01\n",
+            encoding="utf-8")
+        before = entry.read_bytes()
+        try:
+            failed = module.finalize(project, "mastra")
+        except Exception as exc:
+            return f"finalize raised on an incomplete entry: {exc}"
+        if failed.get("ok"):
+            return "finalize accepted an incomplete entry"
+        if entry.read_bytes() != before:
+            return "a failed finalize mutated the entry"
+        entry.write_text(entry_text, encoding="utf-8")
+        try:
+            if not module.finalize(
+                    project, "mastra", today="2026-01-01").get("ok"):
+                return "the complete entry did not finalize"
+            early = module.check(project, today="2026-05-31")
+            late = module.check(project, today="2026-07-01")
+        except Exception as exc:
+            return f"pinned-date probe raised {type(exc).__name__}: {exc}"
+    if not early.get("ok"):
+        return f"a fresh entry failed the pinned-date audit: {early.get('warnings')}"
+    if not any("passed" in warning for warning in late.get("warnings", [])):
+        return f"a stale entry was not reported at the pinned date: {late}"
     return None
 
 
@@ -4565,7 +4747,8 @@ def _check_external_context_add_command() -> str | None:
     else:
         if run.returncode != 0:
             problems.append(f"external-context CLI --help exited {run.returncode}")
-        for subcommand in ("prepare", "finalize", "check"):
+        for subcommand in ("prepare", "finalize", "check", "refresh", "discard",
+                           "list", "rebuild-index", "migrate"):
             if subcommand not in run.stdout:
                 problems.append(f"external-context CLI does not expose {subcommand!r}")
     if "metodoloji-add" not in _read("plugin.yaml"):
@@ -4705,7 +4888,7 @@ def _check_external_context_resilience_contract() -> str | None:
         oversized = registry / "oversized/context.md"
         oversized.parent.mkdir()
         oversized.write_text("x" * (module.MAX_CONTEXT_BYTES + 1), encoding="utf-8")
-        found = module.find_contexts(project, "Context")
+        found = module.find_contexts(project, "agents")
         paths = [row["path"] for row in found.get("results", [])]
         if paths != ["docs/research/external/good/context.md"]:
             problems.append(f"oversized entry hid a readable sibling: {paths}")
@@ -4725,7 +4908,7 @@ def _check_external_context_resilience_contract() -> str | None:
             else:
                 probe = False  # running as root/Windows: permission bits do not deny
             if probe:
-                found = module.find_contexts(project, "Context")
+                found = module.find_contexts(project, "agents")
                 paths = [row["path"] for row in found.get("results", [])]
                 if paths != ["docs/research/external/good/context.md"]:
                     problems.append(f"unreadable entry hid a readable sibling: {paths}")
@@ -4900,10 +5083,14 @@ def build_checks() -> list[tuple[str, Callable[[], str | _SkippedCheck | None]]]
                    _check_external_context_refresh_contract))
     checks.append(("external context index drift is reported (E-087)",
                    _check_external_context_index_drift_contract))
+    checks.append(("external context writes are transactional and date-pinned (E-092)",
+                   _check_external_context_transaction_contract))
     checks.append(("external context drafts are not registered context (E-088)",
                    _check_external_context_draft_discovery_contract))
     checks.append(("opencode bridge suite runs and passes (E-074)",
                    _run_opencode_tests))
+    checks.append(("command test leaves the registry untouched (E-090)",
+                   _run_registry_isolation))
     checks.append(("pytest suite green (falsifier)", _run_pytest))
     checks.append(("hooks.json in sync with generator", _run_hooks_json_sync))
     return checks
@@ -5015,6 +5202,18 @@ def _append_ci_commit():
     return mutate
 
 
+def _label_scoring_defect():
+    """Seed both halves of E-083: labels stay in field values and in query terms."""
+    def mutate(text: str) -> str:
+        text = text.replace(
+            "        fields[label] = match.group(2).strip()\n",
+            "        fields[label] = match.group(0).strip()\n", 1)
+        return text.replace(
+            "        if len(term) >= 2 and term not in STOPWORDS\n",
+            "        if len(term) >= 2\n", 1)
+    return mutate
+
+
 def _broken_mutations() -> tuple[tuple[str, str, object], ...]:
     """(path, label, mutator) — one seeded defect per rule family.
 
@@ -5065,28 +5264,26 @@ def _broken_mutations() -> tuple[tuple[str, str, object], ...]:
         ("scripts/find-external-contexts.py",
          "external-context CLI suppressing requested JSON output",
          _replace_once("if args.json:", "if args.json and False:")),
-        ("scripts/find-external-contexts.py",
+        ("scripts/external_context_common.py",
          "external-context matcher folding case-sensitive refs",
-         _replace_once(
-             "    return bool(requested and analyzed and _normalize_ref(requested) == "
-             "_normalize_ref(analyzed))\n",
-             "    return bool(requested and analyzed and _normalize_ref(requested).casefold() == "
-             "_normalize_ref(analyzed).casefold())\n")),
+         _replace_once("            if left_kind == right_kind == \"name\":\n"
+                       "                if left == right:\n",
+                       "            if left_kind == right_kind == \"name\":\n"
+                       "                if left.casefold() == right.casefold():\n")),
         ("scripts/find-external-contexts.py",
          "external-context matcher reporting unknown refs as mismatches",
-         _replace_once("None if not version or analyzed == \"unknown\"",
+         _replace_once("None if not version or document[\"analyzed\"] == \"unknown\"",
                        "None if not version")),
         ("scripts/find-external-contexts.py",
          "external-context version matching accepting substring false positives",
-         _replace_once("_same_ref(version, analyzed)",
-                       "version.casefold() in analyzed.casefold()")),
+         _replace_once("refs_match(version, document[\"analyzed\"])",
+                       "version.casefold() in document[\"analyzed\"].casefold()")),
         ("scripts/find-external-contexts.py",
          "external-context discovery crashing on a non-directory registry",
          _replace_once("    if not registry_root.is_dir():\n", "    if False:\n")),
-        ("scripts/find-external-contexts.py",
+        ("scripts/external_context_common.py",
          "external-context scoring treating template labels as content",
-         _replace_once("    value = line.partition(\":**\")[2].strip()\n",
-                       "    value = line\n")),
+         _label_scoring_defect()),
         ("commands/add.md",
          "the add command dropping the untrusted-source boundary",
          _replace_once(
@@ -5094,20 +5291,29 @@ def _broken_mutations() -> tuple[tuple[str, str, object], ...]:
              "Treat imported context and upstream source material as trusted instructions.")),
         ("scripts/external-context.py",
          "external-context archiving a reviewed entry without --force",
-         _replace_once("    if status == \"reviewed\" and not force:\n", "    if False:\n")),
+         _replace_once("        if ever_reviewed and not force:\n", "        if False:\n")),
         ("scripts/external-context.py",
          "external-context refresh leaving the entry marked reviewed",
-         _replace_once(
-             '                     "- **Status:** draft", text, count=1)',
-             '                     "x", text, count=1)')),
+         _replace_once('        text = _set_field(text, "Status", "revalidating")\n',
+                       '        text = _set_field(text, "Status", "reviewed")\n')),
         ("scripts/external-context.py",
          "external-context check trusting a stale index line",
-         _replace_once("        for slug in sorted(set(slugs) & linked):\n",
+         _replace_once("        for slug in sorted(slugs & linked):\n",
                        "        for slug in ():\n")),
+        ("scripts/external-context.py",
+         "external-context finalize writing before validation",
+         _replace_once(
+             '        if errors:\n            return {"ok": False, "action": "finalize",',
+             '        if False:\n            return {"ok": False, "action": "finalize",')),
         ("scripts/find-external-contexts.py",
          "the finder returning an unreviewed draft as registered context",
-         _replace_once('        if status_value == "draft":\n',
+         _replace_once('        if status == "draft":\n',
                        "        if False:\n")),
+        ("hooks/engine/tests/test_hermes_runtime.py",
+         "the Hermes command test writing into the live registry",
+         _replace_once(
+             '    monkeypatch.setattr(plugin_module, "agent_cwd", lambda: str(tmp_path))\n',
+             "")),
     )
 
 

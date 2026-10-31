@@ -31,6 +31,3 @@ bmad-output/config.user.toml
 
 # Local Node install (skills may shell out to npx tooling); lockfiles are tracked.
 node_modules/
-
-# Archived external-context drafts (external-context.py discard) — local history only.
-docs/research/external/.archive/

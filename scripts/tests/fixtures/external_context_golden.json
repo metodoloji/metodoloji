@@ -1,0 +1,64 @@
+{
+  "entries": [
+    {
+      "slug": "mastra",
+      "title": "Mastra Framework",
+      "relevance": "AI agent orchestration runtime",
+      "aliases": "mastra-ai",
+      "body": "Workflows run agents sequentially and expose typed steps.",
+      "status": "reviewed"
+    },
+    {
+      "slug": "drizzle",
+      "title": "Drizzle ORM",
+      "relevance": "TypeScript SQL access and schema migrations",
+      "aliases": "drizzle-orm",
+      "body": "The query builder emits SQL without a runtime schema.",
+      "status": "reviewed"
+    },
+    {
+      "slug": "pgvector",
+      "title": "pgvector",
+      "relevance": "PostgreSQL vector similarity search extension",
+      "aliases": "vector extension",
+      "body": "Stores embeddings beside relational rows and supports cosine distance.",
+      "status": "reviewed"
+    },
+    {
+      "slug": "nextjs",
+      "title": "Next.js",
+      "relevance": "React server rendering web framework",
+      "aliases": "next",
+      "body": "App router, server components and static generation.",
+      "status": "reviewed"
+    },
+    {
+      "slug": "stripe",
+      "title": "Stripe API",
+      "relevance": "payment processing and subscription billing",
+      "aliases": "stripe-node",
+      "body": "Idempotency keys and webhook signature verification.",
+      "status": "reviewed"
+    },
+    {
+      "slug": "otel",
+      "title": "OpenTelemetry",
+      "relevance": "distributed tracing metrics and logs",
+      "aliases": "otel",
+      "body": "Collectors export spans over OTLP to a backend.",
+      "status": "reviewed"
+    }
+  ],
+  "queries": [
+    {"query": "Mastra agent orchestration", "expected": "mastra"},
+    {"query": "drizzle SQL migrations", "expected": "drizzle"},
+    {"query": "postgres vector embeddings", "expected": "pgvector"},
+    {"query": "react server rendering", "expected": "nextjs"},
+    {"query": "subscription billing webhooks", "expected": "stripe"},
+    {"query": "distributed tracing spans", "expected": "otel"},
+    {"query": "otel", "expected": "otel"},
+    {"query": "mastra-ai", "expected": "mastra"},
+    {"query": "cosine distance", "expected": "pgvector"},
+    {"query": "idempotency keys", "expected": "stripe"}
+  ]
+}

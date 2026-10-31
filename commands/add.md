@@ -49,17 +49,20 @@ when unsure.
    ```
 
    The result names the `entry`, `slug`, `source_kind`, and `date`. If it
-   reports that an entry already exists, do **not** create a second folder:
-   read the existing entry and update it with the new analysis (a second slug
-   for the same technology splits the evidence). Start a revalidation with
+   reports that an entry or the same source is already registered, do **not**
+   create a second folder: read the existing entry and update it with the new
+   analysis (a second slug for the same technology splits the evidence). Start
+   a revalidation with
    `external-context.py refresh --project-root "{project-root}" --slug "<slug>"`:
-   it keeps the analysis, sets `Status: draft` and dates the new pass; update
-   the refs/sections, set `reviewed`, then run `finalize` so the index line
-   picks up the new ref and date. For an abandoned draft the
-   user confirms should not be registered, run
-   `external-context.py discard --project-root "{project-root}" --slug "<slug>"`:
+   it keeps the last reviewed analysis, sets `Status: revalidating`, records
+   `Revalidation started on`, and leaves `Analyzed on` / `Last reviewed on`
+   intact; update the refs/sections, set `reviewed`, then run `finalize` so the
+   revision history and index pick up the new ref and date. For an abandoned
+   draft the user confirms should not be registered, run
+   `external-context.py discard --project-root "{project-root}" --slug "<slug>" --reason "<why>"`:
    it archives the folder under `docs/research/external/.archive/` (never
-   deletes it) and removes its index line. A reviewed entry needs `--force`.
+   deletes it, and writes `ARCHIVED.md`) and regenerates the index. Any entry
+   that was ever reviewed needs `--force`, even after `refresh`.
 
 3. **Analyze the source exhaustively — this is the work.**
    - **Repository:** default-branch README, `docs/`, package manifests,
@@ -80,10 +83,15 @@ when unsure.
      unverified claim as a gap; never infer it from familiarity or marketing.
 
 4. **Fill every section of the entry** (the template is the contract):
+   - `Schema:` keep `2`; run `external-context.py migrate` for a legacy entry.
    - `Status:` keep `draft` while working, set `reviewed` only at the end.
    - `Analyzed version/ref:` the exact release/tag/commit (or `unknown` plus a
      reason in the gaps). `Revalidate when:` a concrete trigger (version,
-     release cadence, date).
+     release cadence, date). `Revalidate after:` the date the evidence stops
+     being current (the tool seeds it at +180 days; adjust it when the source
+     has a different cadence).
+   - `Reviewer:` who approved this analysis (a person, role, or agent id).
+     `Last reviewed on:` is written by `finalize`; leave it `pending` until then.
    - `Project relevance:` and `Aliases:` specific to this project.
    - `Sources inspected:` one row per source actually opened — URL/path,
      type, version/ref **and** access date, and the pages/files/examples/tests
@@ -94,9 +102,13 @@ when unsure.
      than leaving a bullet empty.
    - `Maintenance, license, and security:` release cadence, license and
      attribution obligations, advisories, unknowns.
-   - `Risks, alternatives, and open questions:` concrete alternatives and the
-     experiments needed before implementation.
-   - `Use in this project:` the components/stories/decisions this informs.
+   - `Risks, alternatives, and open questions:` concrete alternatives, the
+     `- **Known gaps:**` bullet (write “none observed” when there are none),
+     and the experiments needed before implementation.
+   - `Use in this project:` the components/stories/decisions this informs, with
+     a `docs/...` path or record id (`E-NNN`, `STORY-...`, `IR-...`, `SP-...`).
+   - `Revision history:` one row per review; `finalize` appends the row for the
+     current pass and refuses a malformed table.
 
    When durable access is needed and the license permits, copy only the
    selected files into `<slug>/references/`; preserve attribution. Do not
@@ -109,28 +121,34 @@ when unsure.
      --project-root "{project-root}" --slug "<slug>" --json
    ```
 
-   `finalize` enforces: `Status: reviewed`, no template placeholders, all
-   required sections, all six integration bullets filled, at least one complete
-   `Sources inspected` row, and a valid `Analyzed on` date. It then updates the
-   `Registered contexts` index in `docs/research/external/README.md`
-   idempotently. Until `finalize` passes, the entry is not registered:
-   discovery (`find-external-contexts.py`) reports it under `drafts` with a
-   warning instead of `results`, so no other workflow reads the half-finished
-   scaffold as registered context.
+   `finalize` enforces: `Schema: 2`, `Status: reviewed`, a non-pending
+   `Reviewer`, no template placeholders, all required sections (including
+   `Revision history`), a real `Known gaps` bullet, all six integration
+   bullets filled, at least one complete `Sources inspected` row, and valid
+   `Analyzed on` / `Revalidate after` dates. It writes `Last reviewed on`,
+   appends the revision row and regenerates the `Registered contexts` block in
+   `docs/research/external/README.md` from the entries themselves. Until
+   `finalize` passes, the entry is not registered: discovery
+   (`find-external-contexts.py`) reports it under `drafts` with a warning
+   instead of `results`, so no other workflow reads the half-finished scaffold
+   as registered context. Never edit the README index by hand.
 
 6. **Audit the registry** (also catches a stale index after later edits):
 
    ```sh
    python3 {metodoloji-root}/scripts/external-context.py check \
-     --project-root "{project-root}" --json
+     --project-root "{project-root}" --strict --json
    ```
 
-   Besides drafts, missing and dead links, `check` compares every index line
-   against its entry — display name, `Analyzed version/ref`, `Analyzed on` —
-   and exits non-zero with an `index finding` when the line has outlived the
-   entry (which is the state `refresh` or a hand edit leaves behind when
-   `finalize` was skipped). `finalize` is the repair: it rewrites the line from
-   the entry's own fields.
+   `check` separates errors from warnings. Errors fail: drafts, missing/dead
+   index links, index lines that outlived the entry (display name, ref, date),
+   duplicate aliases, malformed revision history, and a hand-maintained index.
+   Warnings are reported but pass by default: an entry being revalidated, a
+   passed `Revalidate after`, an unknown analyzed ref, or a `Use in this
+   project` section with no record citation. `--strict` (used by CI and
+   `handle_audit`) turns those warnings into failures. `finalize` is the repair
+   for index drift; `rebuild-index` regenerates the block without touching an
+   entry. `list` shows every entry with its status and computed freshness.
 
 7. **Report to the user:** entry path, analyzed version/ref, the sources and
    access date, the index line, remaining gaps/open questions, and the
@@ -144,9 +162,11 @@ when unsure.
 |---|---|
 | URL unreachable / requires credentials | Stop; report what could not be read. Do not create an entry from the URL text. |
 | PDF has no extractable text | Try `pdftotext`; if still empty, stop and ask for another copy. Never summarize an unread file. |
-| Entry already exists | Revalidate it in place with `external-context.py refresh` (keeps the analysis, dates the new pass), then finalize; never fork the slug. Archive an abandoned draft with `external-context.py discard` (reviewed entries need `--force`). |
+| Entry already exists | Revalidate it in place with `external-context.py refresh` (keeps the last reviewed analysis, marks `revalidating`), then finalize; never fork the slug. Archive an abandoned draft with `external-context.py discard` (any entry that was ever reviewed needs `--force`). |
 | `finalize` lists findings | Fix the entry, not the validator. Re-run until `ok: true`. |
-| `check` reports a stale index line | The index names an old ref/date/name for a finished entry. Run `finalize` for that slug — never edit the README line by hand. |
+| `check` reports a stale index line | The index names an old ref/date/name for a finished entry. Run `finalize` for that slug or `rebuild-index` for the whole registry — never edit the README line by hand. |
+| `check --strict` reports a warning | A revalidating/stale entry, an unknown ref, or an uncited `Use in this project`. Revalidate with `refresh` → `finalize`, record the ref, or cite the record. |
+| Entry uses `Schema: 1` or has no schema | Run `external-context.py migrate --project-root "{project-root}"` (add `--dry-run` first). | |
 | Source is a whole platform with many products | Scope the entry to the product the project uses; record the rest as open questions. |
 
 ## Trust boundary

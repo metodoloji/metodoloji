@@ -1,9 +1,13 @@
 # <Technology or Project> Context
 
+- **Schema:** 2
 - **Status:** draft | reviewed
 - **Analyzed on:** YYYY-MM-DD
 - **Analyzed version/ref:** <release, tag, commit, or unknown>
 - **Revalidate when:** <version changes, date, or triggering condition>
+- **Revalidate after:** YYYY-MM-DD
+- **Last reviewed on:** pending
+- **Reviewer:** <reviewer name or role>
 - **Project relevance:** <use cases / project areas>
 - **Aliases:** <alternate names, package names, or related project terms; optional>
 
@@ -34,6 +38,14 @@
 
 <List constraints, unresolved assumptions, materially viable alternatives, and experiments needed before implementation.>
 
+- **Known gaps:** <unverified claims, inaccessible sources, or "none observed">
+
 ## Use in this project
 
 <Relevant stories/components and any decisions informed by this context. Link research, architecture, readiness, or experiment records.>
+
+## Revision history
+
+| Date | Version/ref | Change | Reviewer |
+|---|---|---|---|
+| YYYY-MM-DD | <ref> | initial analysis | <reviewer> |
