@@ -4636,6 +4636,64 @@ def _check_external_context_write_boundary_contract() -> str | None:
     return None
 
 
+def _check_external_context_source_identity_contract() -> str | None:
+    """E-094: one source has one entry, however its spelling is written.
+
+    `prepare` compared raw source text, so a repository `.git` suffix, a
+    `#fragment`, a trailing slash or a default port registered a second entry
+    for the same resource; `check` could not see the split. The derived key is
+    now the single comparison for both writers. This check pins a refused
+    duplicate spelling and an accepted distinct source; the CLI call sites and
+    the legacy-duplicate audit are pinned by the registry unit tests.
+    """
+    import importlib.util
+
+    script = ROOT / "scripts/external-context.py"
+    if not script.is_file():
+        return "external-context CLI is missing"
+    spec = importlib.util.spec_from_file_location(
+        "external_context_source_identity", script)
+    if spec is None or spec.loader is None:
+        return "external-context CLI cannot be loaded"
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    if module.source_key("https://mastra.ai/docs#top") != module.source_key(
+            "https://mastra.ai:443/docs/"):
+        return "two spellings of one URL did not share an identity"
+    if module.source_key("https://mastra.ai/docs/v1") == module.source_key(
+            "https://mastra.ai/docs/v2"):
+        return "two different URL paths collapsed into one identity"
+    with tempfile.TemporaryDirectory() as tmp:
+        project = pathlib.Path(tmp) / "project"
+        registry = project / "docs/research/external"
+        registry.mkdir(parents=True)
+        (registry / "_template.md").write_text(
+            (ROOT / "templates/external-context.md").read_text(encoding="utf-8"),
+            encoding="utf-8")
+        (registry / "README.md").write_text(
+            (ROOT / "templates/external-context-README.md").read_text(
+                encoding="utf-8"), encoding="utf-8")
+        try:
+            module.prepare(project, "https://github.com/mastra-ai/mastra")
+        except Exception as exc:
+            return f"the first source did not prepare: {exc}"
+        try:
+            module.prepare(project, "https://github.com/mastra-ai/mastra.git",
+                           name="Second")
+        except module.ContextError as exc:
+            if "already registered" not in str(exc):
+                return f"the duplicate refusal was ambiguous: {exc}"
+        except Exception as exc:
+            return f"the duplicate probe raised {type(exc).__name__}: {exc}"
+        else:
+            return "a duplicate source spelling registered a second entry"
+        try:
+            module.prepare(project, "https://mastra.ai/docs", name="Docs")
+        except Exception as exc:
+            return f"a distinct source was refused: {exc}"
+    return None
+
+
 def _check_external_context_draft_discovery_contract() -> str | None:
     """E-088: discovery never hands a workflow an unreviewed draft as context.
 
@@ -5134,6 +5192,8 @@ def build_checks() -> list[tuple[str, Callable[[], str | _SkippedCheck | None]]]
                    _check_external_context_transaction_contract))
     checks.append(("external context writes cannot escape through an ancestor link (E-093)",
                    _check_external_context_write_boundary_contract))
+    checks.append(("external context source identity is canonical (E-094)",
+                   _check_external_context_source_identity_contract))
     checks.append(("external context drafts are not registered context (E-088)",
                    _check_external_context_draft_discovery_contract))
     checks.append(("opencode bridge suite runs and passes (E-074)",

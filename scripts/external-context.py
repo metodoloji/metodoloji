@@ -80,6 +80,7 @@ from external_context_common import (  # noqa: E402
     require_inside_target,
     resolve_today,
     slugify,
+    source_key,
     source_rows,
     table_cells,
     utc_stamp,
@@ -244,12 +245,12 @@ def _collision(root: Path, slug: str, name: str, canonical: str) -> None:
         if entry["slug"].casefold() == slug.casefold():
             raise ContextError(
                 f"slug '{slug}' differs only by case from '{entry['slug']}'")
-    wanted = canonical.strip().casefold()
+    wanted = source_key(canonical, root)
     for entry in entries:
         rows = source_rows(parse_sections(entry["text"]).get("Sources inspected", ""))
         for row in rows:
             cells = table_cells(row)
-            if cells and cells[0].strip().casefold() == wanted:
+            if len(cells) >= 1 and source_key(cells[0], root) == wanted:
                 raise ContextError(
                     f"this source is already registered under "
                     f"{REGISTRY_REL}/{entry['slug']}/context.md; update it with "
@@ -386,7 +387,7 @@ def _entry_report_text(root: Path, text: str,
         if parse_date(cells[2]) is None:
             add("error", "Sources inspected row has no access date (YYYY-MM-DD): "
                          f"{cells[2]!r}")
-        key = source.casefold()
+        key = source_key(source)
         if key in seen_sources:
             add("warning", f"duplicate source row: {source}")
         seen_sources.add(key)
@@ -871,6 +872,29 @@ def check(project_root: str | Path, strict: bool = False,
                     "warnings": []})
             else:
                 aliases[key] = entry["slug"]
+
+    # One source, one entry: the audit derives the same identity `prepare`
+    # compares, so a legacy duplicate written before the canonical spelling
+    # existed is reported instead of surviving because its text differs.
+    sources: dict[str, str] = {}
+    for entry in entries:
+        rows = source_rows(parse_sections(entry["text"]).get("Sources inspected", ""))
+        for row in rows:
+            cells = table_cells(row)
+            if len(cells) != 4:
+                continue
+            key = source_key(cells[0], root)
+            if not key:
+                continue
+            owner = sources.get(key)
+            if owner and owner != entry["slug"]:
+                findings.append({
+                    "entry": _rel(root, entry["entry"]),
+                    "findings": [f"source '{cells[0]}' is also registered by "
+                                 f"{owner}/context.md"],
+                    "warnings": []})
+            else:
+                sources[key] = entry["slug"]
 
     index = registry / "README.md"
     index_findings: list[str] = []

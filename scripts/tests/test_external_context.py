@@ -167,6 +167,68 @@ def test_prepare_rejects_duplicate_alias_and_duplicate_source(tmp_path):
         tool.prepare(root, "https://github.com/mastra-ai/mastra", name="Other")
 
 
+def test_source_identity_ignores_spelling_that_names_the_same_resource(tmp_path):
+    """E-094: one resource has one identity, whatever its harmless spelling."""
+    root = _project(tmp_path)
+    local = root / "notes.md"
+    local.write_text("# notes\n", encoding="utf-8")
+    assert tool.source_key(
+        "https://github.com/mastra-ai/mastra", root
+    ) == tool.source_key("https://GitHub.com/mastra-ai/mastra.git#readme", root)
+    assert tool.source_key("https://mastra.ai/docs#top", root) == tool.source_key(
+        "https://mastra.ai/docs/", root)
+    assert tool.source_key("https://mastra.ai:443/docs", root) == tool.source_key(
+        "https://mastra.ai/docs", root)
+    assert tool.source_key("./notes.md", root) == tool.source_key(str(local), root)
+    # Path and query case can name a different page, so it must stay distinct.
+    assert tool.source_key("https://mastra.ai/docs/v1", root) != tool.source_key(
+        "https://mastra.ai/docs/v2", root)
+
+
+def test_prepare_refuses_the_same_source_written_differently(tmp_path):
+    """E-094: a second entry would split the evidence for one source."""
+    root = _project(tmp_path)
+    tool.prepare(root, "https://github.com/mastra-ai/mastra")
+    for spelling in (
+            "https://github.com/mastra-ai/mastra.git",
+            "https://github.com/mastra-ai/mastra/#readme",
+            "https://GitHub.com/mastra-ai/mastra",
+            "https://github.com:443/mastra-ai/mastra"):
+        with pytest.raises(tool.ContextError, match="already registered"):
+            tool.prepare(root, spelling, name="Second")
+    local = tmp_path / "notes.md"
+    local.write_text("# notes\n", encoding="utf-8")
+    tool.prepare(root, str(local), name="Notes")
+    with pytest.raises(tool.ContextError, match="already registered"):
+        tool.prepare(root, str(Path(root) / ".." / "notes.md"), name="Other")
+
+
+def test_prepare_stores_the_canonical_source_spelling(tmp_path):
+    root = _project(tmp_path)
+    result = tool.prepare(root, "https://mastra.ai/docs/#intro")
+    text = (root / result["entry"]).read_text(encoding="utf-8")
+    assert "| https://mastra.ai/docs | official docs |" in text
+    assert "#intro" not in text
+
+
+def test_check_reports_a_source_registered_twice(tmp_path):
+    """E-094: an entry written before the canonical spelling is still caught."""
+    root = _project(tmp_path)
+    tool.prepare(root, "https://mastra.ai/docs", name="Mastra")
+    second = tool.prepare(root, "https://example.com/guide", name="Guide")
+    entry = root / second["entry"]
+    entry.write_text(entry.read_text(encoding="utf-8").replace(
+        "https://example.com/guide", "https://mastra.ai/docs/#intro"),
+        encoding="utf-8")
+    result = tool.check(root)
+    assert result["ok"] is False
+    duplicates = [finding for item in result["findings"]
+                  for finding in item["findings"]
+                  if "is also registered by" in finding]
+    assert duplicates and any(name in duplicates[0] for name in
+                              ("mastra/context.md", "guide/context.md"))
+
+
 def test_prepare_is_safe_for_windows_paths_and_regex_escapes(tmp_path):
     """F-01: a Windows path must not reach re.sub as a replacement template."""
     root = _project(tmp_path)

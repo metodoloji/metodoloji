@@ -429,45 +429,115 @@ def _registrable_label(host: str) -> str:
     return labels[-2]
 
 
+_URL_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*://")
+
+
+def _canonical_url(source: str, host: str, path: str) -> str:
+    """The URL spelling used for storage and duplicate detection.
+
+    A source is the same resource whether it is written with a trailing slash,
+    a `#fragment`, an explicit default port, or (on a repository host) a `.git`
+    suffix. Normalising only those distinctions keeps path/query case intact,
+    because those can identify different pages.
+    """
+    parsed = urlparse(source)
+    scheme = parsed.scheme.casefold()
+    netloc = parsed.netloc.casefold()
+    default_port = ":443" if scheme == "https" else ":80"
+    if netloc.endswith(default_port):
+        netloc = netloc[:-len(default_port)]
+    canonical_path = path
+    if canonical_path == "/":
+        canonical_path = ""
+    elif canonical_path.endswith("/"):
+        canonical_path = canonical_path.rstrip("/")
+    if host in REPO_HOSTS:
+        canonical_path = canonical_path.removesuffix(".git")
+    query = f"?{parsed.query}" if parsed.query else ""
+    return f"{scheme}://{netloc}{canonical_path}{query}"
+
+
+def normalize_source(value: str, base: Path | str | None = None) -> str:
+    """Canonical source spelling for identity and duplicate detection.
+
+    URLs lose the distinctions that do not change the resource (host case,
+    default port, fragment, trailing slash, repository `.git`); a local path is
+    resolved so `src.md`, `./src.md` and its absolute spelling name one source.
+    A relative legacy path is resolved against `base` (the project root when
+    the caller has one), never against today's working directory, which would
+    invent an identity.
+    """
+    source = (value or "").strip()
+    if not source:
+        return ""
+    if _URL_RE.match(source):
+        parsed = urlparse(source)
+        if parsed.scheme.casefold() not in ("http", "https") or not parsed.netloc:
+            return source
+        host = parsed.netloc.rsplit("@", 1)[-1].split(":", 1)[0].casefold()
+        return _canonical_url(
+            source, host.removeprefix("www."), unquote(parsed.path))
+    path = Path(source).expanduser()
+    if path.is_absolute():
+        return str(path.resolve())
+    if base is not None:
+        return str((Path(base) / path).resolve())
+    return source
+
+
+def source_key(value: str, base: Path | str | None = None) -> str:
+    """The comparison key for two spellings of the same source.
+
+    URLs keep path/query case (they can be different resources); a local file
+    path is compared with the host filesystem's own case rules.
+    """
+    canonical = normalize_source(value, base)
+    if canonical and not _URL_RE.match(canonical):
+        return os.path.normcase(canonical)
+    return canonical
+
+
 def classify_source(source: str) -> tuple[str, str, str]:
     """Return (template type, identity, canonical source) for a URL or path.
 
     `identity` is the stable display/name seed: the repository name for a repo
     URL, the registrable domain for documentation, and the resolved path for a
-    local source. `canonical` is what belongs in the Sources table.
+    local source. `canonical` is what belongs in the Sources table, in the one
+    spelling the registry compares (`normalize_source`).
     """
     source = source.strip()
     if not source:
         raise ContextError("--source is required")
-    if re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", source):
+    if _URL_RE.match(source):
         parsed = urlparse(source)
         if parsed.scheme not in ("http", "https") or not parsed.netloc:
             raise ContextError("only http(s) URLs can be analyzed")
         host = parsed.netloc.rsplit("@", 1)[-1].split(":", 1)[0].casefold()
         host = host.removeprefix("www.")
         path = unquote(parsed.path)
+        canonical = _canonical_url(source, host, path)
         if host in REPO_HOSTS:
             segments = [part for part in path.split("/") if part]
             if not segments:
-                return "repository", host, source
+                return "repository", host, canonical
             # /owner/repo, /owner/repo.git and /owner/repo/issues/3 all name
             # the repository, never the issue number or the owner.
             repo = segments[1] if len(segments) > 1 else segments[0]
-            return "repository", repo.removesuffix(".git"), source
+            return "repository", repo.removesuffix(".git"), canonical
         lowered = path.casefold()
         if any(marker in lowered for marker in
                ("/releases", "/release-notes", "/changelog", "/changes")):
-            return "release notes", _registrable_label(host), source
+            return "release notes", _registrable_label(host), canonical
         if any(marker in lowered for marker in ("/docs", "/documentation", "/api")):
-            return "official docs", _registrable_label(host), source
-        return "official docs", _registrable_label(host), source
+            return "official docs", _registrable_label(host), canonical
+        return "official docs", _registrable_label(host), canonical
     path = Path(source).expanduser()
     if not path.exists():
         raise ContextError(f"source path does not exist: {source}")
     if path.is_file():
-        return "supplied file", str(path.resolve()), source
+        return "supplied file", str(path.resolve()), str(path.resolve())
     if path.is_dir():
-        return "supplied path", str(path.resolve()), source
+        return "supplied path", str(path.resolve()), str(path.resolve())
     raise ContextError(f"source is neither a file nor a directory: {source}")
 
 
