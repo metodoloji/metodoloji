@@ -4589,6 +4589,53 @@ def _check_external_context_transaction_contract() -> str | None:
     return None
 
 
+def _check_external_context_write_boundary_contract() -> str | None:
+    """E-093: a write target cannot escape through an existing ancestor link.
+
+    `prepare` and `discard` create folders that did not exist when the E-092
+    per-entry guard ran, so an entry folder or `.archive` directory that is a
+    symlink/junction could route the scaffold or archive outside the project.
+    The shared guard resolves the nearest existing ancestor before any
+    mkdir/write. This check pins the pure path rule (an outside ancestor is
+    refused, a safe missing leaf is accepted); the CLI wiring is pinned by the
+    registry unit tests.
+    """
+    import importlib.util
+
+    script = ROOT / "scripts/external-context.py"
+    if not script.is_file():
+        return "external-context CLI is missing"
+    spec = importlib.util.spec_from_file_location(
+        "external_context_write_boundary", script)
+    if spec is None or spec.loader is None:
+        return "external-context CLI cannot be loaded"
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    with tempfile.TemporaryDirectory() as tmp:
+        project = pathlib.Path(tmp) / "project"
+        registry = project / "docs/research/external"
+        registry.mkdir(parents=True)
+        outside = pathlib.Path(tmp) / "outside"
+        outside.mkdir()
+        try:
+            module.require_inside_target(
+                outside / "new" / "context.md", registry, "entry new")
+        except module.ContextError as exc:
+            if "outside" not in str(exc):
+                return f"the write-boundary refusal did not name the escape: {exc}"
+        except Exception as exc:
+            return f"the write-boundary probe raised {type(exc).__name__}: {exc}"
+        else:
+            return "an outside write target was accepted"
+        safe = registry / "new" / "context.md"
+        try:
+            if module.require_inside_target(safe, registry, "entry new") != safe:
+                return "a safe write target was not returned unchanged"
+        except Exception as exc:
+            return f"a safe write target was refused: {exc}"
+    return None
+
+
 def _check_external_context_draft_discovery_contract() -> str | None:
     """E-088: discovery never hands a workflow an unreviewed draft as context.
 
@@ -5085,6 +5132,8 @@ def build_checks() -> list[tuple[str, Callable[[], str | _SkippedCheck | None]]]
                    _check_external_context_index_drift_contract))
     checks.append(("external context writes are transactional and date-pinned (E-092)",
                    _check_external_context_transaction_contract))
+    checks.append(("external context writes cannot escape through an ancestor link (E-093)",
+                   _check_external_context_write_boundary_contract))
     checks.append(("external context drafts are not registered context (E-088)",
                    _check_external_context_draft_discovery_contract))
     checks.append(("opencode bridge suite runs and passes (E-074)",
@@ -5305,6 +5354,10 @@ def _broken_mutations() -> tuple[tuple[str, str, object], ...]:
          _replace_once(
              '        if errors:\n            return {"ok": False, "action": "finalize",',
              '        if False:\n            return {"ok": False, "action": "finalize",')),
+        ("scripts/external_context_common.py",
+         "external-context write targets escaping through an ancestor link",
+         _replace_once("    if not inside(resolved, resolved_parent):\n",
+                       "    if False:\n")),
         ("scripts/find-external-contexts.py",
          "the finder returning an unreviewed draft as registered context",
          _replace_once('        if status == "draft":\n',

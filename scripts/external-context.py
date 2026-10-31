@@ -77,6 +77,7 @@ from external_context_common import (  # noqa: E402
     registry_root,
     rel as _rel,
     require_inside,
+    require_inside_target,
     resolve_today,
     slugify,
     source_rows,
@@ -584,6 +585,10 @@ def prepare(project_root: str | Path, source: str, name: str = "",
     with registry_lock(registry):
         _collision(root, chosen_slug, chosen_name, canonical)
         entry = registry / chosen_slug / "context.md"
+        # The folder is new, so the E-092 per-entry guard (which needs an
+        # existing file) cannot see a pre-existing symlink/junction here. Prove
+        # the nearest existing ancestor stays inside before mkdir/write.
+        require_inside_target(entry, registry, _rel(root, entry))
         if entry.exists():
             raise ContextError(
                 f"entry already exists: {_rel(root, entry)} — update it instead of "
@@ -707,6 +712,10 @@ def discard(project_root: str | Path, slug: str, force: bool = False,
                 "pass --force to archive it (the folder is kept under .archive/, "
                 "not deleted)")
         archive_root = registry / ARCHIVE_DIR
+        # `.archive` is skipped by the audit (dot-directory), so a linked
+        # archive directory would move the entry outside the project without
+        # any entry-level guard noticing. Refuse before creating or moving.
+        require_inside_target(archive_root, registry, _rel(root, archive_root))
         archive_root.mkdir(parents=True, exist_ok=True)
         stamp = utc_stamp()
         target = archive_root / f"{stamp}-{slug}"
@@ -714,6 +723,7 @@ def discard(project_root: str | Path, slug: str, force: bool = False,
         while target.exists():
             suffix += 1
             target = archive_root / f"{stamp}-{slug}-{suffix}"
+        require_inside_target(target, registry, _rel(root, target))
         shutil.move(str(entry_dir), str(target))
         note = (
             f"# Archived external context: {heading_name(text, slug)}\n\n"

@@ -239,6 +239,34 @@ def require_inside(path: Path, parent: Path, label: str) -> Path:
     return resolved
 
 
+def require_inside_target(path: Path, parent: Path, label: str) -> Path:
+    """Prove that writing to a *new* path cannot escape through an ancestor.
+
+    `require_inside` resolves an existing path, but `prepare` creates the entry
+    folder and `discard` creates the archive folder, so the leaf does not exist
+    yet. Resolving the nearest existing ancestor closes the same boundary for
+    creation: an entry folder (or `.archive` directory) that is a symlink or
+    junction outside the registry is refused before `mkdir`/`write` follows it.
+    A missing path whose existing ancestors are all inside is returned as given.
+    """
+    resolved_parent = parent.resolve()
+    candidate = path
+    while not candidate.exists() and not candidate.is_symlink():
+        if candidate == candidate.parent:
+            break
+        candidate = candidate.parent
+    try:
+        resolved = candidate.resolve(strict=True)
+    except OSError as exc:
+        raise ContextError(
+            f"cannot resolve {label}: {exc.strerror or exc}") from exc
+    if not inside(resolved, resolved_parent):
+        raise ContextError(
+            f"{label} resolves outside the external-context registry; "
+            "refusing to use it")
+    return path
+
+
 def rel(root: Path, path: Path) -> str:
     try:
         return path.resolve().relative_to(root.resolve()).as_posix()

@@ -29,6 +29,26 @@ def _project(tmp_path: Path) -> Path:
     return root
 
 
+def _dir_link(link: Path, target: Path) -> bool:
+    """A directory symlink, or a Windows junction when symlinks need a privilege."""
+    link.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        link.symlink_to(target, target_is_directory=True)
+        return True
+    except OSError:
+        pass
+    if sys.platform == "win32":
+        # Explicit DEVNULL handles: under pytest's capture the inherited
+        # standard handles can be closed, and subprocess then fails before
+        # `cmd` runs (WinError 6).
+        result = subprocess.run(
+            ["cmd", "/c", "mklink", "/J", str(link), str(target)],
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL)
+        return result.returncode == 0
+    return False
+
+
 def _complete(root: Path, name: str = "Mastra", status: str = "reviewed") -> Path:
     entry = root / "docs/research/external" / tool.slugify(name) / "context.md"
     if not entry.exists():
@@ -611,6 +631,47 @@ def test_entry_folder_symlink_escape_is_refused(tmp_path):
     checked = tool.check(root)
     assert checked["ok"] is False
     assert any("outside" in finding for finding in checked["index_findings"])
+
+
+def test_require_inside_target_refuses_an_outside_ancestor(tmp_path):
+    """E-093: a not-yet-created target is checked through its existing ancestor."""
+    root = _project(tmp_path)
+    registry = tool.registry_root(root)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    with pytest.raises(tool.ContextError, match="outside"):
+        tool.require_inside_target(
+            outside / "new/context.md", registry, "entry new")
+    safe = registry / "new" / "context.md"
+    assert tool.require_inside_target(safe, registry, "entry new") == safe
+
+
+def test_prepare_refuses_to_write_through_an_entry_folder_link(tmp_path):
+    """E-093: a linked entry folder cannot route the scaffold outside."""
+    root = _project(tmp_path)
+    registry = root / "docs/research/external"
+    outside = tmp_path / "outside-entry"
+    outside.mkdir()
+    if not _dir_link(registry / "escaped", outside):
+        pytest.skip("creating a directory link requires a privilege here")
+    with pytest.raises(tool.ContextError, match="outside"):
+        tool.prepare(root, "https://github.com/mastra-ai/mastra", slug="escaped")
+    assert not (outside / "context.md").exists()
+
+
+def test_discard_refuses_to_archive_through_a_linked_archive_dir(tmp_path):
+    """E-093: a linked `.archive` cannot move a discarded entry outside."""
+    root = _project(tmp_path)
+    registry = root / "docs/research/external"
+    outside = tmp_path / "outside-archive"
+    outside.mkdir()
+    tool.prepare(root, "https://github.com/mastra-ai/mastra")
+    if not _dir_link(registry / ".archive", outside):
+        pytest.skip("creating a directory link requires a privilege here")
+    with pytest.raises(tool.ContextError, match="outside"):
+        tool.discard(root, "mastra")
+    assert (registry / "mastra/context.md").is_file()
+    assert list(outside.iterdir()) == []
 
 
 def test_prepare_is_serialized_by_the_registry_lock(tmp_path):
