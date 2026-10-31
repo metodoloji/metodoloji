@@ -883,3 +883,84 @@ def test_cli_reports_input_errors_with_exit_two(tmp_path):
                   "--source", str(tmp_path / "absent.md"), "--json")
     assert result.returncode == 2
     assert "does not exist" in json.loads(result.stdout)["error"]
+
+
+def _legacy(root: Path, slug: str, source: str, schema: str = "1") -> Path:
+    """A schema-1 entry: the shape `migrate` exists for."""
+    entry = root / "docs/research/external" / slug / "context.md"
+    entry.parent.mkdir(parents=True)
+    entry.write_text(
+        f"# {slug.title()} Context\n\n"
+        f"- **Schema:** {schema}\n"
+        "- **Status:** reviewed\n"
+        "- **Analyzed on:** 2026-09-01\n"
+        "- **Analyzed version/ref:** 1.0\n"
+        "- **Revalidate when:** 2026-12-01\n"
+        "- **Project relevance:** agents\n\n"
+        f"## Summary\n\nObserved evidence recorded for the {slug} entry.\n",
+        encoding="utf-8")
+    return entry
+
+
+def test_failed_migration_leaves_every_entry_byte_identical(tmp_path, monkeypatch):
+    """E-096: a migration that cannot finish upgrades nothing."""
+    root = _project(tmp_path)
+    first = _legacy(root, "alpha", "https://alpha.example/docs")
+    second = _legacy(root, "beta", "https://beta.example/docs")
+    before = {path: path.read_bytes() for path in (first, second)}
+    original = tool.atomic_write_text
+    calls: list[Path] = []
+
+    def flaky(path, text):
+        calls.append(path)
+        if len(calls) == 2:
+            raise OSError(28, "No space left on device")
+        return original(path, text)
+
+    monkeypatch.setattr(tool, "atomic_write_text", flaky)
+    with pytest.raises(OSError, match="No space left"):
+        tool.migrate(root, today="2026-10-31")
+    assert len(calls) == 2
+    for path, data in before.items():
+        assert path.read_bytes() == data
+    assert tool.parse_fields(first.read_text(encoding="utf-8"))["schema"] == "1"
+
+
+def test_migration_upgrades_every_legacy_entry_then_reports_a_noop(tmp_path):
+    """E-096: the whole plan is applied, and a second run changes nothing."""
+    root = _project(tmp_path)
+    first = _legacy(root, "alpha", "https://alpha.example/docs")
+    second = _legacy(root, "beta", "https://beta.example/docs")
+    result = tool.migrate(root, today="2026-10-31")
+    assert result["count"] == 2
+    assert result["changed"] == [
+        "docs/research/external/alpha/context.md",
+        "docs/research/external/beta/context.md"]
+    for path in (first, second):
+        assert "- **Schema:** 2" in path.read_text(encoding="utf-8")
+    again = tool.migrate(root, today="2026-10-31")
+    assert again["count"] == 0 and again["changed"] == []
+
+
+def test_migration_dry_run_writes_nothing_for_any_entry(tmp_path):
+    """E-096: the plan can be inspected before any entry is written."""
+    root = _project(tmp_path)
+    first = _legacy(root, "alpha", "https://alpha.example/docs")
+    second = _legacy(root, "beta", "https://beta.example/docs")
+    before = {path: path.read_bytes() for path in (first, second)}
+    dry = tool.migrate(root, dry_run=True, today="2026-10-31")
+    assert dry["dry_run"] is True and dry["count"] == 2
+    for path, data in before.items():
+        assert path.read_bytes() == data
+
+
+def test_migration_leaves_current_schema_entries_alone(tmp_path):
+    """E-096: a migration writes the entries it planned and no others."""
+    root = _project(tmp_path)
+    legacy = _legacy(root, "alpha", "https://alpha.example/docs")
+    current = _complete(root)
+    before = current.read_bytes()
+    result = tool.migrate(root, today="2026-10-31")
+    assert result["changed"] == ["docs/research/external/alpha/context.md"]
+    assert current.read_bytes() == before
+    assert "- **Schema:** 2" in legacy.read_text(encoding="utf-8")

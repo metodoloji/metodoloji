@@ -4761,6 +4761,78 @@ def _check_external_context_index_transaction_contract() -> str | None:
     return None
 
 
+def _check_external_context_migration_contract() -> str | None:
+    """E-096: a multi-entry migration is one transaction.
+
+    `migrate` built and wrote one entry at a time, so a registry with two legacy
+    entries and a failing second write kept the first one migrated while the
+    command raised. Every candidate is now planned before the first write, and a
+    failure restores what was already written. This check pins the rollback and
+    the successful upgrade; the dry-run and targeting controls are pinned by the
+    registry unit tests and the focused bench.
+    """
+    import importlib.util
+
+    script = ROOT / "scripts/external-context.py"
+    if not script.is_file():
+        return "external-context CLI is missing"
+    spec = importlib.util.spec_from_file_location(
+        "external_context_migration", script)
+    if spec is None or spec.loader is None:
+        return "external-context CLI cannot be loaded"
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    with tempfile.TemporaryDirectory() as tmp:
+        project = pathlib.Path(tmp) / "project"
+        registry = project / "docs/research/external"
+        registry.mkdir(parents=True)
+        entries = []
+        for slug in ("alpha", "beta"):
+            entry = registry / slug / "context.md"
+            entry.parent.mkdir()
+            entry.write_text(
+                f"# {slug.title()} Context\n\n"
+                "- **Schema:** 1\n"
+                "- **Status:** reviewed\n"
+                "- **Analyzed on:** 2026-09-01\n"
+                "- **Analyzed version/ref:** 1.0\n"
+                "- **Revalidate when:** 2026-12-01\n\n"
+                f"## Summary\n\nObserved evidence for the {slug} entry.\n",
+                encoding="utf-8")
+            entries.append(entry)
+        before = [entry.read_bytes() for entry in entries]
+        original = module.atomic_write_text
+        calls = []
+
+        def flaky(path, text):
+            calls.append(path)
+            if len(calls) == 2:
+                raise OSError(28, "No space left on device")
+            return original(path, text)
+
+        module.atomic_write_text = flaky
+        try:
+            module.migrate(project, today="2026-10-31")
+        except OSError:
+            pass
+        except Exception as exc:
+            return f"the migration probe raised {type(exc).__name__}: {exc}"
+        else:
+            return "a failed migration did not report failure"
+        finally:
+            module.atomic_write_text = original
+        if [entry.read_bytes() for entry in entries] != before:
+            return "a failed migration left the registry half upgraded"
+        try:
+            result = module.migrate(project, today="2026-10-31")
+            again = module.migrate(project, today="2026-10-31")
+        except Exception as exc:
+            return f"a healthy migration failed: {exc}"
+        if result.get("count") != 2 or again.get("count") != 0:
+            return "a healthy migration did not upgrade both entries once"
+    return None
+
+
 def _check_external_context_draft_discovery_contract() -> str | None:
     """E-088: discovery never hands a workflow an unreviewed draft as context.
 
@@ -5263,6 +5335,8 @@ def build_checks() -> list[tuple[str, Callable[[], str | _SkippedCheck | None]]]
                    _check_external_context_source_identity_contract))
     checks.append(("external context index rebuild is transactional (E-095)",
                    _check_external_context_index_transaction_contract))
+    checks.append(("external context migration is transactional (E-096)",
+                   _check_external_context_migration_contract))
     checks.append(("external context drafts are not registered context (E-088)",
                    _check_external_context_draft_discovery_contract))
     checks.append(("opencode bridge suite runs and passes (E-074)",

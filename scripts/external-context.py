@@ -582,6 +582,15 @@ def _restore_move(path: Path, source: Path) -> None:
             shutil.move(str(path), str(source))
 
 
+def _entry_bytes(path: Path) -> bytes:
+    """The exact bytes a command found, so a rollback restores them verbatim."""
+    try:
+        return path.read_bytes()
+    except OSError as exc:
+        raise ContextError(
+            f"cannot read {path}: {exc.strerror or exc}") from exc
+
+
 def _write_index(root: Path, registry: Path) -> tuple[bool, str]:
     """Regenerate the README index from the entries themselves (F-16)."""
     index, text, existed = _index_text(root)
@@ -851,12 +860,19 @@ def rebuild_index(project_root: str | Path) -> dict:
 
 def migrate(project_root: str | Path, dry_run: bool = False,
             today: str | None = None) -> dict:
-    """Upgrade schema-1 entries in place; the only writer of missing fields."""
+    """Upgrade schema-1 entries in place; the only writer of missing fields.
+
+    A migration is one transaction (E-096). Every candidate is built before the
+    first write, so a read failure cannot leave the registry half upgraded, and
+    a write that fails puts the entries already written back byte for byte.
+    Before this, a registry with two legacy entries and a failing second write
+    kept the first one migrated while the command raised.
+    """
     root = Path(project_root).resolve()
     registry = registry_root(root)
     day_date = resolve_today(today)
     day = day_date.isoformat()
-    changed: list[str] = []
+    plan: list[tuple[Path, str, str]] = []
     with registry_lock(registry):
         for entry in _entries(registry):
             text = entry["text"]
@@ -883,9 +899,19 @@ def migrate(project_root: str | Path, dry_run: bool = False,
                     fields.get("analyzed version/ref", ""),
                     fields.get("reviewer", "") or "unrecorded (migrated)",
                     note="migrated")
-            changed.append(_rel(root, entry["entry"]))
-            if not dry_run:
-                atomic_write_text(entry["entry"], text)
+            plan.append((entry["entry"], text, _rel(root, entry["entry"])))
+        changed = [entry for _path, _text, entry in plan]
+        if not dry_run:
+            written: list[tuple[Path, bytes]] = []
+            try:
+                for path, text, _entry in plan:
+                    written.append((path, _entry_bytes(path)))
+                    atomic_write_text(path, text)
+            except BaseException:
+                # Reverse order: the newest write is the likeliest partial one.
+                for path, before in reversed(written):
+                    _restore_text(path, before)
+                raise
     return {"ok": True, "action": "migrate", "dry_run": dry_run,
             "changed": changed, "count": len(changed)}
 
