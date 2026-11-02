@@ -121,6 +121,42 @@ Two things the run taught that the config contract does not say:
   `skip_no_patches`; the run continued and the artifact stayed at the last
   accepted version. Read the run's `history.json`, not its exit code, to see
   whether the later steps learned anything.
+- **`--skill` is a path, not a name.** `skillopt-eval --skill best_skill.md`
+  measures the bundle's *static export*; the trained artifact lives at
+  `outputs/<env>/best_skill.md`. The two score 0.00 and 1.00 on the same split,
+  so a suspiciously low eval is usually the wrong file.
+
+### Continuing on a model that answers
+
+The free tier that carried steps 1–6 ran dry on the **target**, not the
+optimizer: `steps/step_0008/patches/minibatch_fail_000.json` records
+`api_rate_limit` for all four rollouts, and the analyst correctly refused to
+patch — a quota error is not a skill defect. That record is the signal to
+watch: `rollout_hard` of 0.00 together with `failure_type: api_rate_limit`
+means the run is not learning, it is failing to call the model.
+
+Continuing the same `out_root` (SkillOpt resumes from `last_completed_step + 1`)
+on models that answer moved the artifact:
+
+| optimizer | target | steps | result |
+|---|---|---|---|
+| `oc/deepseek-v4.1-flash-free` | same | 1–6 | 0.00 → 0.75, one accepted patch (step 2) |
+| `kc/reflection/beam-free` | `oc/deepseek` (429) | 7–10 | flat: every rollout a quota error, 0 edits |
+| `kc/reflection/beam-free` | `ag/gemini-3.8-flash` | 10–18 | 0.75 → **1.00** via the epoch-3 slow update |
+| `Beam-1.0-501B-A23B` | same | 19–24 | flat at 1.00, 0 edits: nothing left to learn |
+
+The step-18 artifact scores **hard = 1.0000 on `valid_unseen` and on
+`valid_seen`** (n=4 each) under both `ag/gemini-3.8-flash` and
+`Beam-1.0-501B-A23B`, so the gain is not an artefact of one target. `ds/*` models were unavailable (the gateway's upstream key returns `401`), and a
+reasoning-first model needs enough completion budget: probing
+`kc/reflection/beam-free` with `max_tokens: 10` returned empty `content`
+because its reasoning had consumed the whole allowance, which is exactly how
+an analyst silently produces "0 edits" instead of an error.
+
+The last row is the honest limit of this fixture. Once the skill passes every
+training case, reflection has no failures to explain, every step records
+`skip_no_patches`, and further epochs buy nothing. The 24-step run is
+*saturated*, not converged to the paper's numbers.
 
 ## Limits
 
