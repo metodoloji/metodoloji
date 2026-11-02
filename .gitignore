@@ -31,3 +31,8 @@ bmad-output/config.user.toml
 
 # Local Node install (skills may shell out to npx tooling); lockfiles are tracked.
 node_modules/
+
+# Upstream checkouts and the interpreter that runs them (scripts/setup-upstream.sh).
+# Neither is a dependency of this project: they exist only to check an export with the real tools.
+vendor/
+.venv-upstream/

@@ -1,0 +1,365 @@
+diff --git a/hermit/agent/base/login.py b/hermit/agent/base/login.py
+index de65c15..a676195 100644
+--- a/hermit/agent/base/login.py
++++ b/hermit/agent/base/login.py
+@@ -12,7 +12,6 @@ from __future__ import annotations
+ 
+ from contextlib import contextmanager
+ from datetime import datetime, timedelta, timezone
+-import fcntl
+ import json
+ import os
+ from pathlib import Path
+@@ -21,6 +20,37 @@ import re
+ import shutil
+ import time
+ 
++try:                                                            # POSIX
++    import fcntl
++    def flock(target, op: int) -> None:
++        fcntl.flock(target, op)
++    LOCK_EX, LOCK_UN, LOCK_NB = fcntl.LOCK_EX, fcntl.LOCK_UN, fcntl.LOCK_NB
++except ImportError:                                             # Windows: msvcrt has no flock
++    import msvcrt
++
++    LOCK_EX, LOCK_UN, LOCK_NB = 2, 8, 4
++
++    def flock(target, op: int) -> None:
++        """flock(2) semantics over msvcrt.locking: one byte at offset 0, blocking unless LOCK_NB."""
++        fd = target if isinstance(target, int) else target.fileno()
++        pos = os.lseek(fd, 0, os.SEEK_CUR)
++        os.lseek(fd, 0, os.SEEK_SET)
++        try:
++            if op & LOCK_UN:
++                msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
++            elif op & LOCK_NB:
++                msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
++            else:
++                while True:
++                    try:
++                        msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
++                        break
++                    except OSError:
++                        time.sleep(0.2)
++        finally:
++            os.lseek(fd, pos, os.SEEK_SET)
++
++
+ FILE = "auth.json"
+ ROOT = Path.home() / ".cache" / "hermit" / "codex-login"      # the shared copy: ROOT/login/auth.json
+ 
+@@ -60,7 +90,7 @@ def prepare(root: Path, home: Path, user_file: Path | None = None) -> None:
+     master = Path(root) / "login" / FILE
+     master.parent.mkdir(parents=True, exist_ok=True)
+     with open(master.parent / ".lock", "w") as lock:
+-        fcntl.flock(lock, fcntl.LOCK_EX)
++        flock(lock, LOCK_EX)
+         if user_file.is_file() and _newer(user_file, master):
+             _replace(user_file, master)
+         if not master.is_file():
+@@ -83,7 +113,7 @@ def take_back(root: Path, path: Path) -> None:
+     if not Path(path).is_file() or not master.is_file():
+         return
+     with open(master.parent / ".lock", "w") as lock:
+-        fcntl.flock(lock, fcntl.LOCK_EX)
++        flock(lock, LOCK_EX)
+         if _newer(path, master):
+             _replace(path, master)
+ 
+@@ -204,14 +234,14 @@ def slot(plan: Path | str | None = None, cancel=None, log=None, deadline: float
+         for i in random.sample(range(n), n):
+             fd = os.open(d / LOCKS / f"{i}.lock", os.O_RDWR | os.O_CREAT, 0o600)
+             try:
+-                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
++                flock(fd, LOCK_EX | LOCK_NB)
+             except OSError:
+                 os.close(fd)
+                 continue
+             try:
+                 yield True
+             finally:
+-                fcntl.flock(fd, fcntl.LOCK_UN)
++                flock(fd, LOCK_UN)
+                 os.close(fd)
+             return
+         if not told and log is not None:
+@@ -271,7 +301,7 @@ def _note_usage(plan: Path | str | None, home: Path) -> dict | None:
+         out.write(json.dumps({"time": seen.get("time"), "used_percent": used, "resets_at": resets,
+                               "reached": seen.get("rate_limit_reached_type")}) + "\n")
+     with open(d / ".lock", "w") as lock:
+-        fcntl.flock(lock, fcntl.LOCK_EX)
++        flock(lock, LOCK_EX)
+         try:
+             current = json.loads((d / "plan.json").read_text())
+         except (OSError, ValueError):
+@@ -302,7 +332,7 @@ def _hold(plan: Path | str | None = None) -> None:
+     d = plan_dir(plan)
+     d.mkdir(parents=True, exist_ok=True)
+     with open(d / ".lock", "w") as lock:
+-        fcntl.flock(lock, fcntl.LOCK_EX)
++        flock(lock, LOCK_EX)
+         try:
+             current = json.loads((d / "plan.json").read_text())
+         except (OSError, ValueError):
+diff --git a/hermit/isolate.py b/hermit/isolate.py
+index f1dce15..4046dac 100644
+--- a/hermit/isolate.py
++++ b/hermit/isolate.py
+@@ -236,53 +236,81 @@ def _run_worker(box: Sandbox, job: dict, work: Path, *, home: Path, readable=(),
+                 keep=(), forward=(), timeout: float | None = None, masked=()) -> dict:
+     """Run worker.py in the sandbox with `job`; return its payload, or raise with what it left behind. After
+     `timeout` seconds the sandbox is stopped (everything in it goes with it: its own process namespace)."""
+-    read_end, write_end = os.pipe()
++    # Windows has no `pass_fds`, so there the result travels by a file in the worker's own directory instead of a
++    # pipe; either way the worker hands back one JSON payload and nothing else may write it.
++    windows = os.name == "nt"
++    result_file = work / "worker-result.json"
++    if windows:
++        result_file.unlink(missing_ok=True)
++        read_end = write_end = None
++    else:
++        read_end, write_end = os.pipe()
+     env = dict(env or framework_env())
+-    env["HA_RESULT_FD"] = str(write_end)
++    if windows:
++        env["HA_RESULT_PATH"] = str(result_file)
++        carrier = ["HA_RESULT_PATH"]
++    else:
++        env["HA_RESULT_FD"] = str(write_end)
++        carrier = ["HA_RESULT_FD"]
+     try:
+         args, env = box.wrap([sys.executable, str(WORKER)], readable=list(readable), writable=[work, *writable],
+-                             env=env, home=home, keep=["PYTHONPATH", "HA_RESULT_FD", *keep], forward=list(forward),
++                             env=env, home=home, keep=["PYTHONPATH", *carrier, *keep], forward=list(forward),
+                              masked=list(masked))
+     except BaseException:
+-        os.close(read_end)
+-        os.close(write_end)
++        if not windows:
++            os.close(read_end)
++            os.close(write_end)
+         raise
+     log = work / "worker.log"
+     try:
+         with open(log, "wb") as out:
++            extra = {} if windows else {"pass_fds": (write_end,)}
+             proc = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=out, stderr=subprocess.STDOUT, env=env,
+-                                    cwd=str(work), pass_fds=(write_end,))
++                                    cwd=str(work), **extra)
+     except BaseException:
+-        os.close(read_end)
++        if not windows:
++            os.close(read_end)
+         raise
+     finally:
+-        os.close(write_end)
++        if not windows:
++            os.close(write_end)
+     try:
+         proc.stdin.write(json.dumps(job, default=str).encode())
+         proc.stdin.close()
+     except BrokenPipeError:
+         pass                                             # it ended before reading: the exit code tells why
+-    # Read on a thread: a result larger than the pipe's buffer must drain while the worker writes it.
+-    received: list[str] = []
+-
+-    def read():
+-        with os.fdopen(read_end, "r") as result:
+-            received.append(result.read())
+-    reader = threading.Thread(target=read, daemon=True)
+-    reader.start()
+-    reader.join(timeout)
+-    if reader.is_alive():
+-        proc.kill()
+-        proc.wait()
+-        reader.join(10)
+-        raise TimeoutError(f"the sandboxed {job['kind']} ran longer than {timeout / 60:.1f} min and was stopped; "
+-                           f"log {log}")
+-    data = received[0] if received else ""
+-    try:
+-        code = proc.wait(timeout=30)                     # it answered; a process kept alive after that is stopped
+-    except subprocess.TimeoutExpired:
+-        proc.kill()
+-        code = proc.wait()
++    data = ""
++    if windows:
++        try:
++            code = proc.wait(timeout=timeout)
++        except subprocess.TimeoutExpired:
++            proc.kill()
++            proc.wait()
++            raise TimeoutError(f"the sandboxed {job['kind']} ran longer than {timeout / 60:.1f} min and was stopped; "
++                               f"log {log}") from None
++        if result_file.is_file():
++            data = result_file.read_text(encoding="utf-8", errors="replace")
++    else:
++        # Read on a thread: a result larger than the pipe's buffer must drain while the worker writes it.
++        received: list[str] = []
++
++        def read():
++            with os.fdopen(read_end, "r") as result:
++                received.append(result.read())
++        reader = threading.Thread(target=read, daemon=True)
++        reader.start()
++        reader.join(timeout)
++        if reader.is_alive():
++            proc.kill()
++            proc.wait()
++            reader.join(10)
++            raise TimeoutError(f"the sandboxed {job['kind']} ran longer than {timeout / 60:.1f} min and was stopped; "
++                               f"log {log}")
++        try:
++            code = proc.wait(timeout=30)                 # it answered; a process kept alive after that is stopped
++        except subprocess.TimeoutExpired:
++            proc.kill()
++            code = proc.wait()
+     if not data:
+         tail = log.read_text(errors="replace")[-1500:] if log.exists() else ""
+         reason = "the sandbox's isolation check failed" if code == 97 else f"it exited with code {code}"
+diff --git a/hermit/sandbox.py b/hermit/sandbox.py
+index f00b4b4..72e4fe9 100644
+--- a/hermit/sandbox.py
++++ b/hermit/sandbox.py
+@@ -43,7 +43,12 @@ from urllib.parse import urlparse
+ 
+ # Variables the framework itself sets or a program cannot start without; passed even when sandbox.env is a list.
+ ALWAYS = {"PATH", "HOME", "LANG", "LC_ALL", "TERM", "PYTHONPATH", "CODEX_HOME", "CLAUDE_CONFIG_DIR", "HA_CONTEXT",
+-          "HA_TOOL_URL"}
++          "HA_TOOL_URL",
++          # Windows: without these a child process cannot load the loader, the C runtime or Winsock, so even an
++          # unconfined best-effort run dies before the adapter's code starts (`import asyncio` raises
++          # WinError 10106). None of them names a user file, so the sandbox's intent is unchanged.
++          "SystemRoot", "SystemDrive", "windir", "TEMP", "TMP", "PATHEXT", "COMSPEC",
++          "NUMBER_OF_PROCESSORS", "PROCESSOR_ARCHITECTURE"}
+ SYSTEM_ETC = ("/etc/ld.so.cache", "/etc/ld.so.conf", "/etc/ld.so.conf.d", "/etc/alternatives", "/etc/ssl", "/etc/pki",
+               "/etc/resolv.conf", "/etc/hosts", "/etc/nsswitch.conf", "/etc/passwd", "/etc/group", "/etc/localtime",
+               "/etc/crypto-policies", "/etc/os-release")
+@@ -421,7 +426,10 @@ class Sandbox:
+         env = dict(env if env is not None else os.environ)
+         if self.env_allow is not None:
+             allowed = set(self.env_allow) | ALWAYS | set(keep)
+-            env = {k: v for k, v in env.items() if k in allowed}
++            # Windows stores environment keys upper-cased (`SYSTEMROOT`) while the names above are mixed case, so an
++            # exact match silently drops exactly the variables a child process cannot start without.
++            folded = {k.casefold() for k in allowed}
++            env = {k: v for k, v in env.items() if k in allowed or k.casefold() in folded}
+         if self.proxy_url:
+             for key in ("HTTPS_PROXY", "HTTP_PROXY", "https_proxy", "http_proxy"):
+                 env[key] = self.proxy_url
+diff --git a/hermit/trainer/material.py b/hermit/trainer/material.py
+index 3fc660b..c3be470 100644
+--- a/hermit/trainer/material.py
++++ b/hermit/trainer/material.py
+@@ -5,6 +5,7 @@ import json
+ import os
+ from pathlib import Path
+ import shutil
++import subprocess
+ 
+ from hermit.isolate import _safe
+ 
+@@ -27,6 +28,24 @@ Each step directory:
+ """
+ 
+ 
++def _point_at(current: Path, target: Path) -> None:
++    """Make `current` name the sibling directory `target`: a symlink where the OS allows one, else a junction.
++
++    Windows refuses `os.symlink` for a directory unless Developer Mode is on or the process is elevated, but a
++    directory junction needs neither; the evolver reads `current` as a directory either way.
++    """
++    try:
++        current.symlink_to(target.name)
++        return
++    except OSError:
++        if os.name != "nt":
++            raise
++    made = subprocess.run(["cmd", "/c", "mklink", "/J", str(current), str(Path(target).resolve())],
++                          capture_output=True, text=True)
++    if made.returncode != 0 or not current.exists():
++        raise OSError(f"cannot point {current} at {target.name}: {made.stdout}{made.stderr}".strip())
++
++
+ class Material:
+     def __init__(self, root: Path):
+         self.root = Path(root)
+@@ -76,7 +95,7 @@ class Material:
+         current = self.root / "current"
+         if current.is_symlink() or current.exists():
+             current.unlink()
+-        current.symlink_to(d.name)
++        _point_at(current, d)
+         return d
+ 
+     def truncate(self, last_step: int) -> None:
+@@ -89,9 +108,9 @@ class Material:
+             keep = [l for l in index.read_text().splitlines() if l and json.loads(l)["step"] <= last_step]
+             index.write_text("".join(l + "\n" for l in keep))
+         current = self.root / "current"
+-        if current.is_symlink():
++        if current.is_symlink() or current.exists():
+             current.unlink()
+         if last_step > 0 and self.step_dir(last_step).exists():
+-            current.symlink_to(self.step_dir(last_step).name)
++            _point_at(current, self.step_dir(last_step))
+ 
+ 
+diff --git a/hermit/tree.py b/hermit/tree.py
+index 2e38721..3290070 100644
+--- a/hermit/tree.py
++++ b/hermit/tree.py
+@@ -27,6 +27,22 @@ def git(repo: Path, *args: str, check: bool = True, input: str | None = None) ->
+     return run.stdout.strip()
+ 
+ 
++def _rmtree(path: Path) -> None:
++    """Remove a directory tree, clearing the read-only bit git puts on its object files.
++
++    On Windows `os.unlink` refuses a read-only file, so removing an exported adapter that carries its history fails
++    with EACCES even though the caller owns it.
++    """
++    def _retry(function, target, _error):
++        try:
++            os.chmod(target, 0o700)
++            function(target)
++        except OSError:
++            pass
++    if Path(path).exists():
++        shutil.rmtree(path, onexc=_retry)
++
++
+ class Tree:
+     def __init__(self, repo: Path):
+         self.repo = Path(repo).resolve()
+@@ -70,7 +86,7 @@ class Tree:
+         a clean index; changes to it never flow back (Tree.sync copies files only)."""
+         target = Path(target)
+         if target.exists():
+-            shutil.rmtree(target)
++            _rmtree(target)
+         target.mkdir(parents=True)
+         sha = self.resolve(ref)
+         archive = subprocess.run(["git", "-C", str(self.repo), "archive", "--format=tar", sha],
+diff --git a/hermit/worker.py b/hermit/worker.py
+index 0e38884..b171dde 100644
+--- a/hermit/worker.py
++++ b/hermit/worker.py
+@@ -55,10 +55,15 @@ def _not_dumpable() -> None:
+ 
+ 
+ def main() -> None:
+-    fd = int(os.environ.pop("HA_RESULT_FD"))
+-    os.set_inheritable(fd, False)
++    path = os.environ.pop("HA_RESULT_PATH", "")
++    if path:                                   # Windows: the result leaves by a file, since there is no pass_fds
++        result = open(path, "w", encoding="utf-8")
++    else:
++        fd = int(os.environ.pop("HA_RESULT_FD"))
++        os.set_inheritable(fd, False)
++        result = os.fdopen(fd, "w")
+     _not_dumpable()
+-    with os.fdopen(fd, "w") as result:
++    with result:
+         try:
+             payload = _run(json.loads(sys.stdin.read()))
+         except BaseException as exc:            # the host turns this into the task's error record

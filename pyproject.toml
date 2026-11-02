@@ -1,6 +1,6 @@
 [project]
 name = "metodoloji"
-version = "0.2.12"
+version = "0.2.13"
 requires-python = ">=3.11"
 dependencies = [
 ]
@@ -19,6 +19,7 @@ testpaths = [
     "skills/bmad-party-mode/scripts/tests",
     "skills/bmad-research-experiment/scripts/tests",
     "skills/bmad-workflow-builder/scripts/tests",
+    "optimization/tests",
 ]
 python_files = "test_*.py"
 python_functions = "test_*"
