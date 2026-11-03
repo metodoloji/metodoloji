@@ -37,9 +37,12 @@ from .spec import SpecError, init_spec, load_spec
 
 
 def _runner(value: str):
-    if value.startswith("command:"):
+    if value == "scripted":
+        return ScriptedRunner()
+    if value.startswith("command:") and value.split(":", 1)[1].strip():
         return CommandRunner(value.split(":", 1)[1])
-    return ScriptedRunner()
+    raise SpecError(
+        f"unknown runner {value!r} — use 'scripted' or 'command:<shell command>'")
 
 
 def _proposer(value: str):
@@ -114,7 +117,7 @@ def cmd_train(args: argparse.Namespace) -> int:
     report = optimizer.run(epochs=args.epochs)
     _print(report.as_dict(), args.json)
     heldout = report.heldout or {}
-    if heldout.get("accepted") is False:
+    if heldout.get("applicable") is False or heldout.get("accepted") is False:
         return 3
     return 0
 
@@ -129,7 +132,7 @@ def cmd_eval(args: argparse.Namespace) -> int:
     result = optimizer.evaluate_heldout()
     _print(result, args.json)
     if result.get("applicable") is False:
-        return 2
+        return 3
     return 0 if result.get("accepted") else 3
 
 
@@ -170,14 +173,29 @@ def cmd_report(args: argparse.Namespace) -> int:
     # must not spend model calls, and must not overwrite a live held-out
     # decision with an offline one.
     stored = _report_dict(spec) or {}
-    report = optimizer.report(heldout=stored.get("heldout"))
+    heldout = stored.get("heldout")
+    rows = optimizer.store.entries()
+    if (isinstance(heldout, dict) and rows
+            and heldout.get("candidate_version")
+            not in (None, str(rows[-1]["version"]))):
+        # The stored decision belongs to another tip (a crashed retrain or a
+        # rollback): republishing it would name a measurement of a version the
+        # tree no longer has.
+        heldout = None
+    report = optimizer.report(heldout=heldout)
     _print(report.as_dict(), args.json)
     return 0
 
 
 def _report_dict(spec) -> dict[str, object] | None:
     path = spec.work_dir / "report.json"
-    return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else None
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None  # corrupt evidence must not brick the command that rebuilds it
+    return data if isinstance(data, dict) else None
 
 
 def cmd_export(args: argparse.Namespace) -> int:

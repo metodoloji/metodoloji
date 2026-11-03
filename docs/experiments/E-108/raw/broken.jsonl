@@ -1,26 +1,26 @@
-{"check": "skeleton_copies_ledger", "ok": false, "detail": "C:\\Users\\ASUS\\AppData\\Local\\Temp\\tmpsismazsh\\fresh\\docs\\development\\native\\deferred-work.md"}
-{"check": "template_has_canonical_header", "ok": false, "detail": "# Deferred Work  Work knowingly deferred from a review, a qu"}
-{"check": "existing_ledger_preserved", "ok": false, "detail": "byte-identical"}
-{"check": "fresh_status_has_no_missing_ledger", "ok": false, "detail": "[]"}
-{"check": "missing_ledger_is_reported_as_drift", "ok": false, "detail": "['docs/development/native/deferred-work.md']"}
-{"check": "declaration_audit_clean", "ok": false, "detail": "clean"}
-{"check": "inventory_counts_open_done_total", "ok": false, "detail": "{'path': 'C:\\\\Users\\\\ASUS\\\\AppData\\\\Local\\\\Temp\\\\tmpsismazsh\\\\full\\\\docs\\\\development\\\\native\\\\deferred-work.md', 'total': 3, 'open': 2, 'done': 1, 'malformed': 0, 'legacy': False, 'newest_seq': 3} [reference]"}
-{"check": "inventory_missing_is_zero", "ok": false, "detail": "{'path': '', 'total': 0, 'open': 0, 'done': 0, 'malformed': 0, 'legacy': False} [reference]"}
-{"check": "inventory_flags_malformed", "ok": false, "detail": "{'path': 'C:\\\\Users\\\\ASUS\\\\AppData\\\\Local\\\\Temp\\\\tmpsismazsh\\\\malformed\\\\docs\\\\development\\\\native\\\\deferred-work.md', 'total': 1, 'open': 0, 'done': 0, 'malformed': 1, 'legacy': False, 'newest_seq': 1} [reference]"}
-{"check": "inventory_detects_legacy", "ok": false, "detail": "{'path': 'C:\\\\Users\\\\ASUS\\\\AppData\\\\Local\\\\Temp\\\\tmpsismazsh\\\\legacy\\\\docs\\\\development\\\\native\\\\deferred-work.md', 'total': 0, 'open': 0, 'done': 0, 'malformed': 0, 'legacy': True} [reference]"}
-{"check": "record_inventory_exposes_dw", "ok": false, "detail": "{'count': 2, 'newest': 'DW-3', 'dirs': ['C:\\\\Users\\\\ASUS\\\\AppData\\\\Local\\\\Temp\\\\tmpsismazsh\\\\inv\\\\docs\\\\development\\\\native\\\\deferred-work.md'], 'total': 3, 'done': 1, 'malformed': 0, 'legacy': False} [reference]"}
-{"check": "record_inventory_omits_absent_dw", "ok": true, "detail": "{} [reference]"}
-{"check": "audit_prints_open_total", "ok": false, "detail": "CHECK 9: Deferred-Work Ledger | deferred-work: 2 open / 3 total (1 done) \u2014 docs/development/native/deferred-work.md"}
-{"check": "audit_warns_malformed", "ok": false, "detail": "CHECK 9: Deferred-Work Ledger | \u26a0\ufe0f  WARN: deferred-work: 0 open / 1 total \u2014 1 malformed entries (missing or unrecognized status)"}
-{"check": "audit_warns_legacy", "ok": false, "detail": "CHECK 9: Deferred-Work Ledger | \u26a0\ufe0f  WARN: deferred-work: legacy freeform format \u2014 run bmad-loop-sweep --migrate (docs/development/native/deferred-work.md)"}
-{"check": "audit_reports_absent_as_none", "ok": false, "detail": "CHECK 9: Deferred-Work Ledger | deferred-work: none (no writer has run in this project)"}
-{"check": "audit_dw_is_advisory", "ok": true, "detail": "warn-only"}
-{"check": "commit_advisory_names_open", "ok": false, "detail": "DEFERRED WORK: 2 open entries in C:\\Users\\ASUS\\AppData\\Local [reference]"}
-{"check": "commit_advisory_empty_at_zero", "ok": false, "detail": "'' [reference]"}
-{"check": "commit_advisory_empty_when_absent", "ok": false, "detail": "'' [reference]"}
+{"check": "skeleton_copies_ledger", "ok": false, "detail": "C:\\Users\\ASUS\\AppData\\Local\\Temp\\tmpiog50y8z\\fresh\\docs\\development\\native\\deferred-work.md"}
+{"check": "template_has_canonical_header", "ok": false, "detail": ""}
+{"check": "existing_ledger_preserved", "ok": true, "detail": "byte-identical"}
+{"check": "fresh_status_has_no_missing_ledger", "ok": true, "detail": "[]"}
+{"check": "missing_ledger_is_reported_as_drift", "ok": false, "detail": "[]"}
+{"check": "declaration_audit_clean", "ok": false, "detail": "hooks/scripts/bootstrap.sh: unreadable \u2014 the session-start probe set cannot be audited; scripts/check-plugin.sh: unreadable \u2014 \u00a76d cannot be audited"}
+{"check": "inventory_counts_open_done_total", "ok": false, "detail": "pre-fix: no deferred_work_inventory"}
+{"check": "inventory_missing_is_zero", "ok": false, "detail": "pre-fix: no deferred_work_inventory"}
+{"check": "inventory_flags_malformed", "ok": false, "detail": "pre-fix: no deferred_work_inventory"}
+{"check": "inventory_detects_legacy", "ok": false, "detail": "pre-fix: no deferred_work_inventory"}
+{"check": "record_inventory_exposes_dw", "ok": false, "detail": "pre-fix: no DW key"}
+{"check": "record_inventory_omits_absent_dw", "ok": true, "detail": "pre-fix: no DW key"}
+{"check": "audit_prints_open_total", "ok": false, "detail": "<no line; tail=' 1\\n  Warnings: 8\\n\\n\u274c METHODOLOGY VALIDATION FAILED \u2014 1 issues found\\n   Run with --fix to auto-create missing directories\\n'>"}
+{"check": "audit_warns_malformed", "ok": false, "detail": "<no line; tail=' 1\\n  Warnings: 8\\n\\n\u274c METHODOLOGY VALIDATION FAILED \u2014 1 issues found\\n   Run with --fix to auto-create missing directories\\n'>"}
+{"check": "audit_warns_legacy", "ok": false, "detail": "<no line; tail=' 1\\n  Warnings: 8\\n\\n\u274c METHODOLOGY VALIDATION FAILED \u2014 1 issues found\\n   Run with --fix to auto-create missing directories\\n'>"}
+{"check": "audit_reports_absent_as_none", "ok": false, "detail": "<no line; tail=' 1\\n  Warnings: 9\\n\\n\u274c METHODOLOGY VALIDATION FAILED \u2014 1 issues found\\n   Run with --fix to auto-create missing directories\\n'>"}
+{"check": "audit_dw_is_advisory", "ok": true, "detail": "warn-only; rc good=1 none=1"}
+{"check": "commit_advisory_names_open", "ok": false, "detail": "pre-fix: no deferred_work_warning"}
+{"check": "commit_advisory_empty_at_zero", "ok": true, "detail": "pre-fix: no advisory exists"}
+{"check": "commit_advisory_empty_when_absent", "ok": true, "detail": "pre-fix: no advisory exists"}
 {"check": "manifesto_names_ledger", "ok": false, "detail": "deferred-work.md"}
 {"check": "manifesto_states_entry_contract", "ok": false, "detail": "DW-N / status"}
 {"check": "manifesto_names_writers", "ok": false, "detail": "three writers"}
 {"check": "manifesto_names_triager_and_format", "ok": false, "detail": "loop-sweep + format"}
-{"check": "template_points_at_canonical_format", "ok": false, "detail": "C:\\Users\\ASUS\\orca\\metodoloji\\templates\\deferred-work.md"}
+{"check": "template_points_at_canonical_format", "ok": false, "detail": "no template"}
 {"check": "canonical_format_survives", "ok": true, "detail": "C:\\Users\\ASUS\\orca\\metodoloji\\skills\\bmad-loop-sweep\\deferred-work-format.md"}

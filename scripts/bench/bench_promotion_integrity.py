@@ -106,7 +106,13 @@ class _Recorder:
 
 def runner_group(spec_path: pathlib.Path, broken: bool) -> list[bool]:
     original = cli.Optimizer
+    original_runner = cli._runner
     cli.Optimizer = _Recorder
+    if broken:
+        # Execute the pre-fix wiring: cmd_eval/cmd_report always built with
+        # ScriptedRunner, whatever --runner said. The expectation stays the
+        # new one, so the control measures the defect instead of inverting it.
+        cli._runner = lambda _value: ScriptedRunner()
     outcomes: list[bool] = []
     try:
         for command in ("eval", "report"):
@@ -121,13 +127,13 @@ def runner_group(spec_path: pathlib.Path, broken: bool) -> list[bool]:
                         cli.cmd_eval(namespace)
                     else:
                         cli.cmd_report(namespace)
-                expected = ScriptedRunner if broken else (
-                    CommandRunner if template.startswith("command:")
-                    else ScriptedRunner)
+                expected = (CommandRunner if template.startswith("command:")
+                            else ScriptedRunner)
                 outcomes.append(bool(_Recorder.last)
                                 and isinstance(_Recorder.last.runner, expected))
     finally:
         cli.Optimizer = original
+        cli._runner = original_runner
     return outcomes
 
 
@@ -158,7 +164,12 @@ def version_group(spec_path: pathlib.Path, two_versions: bool,
     optimizer = Optimizer(load_spec(spec_path), ScriptedRunner(), RuleProposer())
     optimizer.prepare()
     if two_versions:
-        optimizer.store.commit(optimizer.store.artifact("v0000"), epoch=1,
+        # The candidate must DIFFER from v0000: committing v0000's own text
+        # names a second version that is byte-identical, which is the
+        # self-comparison the fix refuses (E-106 review).
+        candidate_text = (optimizer.store.artifact("v0000")
+                          + "\n<!-- candidate edit -->\n")
+        optimizer.store.commit(candidate_text, epoch=1,
                                parent="v0000", edit=None, gate=None, tokens=1)
     try:
         result = optimizer.evaluate_heldout()

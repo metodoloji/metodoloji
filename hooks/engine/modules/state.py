@@ -117,17 +117,48 @@ _DEFERRED_WORK_CANDIDATES = (
     "_bmad-output/implementation-artifacts/deferred-work.md",
 )
 _DW_ENTRY_RE = re.compile(r"^###\s+DW-(\d+)\s*:", re.MULTILINE)
-_DW_STATUS_RE = re.compile(r"^status:\s*(\S+)", re.MULTILINE | re.IGNORECASE)
+_DW_STATUS_RE = re.compile(r"^status:[ \t]*(\S+)", re.MULTILINE | re.IGNORECASE)
+_DW_NEAR_MISS_RE = re.compile(r"^#{2,4}\s*DW-\d+\s*:", re.MULTILINE)
+_LEGACY_SECTION_RE = re.compile(r"^##\s+Deferred", re.MULTILINE)
+
+
+def _strip_fences(text: str) -> tuple[str, bool]:
+    """Drop fenced documentation (the installed template shows the shape inside
+    one) and report whether a fence was left open."""
+    body_lines: list[str] = []
+    fenced = False
+    for line in text.splitlines():
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+            continue
+        if not fenced:
+            body_lines.append(line)
+    return "\n".join(body_lines), fenced
+
+
+def _ledger_has_entries(text: str) -> bool:
+    body, _ = _strip_fences(text)
+    return bool(_DW_ENTRY_RE.search(body) or _LEGACY_SECTION_RE.search(body))
 
 
 def deferred_work_path(project_root: str | pathlib.Path) -> pathlib.Path | None:
-    """The ledger this project owns, canonical default first, or None."""
+    """The ledger this project owns, preferring a candidate with content.
+
+    A fresh init installs an EMPTY canonical ledger. If a project also carries a
+    populated legacy-path ledger, returning the canonical first would hide every
+    real entry (E-108 review), so a populated candidate wins over an empty one.
+    """
     root = pathlib.Path(project_root)
-    for rel in _DEFERRED_WORK_CANDIDATES:
-        candidate = root / rel
-        if candidate.is_file():
+    existing = [root / rel for rel in _DEFERRED_WORK_CANDIDATES
+                if (root / rel).is_file()]
+    for candidate in existing:
+        try:
+            text = candidate.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        if _ledger_has_entries(text):
             return candidate
-    return None
+    return existing[0] if existing else None
 
 
 def deferred_work_inventory(project_root: str | pathlib.Path) -> dict:
@@ -141,29 +172,36 @@ def deferred_work_inventory(project_root: str | pathlib.Path) -> dict:
     sweep's --migrate rewrites it. A missing ledger is zeros, never an error.
     """
     info = {"path": "", "total": 0, "open": 0, "done": 0,
-            "malformed": 0, "legacy": False}
+            "malformed": 0, "legacy": False, "legacy_items": 0, "error": ""}
     path = deferred_work_path(project_root)
     if path is None:
         return info
     info["path"] = str(path)
     try:
         text = path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
+    except OSError as exc:
+        info["error"] = str(exc)
         return info
 
-    body_lines: list[str] = []
-    fenced = False
-    for line in text.splitlines():
-        if line.lstrip().startswith("```"):
-            fenced = not fenced
-            continue
-        if not fenced:
-            body_lines.append(line)
-    body = "\n".join(body_lines)
+    body, unterminated = _strip_fences(text)
+    if unterminated:
+        # A stray fence would hide every later entry: parse the raw text and
+        # report the malformation instead of silently reporting zero.
+        info["malformed"] += 1
+        body = text
 
     starts = list(_DW_ENTRY_RE.finditer(body))
+    legacy_section = _LEGACY_SECTION_RE.search(body)
+    if legacy_section:
+        # Bullet count is the honest size of the un-migrated remainder. It is
+        # reported even when canonical entries exist, so a partial migration
+        # cannot drop the leftovers from every surface.
+        info["legacy_items"] = len(
+            re.findall(r"^\s*-\s+\S", body[legacy_section.start():], re.MULTILINE))
+        if not starts:
+            info["legacy"] = True
     if not starts:
-        info["legacy"] = bool(re.search(r"^##\s+Deferred", body, re.MULTILINE))
+        info["malformed"] += len(_DW_NEAR_MISS_RE.findall(body))
         return info
     info["total"] = len(starts)
     for index, match in enumerate(starts):
@@ -177,7 +215,12 @@ def deferred_work_inventory(project_root: str | pathlib.Path) -> dict:
             info["open"] += 1
         else:
             info["malformed"] += 1
-        info["newest_seq"] = max(info.get("newest_seq", 0), int(match.group(1)))
+        try:
+            sequence = int(match.group(1))
+        except ValueError:  # >4300 digits: Python's int-string limit
+            info["malformed"] += 1
+            continue
+        info["newest_seq"] = max(info.get("newest_seq", 0), sequence)
     return info
 
 

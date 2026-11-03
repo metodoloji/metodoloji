@@ -423,8 +423,10 @@ def test_cli_split_check_train_and_verify(tmp_path, capsys):
 def test_cli_eval_refuses_a_single_version_tree(tmp_path, capsys):
     optimizer = _optimizer(_project(tmp_path))
     optimizer.prepare()
+    # A valid tree with nothing accepted is "not promoted", not a spec error:
+    # exit 3 keeps it distinct from the documented usage/spec exit 2.
     assert main(["eval", "--spec", str(tmp_path / "optimization.toml"),
-                 "--json"]) == 2
+                 "--json"]) == 3
     assert json.loads(capsys.readouterr().out)["applicable"] is False
 
 

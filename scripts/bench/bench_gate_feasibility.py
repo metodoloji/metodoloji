@@ -25,7 +25,6 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from optimization import preflight  # noqa: E402
-from optimization.gate import min_discordant_pairs as exact_minimum  # noqa: E402
 from optimization.spec import load_spec  # noqa: E402
 
 VAL_SIZES = (4, 5, 6, 7, 8)
@@ -36,6 +35,19 @@ ARTIFACT = (
     "A neutral document used only to exercise the preflight arithmetic. It "
     "makes no claim about any case and is never trained here. "
 ) * 3
+
+
+def exact_minimum(alpha: float) -> int:
+    """Independent oracle: smallest all-one-way count whose exact McNemar p < alpha.
+
+    Deliberately not the production ``gate.min_discordant_pairs``: using the
+    function under test as its own expectation makes a wrong arithmetic score
+    1.00. The exact two-sided p for n discordant pairs is ``2 * 0.5**n``.
+    """
+    pairs = 1
+    while 2.0 * (0.5 ** pairs) >= alpha:
+        pairs += 1
+    return pairs
 
 
 def build_project(root: pathlib.Path, val: int, heldout: int,

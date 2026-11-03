@@ -506,6 +506,17 @@ class Optimizer:
             }
         base_text = self.store.artifact(str(rows[0]["version"]))
         best_text = self.store.artifact(str(rows[-1]["version"]))
+        if base_text == best_text:
+            # A revert edit can leave the tip holding the base text: the two
+            # rows differ by name only, and comparing them reintroduces the
+            # model-noise regression E-106 removed.
+            return {
+                "applicable": False,
+                "versions": len(rows),
+                "candidate_version": rows[-1]["version"],
+                "reason": "first and last versions hold identical artifact text — "
+                          "nothing to compare",
+            }
         base = self._eval(base_text, self.splits.heldout)
         cand = self._eval(best_text, self.splits.heldout)
         decision = decide(base, cand, self.spec.gate,

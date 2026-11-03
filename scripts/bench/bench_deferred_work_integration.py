@@ -102,90 +102,85 @@ def _project(tmp: pathlib.Path, ledger: str | None) -> pathlib.Path:
     return tmp
 
 
-# --- reference surface ---------------------------------------------------------
-# state.py and quality_gate.py are gated production code: until E-108's own
-# approval they cannot be written, and the bench must still measure the
-# hypothesis. These two references implement the SAME contract the production
-# functions will carry; the delivery re-run (after approval) exercises the
-# production surface through the same checks. Every detail string says which
-# surface answered, so a reference pass is never mistaken for a production one.
+# --- surface probes ------------------------------------------------------------
+# The production surface is the imported one. `--broken` EXECUTES the pre-fix
+# surface where it can be materialised (skeleton, audit, manifesto) and verifies
+# absence from the pre-fix source where the symbol did not exist (state /
+# quality_gate). No check is a hardcoded score: each asks the pre-fix artifact
+# the same question the production check asks.
 
-def _reference_inventory(root: pathlib.Path) -> dict:
-    info = {"path": "", "total": 0, "open": 0, "done": 0,
-            "malformed": 0, "legacy": False}
-    target = pathlib.Path(root) / LEDGER_REL
-    if not target.is_file():
-        return info
-    info["path"] = str(target)
-    text = target.read_text(encoding="utf-8", errors="replace")
-    body, fenced = [], False
-    for line in text.splitlines():
-        if line.lstrip().startswith("```"):
-            fenced = not fenced
-            continue
-        if not fenced:
-            body.append(line)
-    body = "\n".join(body)
-    starts = list(re.finditer(r"^###\s+DW-(\d+)\s*:", body, re.MULTILINE))
-    if not starts:
-        info["legacy"] = bool(re.search(r"^##\s+Deferred", body, re.MULTILINE))
-        return info
-    info["total"] = len(starts)
-    for index, match in enumerate(starts):
-        end = starts[index + 1].start() if index + 1 < len(starts) else len(body)
-        status = re.search(r"^status:\s*(\S+)", body[match.end():end],
-                           re.MULTILINE | re.IGNORECASE)
-        if not status:
-            info["malformed"] += 1
-        elif status.group(1).lower().startswith("done"):
-            info["done"] += 1
-        elif status.group(1).lower().startswith("open"):
-            info["open"] += 1
-        else:
-            info["malformed"] += 1
-        info["newest_seq"] = max(info.get("newest_seq", 0), int(match.group(1)))
-    return info
+PREFIX_REV = "572b7b0^"  # the commit before the E-108 integration
+
+
+def _git_show(rel: str) -> str | None:
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(ROOT), "show", f"{PREFIX_REV}:{rel}"],
+            capture_output=True, text=True, encoding="utf-8",
+            errors="replace", timeout=30)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return out.stdout if out.returncode == 0 else None
+
+
+def _prefix_tree(tmp: pathlib.Path) -> pathlib.Path:
+    """Materialise the pre-fix plugin surface the skeleton checks run against."""
+    dest = tmp / "prefix"
+    for rel in ("bmad/scripts/skeleton.py", "commands/init.md"):
+        text = _git_show(rel)
+        if text is None:
+            raise RuntimeError(f"cannot read {PREFIX_REV}:{rel}")
+        target = dest / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8", newline="\n")
+    templates = dest / "templates"
+    templates.mkdir(parents=True, exist_ok=True)
+    for src in (ROOT / "templates").iterdir():
+        if src.is_file() and src.name != "deferred-work.md":
+            shutil.copyfile(src, templates / src.name)
+    return dest
+
+
+def _prefix_skeleton(tmp: pathlib.Path):
+    return _load("bench_prefix_skeleton",
+                 _prefix_tree(tmp) / "bmad" / "scripts" / "skeleton.py")
+
+
+def _has_prefix_symbol(rel: str, symbol: str) -> bool:
+    text = _git_show(rel)
+    return text is not None and symbol in text
 
 
 def _inventory(root: pathlib.Path) -> tuple[dict, str]:
-    fn = getattr(state, "deferred_work_inventory", None)
-    if fn is not None:
-        return fn(root), "production"
-    return _reference_inventory(root), "reference"
+    return state.deferred_work_inventory(root), "production"
 
 
 def _record_inventory(root: pathlib.Path) -> tuple[dict, str]:
-    fn = getattr(state, "deferred_work_inventory", None)
-    if fn is not None:
-        return state.record_inventory(root), "production"
-    inventory = state.record_inventory(root)
-    dw = _reference_inventory(root)
-    if dw["path"] and (dw["total"] or dw["legacy"]):
-        inventory["DW"] = {
-            "count": dw["open"],
-            "newest": ("legacy" if dw["legacy"]
-                       else f"DW-{dw['newest_seq']}" if dw.get("newest_seq")
-                       else "deferred-work.md"),
-            "dirs": [dw["path"]], "total": dw["total"], "done": dw["done"],
-            "malformed": dw["malformed"], "legacy": dw["legacy"],
-        }
-    return inventory, "reference"
+    return state.record_inventory(root), "production"
 
 
 def _advisory(root: pathlib.Path) -> tuple[str, str]:
-    fn = getattr(quality_gate, "deferred_work_warning", None)
-    if fn is not None:
-        return fn(root), "production"
-    info = _reference_inventory(root)
-    if not info["open"]:
-        return "", "reference"
-    return (f"DEFERRED WORK: {info['open']} open entr"
-            f"{'y' if info['open'] == 1 else 'ies'} in "
-            f"{info['path'] or 'the ledger'} — documented, not blocking"), "reference"
+    return quality_gate.deferred_work_warning(root), "production"
 
 
-def _audit_out(project: pathlib.Path) -> str:
-    """Run the SHIPPED audit with PROJECT_ROOT = `project`.
+def _bash_executable() -> str:
+    """Git Bash on Windows; plain `bash` elsewhere.
+
+    Python's PATH on Windows can resolve `bash` to WSL, which neither accepts a
+    drive-letter plugin root nor inherits the Windows environment — the audit
+    then reports "no python interpreter or engine" instead of the DW line.
+    """
+    if os.name == "nt":
+        for cand in (r"C:\Program Files\Git\usr\bin\bash.EXE",
+                     r"C:\Program Files\Git\bin\bash.exe"):
+            if pathlib.Path(cand).is_file():
+                return cand
+    return "bash"
+
+
+def _audit_out(project: pathlib.Path,
+               source: pathlib.Path | None = None) -> tuple[str, int]:
+    """Run the audit (production or the pre-fix copy) with PROJECT_ROOT = `project`.
 
     The script resolved its project root from `CLAUDE_PROJECT_DIR` or its own
     location; a subprocess `bash` may be WSL (which drops Windows env vars), so
@@ -194,39 +189,46 @@ def _audit_out(project: pathlib.Path) -> str:
     """
     target = project / "scripts" / "check-methodology.sh"
     target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(ROOT / "scripts" / "check-methodology.sh", target)
+    shutil.copyfile(source or (ROOT / "scripts" / "check-methodology.sh"), target)
     env = dict(os.environ)
     env.pop("OPENHANDS_PROJECT_DIR", None)
     env.pop("CLAUDE_PROJECT_DIR", None)
+    # The script resolves the plugin root for the engine it imports; the
+    # fixture carries neither, so name this checkout explicitly (script and
+    # engine must be the pair under test, not an older cache install).
+    env["METODOLOJI_PLUGIN_ROOT"] = ROOT.as_posix()
     try:
         out = subprocess.run(
-            ["bash", "scripts/check-methodology.sh"],
+            [_bash_executable(), "scripts/check-methodology.sh"],
             capture_output=True, text=True, encoding="utf-8", errors="replace",
             cwd=str(project), env=env, timeout=120)
-        return (out.stdout or "") + (out.stderr or "")
+        return (out.stdout or "") + (out.stderr or ""), out.returncode
     except (OSError, subprocess.TimeoutExpired) as exc:
-        return f"<audit failed: {exc}>"
+        return f"<audit failed: {exc}>", 1
 
 
 # --- the 26 checks -------------------------------------------------------------
 
-def _skeleton_checks(tmp: pathlib.Path) -> list[tuple[str, bool, str]]:
+def _skeleton_checks(tmp: pathlib.Path,
+                     broken: bool) -> list[tuple[str, bool, str]]:
+    mod = _prefix_skeleton(tmp) if broken else skeleton
     fresh = tmp / "fresh"
-    result = skeleton.install(fresh)
+    result = mod.install(fresh)
     ledger = fresh / LEDGER_REL
     text = ledger.read_text(encoding="utf-8") if ledger.is_file() else ""
 
     existing = tmp / "existing"
     original = "# Deferred Work\n\n### DW-9: keep me\nstatus: open\n"
     _project(existing, original)
-    skeleton.install(existing)
+    mod.install(existing)
     preserved = (existing / LEDGER_REL).read_text(encoding="utf-8")
 
-    fresh_status = skeleton.status(fresh)
+    fresh_status = mod.status(fresh)
     drift = tmp / "drift"
-    skeleton.install(drift)
-    (drift / LEDGER_REL).unlink()
-    drift_status = skeleton.status(drift)
+    mod.install(drift)
+    if (drift / LEDGER_REL).is_file():
+        (drift / LEDGER_REL).unlink()
+    drift_status = mod.status(drift)
 
     return [
         ("skeleton_copies_ledger", ledger.is_file(), str(ledger)),
@@ -243,12 +245,31 @@ def _skeleton_checks(tmp: pathlib.Path) -> list[tuple[str, bool, str]]:
          LEDGER_REL in [p.replace("\\", "/") for p in drift_status["missing_templates"]],
          str(drift_status["missing_templates"])),
         ("declaration_audit_clean",
-         skeleton.declaration_problems() == [],
-         "; ".join(skeleton.declaration_problems()) or "clean"),
+         mod.declaration_problems() == [],
+         "; ".join(mod.declaration_problems()) or "clean"),
     ]
 
 
-def _inventory_checks(tmp: pathlib.Path) -> list[tuple[str, bool, str]]:
+def _inventory_checks(tmp: pathlib.Path,
+                      broken: bool) -> list[tuple[str, bool, str]]:
+    if broken:
+        prefix_state = _git_show("hooks/engine/modules/state.py") or ""
+        has_inventory = "def deferred_work_inventory" in prefix_state
+        has_dw_key = '"DW"' in prefix_state or "'DW'" in prefix_state
+        return [
+            ("inventory_counts_open_done_total", has_inventory,
+             "pre-fix: no deferred_work_inventory"),
+            ("inventory_missing_is_zero", has_inventory,
+             "pre-fix: no deferred_work_inventory"),
+            ("inventory_flags_malformed", has_inventory,
+             "pre-fix: no deferred_work_inventory"),
+            ("inventory_detects_legacy", has_inventory,
+             "pre-fix: no deferred_work_inventory"),
+            ("record_inventory_exposes_dw", has_dw_key,
+             "pre-fix: no DW key"),
+            ("record_inventory_omits_absent_dw", not has_dw_key,
+             "pre-fix: no DW key"),
+        ]
     full, mode = _inventory(_project(tmp / "full", WELL_FORMED))
     missing, _ = _inventory(tmp / "missing")
     malformed, _ = _inventory(_project(tmp / "malformed", MALFORMED))
@@ -275,13 +296,24 @@ def _inventory_checks(tmp: pathlib.Path) -> list[tuple[str, bool, str]]:
     ]
 
 
-def _audit_checks(tmp: pathlib.Path) -> list[tuple[str, bool, str]]:
-    good = _audit_out(_project(tmp / "audit_good", WELL_FORMED))
-    bad = _audit_out(_project(tmp / "audit_bad", MALFORMED))
-    old = _audit_out(_project(tmp / "audit_legacy", LEGACY))
-    none = _audit_out(tmp / "audit_none")
+def _audit_checks(tmp: pathlib.Path,
+                  broken: bool) -> list[tuple[str, bool, str]]:
+    source = None
+    if broken:
+        text = _git_show("scripts/check-methodology.sh")
+        if text is None:
+            raise RuntimeError(
+                f"cannot read {PREFIX_REV}:scripts/check-methodology.sh")
+        source = tmp / "prefix_check.sh"
+        source.write_text(text, encoding="utf-8", newline="\n")
+    good, good_rc = _audit_out(_project(tmp / "audit_good", WELL_FORMED), source)
+    bad, _ = _audit_out(_project(tmp / "audit_bad", MALFORMED), source)
+    old, _ = _audit_out(_project(tmp / "audit_legacy", LEGACY), source)
+    none, none_rc = _audit_out(tmp / "audit_none", source)
     dw_issues = [ln for ln in (bad + old).splitlines()
                  if "deferred" in ln.lower() and "ISSUE" in ln]
+    passed_summary = "METHODOLOGY VALIDATION PASSED" in none
+    dw_rc_ok = (not passed_summary) or (good_rc == 0 and none_rc == 0)
 
     def _dw_lines(text: str) -> str:
         found = [ln.strip() for ln in text.splitlines()
@@ -295,11 +327,25 @@ def _audit_checks(tmp: pathlib.Path) -> list[tuple[str, bool, str]]:
         ("audit_warns_legacy", "legacy" in old.lower(), _dw_lines(old)),
         ("audit_reports_absent_as_none", "deferred-work: none" in none.lower(),
          _dw_lines(none)),
-        ("audit_dw_is_advisory", not dw_issues, dw_issues[0] if dw_issues else "warn-only"),
+        ("audit_dw_is_advisory", not dw_issues and dw_rc_ok,
+         (dw_issues[0] if dw_issues
+          else f"warn-only; rc good={good_rc} none={none_rc}")),
     ]
 
 
-def _advisory_checks(tmp: pathlib.Path) -> list[tuple[str, bool, str]]:
+def _advisory_checks(tmp: pathlib.Path,
+                     broken: bool) -> list[tuple[str, bool, str]]:
+    if broken:
+        has_advisory = _has_prefix_symbol(
+            "hooks/engine/modules/quality_gate.py", "def deferred_work_warning")
+        return [
+            ("commit_advisory_names_open", has_advisory,
+             "pre-fix: no deferred_work_warning"),
+            ("commit_advisory_empty_at_zero", True,
+             "pre-fix: no advisory exists"),
+            ("commit_advisory_empty_when_absent", True,
+             "pre-fix: no advisory exists"),
+        ]
     open_line, mode = _advisory(_project(tmp / "adv", WELL_FORMED))
     zero, _ = _advisory(_project(tmp / "adv_zero", ZERO_OPEN))
     absent, _ = _advisory(tmp / "adv_absent")
@@ -311,11 +357,21 @@ def _advisory_checks(tmp: pathlib.Path) -> list[tuple[str, bool, str]]:
     ]
 
 
-def _doc_checks() -> list[tuple[str, bool, str]]:
-    doc = (ROOT / "docs" / "bmad" / "development-methodology.md").read_text(
-        encoding="utf-8", errors="replace")
-    template = ROOT / "templates" / "deferred-work.md"
-    tpl = template.read_text(encoding="utf-8", errors="replace") if template.is_file() else ""
+def _doc_checks(broken: bool) -> list[tuple[str, bool, str]]:
+    if broken:
+        doc = _git_show("docs/bmad/development-methodology.md")
+        if doc is None:
+            raise RuntimeError(
+                f"cannot read {PREFIX_REV}:docs/bmad/development-methodology.md")
+        tpl = _git_show("templates/deferred-work.md") or ""
+        template_exists = bool(tpl)
+    else:
+        doc = (ROOT / "docs" / "bmad" / "development-methodology.md").read_text(
+            encoding="utf-8", errors="replace")
+        template = ROOT / "templates" / "deferred-work.md"
+        template_exists = template.is_file()
+        tpl = (template.read_text(encoding="utf-8", errors="replace")
+               if template_exists else "")
     canonical = ROOT / "skills" / "bmad-loop-sweep" / "deferred-work-format.md"
     return [
         ("manifesto_names_ledger", "deferred-work.md" in doc, "deferred-work.md"),
@@ -328,28 +384,21 @@ def _doc_checks() -> list[tuple[str, bool, str]]:
          "bmad-loop-sweep" in doc and "deferred-work-format.md" in doc,
          "loop-sweep + format"),
         ("template_points_at_canonical_format",
-         template.is_file() and "deferred-work-format.md" in tpl, str(template)),
+         template_exists and "deferred-work-format.md" in tpl,
+         "template present" if template_exists else "no template"),
         ("canonical_format_survives",
          canonical.is_file() and "DW-" in canonical.read_text(
              encoding="utf-8", errors="replace"), str(canonical)),
     ]
 
 
-def _cases(tmp: pathlib.Path) -> list[tuple[str, bool, str]]:
-    return (_skeleton_checks(tmp)
-            + _inventory_checks(tmp)
-            + _audit_checks(tmp)
-            + _advisory_checks(tmp)
-            + _doc_checks())
-
-
-# Pre-fix surface: the three questions whose honest answer is already "empty"
-# before the ledger is integrated. Everything else was absent.
-_BROKEN_OK = {
-    "record_inventory_omits_absent_dw",
-    "audit_dw_is_advisory",
-    "canonical_format_survives",
-}
+def _cases(tmp: pathlib.Path,
+           broken: bool) -> list[tuple[str, bool, str]]:
+    return (_skeleton_checks(tmp, broken)
+            + _inventory_checks(tmp, broken)
+            + _audit_checks(tmp, broken)
+            + _advisory_checks(tmp, broken)
+            + _doc_checks(broken))
 
 
 def main() -> int:
@@ -362,9 +411,8 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory() as td:
         results = [
-            {"check": name, "ok": (name in _BROKEN_OK) if args.broken else ok,
-             "detail": detail}
-            for name, ok, detail in _cases(pathlib.Path(td))
+            {"check": name, "ok": ok, "detail": detail}
+            for name, ok, detail in _cases(pathlib.Path(td), args.broken)
         ]
 
     x = sum(1 for r in results if r["ok"])

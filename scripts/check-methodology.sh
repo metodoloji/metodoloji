@@ -639,52 +639,51 @@ echo "CHECK 9: Deferred-Work Ledger"
 echo "═══════════════════════════════════════════════════"
 
 # The ledger is a core debt surface (E-108): review / quick-dev / dev-auto
-# append to it in every project, and bmad-loop-sweep triages it. Resolve the
-# canonical default first, then the legacy homes older projects still carry.
-DW_FILE=""
-for _cand in docs/development/native/deferred-work.md \
-             docs/development/deferred-work.md \
-             bmad-output/implementation-artifacts/deferred-work.md \
-             _bmad-output/implementation-artifacts/deferred-work.md; do
-    if [ -f "$PROJECT_ROOT/$_cand" ]; then DW_FILE="$PROJECT_ROOT/$_cand"; break; fi
-done
-
-if [ -z "$DW_FILE" ]; then
-    echo "  deferred-work: none (no writer has run in this project)"
+# append to it in every project, and bmad-loop-sweep triages it. ONE parser
+# answers here — the engine's `state.deferred_work_inventory` — because a
+# second copy is how the digest and the audit started disagreeing (E-108
+# review: `Status: open` and `### DW-1 :` were read differently by the awk).
+if [ -z "$PY" ] || [ ! -d "$METODOLOJI_ROOT/hooks/engine/modules" ]; then
+    log_warn "deferred-work: not checked — no python interpreter or engine"
 else
-    # `### DW-N:` blocks; the first `status:` line decides open/done; a block
-    # with no status is malformed. Fenced blocks are documentation, not entries.
-    DW_COUNTS=$(awk '
-        BEGIN { fence=0; in_entry=0; seen=0; total=0; open=0; done=0; bad=0 }
-        /^[[:space:]]*```/ { fence = !fence; next }
-        fence { next }
-        /^###[[:space:]]+DW-[0-9]+:/ {
-            if (in_entry && !seen) bad++
-            total++; in_entry=1; seen=0; next
-        }
-        in_entry && /^status:/ {
-            line=$0
-            sub(/^status:[[:space:]]*/, "", line)
-            sub(/[[:space:]]*$/, "", line)
-            if (tolower(line) ~ /^open/) open++
-            else if (tolower(line) ~ /^done/) done++
-            else bad++
-            in_entry=0; seen=1
-        }
-        END {
-            if (in_entry && !seen) bad++
-            print total, open, done, bad
-        }
-    ' "$DW_FILE" 2>/dev/null || echo "0 0 0 0")
-    set -- $DW_COUNTS
-    DW_TOTAL="${1:-0}"; DW_OPEN="${2:-0}"; DW_DONE="${3:-0}"; DW_MALFORMED="${4:-0}"
-    if [ "$DW_TOTAL" -eq 0 ] && grep -qE '^##[[:space:]]+Deferred' "$DW_FILE" 2>/dev/null; then
-        log_warn "deferred-work: legacy freeform format — run bmad-loop-sweep --migrate (${DW_FILE#$PROJECT_ROOT/})"
-    elif [ "$DW_MALFORMED" -gt 0 ]; then
-        log_warn "deferred-work: $DW_OPEN open / $DW_TOTAL total — $DW_MALFORMED malformed entries (missing or unrecognized status)"
-    else
-        echo "  deferred-work: $DW_OPEN open / $DW_TOTAL total ($DW_DONE done) — ${DW_FILE#$PROJECT_ROOT/}"
-    fi
+    DW_LINE=$("$PY" - "$PROJECT_ROOT" "$METODOLOJI_ROOT/hooks/engine" <<'PY'
+import pathlib
+import sys
+
+sys.path.insert(0, sys.argv[2])
+from modules import state
+
+info = state.deferred_work_inventory(sys.argv[1])
+if info.get("error"):
+    print("error|" + str(info["error"]).replace("|", " "))
+elif not info.get("path"):
+    print("none|")
+else:
+    try:
+        rel = pathlib.Path(info["path"]).relative_to(
+            pathlib.Path(sys.argv[1])).as_posix()
+    except ValueError:
+        rel = str(info["path"])
+    print("data|%s|%d|%d|%d|%d|%d|%d" % (
+        rel, info["open"], info["total"], info["done"],
+        info["malformed"], info["legacy_items"], 1 if info["legacy"] else 0))
+PY
+) || DW_LINE="error|the ledger could not be read"
+    IFS='|' read -r DW_KIND DW_REL DW_OPEN DW_TOTAL DW_DONE DW_BAD DW_LEGACY_ITEMS DW_LEGACY <<< "$DW_LINE"
+    case "$DW_KIND" in
+        none)
+            echo "  deferred-work: none (no writer has run in this project)" ;;
+        error)
+            log_warn "deferred-work: could not read the ledger — $DW_REL" ;;
+        *)
+            if [ "${DW_LEGACY:-0}" = "1" ] || [ "${DW_LEGACY_ITEMS:-0}" -gt 0 ]; then
+                log_warn "deferred-work: legacy freeform content (${DW_LEGACY_ITEMS:-0} item(s)) — run bmad-loop-sweep --migrate ($DW_REL)"
+            elif [ "${DW_BAD:-0}" -gt 0 ]; then
+                log_warn "deferred-work: ${DW_OPEN:-0} open / ${DW_TOTAL:-0} total — ${DW_BAD} malformed entries (missing or unrecognized status) ($DW_REL)"
+            else
+                echo "  deferred-work: ${DW_OPEN:-0} open / ${DW_TOTAL:-0} total (${DW_DONE:-0} done) — $DW_REL"
+            fi ;;
+    esac
 fi
 
 # ─── SUMMARY ───

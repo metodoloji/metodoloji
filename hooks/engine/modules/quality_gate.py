@@ -26,12 +26,20 @@ def deferred_work_warning(root: str) -> str:
     except Exception:
         return ""
     open_count = info.get("open") or 0
-    if not open_count:
+    legacy_items = info.get("legacy_items") or 0
+    if not open_count and not legacy_items:
         return ""
-    return (f"DEFERRED WORK: {open_count} open entr"
-            f"{'y' if open_count == 1 else 'ies'} in "
+    parts: list[str] = []
+    if open_count:
+        parts.append(f"{open_count} open")
+    if legacy_items:
+        parts.append(f"{legacy_items} legacy/unparsed")
+    remedy = ("run bmad-loop-sweep --migrate"
+              if legacy_items else
+              "triage with bmad-loop-sweep or close them in a later story")
+    return (f"DEFERRED WORK: {', '.join(parts)} in "
             f"{info.get('path') or 'the ledger'} — documented, not blocking; "
-            f"triage with bmad-loop-sweep or close them in a later story")
+            f"{remedy}")
 
 
 def quality(json_in: dict, *, guard_module: ModuleType) -> dict:

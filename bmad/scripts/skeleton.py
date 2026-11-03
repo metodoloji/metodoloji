@@ -75,6 +75,10 @@ TEMPLATE_PAIRS = (
     ("scratch-README.md", "scratch/README.md"),
 )
 
+# The one append-only destination: --force repairs the rest of the skeleton but
+# must never truncate recorded deferrals (E-108).
+DEFERRED_WORK_REL = "docs/development/native/deferred-work.md"
+
 # Any ONE of these proves the skeleton was installed (the §6d probe set).
 SKELETON_PROBES = (
     "docs/experiments/_template.md",
@@ -373,9 +377,16 @@ def install(project_root: pathlib.Path, *, force: bool = False) -> dict:
     for src_name, dest_rel in TEMPLATE_PAIRS:
         source = root / "templates" / src_name
         target = project_root / dest_rel
-        if target.exists() and not force:
-            skipped.append(dest_rel)
-            continue
+        if target.exists():
+            if not target.is_file():
+                print(f"skeleton: {dest_rel} exists but is not a file",
+                      file=sys.stderr)
+                return {"ok": False, "error": f"{dest_rel} is not a file"}
+            if not force or dest_rel == DEFERRED_WORK_REL:
+                # A --force reinstall repairs the skeleton; the ledger is
+                # append-only and survives it byte-for-byte.
+                skipped.append(dest_rel)
+                continue
         if not source.is_file():
             print(f"skeleton: template missing in plugin: {src_name}", file=sys.stderr)
             return {"ok": False, "error": f"missing template {src_name}"}
