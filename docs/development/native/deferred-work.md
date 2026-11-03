@@ -15,3 +15,7 @@ Findings a review or a run acknowledged but deliberately did not fix now.
 - The runner used by `optimization train` is not persisted; `eval` defaults to `scripted` unless the operator repeats `--runner` (`optimization/cli.py:39-42,249-256`). Design change, not a wiring fix.
 - DoD-001…004 in S-011/S-012/S-013 omit the canonical `Evidence:` field (`docs/development/stories/S-01*.md`). Cosmetic record metadata.
 - E-108's recorded samples embed random temp paths, so the recorded sha256 cannot be re-derived byte-for-byte (`scripts/bench/bench_deferred_work_integration.py:232,262-274`). Determinism gap in the evidence file, not in the `ok` verdicts.
+
+## Deferred from: consistency repair (2026-11-03)
+
+- `check-methodology.sh` CHECK4 does not classify the status `proposed`; a record opened with that word fails `test_check4_classifies_every_shipped_record` during its own gate measurement, so the record makes the suite red and rejects itself (E-110/E-112 evidence). The canonical pending form is `planned`; either teach CHECK4 the word or normalize the status at write time.

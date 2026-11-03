@@ -117,7 +117,7 @@ def _git_show(rel: str) -> str | None:
         out = subprocess.run(
             ["git", "-C", str(ROOT), "show", f"{PREFIX_REV}:{rel}"],
             capture_output=True, text=True, encoding="utf-8",
-            errors="replace", timeout=30)
+            errors="replace", timeout=30, stdin=subprocess.DEVNULL)
     except (OSError, subprocess.TimeoutExpired):
         return None
     return out.stdout if out.returncode == 0 else None
@@ -201,7 +201,7 @@ def _audit_out(project: pathlib.Path,
         out = subprocess.run(
             [_bash_executable(), "scripts/check-methodology.sh"],
             capture_output=True, text=True, encoding="utf-8", errors="replace",
-            cwd=str(project), env=env, timeout=120)
+            cwd=str(project), env=env, timeout=120, stdin=subprocess.DEVNULL)
         return (out.stdout or "") + (out.stderr or ""), out.returncode
     except (OSError, subprocess.TimeoutExpired) as exc:
         return f"<audit failed: {exc}>", 1

@@ -165,7 +165,8 @@ def _reverse_patched_copy() -> pathlib.Path | None:
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, target)
     run = subprocess.run(["patch", "-R", "-p1", "-i", str(PATCH), "--batch", "--forward"],
-                         cwd=tmp, capture_output=True, text=True)
+                         cwd=tmp, capture_output=True, text=True,
+                         stdin=subprocess.DEVNULL)
     if run.returncode != 0:
         shutil.rmtree(tmp, ignore_errors=True)
         return None
