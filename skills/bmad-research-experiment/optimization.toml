@@ -1,0 +1,30 @@
+# Optimization spec — trains this skill's own SKILL.md.
+# See docs/optimization/README.md and docs/optimization/skill-training.md.
+# Paths are relative to this file.
+
+[run]
+name = "bmad-research-experiment"
+method = "skillopt"          # the artifact is a skill; the held-out gate is the contract
+seed = 7
+epochs = 4
+batch_size = 17            # the whole train split, so a batch sees every failing rule
+val_size = 6                 # a paired gate needs >= 6 discordant pairs to reach p<0.05
+heldout_size = 4             # touched only by `python -m optimization eval`
+min_cases = 6                # refuse to certify a gate over fewer pairs
+slow_every = 2
+
+[artifact]
+kind = "skill"
+path = "SKILL.md"
+max_tokens = 12000           # the workflow document is ~7k tokens; drift is the risk
+
+[cases]
+path = "evals/training-cases.jsonl"
+
+[gate]
+min_improvement = 0.0        # observed accuracy delta must clear this
+alpha = 0.05                 # McNemar significance level
+max_edit_chars = 900         # textual learning-rate budget, absolute
+textual_lr = 0.15            # fraction of the document one edit may rewrite
+max_hunks = 3                # at most three changed regions
+require_heldout = true       # promotion needs a second, unseen split

@@ -105,12 +105,15 @@ class RunRecords:
     def report(self, *, name: str, rows: Iterable[dict[str, object]],
                current_version: str, val: dict[str, object] | None,
                heldout: dict[str, object] | None,
-               prediction_mae: float | None) -> pathlib.Path:
+               prediction_mae: float | None,
+               carried_forward: str | None = None) -> pathlib.Path:
         rows = list(rows)
         lines = [
             f"# Run report — {name}",
             "",
             f"- **Current version:** {current_version}",
+            f"- **Carried forward:** "
+            f"{carried_forward or 'not promoted — artifact unchanged'}",
             f"- **Validation rate:** {(val or {}).get('rate', 'unmeasured')} "
             f"(n={(val or {}).get('n', 0)})",
             f"- **Held-out promotion:** {(heldout or {}).get('accepted', 'not run')}",

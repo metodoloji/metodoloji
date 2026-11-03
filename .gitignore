@@ -36,3 +36,6 @@ node_modules/
 # Neither is a dependency of this project: they exist only to check an export with the real tools.
 vendor/
 .venv-upstream/
+
+# Optimization run state (versions, metrics) — regenerate with `python -m optimization train`
+.optimization/

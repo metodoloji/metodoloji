@@ -1,0 +1,34 @@
+{"answer": "good", "case": "RE-01", "expected": true, "judged": true, "notes": [], "ok": true}
+{"answer": "bad", "case": "RE-01", "expected": false, "judged": false, "notes": ["check 0: missing any of ['measure']", "check 1: forbidden 'decision: approved'"], "ok": true}
+{"answer": "good", "case": "RE-02", "expected": true, "judged": true, "notes": [], "ok": true}
+{"answer": "bad", "case": "RE-02", "expected": false, "judged": false, "notes": ["check 0: missing any of ['docs/experiments']", "check 1: forbidden 'proceed to code'"], "ok": true}
+{"answer": "good", "case": "RE-03", "expected": true, "judged": true, "notes": [], "ok": true}
+{"answer": "bad", "case": "RE-03", "expected": false, "judged": false, "notes": ["check 0: missing any of ['threshold', 'measurable', 'falsifiable', 'metric']", "check 1: forbidden 'decision: approved'"], "ok": true}
+{"answer": "good", "case": "RE-04", "expected": true, "judged": true, "notes": [], "ok": true}
+{"answer": "bad", "case": "RE-04", "expected": false, "judged": false, "notes": ["check 0: missing any of ['--dry-run']", "check 1: forbidden '--measured'"], "ok": true}
+{"answer": "good", "case": "RE-05", "expected": true, "judged": true, "notes": [], "ok": true}
+{"answer": "bad", "case": "RE-05", "expected": false, "judged": false, "notes": ["check 0: missing any of ['--control']", "check 1: missing any of ['fail']"], "ok": true}
+{"answer": "good", "case": "RE-06", "expected": true, "judged": true, "notes": [], "ok": true}
+{"answer": "bad", "case": "RE-06", "expected": false, "judged": false, "notes": ["check 0: missing any of ['raw samples', 'jsonl']", "check 1: missing any of ['ok']"], "ok": true}
+{"answer": "good", "case": "RE-07", "expected": true, "judged": true, "notes": [], "ok": true}
+{"answer": "bad", "case": "RE-07", "expected": false, "judged": false, "notes": ["check 0: missing any of ['new experiment', 'new record', 'new hypothesis']", "check 1: missing any of ['rejected']"], "ok": true}
+{"answer": "good", "case": "RE-08", "expected": true, "judged": true, "notes": [], "ok": true}
+{"answer": "bad", "case": "RE-08", "expected": false, "judged": false, "notes": ["check 0: missing any of ['mcnemar']", "check 1: forbidden 'decision: approved'"], "ok": true}
+{"answer": "good", "case": "RE-09", "expected": true, "judged": true, "notes": [], "ok": true}
+{"answer": "bad", "case": "RE-09", "expected": false, "judged": false, "notes": ["check 0: missing any of ['wilcoxon']", "check 1: missing any of ['paired', 'median']"], "ok": true}
+{"answer": "good", "case": "RE-10", "expected": true, "judged": true, "notes": [], "ok": true}
+{"answer": "bad", "case": "RE-10", "expected": false, "judged": false, "notes": ["check 0: missing any of ['census']", "check 1: missing any of ['population', 'complete']"], "ok": true}
+{"answer": "good", "case": "RE-11", "expected": true, "judged": true, "notes": [], "ok": true}
+{"answer": "bad", "case": "RE-11", "expected": false, "judged": false, "notes": ["check 0: missing any of ['lineage']", "check 1: missing any of ['refuse', 'refuses', 'mandatory', 'required']"], "ok": true}
+{"answer": "good", "case": "RE-12", "expected": true, "judged": true, "notes": [], "ok": true}
+{"answer": "bad", "case": "RE-12", "expected": false, "judged": false, "notes": ["check 0: missing any of ['new experiment', 'new record']", "check 1: missing any of ['refuse', 'refuses', 'decided']"], "ok": true}
+{"answer": "good", "case": "RE-13", "expected": true, "judged": true, "notes": [], "ok": true}
+{"answer": "bad", "case": "RE-13", "expected": false, "judged": false, "notes": ["check 0: missing any of ['--verify']", "check 1: missing any of ['token']"], "ok": true}
+{"answer": "good", "case": "RE-14", "expected": true, "judged": true, "notes": [], "ok": true}
+{"answer": "bad", "case": "RE-14", "expected": false, "judged": false, "notes": ["check 0: missing any of ['mirror']", "check 1: missing any of ['--clear']"], "ok": true}
+{"answer": "good", "case": "RE-15", "expected": true, "judged": true, "notes": [], "ok": true}
+{"answer": "bad", "case": "RE-15", "expected": false, "judged": false, "notes": ["check 0: missing any of ['--init-secret']", "check 1: forbidden 'no separate gate key'"], "ok": true}
+{"answer": "good", "case": "RE-16", "expected": true, "judged": true, "notes": [], "ok": true}
+{"answer": "bad", "case": "RE-16", "expected": false, "judged": false, "notes": ["check 0: missing any of ['--import-key', 'trust ring']", "check 1: missing any of ['key']"], "ok": true}
+{"answer": "good", "case": "RE-17", "expected": true, "judged": true, "notes": [], "ok": true}
+{"answer": "bad", "case": "RE-17", "expected": false, "judged": false, "notes": ["check 0: missing any of ['gate evidence']"], "ok": true}

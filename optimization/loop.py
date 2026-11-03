@@ -199,6 +199,7 @@ class RunReport:
     heldout: dict[str, object] | None
     prediction_mae: float | None
     metrics_path: str
+    carried_forward: str | None = None
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -209,6 +210,7 @@ class RunReport:
             "prediction_mae": (None if self.prediction_mae is None
                                else round(self.prediction_mae, 4)),
             "metrics_path": self.metrics_path,
+            "carried_forward": self.carried_forward,
         }
 
 
@@ -255,7 +257,28 @@ class Optimizer:
                 self.buffer = RejectedBuffer(self._state.get("buffer", []))
             else:
                 self._state = self._blank_state()
+            self._adopt_last_version()
         return self._state
+
+    def _adopt_last_version(self) -> None:
+        """Resume from the store's tip, never from a stale incumbent.
+
+        ``commit`` appends a version *before* the state is saved, so a crash —
+        or a lost/removed ``state.json`` — leaves the state pointing at an
+        older version than the one the store actually holds. Training from
+        there would re-measure a worse artifact and commit a version whose
+        parent is not the best one on disk, silently dropping the trained
+        result. The manifest is the durable record, so it wins.
+        """
+        rows = self.store.entries()
+        if not rows:
+            return
+        last = rows[-1]
+        if str(self._state["current_version"]) != str(last["version"]):
+            self._state["current_version"] = str(last["version"])
+        self._state["epochs_done"] = max(
+            int(self._state["epochs_done"]), int(last.get("epoch", 0))
+        )
 
     def _save_state(self) -> None:
         self.state["buffer"] = self.buffer.to_list()
@@ -301,7 +324,9 @@ class Optimizer:
         state = self.state
         done = int(state["epochs_done"])
         if done >= total:
-            return self.report()
+            report = self.report()
+            self.carry_forward(report)
+            return report
 
         baseline_val = state.get("baseline_val")
         for epoch in range(done + 1, total + 1):
@@ -323,7 +348,7 @@ class Optimizer:
                 self._record_step(epoch, None, None, False,
                                   "proposer returned no edit", 0.0, None, None)
                 state["epochs_done"] = epoch
-                baseline_val = baseline_val  # unchanged
+                state["baseline_val"] = baseline_val
                 self._save_state()
                 continue
 
@@ -334,6 +359,7 @@ class Optimizer:
                 self._record_step(epoch, edit, None, False, f"budget: {exc}",
                                   0.0, None, None)
                 state["epochs_done"] = epoch
+                state["baseline_val"] = baseline_val
                 self._save_state()
                 continue
             except EditNotApplicable as exc:
@@ -341,6 +367,7 @@ class Optimizer:
                 self._record_step(epoch, edit, None, False, f"inapplicable: {exc}",
                                   0.0, None, None)
                 state["epochs_done"] = epoch
+                state["baseline_val"] = baseline_val
                 self._save_state()
                 continue
 
@@ -359,6 +386,7 @@ class Optimizer:
                     0.0, None, cost.as_dict(),
                 )
                 state["epochs_done"] = epoch
+                state["baseline_val"] = baseline_val
                 self._save_state()
                 continue
 
@@ -395,7 +423,42 @@ class Optimizer:
             state["baseline_val"] = baseline_val
             self._save_state()
 
-        return self.report()
+        report = self.report()
+        self.carry_forward(report)
+        return report
+
+    def carry_forward(self, report: RunReport) -> str | None:
+        """Write the promoted artifact back to the file that is being trained.
+
+        Versions live under ``.optimization/``; unless the winner is copied
+        back, the artifact the project actually consumes keeps its original
+        text and nothing that was learned reaches the skill. Promotion is the
+        held-out gate when one is required, so a rejected run never rewrites
+        the artifact.
+        """
+        rows = self.store.entries()
+        if not rows:
+            return None
+        current = str(report.current_version)
+        if current != str(rows[-1]["version"]):
+            return None
+        if self.spec.gate.require_heldout and not (
+                (report.heldout or {}).get("accepted")):
+            return None
+        text = self.store.artifact(current)
+        if self.spec.artifact_path.read_text(encoding="utf-8") == text:
+            return current
+        atomic_write_text(self.spec.artifact_path, text)
+        report.carried_forward = current
+        self.state["carried_forward"] = current
+        self._save_state()
+        write_json(self.report_path, report.as_dict())
+        self.records.report(
+            name=self.spec.name, rows=report.steps, current_version=current,
+            val=report.val, heldout=report.heldout,
+            prediction_mae=report.prediction_mae, carried_forward=current,
+        )
+        return current
 
     def _record_step(self, epoch: int, edit: Edit | None,
                      prediction: Prediction | None, accepted: bool, reason: str,
@@ -467,6 +530,8 @@ class Optimizer:
             }, heldout=heldout,
             prediction_mae=(self.predictor.mae(history) if history else None),
             metrics_path=self.metrics_path.as_posix(),
+            carried_forward=(str(state["carried_forward"])
+                             if state.get("carried_forward") else None),
         )
         write_json(self.report_path, report.as_dict())
         self.records.checkout(current_text)
@@ -480,6 +545,7 @@ class Optimizer:
             name=self.spec.name, rows=report.steps,
             current_version=current, val=report.val, heldout=heldout,
             prediction_mae=report.prediction_mae,
+            carried_forward=report.carried_forward,
         )
         return report
 

@@ -106,6 +106,7 @@ for each epoch:
     reject -> remember          (RejectedBuffer, with the measured delta)
     checkpoint                  (atomic state.json; replay cannot fork history)
 evaluate_heldout()              (base vs current on a split the loop never read)
+carry_forward()                 (promoted version written back to the artifact path)
 export                          (Hermit or SkillOpt layout, byte-identical artifact)
 ```
 
