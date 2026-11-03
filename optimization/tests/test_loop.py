@@ -335,6 +335,39 @@ def test_preflight_flags_a_validation_split_below_the_gate(tmp_path):
     assert any("validation split" in problem for problem in report.problems)
 
 
+# --- gate feasibility -------------------------------------------------------
+
+def test_min_discordant_pairs_matches_the_exact_test():
+    from optimization.gate import mcnemar_exact, min_discordant_pairs
+
+    assert min_discordant_pairs(0.05) == 6
+    assert min_discordant_pairs(0.01) == 8
+    assert mcnemar_exact(5, 0) >= 0.05 > mcnemar_exact(6, 0)
+
+
+def test_preflight_refuses_a_split_that_can_never_reach_alpha(tmp_path):
+    spec = load_spec(_project(tmp_path, heldout_size=4))
+    report = preflight.check(spec)
+    assert not report.ok
+    assert any("held-out split (4) cannot reach alpha" in problem
+               for problem in report.problems)
+
+
+def test_heldout_never_compares_a_version_to_itself(tmp_path):
+    optimizer = _optimizer(_project(tmp_path))
+    optimizer.prepare()
+    result = optimizer.evaluate_heldout()
+    assert result["applicable"] is False
+    assert result["versions"] == 1
+    assert "nothing was accepted" in str(result["reason"])
+
+
+def test_report_reuses_a_stored_heldout_instead_of_remeasuring(tmp_path):
+    optimizer = _trained(tmp_path)
+    stored = {"applicable": True, "accepted": True, "reason": "stored decision"}
+    assert optimizer.report(heldout=stored).heldout == stored
+
+
 # --- deployment -------------------------------------------------------------
 
 def test_deploy_writes_a_host_workspace(tmp_path):
@@ -385,6 +418,24 @@ def test_cli_split_check_train_and_verify(tmp_path, capsys):
     capsys.readouterr()
     assert main(["verify", "--spec", str(spec_path), "--json"]) == 0
     assert json.loads(capsys.readouterr().out)["ok"] is True
+
+
+def test_cli_eval_refuses_a_single_version_tree(tmp_path, capsys):
+    optimizer = _optimizer(_project(tmp_path))
+    optimizer.prepare()
+    assert main(["eval", "--spec", str(tmp_path / "optimization.toml"),
+                 "--json"]) == 2
+    assert json.loads(capsys.readouterr().out)["applicable"] is False
+
+
+def test_cli_report_accepts_a_runner_and_carries_forward(tmp_path, capsys):
+    spec_path = _project(tmp_path)
+    assert main(["train", "--spec", str(spec_path), "--json"]) == 0
+    capsys.readouterr()
+    assert main(["report", "--spec", str(spec_path), "--runner", "scripted",
+                 "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["carried_forward"] == "v0001"
 
 
 def test_cli_lists_methods_and_reports_spec_errors(tmp_path, capsys):

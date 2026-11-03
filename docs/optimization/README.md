@@ -120,6 +120,10 @@ Why these choices, in one line each:
   mistake for progress.
 - **The gate is paired.** Same cases both sides; the evidence is the discordant
   pairs, so a two-sample test would be the wrong instrument.
+- **A split must be able to reach alpha.** The paired test is exact, so at
+  `alpha = 0.05` even a flawless edit needs six discordant pairs. `check`
+  refuses a spec whose validation or held-out split is smaller: such a run
+  cannot promote anything, however good the edit is (E-105).
 - **Validation is never trained on, held-out is never optimized against.**
   `leakage()` refuses identical prompts across splits, because a duplicated
   prompt is the same case under two names.

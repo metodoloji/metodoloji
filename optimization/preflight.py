@@ -20,6 +20,7 @@ from __future__ import annotations
 import dataclasses
 
 from .cases import assign_splits, leakage, load_cases
+from .gate import min_discordant_pairs
 from .loop import estimate_tokens
 from .methods import MethodError, resolve
 from .rollout import Runner, RunnerError, ScriptedRunner
@@ -81,12 +82,29 @@ def check(spec: RunSpec, runner: Runner | None = None) -> CheckReport:
         leaked = leakage(splits)
         if leaked:
             problems.append(f"prompt leakage across splits: {leaked[:5]}")
+        needed = min_discordant_pairs(spec.gate.alpha)
+        facts["min_discordant_pairs"] = needed
         if method is not None and method.needs_validation:
             if len(splits.val) < spec.min_cases:
                 problems.append(
                     f"{spec.method} needs a validation split: {len(splits.val)} "
                     f"cases < gate min_cases={spec.min_cases}"
                 )
+        # The paired gate is exact, so its power is discrete. A split smaller
+        # than the minimum discordant count cannot promote anything, no matter
+        # how good the edit is — a run on it is guaranteed to train nothing.
+        if len(splits.val) < needed:
+            problems.append(
+                f"validation split ({len(splits.val)}) cannot reach alpha="
+                f"{spec.gate.alpha}: an exact McNemar needs {needed} discordant "
+                f"pairs; raise val_size or gate.alpha"
+            )
+        if spec.gate.require_heldout and len(splits.heldout) < needed:
+            problems.append(
+                f"held-out split ({len(splits.heldout)}) cannot reach alpha="
+                f"{spec.gate.alpha}: promotion needs {needed} cases; raise "
+                f"heldout_size or set gate.require_heldout = false"
+            )
         if len(splits.train) < spec.batch_size:
             warnings.append(
                 f"train split ({len(splits.train)}) is smaller than batch_size "

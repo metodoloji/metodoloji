@@ -56,6 +56,9 @@ class StateError(RuntimeError):
     """The on-disk state disagrees with the version tree; refuse to continue."""
 
 
+_UNMEASURED = object()
+
+
 def estimate_tokens(text: str) -> int:
     """Character/4 estimate — the convention SkillOpt reports artifact sizes in.
 
@@ -490,6 +493,17 @@ class Optimizer:
         rows = self.store.entries()
         if not rows:
             raise StateError("no versions to evaluate")
+        if len(rows) < 2:
+            # v0000 against itself is not a promotion check: the model's own
+            # noise would be reported as a candidate's regression even though
+            # no candidate was ever accepted. There is nothing to compare.
+            return {
+                "applicable": False,
+                "versions": len(rows),
+                "candidate_version": rows[-1]["version"],
+                "reason": "only one version — nothing was accepted, so there is "
+                          "no candidate to promote",
+            }
         base_text = self.store.artifact(str(rows[0]["version"]))
         best_text = self.store.artifact(str(rows[-1]["version"]))
         base = self._eval(base_text, self.splits.heldout)
@@ -497,6 +511,7 @@ class Optimizer:
         decision = decide(base, cand, self.spec.gate,
                           label="heldout", min_cases=min_cases_for(self.spec))
         return {
+            "applicable": True,
             "base_version": rows[0]["version"],
             "candidate_version": rows[-1]["version"],
             "base_rate": round(sum(base.values()) / len(base), 4),
@@ -506,18 +521,19 @@ class Optimizer:
             "reason": decision.reason,
         }
 
-    def report(self) -> RunReport:
+    def report(self, heldout: dict[str, object] | None | object = _UNMEASURED) -> RunReport:
         state = self.state
         rows = self.store.entries()
         current = str(state["current_version"])
         current_text = self.store.artifact(current) if rows else ""
         val = state.get("baseline_val") or {}
-        heldout = None
-        if rows and self.spec.gate.require_heldout:
-            try:
-                heldout = self.evaluate_heldout()
-            except Exception as exc:  # a held-out check must not lose the report
-                heldout = {"error": str(exc)}
+        if heldout is _UNMEASURED:
+            heldout = None
+            if rows and self.spec.gate.require_heldout:
+                try:
+                    heldout = self.evaluate_heldout()
+                except Exception as exc:  # a held-out check must not lose the report
+                    heldout = {"error": str(exc)}
         history = [(row["features"], row["delta"]) for row in state["history"]]
         self.predictor.fit(history)
         report = RunReport(

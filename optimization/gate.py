@@ -73,6 +73,22 @@ def mcnemar_exact(b: int, c: int) -> float:
     return min(1.0, 2 * tail)
 
 
+def min_discordant_pairs(alpha: float = 0.05) -> int:
+    """Smallest all-one-way discordant count whose exact McNemar p < alpha.
+
+    The test is exact, so its power is discrete: at ``alpha=0.05`` even a
+    flawless edit (``b=n, c=0``) cannot pass below six discordant pairs, and a
+    4-case split can never promote anything. Preflight uses this to refuse a
+    spec whose splits make promotion arithmetically impossible.
+    """
+    if not 0.0 < alpha < 1.0:
+        raise GateError("alpha must be within (0, 1)")
+    pairs = 1
+    while mcnemar_exact(pairs, 0) >= alpha:
+        pairs += 1
+    return pairs
+
+
 def decide(base: Mapping[str, bool], cand: Mapping[str, bool],
            policy: GatePolicy | None = None, *, label: str = "validation",
            min_cases: int = 2) -> GateDecision:
@@ -90,6 +106,12 @@ def decide(base: Mapping[str, bool], cand: Mapping[str, bool],
         raise GateError(
             f"{label}: {n} paired cases < min_cases={min_cases}; a gate this "
             "small cannot distinguish learning from luck"
+        )
+    if n < min_discordant_pairs(policy.alpha):
+        raise GateError(
+            f"{label}: {n} paired cases cannot reach alpha={policy.alpha}; an "
+            f"exact McNemar needs {min_discordant_pairs(policy.alpha)} "
+            "discordant pairs, so no edit could ever be promoted on this split"
         )
     base_passes = sum(1 for ok in base.values() if ok)
     cand_passes = sum(1 for ok in cand.values() if ok)

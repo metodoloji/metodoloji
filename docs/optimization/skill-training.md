@@ -68,14 +68,20 @@ is refused before a validation run is spent.
 
 ## Why the split matters here
 
-14 cases, `val_size = 4`, `heldout_size = 4` leaves 6 for training. A candidate
-is accepted only when it beats the **incumbent** on the same four validation
+28 cases: 15 for training, 7 in validation and 6 held out. A candidate is
+accepted only when it beats the **incumbent** on the same seven validation
 cases (paired, McNemar, `alpha = 0.05`), and `eval` compares `v0000` with the
-last version on the four held-out cases the loop never read. With six training
-cases, a run reaches "all training cases pass" quickly — after that the
-proposer has no failures to explain, returns `null`, and further epochs change
-nothing. That is saturation, not convergence: the artifact is as good as this
-case set can measure.
+last version on the six held-out cases the loop never read — with `--runner`
+set to the same live runner, because a scripted runner scores token coverage
+instead of the skill.
+
+The split sizes are not a matter of taste. The exact McNemar test needs six
+discordant pairs at `alpha = 0.05`, so a four-case held-out split could never
+promote anything no matter how good the edit was (E-105); `check` now refuses
+such a spec before a token is spent. With 15 training cases a run still reaches
+"all training cases pass" quickly — after that the proposer has no failures to
+explain, returns `null`, and further epochs change nothing. That is saturation,
+not convergence: the artifact is as good as this case set can measure.
 
 ## What the first real run produced
 

@@ -121,11 +121,15 @@ def cmd_train(args: argparse.Namespace) -> int:
 
 def cmd_eval(args: argparse.Namespace) -> int:
     spec = load_spec(args.spec)
-    optimizer = Optimizer(spec, ScriptedRunner(), RuleProposer())
+    # The promotion check must measure the artifact with the same runner the
+    # run used: a scripted runner scores token coverage, not the skill.
+    optimizer = Optimizer(spec, _runner(args.runner), RuleProposer())
     if not optimizer.store.entries():
         raise SpecError("no versions — run `train` first")
     result = optimizer.evaluate_heldout()
     _print(result, args.json)
+    if result.get("applicable") is False:
+        return 2
     return 0 if result.get("accepted") else 3
 
 
@@ -159,10 +163,14 @@ def cmd_predict(args: argparse.Namespace) -> int:
 
 def cmd_report(args: argparse.Namespace) -> int:
     spec = load_spec(args.spec)
-    optimizer = Optimizer(spec, ScriptedRunner(), RuleProposer())
+    optimizer = Optimizer(spec, _runner(args.runner), RuleProposer())
     if not optimizer.store.entries():
         raise SpecError("no versions — run `train` first")
-    report = optimizer.report()
+    # Rebuild the record from the evidence the run already produced: `report`
+    # must not spend model calls, and must not overwrite a live held-out
+    # decision with an offline one.
+    stored = _report_dict(spec) or {}
+    report = optimizer.report(heldout=stored.get("heldout"))
     _print(report.as_dict(), args.json)
     return 0
 
@@ -241,7 +249,7 @@ def build_parser() -> argparse.ArgumentParser:
         sub_parser = sub.add_parser(name, help=help_text)
         sub_parser.add_argument("--spec", required=True)
         sub_parser.add_argument("--json", action="store_true")
-        if name in {"train", "check"}:
+        if name in {"train", "check", "eval", "report"}:
             sub_parser.add_argument(
                 "--runner", default="scripted",
                 help="scripted | command:<shell command>",
