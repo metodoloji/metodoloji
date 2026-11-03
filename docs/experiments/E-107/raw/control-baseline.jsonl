@@ -1,0 +1,11 @@
+{"trial": "doc_wrong_pattern", "ok": true, "expect_problem": true, "result": "GUIDE.md: `bmad-x` differs; KILAVUZ.md: `bmad-x` differs"}
+{"trial": "doc_omits_skill", "ok": true, "expect_problem": true, "result": "GUIDE.md: omits `bmad-x`; KILAVUZ.md: omits `bmad-x`"}
+{"trial": "doc_phantom_skill", "ok": true, "expect_problem": true, "result": "GUIDE.md: claims `bmad-y` which ships nothing; KILAVUZ.md: claims `bmad-y` which ships nothing"}
+{"trial": "skill_undocumented_pair", "ok": true, "expect_problem": true, "result": "GUIDE.md: `bmad-x` differs; KILAVUZ.md: `bmad-x` differs"}
+{"trial": "declared_table_stale", "ok": false, "expect_problem": true, "result": null}
+{"trial": "declared_phantom_skill", "ok": false, "expect_problem": true, "result": null}
+{"trial": "unreadable_skill_md", "ok": false, "expect_problem": true, "result": null}
+{"trial": "unsubscribe_not_counted", "ok": false, "expect_problem": false, "result": "GUIDE.md: `bmad-x` differs; KILAVUZ.md: `bmad-x` differs"}
+{"trial": "channel_equals_spelling", "ok": false, "expect_problem": false, "result": "no skill ships a subscribe line"}
+{"trial": "trailing_code_span_backtick", "ok": false, "expect_problem": false, "result": "GUIDE.md: `bmad-x` differs; KILAVUZ.md: `bmad-x` differs"}
+{"trial": "clean_tree", "ok": true, "expect_problem": false, "result": null}

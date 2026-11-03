@@ -30,19 +30,20 @@
 # Epic:  backlog | in-progress | done
 
 generated: 2026-10-15
-last_updated: 2026-10-17
+last_updated: 2026-11-03
 project: metodoloji
 project_key: METODOLOJI
 tracking_system: file-system
 story_location: "docs/development/stories"
 
 development_status:
-  epic-1: in-progress
+  epic-1: done
   # S-001 — "Measure the change-radar contract instead of describing it".
   # The implementation and its measurement landed in 043e7ba (E-043 APPROVED,
-  # bench 1.00 at 99/99); the story stays at review because the QR record that
-  # closes it has not been written yet — readiness is not progress.
-  1-1-change-radar-contract-measured: review
+  # bench 1.00 at 99/99); the review closed the QR gap with QR-026 (APPROVED,
+  # every DoD passed) and its four guard-level findings with E-107 (APPROVED,
+  # guard_detection 1.00 at 11/11, control 0.45). CLOSED by QR-026.
+  1-1-change-radar-contract-measured: done
   epic-2: done
   # S-002 — "Date every recorded decision to a code state (the freshness plane)".
   # P0–P7 landed under E-053 (APPROVED, bench stale_delivery_rate 0.0 with a

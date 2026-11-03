@@ -1,0 +1,11 @@
+{"trial": "doc_wrong_pattern", "ok": true, "expect_problem": true, "result": "GUIDE.md: `bmad-x` radar says [('ux.*', 'session')] but the skill ships [('prd.*', 'session')]; KILAVUZ.md: `bmad-x` radar says [('ux.*', 'session')] but the skill ships [('prd.*', 'session')]"}
+{"trial": "doc_omits_skill", "ok": true, "expect_problem": true, "result": "GUIDE.md: change-radar bullet omits `bmad-x`; KILAVUZ.md: change-radar bullet omits `bmad-x`"}
+{"trial": "doc_phantom_skill", "ok": true, "expect_problem": true, "result": "GUIDE.md: change-radar bullet claims `bmad-y` which ships no subscription; KILAVUZ.md: change-radar bullet claims `bmad-y` which ships no subscription"}
+{"trial": "skill_undocumented_pair", "ok": true, "expect_problem": true, "result": "GUIDE.md: `bmad-x` radar says [('prd.*', 'session')] but the skill ships [('prd.*', 'session'), ('ux.*', 'session')]; KILAVUZ.md: `bmad-x` radar says [('prd.*', 'session')] but the skill ships [('prd.*', 'session'), ('ux.*', 'session')]"}
+{"trial": "declared_table_stale", "ok": true, "expect_problem": true, "result": "EXPECTED_SUBSCRIPTIONS[bmad-x] [('ux.*', 'session')] != shipped [('prd.*', 'session')]"}
+{"trial": "declared_phantom_skill", "ok": true, "expect_problem": true, "result": "EXPECTED_SUBSCRIPTIONS[bmad-gone] [('q.*', 'session')] != shipped []"}
+{"trial": "unreadable_skill_md", "ok": true, "expect_problem": true, "result": "skills/bmad-locked/SKILL.md: unreadable (PermissionError) \u2014 the radar cannot be measured"}
+{"trial": "unsubscribe_not_counted", "ok": true, "expect_problem": false, "result": null}
+{"trial": "channel_equals_spelling", "ok": true, "expect_problem": false, "result": null}
+{"trial": "trailing_code_span_backtick", "ok": true, "expect_problem": false, "result": null}
+{"trial": "clean_tree", "ok": true, "expect_problem": false, "result": null}

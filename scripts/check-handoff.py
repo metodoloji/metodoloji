@@ -441,7 +441,8 @@ EXPECTED_SUBSCRIPTIONS = {
 # The exact CLI triple a SKILL.md ships for the radar. Anchored end to end so a
 # half-written or reordered line is not silently counted as present.
 _SUBSCRIBE_RE = re.compile(
-    r'subscribe --watcher (\S+) --pattern "([^"]+)" --channel (\S+)')
+    r'(?<![\w-])subscribe --watcher (\S+) --pattern "([^"]+)" '
+    r'--channel(?:=|\s+)([a-z][\w.-]*)')
 
 
 def actual_subscriptions(text: str) -> set:

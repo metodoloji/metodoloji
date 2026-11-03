@@ -293,10 +293,9 @@ def test_check6_reads_the_shipped_sprint_status():
         text = SPRINT_STATUS.read_text(encoding="utf-8")
         keys = re.findall(r"^\s+(\d+-\d+-[a-z][a-z0-9-]*):", text, re.MULTILINE)
         assert keys, "the shipped sprint status must track story keys"
-        # SP-001 open: 1-1-change-radar-contract-measured (S-001) sits at review —
-        # the implementation and its measurement landed (043e7ba / E-043
-        # APPROVED), the QR record that closes the story has not, so exactly one
-        # story is at review and none in-progress (readiness is not progress).
+        # SP-001 done: 1-1-change-radar-contract-measured (S-001) landed under
+        # E-043, was reviewed (QR-026) and its guard findings closed by E-107 —
+        # no story is at review and none in-progress.
         # SP-005 done: 2-1-stale-context-freshness-plane (S-002) landed under
         # E-053 (APPROVED) and is CLOSED by QR-017.
         # SP-006 done: 3-1-workflow-evidence-freshness (S-003) landed under
@@ -315,10 +314,10 @@ def test_check6_reads_the_shipped_sprint_status():
         # (APPROVED, baseline E-068 REJECTED) and is CLOSED by QR-024.
         # SP-013 done: 10-1-forced-completion-honest (S-010) landed under E-071
         # (APPROVED, baseline E-070 REJECTED) and is CLOSED by QR-025 —
-        # exactly nine stories are done.
+        # exactly ten stories are done.
         assert _count(text, "in-progress") == 0
-        assert _count(text, "review") == 1
-        assert _count(text, "done") == 9
+        assert _count(text, "review") == 0
+        assert _count(text, "done") == 10
         return
     text = ("development_status:\n"
             "  epic-1: in-progress\n"

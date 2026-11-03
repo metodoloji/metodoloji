@@ -3247,7 +3247,8 @@ def _check_tool_contract_names_the_real_harness_failures() -> str | None:
 
 
 _SUBSCRIBE_RE = re.compile(
-    r'subscribe --watcher (\S+) --pattern "([^"]+)" --channel (\S+)')
+    r'(?<![\w-])subscribe --watcher (\S+) --pattern "([^"]+)" '
+    r'--channel(?:=|\s+)([a-z][\w.-]*)')
 # A runbook's change-radar bullet, anchored by its marker phrase so the check
 # reads the radar line and not some unrelated `prd.*` mention elsewhere.
 _RADAR_MARKERS = ("change radar", "değişim radarı")
@@ -3255,8 +3256,27 @@ _RADAR_SEGMENT_RE = re.compile(
     r"`([a-z][\w-]+)`\s*(?:watches|→)\s*`([^`]+)`\s*\((session|stop)\)")
 
 
-def _check_change_radar_contract_matches() -> str | None:
+def _declared_subscriptions() -> dict[str, set]:
+    """The lint's EXPECTED_SUBSCRIPTIONS table, loaded from check-handoff.py."""
+    import importlib.util  # noqa: PLC0415
+    spec = importlib.util.spec_from_file_location(
+        "check_handoff_for_bench_subs", ROOT / "scripts" / "check-handoff.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)  # __name__ != "__main__": the CLI block stays shut
+    return {watcher: {(p, c) for p, c in pairs}
+            for watcher, pairs in mod.EXPECTED_SUBSCRIPTIONS.items()}
+
+
+def _check_change_radar_contract_matches(
+        declared: dict[str, set] | None = None) -> str | None:
     """E-043: the DOCUMENTED change radar must equal the SHIPPED one.
+
+    E-107: it must also equal the DECLARED one. The pre-fix check compared
+    runbooks to skills only, and the lint compared the declared table to the
+    skills with warnings that never fail, so a coordinated skills+runbooks edit
+    left `EXPECTED_SUBSCRIPTIONS` stale with a green CI. The table is the
+    human's intent; a tree that agrees with itself while disagreeing with it is
+    the drift this check now reports. `declared` is injectable for the bench.
 
     The last blackboard commit (cc5a02c) added the §14 change-radar bullet to
     GUIDE/KILAVUZ and, next to it, a handoff-lint that checked only that a
@@ -3275,7 +3295,13 @@ def _check_change_radar_contract_matches() -> str | None:
     for md in sorted((ROOT / "skills").glob("*/SKILL.md")):
         try:
             txt = md.read_text(encoding="utf-8", errors="replace")
-        except OSError:
+        except OSError as exc:
+            # E-107: a measurement failure is not a pass. The pre-fix check
+            # dropped the skill from both comparison loops, so a locked file
+            # vanished from the radar and the contract could still report green.
+            problems.append(
+                f"skills/{md.parent.name}/SKILL.md: unreadable "
+                f"({type(exc).__name__}) — the radar cannot be measured")
             continue
         for watcher, pat, chan in _SUBSCRIBE_RE.findall(txt):
             shipped.setdefault(watcher, set()).add((pat, chan))
@@ -3301,6 +3327,14 @@ def _check_change_radar_contract_matches() -> str | None:
         for skill in sorted(set(claimed) - set(shipped)):
             problems.append(f"{rel}: change-radar bullet claims `{skill}` "
                             f"which ships no subscription")
+    if declared is None:
+        declared = _declared_subscriptions()
+    for watcher in sorted(set(declared) | set(shipped)):
+        want = set(declared.get(watcher) or ())
+        if want != shipped.get(watcher, set()):
+            problems.append(
+                f"EXPECTED_SUBSCRIPTIONS[{watcher}] {sorted(want)} != "
+                f"shipped {sorted(shipped.get(watcher) or [])}")
     return "; ".join(problems) if problems else None
 
 

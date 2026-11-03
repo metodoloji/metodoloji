@@ -1,0 +1,11 @@
+{"trial": "doc_wrong_pattern", "ok": true, "expect_problem": true, "result": "GUIDE.md: `bmad-x` radar says [('ux.*', 'session')] but the skill ships [('prd.*', 'session')]; KILAVUZ.md: `bmad-x` radar says [('ux.*', 'session')] but the skill ships [('prd.*', 'session')]"}
+{"trial": "doc_omits_skill", "ok": true, "expect_problem": true, "result": "GUIDE.md: change-radar bullet omits `bmad-x`; KILAVUZ.md: change-radar bullet omits `bmad-x`"}
+{"trial": "doc_phantom_skill", "ok": true, "expect_problem": true, "result": "GUIDE.md: change-radar bullet claims `bmad-y` which ships no subscription; KILAVUZ.md: change-radar bullet claims `bmad-y` which ships no subscription"}
+{"trial": "skill_undocumented_pair", "ok": true, "expect_problem": true, "result": "GUIDE.md: `bmad-x` radar says [('prd.*', 'session')] but the skill ships [('prd.*', 'session'), ('ux.*', 'session')]; KILAVUZ.md: `bmad-x` radar says [('prd.*', 'session')] but the skill ships [('prd.*', 'session'), ('ux.*', 'session')]"}
+{"trial": "declared_table_stale", "ok": false, "expect_problem": true, "result": null}
+{"trial": "declared_phantom_skill", "ok": false, "expect_problem": true, "result": null}
+{"trial": "unreadable_skill_md", "ok": false, "expect_problem": true, "result": null}
+{"trial": "unsubscribe_not_counted", "ok": false, "expect_problem": false, "result": "GUIDE.md: `bmad-x` radar says [('prd.*', 'session')] but the skill ships [('prd.*', 'session'), ('story.*', 'session')]; KILAVUZ.md: `bmad-x` radar says [('prd.*', 'session')] but the skill ships [('prd.*', 'session'), ('story.*', 'session')]"}
+{"trial": "channel_equals_spelling", "ok": false, "expect_problem": false, "result": "no skill ships a subscribe line \u2014 the change radar vanished"}
+{"trial": "trailing_code_span_backtick", "ok": false, "expect_problem": false, "result": "GUIDE.md: `bmad-x` radar says [('prd.*', 'session')] but the skill ships [('prd.*', 'session`')]; KILAVUZ.md: `bmad-x` radar says [('prd.*', 'session')] but the skill ships [('prd.*', 'session`')]"}
+{"trial": "clean_tree", "ok": true, "expect_problem": false, "result": null}

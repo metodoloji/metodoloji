@@ -188,6 +188,18 @@ def test_radar_contract_requires_the_full_pattern_and_channel(tmp_path, capsys, 
     assert "watches its upstreams (prd.*)" in capsys.readouterr().out
 
 
+def test_subscribe_re_reads_only_the_subscribe_form(tmp_path):
+    """E-107: `unsubscribe` is not a subscription, `--channel=` is one, and a
+    closing code-span backtick is not part of the channel."""
+    mod = _load_lint()
+    got = mod.actual_subscriptions(
+        'subscribe --watcher bmad-x --pattern "prd.*" --channel=stop\n'
+        'unsubscribe --watcher bmad-x --pattern "story.*" --channel session\n'
+        'subscribe --watcher bmad-y --pattern "ux.*" --channel session`\n')
+    assert got == {("bmad-x", "prd.*", "stop"),
+                   ("bmad-y", "ux.*", "session")}
+
+
 def test_run_openers_start_from_the_digest(tmp_path, capsys, monkeypatch):
     """The chain's run openers must open from the one small digest.
 

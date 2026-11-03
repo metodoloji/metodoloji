@@ -1032,6 +1032,46 @@ def test_change_radar_bullet_matches_the_shipped_subscriptions():
     assert bench._check_change_radar_contract_matches() is None
 
 
+def test_change_radar_contract_goes_red_on_every_drift(tmp_path):
+    """E-107: a guard that only passes on a clean tree is not measuring.
+
+    The prior test pinned the happy path; this one drives the three failure
+    directions the review of 043e7ba found invisible — a wrong documented
+    pattern, a declared table the tree moved past, and an unreadable SKILL.md.
+    """
+    bench = _load_bench()
+    one = 'subscribe --watcher bmad-x --pattern "prd.*" --channel session\n'
+    seg = "`bmad-x` watches `prd.*` (session)"
+    declared_ok = {"bmad-x": {("prd.*", "session")}}
+
+    def tree(name, radar, declared_table, locked=False):
+        root = tmp_path / name
+        skill = root / "skills" / "bmad-x" / "SKILL.md"
+        skill.parent.mkdir(parents=True)
+        skill.write_text(one, encoding="utf-8")
+        for rel, prefix in (("GUIDE.md", "- change radar: "),
+                            ("KILAVUZ.md", "- değişim radarı: ")):
+            (root / rel).write_text(prefix + ", ".join(radar) + "\n",
+                                    encoding="utf-8")
+        if locked:
+            (root / "skills" / "bmad-locked" / "SKILL.md").mkdir(parents=True)
+        return root, declared_table
+
+    cases = [
+        tree("wrong", ["`bmad-x` watches `ux.*` (session)"], declared_ok),
+        tree("stale", [seg], {"bmad-x": {("ux.*", "session")}}),
+        tree("locked", [seg], declared_ok, locked=True),
+    ]
+    previous = bench.ROOT
+    try:
+        for root, declared in cases:
+            bench.ROOT = root
+            assert bench._check_change_radar_contract_matches(
+                declared=declared) is not None, root.name
+    finally:
+        bench.ROOT = previous
+
+
 def test_relay_graph_edges_match_the_declared_table():
     """E-044: the declared relay graph must equal the graph the tree ships.
 
