@@ -87,7 +87,98 @@ def record_inventory(project_root: str | pathlib.Path) -> dict:
         if found:
             inventory[kind] = {"count": len(found), "newest": found[0][2],
                                "dirs": sorted({rel for _ts, rel, _n in found})}
+    # The deferred-work ledger is the one surface outside the E→PR chain that
+    # routing still needs to see: without this key an orphaned ledger looks
+    # exactly like no ledger (E-108). `count` is OPEN entries — the number a
+    # reader acts on; `total`/`done`/`malformed` ride the same entry for JSON.
+    dw = deferred_work_inventory(root)
+    if dw["path"] and (dw["total"] or dw["legacy"]):
+        inventory["DW"] = {
+            "count": dw["open"],
+            "newest": ("legacy" if dw["legacy"]
+                       else f"DW-{dw['newest_seq']}" if dw.get("newest_seq")
+                       else "deferred-work.md"),
+            "dirs": [dw["path"]],
+            "total": dw["total"], "done": dw["done"],
+            "malformed": dw["malformed"], "legacy": dw["legacy"],
+        }
     return inventory
+
+
+# --- deferred-work ledger ------------------------------------------------------
+
+# The ledger's writers resolve `{implementation_artifacts}` from module config;
+# the core reader walks the canonical default first and the legacy homes older
+# projects still carry, so a project on either layout is seen (E-108).
+_DEFERRED_WORK_CANDIDATES = (
+    "docs/development/native/deferred-work.md",
+    "docs/development/deferred-work.md",
+    "bmad-output/implementation-artifacts/deferred-work.md",
+    "_bmad-output/implementation-artifacts/deferred-work.md",
+)
+_DW_ENTRY_RE = re.compile(r"^###\s+DW-(\d+)\s*:", re.MULTILINE)
+_DW_STATUS_RE = re.compile(r"^status:\s*(\S+)", re.MULTILINE | re.IGNORECASE)
+
+
+def deferred_work_path(project_root: str | pathlib.Path) -> pathlib.Path | None:
+    """The ledger this project owns, canonical default first, or None."""
+    root = pathlib.Path(project_root)
+    for rel in _DEFERRED_WORK_CANDIDATES:
+        candidate = root / rel
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def deferred_work_inventory(project_root: str | pathlib.Path) -> dict:
+    """Parse the deferred-work ledger (read-only, fail-open; E-108).
+
+    Returns {path, total, open, done, malformed, legacy, newest_seq}. An entry
+    is a `### DW-N:` block whose first `status:` line decides open/done; a block
+    with no status is malformed. Fenced blocks are documentation (the installed
+    template shows the shape inside a fence), not entries. A ledger with content
+    but no DW headings and a legacy `## Deferred ...` section is `legacy` — the
+    sweep's --migrate rewrites it. A missing ledger is zeros, never an error.
+    """
+    info = {"path": "", "total": 0, "open": 0, "done": 0,
+            "malformed": 0, "legacy": False}
+    path = deferred_work_path(project_root)
+    if path is None:
+        return info
+    info["path"] = str(path)
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return info
+
+    body_lines: list[str] = []
+    fenced = False
+    for line in text.splitlines():
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+            continue
+        if not fenced:
+            body_lines.append(line)
+    body = "\n".join(body_lines)
+
+    starts = list(_DW_ENTRY_RE.finditer(body))
+    if not starts:
+        info["legacy"] = bool(re.search(r"^##\s+Deferred", body, re.MULTILINE))
+        return info
+    info["total"] = len(starts)
+    for index, match in enumerate(starts):
+        end = starts[index + 1].start() if index + 1 < len(starts) else len(body)
+        status = _DW_STATUS_RE.search(body[match.end():end])
+        if not status:
+            info["malformed"] += 1
+        elif status.group(1).lower().startswith("done"):
+            info["done"] += 1
+        elif status.group(1).lower().startswith("open"):
+            info["open"] += 1
+        else:
+            info["malformed"] += 1
+        info["newest_seq"] = max(info.get("newest_seq", 0), int(match.group(1)))
+    return info
 
 
 # --- MCP server inventory -------------------------------------------------------

@@ -632,6 +632,61 @@ for _rec in \
 done
 echo "  templates checked: $LEAK_TEMPLATES_CHECKED (meta-text is an issue) · records checked: $LEAK_RECORDS_CHECKED (meta-text is a warning)"
 
+# ─── CHECK 9: Deferred-work ledger (advisory) ───
+echo ""
+echo "═══════════════════════════════════════════════════"
+echo "CHECK 9: Deferred-Work Ledger"
+echo "═══════════════════════════════════════════════════"
+
+# The ledger is a core debt surface (E-108): review / quick-dev / dev-auto
+# append to it in every project, and bmad-loop-sweep triages it. Resolve the
+# canonical default first, then the legacy homes older projects still carry.
+DW_FILE=""
+for _cand in docs/development/native/deferred-work.md \
+             docs/development/deferred-work.md \
+             bmad-output/implementation-artifacts/deferred-work.md \
+             _bmad-output/implementation-artifacts/deferred-work.md; do
+    if [ -f "$PROJECT_ROOT/$_cand" ]; then DW_FILE="$PROJECT_ROOT/$_cand"; break; fi
+done
+
+if [ -z "$DW_FILE" ]; then
+    echo "  deferred-work: none (no writer has run in this project)"
+else
+    # `### DW-N:` blocks; the first `status:` line decides open/done; a block
+    # with no status is malformed. Fenced blocks are documentation, not entries.
+    DW_COUNTS=$(awk '
+        BEGIN { fence=0; in_entry=0; seen=0; total=0; open=0; done=0; bad=0 }
+        /^[[:space:]]*```/ { fence = !fence; next }
+        fence { next }
+        /^###[[:space:]]+DW-[0-9]+:/ {
+            if (in_entry && !seen) bad++
+            total++; in_entry=1; seen=0; next
+        }
+        in_entry && /^status:/ {
+            line=$0
+            sub(/^status:[[:space:]]*/, "", line)
+            sub(/[[:space:]]*$/, "", line)
+            if (tolower(line) ~ /^open/) open++
+            else if (tolower(line) ~ /^done/) done++
+            else bad++
+            in_entry=0; seen=1
+        }
+        END {
+            if (in_entry && !seen) bad++
+            print total, open, done, bad
+        }
+    ' "$DW_FILE" 2>/dev/null || echo "0 0 0 0")
+    set -- $DW_COUNTS
+    DW_TOTAL="${1:-0}"; DW_OPEN="${2:-0}"; DW_DONE="${3:-0}"; DW_MALFORMED="${4:-0}"
+    if [ "$DW_TOTAL" -eq 0 ] && grep -qE '^##[[:space:]]+Deferred' "$DW_FILE" 2>/dev/null; then
+        log_warn "deferred-work: legacy freeform format — run bmad-loop-sweep --migrate (${DW_FILE#$PROJECT_ROOT/})"
+    elif [ "$DW_MALFORMED" -gt 0 ]; then
+        log_warn "deferred-work: $DW_OPEN open / $DW_TOTAL total — $DW_MALFORMED malformed entries (missing or unrecognized status)"
+    else
+        echo "  deferred-work: $DW_OPEN open / $DW_TOTAL total ($DW_DONE done) — ${DW_FILE#$PROJECT_ROOT/}"
+    fi
+fi
+
 # ─── SUMMARY ───
 echo ""
 echo "═══════════════════════════════════════════════════"

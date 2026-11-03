@@ -13,6 +13,27 @@ import os
 from types import ModuleType
 
 
+def deferred_work_warning(root: str) -> str:
+    """One advisory line naming open deferrals, or '' when there is nothing.
+
+    The ledger is visible, never blocking (E-108): open deferrals are a normal
+    state, so the commit gate reports them and the operator decides. Fail-open —
+    a parser error must not add a warning about a file nobody can read.
+    """
+    try:
+        from . import state
+        info = state.deferred_work_inventory(root)
+    except Exception:
+        return ""
+    open_count = info.get("open") or 0
+    if not open_count:
+        return ""
+    return (f"DEFERRED WORK: {open_count} open entr"
+            f"{'y' if open_count == 1 else 'ies'} in "
+            f"{info.get('path') or 'the ledger'} — documented, not blocking; "
+            f"triage with bmad-loop-sweep or close them in a later story")
+
+
 def quality(json_in: dict, *, guard_module: ModuleType) -> dict:
     """Apply the commit gate using check implementations owned by guard."""
     g = guard_module
@@ -25,6 +46,7 @@ def quality(json_in: dict, *, guard_module: ModuleType) -> dict:
         return {"decision": "allow"}
 
     root = os.path.abspath(g.repo_root(json_in))
+    deferred_warning = deferred_work_warning(root)
 
     # The commit is the last point to report whether an approval still applies
     # to the code before it leaves the working tree.
@@ -63,7 +85,9 @@ def quality(json_in: dict, *, guard_module: ModuleType) -> dict:
                 bb.post_alert(root, "scope", "warn", warn, sender="quality-gate")
         except Exception:
             pass  # board unavailable — the transcript warning already fired
-        return {"decision": "allow", "methodology_warnings": [warn] + fresh_warnings}
+        return {"decision": "allow",
+                "methodology_warnings": [warn] + fresh_warnings
+                + ([deferred_warning] if deferred_warning else [])}
 
     if ran:
         # A verified-clean result clears only this channel's previous debt.
@@ -75,6 +99,7 @@ def quality(json_in: dict, *, guard_module: ModuleType) -> dict:
         except Exception:
             pass  # board unavailable — nothing to clear, nothing to block
 
-    if fresh_warnings:
-        return {"decision": "allow", "methodology_warnings": fresh_warnings}
+    warnings = fresh_warnings + ([deferred_warning] if deferred_warning else [])
+    if warnings:
+        return {"decision": "allow", "methodology_warnings": warnings}
     return {"decision": "allow"}

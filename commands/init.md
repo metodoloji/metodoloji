@@ -15,7 +15,7 @@ probe further):
    Claude Code — do not depend on them, do not echo them to "verify".)
 2. Fixed checkout `~/.claude/plugins/marketplaces/metodoloji/`
 3. Versioned cache `~/.claude/plugins/cache/metodoloji/metodoloji/*`
-   (newest first; e.g. `.../0.2.19/` on Claude Code v2.1.x)
+   (newest first; e.g. `.../0.2.20/` on Claude Code v2.1.x)
 4. OpenHands install directory `~/.openhands/plugins/installed/metodoloji/`
 
 (An old `~/.claude/plugins/cache/yunusgungor/metodoloji/*` path appears in
@@ -117,6 +117,7 @@ status reports an incomplete skeleton.
    - `{metodoloji-root}/templates/_template_STRUCT.md` → `docs/development/structural/_template_STRUCT.md`
    - `{metodoloji-root}/templates/README.md` → `docs/development/README.md`
    - `{metodoloji-root}/templates/tech-debt.md` → `docs/development/tech-debt.md`
+   - `{metodoloji-root}/templates/deferred-work.md` → `docs/development/native/deferred-work.md`
    - `{metodoloji-root}/templates/scratch-README.md` → `scratch/README.md`
 
 4. **The init marker is written by `{metodoloji-root}/bmad/scripts/skeleton.py --install`, never by hand.**

@@ -189,6 +189,14 @@ experiment_refs:
 - [ ] Low: DoD-002 Verify field empty
 ```
 
+### §6.4 Deferred-Work Ledger
+- A finding or goal knowingly deferred from **code review**, **quick-dev** or **dev-auto** is appended to `{implementation_artifacts}/deferred-work.md` (default `docs/development/native/deferred-work.md`) as a `DW-N` entry — never dropped and never carried only in prose.
+- The ledger is append-only. An entry is `status: open` until closed, then `status: done <date>`; entries are never deleted or renumbered. A repeated issue adds a `seen-again:` line instead of a duplicate.
+- Canonical entry format, severity vocabulary and sweep annotations:
+  `{metodoloji-root}/skills/bmad-loop-sweep/deferred-work-format.md`.
+- Writers: `bmad-code-review`, `bmad-quick-dev`, `bmad-dev-auto` (and the gds equivalents). Triage/close: `bmad-loop-sweep` (bmad-loop) or the maintainer.
+- Core visibility is **advisory, not a gate**: init installs the ledger from `templates/deferred-work.md`, the orient digest counts open entries through `state.record_inventory` (`DW=<open> (newest DW-N)`), `check-methodology.sh` CHECK 9 parses the format, and the commit quality gate names open entries. Open deferrals never block a write or a commit by themselves.
+
 ---
 
 ## §7 Quality Record (QR) (Mode A)
@@ -258,6 +266,7 @@ Each stage depends on the output of the previous one. Every link of the chain re
 | **QR** | Quality Record | `docs/quality/QR-XXX.md`, required after done |
 | **IR** | Implementation Readiness | `docs/development/IR-XXX.md`, Gate 1 |
 | **PR** | Production Readiness | `docs/development/PR-XXX.md`, Gate 4 |
+| **DW** | Deferred-work entry | `docs/development/native/deferred-work.md`, advisory (§6.4) |
 
 ---
 
