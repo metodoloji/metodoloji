@@ -19,16 +19,33 @@ be a unique literal substring — an ambiguous anchor is refused by the kernel
 before a validation run is spent.
 
 Endpoint configuration is the same as `skill_runner.py`
-(``SKILL_EVAL_BASE_URL`` / ``SKILL_EVAL_API_KEY`` / ``SKILL_EVAL_MODEL``).
+(``SKILL_EVAL_BASE_URL`` / ``SKILL_EVAL_API_KEY`` / ``SKILL_EVAL_MODEL``): a
+real environment variable wins, otherwise the nearest ``.env`` is read.
 """
 from __future__ import annotations
 
 import json
 import os
+import pathlib
 import re
 import sys
 import urllib.error
 import urllib.request
+
+HERE = pathlib.Path(__file__).resolve().parent
+
+
+def _load_training_env() -> None:
+    """Read SKILL_EVAL_* from the nearest ``.env``; exported vars still win."""
+    for parent in (HERE, *HERE.parents):
+        if (parent / "optimization" / "env.py").is_file():
+            sys.path.insert(0, str(parent))
+            break
+    try:
+        from optimization.env import load_dotenv
+    except ImportError:  # the bundle is used without the kernel checkout
+        return
+    load_dotenv(HERE)
 
 INSTRUCTIONS = """\
 You maintain one instruction document (a SKILL.md) for a scientific-methodology
@@ -111,6 +128,7 @@ def extract_edit(text: str) -> dict | None:
 
 
 def main() -> int:
+    _load_training_env()
     request = json.loads(sys.stdin.read() or "{}")
     failing = request.get("failing_cases") or []
     if not failing:

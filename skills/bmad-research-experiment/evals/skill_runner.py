@@ -13,7 +13,8 @@ keeps the measurement about the *skill document* rather than about a second
 model's opinion, and it is the same rule `grade_local.py` uses on the skill's
 eval runs.
 
-Endpoint (nothing is read from the spec, so the key never lands in a file):
+Endpoint (a real environment variable wins; otherwise the nearest `.env`
+file is read — never the spec, so a key cannot be committed with it):
 
     SKILL_EVAL_BASE_URL   e.g. https://api.reflection.ai/openai/v1
     SKILL_EVAL_API_KEY    bearer token
@@ -38,6 +39,19 @@ import urllib.request
 
 HERE = pathlib.Path(__file__).resolve().parent
 CASES = HERE / "training-cases.jsonl"
+
+
+def _load_training_env() -> None:
+    """Read SKILL_EVAL_* from the nearest ``.env``; exported vars still win."""
+    for parent in (HERE, *HERE.parents):
+        if (parent / "optimization" / "env.py").is_file():
+            sys.path.insert(0, str(parent))
+            break
+    try:
+        from optimization.env import load_dotenv
+    except ImportError:  # the bundle is used without the kernel checkout
+        return
+    load_dotenv(HERE)
 
 SYSTEM_HEAD = (
     "You are the bmad-research-experiment skill. The SKILL.md below is your "
@@ -134,6 +148,7 @@ def answer(system: str, user: str) -> str:
 
 
 def main() -> int:
+    _load_training_env()
     parser = argparse.ArgumentParser()
     parser.add_argument("--artifact", required=True)
     parser.add_argument("--case", required=True)

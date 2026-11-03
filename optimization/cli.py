@@ -27,6 +27,7 @@ import sys
 from . import preflight
 from .bridges import deploy, hermit, skillopt
 from .cases import assign_splits, leakage, load_cases
+from .env import load_dotenv
 from .loop import Optimizer, VersionStore
 from .methods import MethodError, method_names, resolve
 from .predictor import GainPredictor
@@ -286,6 +287,14 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
+        # Training variables live in a .env beside the spec (or the cwd): the
+        # runner and proposer are child processes and inherit what is loaded
+        # here, so `train` needs no shell exports.
+        starts = [pathlib.Path.cwd()]
+        spec = getattr(args, "spec", None)
+        if spec:
+            starts.insert(0, pathlib.Path(spec).resolve().parent)
+        load_dotenv(*starts)
         return int(args.func(args))
     except (SpecError, MethodError, ValueError, RuntimeError, OSError) as exc:
         print(f"error: {exc}", file=sys.stderr)

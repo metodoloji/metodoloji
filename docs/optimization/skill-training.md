@@ -30,11 +30,18 @@ the bench catches that before a training run spends a token.
 
 ## The loop
 
-```bash
-export SKILL_EVAL_BASE_URL=https://api.reflection.ai/openai/v1
-export SKILL_EVAL_API_KEY=...          # never written to a file
-export SKILL_EVAL_MODEL=Beam-1.0-501B-A23B
+Put the endpoint in `skills/bmad-research-experiment/.env` (gitignored, so the
+key never lands in a commit); the kernel and both eval scripts read it, and a
+variable that is already exported wins over the file for a one-off override:
 
+```bash
+# skills/bmad-research-experiment/.env
+SKILL_EVAL_BASE_URL=https://api.reflection.ai/openai/v1
+SKILL_EVAL_API_KEY=...
+SKILL_EVAL_MODEL=Beam-1.0-501B-A23B
+```
+
+```bash
 python -m optimization check \
   --spec skills/bmad-research-experiment/optimization.toml \
   --runner "command:python skills/bmad-research-experiment/evals/skill_runner.py --artifact {artifact} --case {case_id}"
