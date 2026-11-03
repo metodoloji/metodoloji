@@ -19,6 +19,7 @@
 # Methodology record: docs/development/SP-011.md
 # Methodology record: docs/development/SP-012.md
 # Methodology record: docs/development/SP-013.md
+# Methodology record: docs/development/SP-014.md
 #
 # project: metodoloji
 # tracking_system: file-system
@@ -110,3 +111,18 @@ development_status:
   # (0.0 / 0.0 with a clean control); CLOSED by QR-025. No native draft, so the
   # board key is declared in the story as its native-shaped alias.
   10-1-forced-completion-honest: done
+  epic-11: in-progress
+  # S-011 — "Refuse a split too small to reach alpha". E-105 APPROVED at
+  # spec_guard 1.00 (40/40) with the pre-fix control at 0.17; the kernel fix
+  # landed in ee997b0. IR-011 READY; the story is in review, QR-027 closes it.
+  11-1-feasibility-guard: review
+  # S-012 — "Measure the promoted artifact, not a stub". E-106 APPROVED at
+  # promotion_integrity 1.00 (40/40) with the pre-fix control at 0.05; the
+  # runner wiring, stored-evidence reuse and single-version refusal landed in
+  # ee997b0. IR-012 READY; the story is in review, QR-028 closes it.
+  11-2-promotion-integrity: review
+  # S-013 — "Integrate the deferred-work ledger into the core". E-108 APPROVED
+  # at deferred_work_integration 1.00 (26/26) with the pre-fix control at 0.12;
+  # install, digest DW key, CHECK 9, commit advisory and manifesto §6.4 landed
+  # in 572b7b0. IR-014 READY; the story is in review, QR-029 closes it.
+  11-3-deferred-work-ledger: review
