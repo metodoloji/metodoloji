@@ -10,3 +10,5 @@
 # project resolves to the neutral default.
 [core]
 project_name = "metodoloji"
+document_output_language = "English"
+communication_language = "Turkish"
