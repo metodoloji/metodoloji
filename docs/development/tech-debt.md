@@ -3,7 +3,17 @@
 > This file tracks technical debt accumulated in the project and the repayment plan.
 > A time-box should be reserved for technical debt in every sprint.
 
-**Last updated:** 2026-10-16 (E-053 — TD-016 paid: declared-but-unbound mechanisms)
+**Last updated:** 2026-11-05 (QR-030 — TD-017 opened: the ledger's own metrics block)
+
+> **2026-11-05 — QR-030 (S-014 review).** TD-017 opened: the metrics block below still
+> carried the template's placeholders and the trend table stopped at SP-003, while §1 of
+> `scripts/check-techdebt.sh` forces this file to stay byte-identical to
+> `templates/tech-debt.md` — so the "live ledger" and the shipped template could never
+> diverge. The metrics and the trend are filled from the inventory's own dates in this
+> change (every number below is derived, none invented: the paid table's Sprint column is
+> the source). The checker redesign that would let the template keep its placeholders —
+> §1 scoped to structure, a new placeholder check on the live ledger — is TD-017's
+> repayment and is not claimed here. Active debt: **1** (TD-017, P3).
 
 > **2026-08-26 — SkillOpt tech-debt integration completed.** With 12 commits (957e5c2..8f2eb93),
 > all debt in all 6 manifests was paid (TD-001/002/003/010/011/012), the SkillOpt `techdebt` task
@@ -55,7 +65,7 @@
 
 | ID | Description | Why Added | Date Added | Impact | Owner | Target Sprint |
 |----|-------|---------------|---------------|------|--------|--------------|
-| —    | —     | —             | —             | —    | —      | —            |
+| TD-017 | The ledger cannot testify for itself: the metrics block below still carried the template's placeholders and the trend table stopped at SP-003. §1 of `scripts/check-techdebt.sh` forces `templates/tech-debt.md` to be byte-identical to this file, so a shipped template (which must keep placeholders) and a live ledger (which must not) can never diverge — the check makes the two files agree instead of making the live one correct | Found in QR-030 while reviewing S-014: the file that records every other debt had no check on its own reporting half | 2026-11-05 | The inventory half (IDs, P0 limit, collisions, orphan TODOs) is mechanically checked; the reporting half is not, so a stale ledger still prints HEALTHY | @yunusgungor | SP-016 |
 
 ---
 
@@ -137,27 +147,53 @@
 ## Technical Debt Metrics
 
 ### Current State
-- **Total active debt:** [X items]
-  - P0 (Critical): [Y items]
-  - P1 (High): [Z items]
-  - P2 (Medium): [W items]
-  - P3 (Low): [V items]
-- **Estimated repayment time:** [X sprint / Y weeks]
+- **Total active debt:** 1 item
+  - P0 (Critical): 0 items
+  - P1 (High): 0 items
+  - P2 (Medium): 0 items
+  - P3 (Low): 1 item (TD-017)
+- **Estimated repayment time:** 1 sprint (TD-017's repayment is E-114, the checker redesign; target SP-016)
 
 ### Sprint Allocation
-- **Technical debt time-box per sprint:** [20% or X story points]
-- **Debt paid in the last 3 sprints:** [X items]
-- **Debt added in the last 3 sprints:** [Y items]
-- **Net debt change:** [X - Y = Z] (positive = debt decreasing, negative = debt increasing)
+- **Technical debt time-box per sprint:** 20% of capacity (1 point in a 5-point sprint). SP-015 carries 0 debt points — TD-017 was opened during this sprint's review, not planned into it
+- **Debt paid in the last 3 sprints:** 0 items (SP-013, SP-014, SP-015)
+- **Debt added in the last 3 sprints:** 1 item (TD-017, SP-015)
+- **Net debt change:** 0 - 1 = -1 (negative = debt increasing: one item added, none paid)
 
 ### Trend
 ```
-Sprint    | New Debt | Paid Debt | Net Change | Total Debt
-----------|-----------|-------------|-------------|-------------
-SP-001    | 5         | 2           | -3          | 15
-SP-002    | 3         | 4           | +1          | 14
-SP-003    | 2         | 3           | +1          | 13
+Sprint              | New Debt | Paid Debt | Net Change | Total Debt
+--------------------|----------|-----------|------------|-------------
+pre-SP-001 (08-26)  | 6        | 6         | 0          | 0
+SP-001 (10-14)      | 0        | 0         | 0          | 0
+SP-002              | 1        | 1         | 0          | 0
+SP-003              | 0        | 0         | 0          | 0
+SP-004              | 2        | 2         | 0          | 0
+SP-005 (10-16)      | 1        | 1         | 0          | 0
+SP-006              | 0        | 0         | 0          | 0
+SP-007              | 0        | 0         | 0          | 0
+SP-008              | 0        | 0         | 0          | 0
+SP-009              | 0        | 0         | 0          | 0
+SP-010              | 0        | 0         | 0          | 0
+SP-011              | 0        | 0         | 0          | 0
+SP-012              | 0        | 0         | 0          | 0
+SP-013              | 0        | 0         | 0          | 0
+SP-014              | 0        | 0         | 0          | 0
+SP-015 (11-05)      | 1        | 0         | +1         | 1
 ```
+
+**How to read this table** (the derivation is part of the record, not left to the reader):
+- Rows are the `Sprint` column of **Paid Debts** above. `pre-SP-001` is the 2026-08-26 batch
+  (TD-001, TD-002, TD-003, TD-010, TD-011, TD-012), recorded and paid before the sprint records
+  began; the six ids are the ones the table actually carries, not TD-001 through TD-016.
+- `New Debt` counts debts whose Date Added falls in that sprint. A debt the ledger records only
+  by the sprint that paid it is counted as added in that sprint (it was recorded, targeted and
+  closed inside one sprint), so `Net Change` is 0 and the active total matches the dated notes
+  above: 0 after 2026-08-26, 0 after the SP-004 repayment, 0 after TD-016, 1 after TD-017.
+- `Total Debt` is the active count at the sprint's end. It is cumulative only where a debt
+  survives its sprint — SP-015 is the first row since the baseline where one does.
+- No number here is estimated: every row traces to a `Sprint`, `Completion Date` or dated note
+  in this file. TD-004 … TD-009 were never recorded, so their absence is not a gap in the table.
 
 ---
 

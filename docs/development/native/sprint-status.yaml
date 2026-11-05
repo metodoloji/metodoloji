@@ -127,9 +127,10 @@ development_status:
   # install, digest DW key, CHECK 9, commit advisory and manifesto §6.4 landed
   # in 572b7b0. CLOSED by QR-029.
   11-3-deferred-work-ledger: done
-  epic-12: in-progress
+  epic-12: done
   # S-014 — "Announce the subscription cap's eviction". E-113 APPROVED at
   # cap_observability 1.00 (11/11) with the pre-fix control at 0.64; one shared
   # `_bounds_notice` emitter landed in 7bfd06a (v0.2.26) and the duplicate-pair
-  # case is pinned in the engine suite. Awaiting QR.
-  12-1-subscription-cap-observability: review
+  # case is pinned in the engine suite. CLOSED by QR-030, which also opened
+  # TD-017 against the ledger's own metrics block.
+  12-1-subscription-cap-observability: done
