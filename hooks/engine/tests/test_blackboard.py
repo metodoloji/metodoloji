@@ -2894,3 +2894,35 @@ def test_undecodable_snapshot_and_event_log_fold_to_empty_board(root):
     assert board["keys"] == {}
     health = bb.chain_health(root)
     assert health["ok"] is True
+
+
+def test_subscription_cap_announces_the_eviction(root, capsys):
+    """E-113: the fold expired the oldest watch with no output at all.
+
+    The key and alert planes already print `bounds enforced — <plane>
+    <used>/<cap>, oldest expired`; the subscription plane dropped its oldest
+    watcher silently. The write that crosses the cap must say what it dropped,
+    and a duplicate pair (which grows nothing) must stay quiet.
+    """
+    cap = bb.MAX_SUBSCRIPTIONS
+    for i in range(cap):
+        bb.subscribe(root, f"build-w{i}", f"key-{i}.*")
+    capsys.readouterr()  # discard anything the setup wrote
+
+    ack = bb.subscribe(root, "build-w-last", "key-last.*")
+    err = capsys.readouterr().err
+
+    assert ack["ok"] is True
+    assert "bounds enforced" in err
+    assert "subscriptions" in err
+    assert f"{cap + 1}/{cap}" in err
+
+    watchers = [s["watcher"] for s in bb.read_board(root)["subscriptions"]]
+    assert len(watchers) == cap
+    assert "build-w0" not in watchers          # oldest went, FIFO
+    assert "build-w-last" in watchers          # newest stayed
+
+    # Re-subscribing an existing pair grows nothing: no eviction, no notice.
+    bb.subscribe(root, "build-w1", "key-1.*")
+    assert "bounds enforced" not in capsys.readouterr().err
+

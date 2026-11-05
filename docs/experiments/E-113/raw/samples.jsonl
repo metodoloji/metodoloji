@@ -1,0 +1,11 @@
+{"check": "cap_declared", "ok": true, "detail": "MAX_SUBSCRIPTIONS=16 (declared 16)"}
+{"check": "overflow_notice_emitted", "ok": true, "detail": "'metodoloji: bounds enforced \u2014 subscriptions 17/16, oldest expired'"}
+{"check": "overflow_notice_names_plane", "ok": true, "detail": "names subscriptions"}
+{"check": "overflow_notice_names_counts", "ok": true, "detail": "expects 17/16 in 'metodoloji: bounds enforced \u2014 subscriptions 17/16, oldest expired'"}
+{"check": "plane_holds_at_cap", "ok": true, "detail": "subscriptions=16 (cap 16)"}
+{"check": "oldest_evicted", "ok": true, "detail": "oldest present=False"}
+{"check": "newest_retained", "ok": true, "detail": "newest present=True"}
+{"check": "ack_ok_after_eviction", "ok": true, "detail": "ack={'ok': True, 'watcher': 'w17', 'pattern': 'key-17.*', 'channel': 'session'}"}
+{"check": "dedupe_does_not_grow", "ok": true, "detail": "subscriptions=16 after re-subscribing an existing pair"}
+{"check": "unsubscribe_still_works", "ok": true, "detail": "subscriptions=15 (expect 15)"}
+{"check": "shared_notice_covers_key_plane", "ok": true, "detail": "'metodoloji: bounds enforced \u2014 keys 17/16, oldest expired'"}

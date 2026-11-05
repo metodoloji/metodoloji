@@ -114,6 +114,19 @@ MAX_OPEN_HANDOFFS = 512       # entries in the folded open-handoff attribution l
 MAX_WITNESSES = 512           # code-state anchors (claims share a target's slot)
 MAX_RETIRED = 256             # explicit retirements (oldest retire marker expires)
 
+
+def _bounds_notice(plane: str, used: int, cap: int) -> None:
+    """Announce a bounded plane dropping its oldest entry (E-113).
+
+    The key and alert planes always said this; the subscription plane dropped
+    its oldest watch in the fold with no output at all, so a live watcher could
+    disappear without a trace. One emitter, so a new plane cannot inherit the
+    silence by copy-pasting around it.
+    """
+    sys.stderr.write(f"metodoloji: bounds enforced — {plane} {used}/{cap}, "
+                     f"oldest expired\n")
+
+
 # Handoff signal TTL (24 hours) and stale cleanup (CRITICAL #4 / ISSUE #25)
 HANDOFF_SIGNAL_TTL_SECONDS = 24 * 3600
 
@@ -713,9 +726,8 @@ def write_key(project_root: str, key: str, value, *, type_: str = "note",
         # NEW: Explicit bounds check - enforce MAX_KEYS (MEDIUM #4 / ISSUE #63)
         keys_count = len(board["keys"])
         if keys_count > MAX_KEYS:
-            # Log warning about bounds enforcement
-            sys.stderr.write(f"metodoloji: bounds enforced — keys {keys_count}/{MAX_KEYS}, "
-                           f"oldest expired\n")
+            # Log warning about bounds enforcement (one emitter, E-113)
+            _bounds_notice("keys", keys_count, MAX_KEYS)
         
         _clear_hot_if_dangling(board)
         _route_alerts(paths, board, event["key"], "update",
@@ -1126,8 +1138,17 @@ def subscribe(project_root: str, watcher: str, pattern: str, *,
         return {"ok": False, "error": "subscribe needs --watcher and --pattern"}
 
     def mut(board):
+        # E-113: the fold expires the oldest watch when a NEW pair enters a
+        # full plane, so the eviction is only visible by asking before the
+        # apply — afterwards the plane is already back at the cap.
+        known = any(s["watcher"] == event["watcher"]
+                    and s["pattern"] == event["pattern"]
+                    for s in board["subscriptions"])
+        before = len(board["subscriptions"])
         _append_event(board_paths(project_root), event)
         _apply_event(board, event)
+        if not known and before >= MAX_SUBSCRIPTIONS:
+            _bounds_notice("subscriptions", before + 1, MAX_SUBSCRIPTIONS)
         return board, {"ok": True, "watcher": event["watcher"],
                        "pattern": event["pattern"], "channel": event["channel"]}
 
@@ -1334,8 +1355,7 @@ def post_alert(project_root: str, channel: str, kind: str, text: str,
         # NEW: Explicit bounds check - enforce MAX_ALERTS (MEDIUM #4 / ISSUE #63)
         alert_count = len(board["alerts"])
         if alert_count > MAX_ALERTS:
-            sys.stderr.write(f"metodoloji: bounds enforced — alerts {alert_count}/{MAX_ALERTS}, "
-                            f"oldest expired\n")
+            _bounds_notice("alerts", alert_count, MAX_ALERTS)
 
         return board, {"ok": True, "channel": event["channel"],
                        "id": event["id"], "alerts": alert_count,
