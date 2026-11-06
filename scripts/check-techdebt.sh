@@ -41,7 +41,7 @@ from pathlib import Path
 PLUGIN = Path(os.environ["PLUGIN_ROOT"])
 td = PLUGIN / "docs" / "development" / "tech-debt.md"
 check_script = PLUGIN / "scripts" / "check-techdebt.sh"
-total_stages = 4
+total_stages = 5
 
 def run_check() -> subprocess.CompletedProcess:
     return subprocess.run(
@@ -160,6 +160,22 @@ finally:
     else:
         negtest_artifact.write_text(artifact_orig, encoding="utf-8")
 
+# Stage 5/5: Placeholder: append a template slot to the live ledger → does §7
+# catch it? (E-114: the live ledger owns the content, the template owns the
+# shape; a `[X items]` left behind means the reporting half was never read.)
+print(f"[5/{total_stages}] does §7 catch a template placeholder injected into the live ledger")
+td.write_text(orig + "\n- **Total active debt:** [X items]\n", encoding="utf-8")
+try:
+    r = run_check()
+    if ("placeholder" in r.stdout.lower() and "[X items]" in r.stdout
+            and r.returncode == 1):
+        print("  [OK] §7 placeholder caught, exit=1")
+    else:
+        print(f"  [ERROR] §7 placeholder expected, output end: ...{r.stdout[-400:]!r}")
+        sys.exit(1)
+finally:
+    td.write_text(orig, encoding="utf-8")
+
 print(f"[OK] all {total_stages} negtest stages successful")
 sys.exit(0)
 PY
@@ -173,18 +189,45 @@ PLUGIN_ROOT=$(CDPATH= cd -- "$SELF/.." && pwd)
 TEMPLATE="$PLUGIN_ROOT/templates/tech-debt.md"
 LIVE="$PLUGIN_ROOT/docs/development/tech-debt.md"
 
-echo "== 1) Template identity (templates/ ↔ docs/development/) =="
+echo "== 1) Ledger structure matches the shipped template =="
 if [ ! -f "$TEMPLATE" ]; then
     echo "[ERROR] $TEMPLATE not found"
     PROBLEMS=$((PROBLEMS + 1))
 elif [ ! -f "$LIVE" ]; then
     echo "[ERROR] $LIVE not found"
     PROBLEMS=$((PROBLEMS + 1))
-elif diff -q "$TEMPLATE" "$LIVE" >/dev/null 2>&1; then
-    echo "[OK]   templates/tech-debt.md ↔ docs/development/tech-debt.md identical"
 else
-    echo "[ERROR] templates/tech-debt.md ↔ docs/development/tech-debt.md DRIFT (files differ)"
-    PROBLEMS=$((PROBLEMS + 1))
+    # TD-017 / E-114: the template owns the SHAPE, the live ledger owns the
+    # CONTENT. Comparing bytes forced the shipped template to carry this repo's
+    # debt history (or the live ledger to keep the template's placeholders), so
+    # the audit could stay HEALTHY while the metrics block read `[X items]`.
+    # Structure = the heading sequence plus every table's header row (which is
+    # what makes a column set drift visible); the prose and the rows are free.
+    structure_of() {
+        awk '
+            BEGIN { pending = "" }
+            {
+                if (pending != "") {
+                    if ($0 ~ /^\|[[:space:]:|-]+\|[[:space:]]*$/) { print "T:" pending }
+                    pending = ""
+                }
+                if ($0 ~ /^#/) { print "H:" $0; next }
+                if ($0 ~ /^\|/) { pending = $0 }
+            }
+        ' "$1"
+    }
+    TEMPLATE_STRUCT=$(mktemp)
+    LIVE_STRUCT=$(mktemp)
+    structure_of "$TEMPLATE" > "$TEMPLATE_STRUCT"
+    structure_of "$LIVE" > "$LIVE_STRUCT"
+    if diff -q "$TEMPLATE_STRUCT" "$LIVE_STRUCT" >/dev/null 2>&1; then
+        echo "[OK]   docs/development/tech-debt.md follows templates/tech-debt.md (headings + table columns)"
+    else
+        echo "[ERROR] ledger structure drifted from templates/tech-debt.md:"
+        diff "$TEMPLATE_STRUCT" "$LIVE_STRUCT" | sed -n '1,20p' | sed 's/^/         /'
+        PROBLEMS=$((PROBLEMS + 1))
+    fi
+    rm -f "$TEMPLATE_STRUCT" "$LIVE_STRUCT"
 fi
 
 if [ ! -f "$LIVE" ]; then
@@ -288,6 +331,26 @@ if [ -n "$DANGLING" ]; then
     PROBLEMS=$((PROBLEMS + 1))
 else
     echo "[OK]   every TD reference matches an inventory id"
+fi
+
+echo "== 7) Live ledger carries no template placeholders =="
+# E-114: the template is a template, so it keeps `[X items]`-style slots; the
+# live ledger has to replace every one of them with a real number. Before this
+# check the reporting half was never read by anything.
+PLACEHOLDER_RE='\[(X|Y|Z|W|V) [^]]*\]|\[(TBD|PLACEHOLDER)[^]]*\]|\[YYYY-MM-DD\]|\[20% or [^]]*\]'
+LEFTOVERS=$(grep -nE "$PLACEHOLDER_RE" "$LIVE" 2>/dev/null || true)
+if [ -z "$LEFTOVERS" ]; then
+    echo "[OK]   no template placeholders in the live ledger"
+else
+    echo "[ERROR] live ledger still carries template placeholders:"
+    printf '%s\n' "$LEFTOVERS" | sed -n '1,10p' | sed 's/^/         /'
+    PROBLEMS=$((PROBLEMS + 1))
+fi
+if grep -qE "$PLACEHOLDER_RE" "$TEMPLATE" 2>/dev/null; then
+    echo "[OK]   templates/tech-debt.md keeps its placeholders"
+else
+    echo "[ERROR] templates/tech-debt.md carries no placeholder — it is a filled ledger, not a template"
+    PROBLEMS=$((PROBLEMS + 1))
 fi
 
 echo

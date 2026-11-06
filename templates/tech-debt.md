@@ -3,41 +3,15 @@
 > This file tracks technical debt accumulated in the project and the repayment plan.
 > A time-box should be reserved for technical debt in every sprint.
 
-**Last updated:** 2026-11-05 (QR-030 — TD-017 opened: the ledger's own metrics block)
+**Last updated:** [YYYY-MM-DD]
 
-> **2026-11-05 — QR-030 (S-014 review).** TD-017 opened: the metrics block below still
-> carried the template's placeholders and the trend table stopped at SP-003, while §1 of
-> `scripts/check-techdebt.sh` forces this file to stay byte-identical to
-> `templates/tech-debt.md` — so the "live ledger" and the shipped template could never
-> diverge. The metrics and the trend are filled from the inventory's own dates in this
-> change (every number below is derived, none invented: the paid table's Sprint column is
-> the source). The checker redesign that would let the template keep its placeholders —
-> §1 scoped to structure, a new placeholder check on the live ledger — is TD-017's
-> repayment and is not claimed here. Active debt: **1** (TD-017, P3).
-
-> **2026-08-26 — SkillOpt tech-debt integration completed.** With 12 commits (957e5c2..8f2eb93),
-> all debt in all 6 manifests was paid (TD-001/002/003/010/011/012), the SkillOpt `techdebt` task
-> category was added (6/6 benchmarks), `scripts/check-techdebt.sh` inventory checks mechanically in
-> 5 sections, baseline.json is in the repo (66/66), 151 tests PASS, 3/3 negtest. Active
-> debt: **0**. The next debt cycle will start with new P3 records.
-
-> **2026-09-28 — SP-001 retrospective.** Active debt: **1** (TD-015, P2 test debt). The blackboard integration
-> completion (S-054/S-055, E-054/E-055, QR-013) added no debt of its own; TD-015 was recorded because the two
-> scope-coverage guard tests read the live working tree and therefore report environmental failures on any dirty
-> tree. Target sprint SP-003.
->
-> **2026-09-28 — SP-004 repayment (E-058).** TD-015 paid: the scope-coverage family now runs against a fixture git
-> repo (7 tests de-live-treed), verified by 35 bench trials including the hermeticity pair — the mirror still
-> reports a planted probe in the live repo while `pytest -k scope` stays green. Active debt: **0**.
-> Deleted-instance-artifact note (SP-003 retro Action 4) re-checked 2026-10-03: `scripts/tests` is green
-> (0 failures) against the current tree, so the note no longer reproduces and no TD-016 was opened.
->
-> **2026-10-16 — E-053 (stale-context remediation) closure.** TD-016 paid: the dead declarations the
-> audit found (AlertKind members nobody wrote, `guard.cascade_warnings` declared and never returned,
-> `invalidate_verify_cache` called from nowhere, live surfaces citing the pruned canvas doc) are now
-> either bound to a producer/consumer or gone, and each closure is pinned by the checks that would
-> have caught it (bench_consistency alert-taxonomy rule, `{metodoloji-root}/scripts/check-handoff.py --freshness-only` = §6h,
-> negtest stage 10). Active debt: **0**.
+> **How to use this template.** Copy it to `docs/development/tech-debt.md` on the first
+> install and fill every bracketed slot with a real value. The bracketed grammar
+> (`[X items]`, `[YYYY-MM-DD]`, `[Description]`, …) belongs to this template only: the live
+> ledger must not keep a single one, and `scripts/check-techdebt.sh` §7 fails it if it does.
+> The checker also compares this file's **shape** with the live ledger's — heading sequence
+> and every table's header row — so keep the headings and columns exactly as they are while
+> you rewrite the rows and the prose.
 
 ---
 
@@ -65,7 +39,7 @@
 
 | ID | Description | Why Added | Date Added | Impact | Owner | Target Sprint |
 |----|-------|---------------|---------------|------|--------|--------------|
-| TD-017 | The ledger cannot testify for itself: the metrics block below still carried the template's placeholders and the trend table stopped at SP-003. §1 of `scripts/check-techdebt.sh` forces `templates/tech-debt.md` to be byte-identical to this file, so a shipped template (which must keep placeholders) and a live ledger (which must not) can never diverge — the check makes the two files agree instead of making the live one correct | Found in QR-030 while reviewing S-014: the file that records every other debt had no check on its own reporting half | 2026-11-05 | The inventory half (IDs, P0 limit, collisions, orphan TODOs) is mechanically checked; the reporting half is not, so a stale ledger still prints HEALTHY | @yunusgungor | SP-016 |
+| TD-XXX | [Description] | [Why added] | [YYYY-MM-DD] | [Impact] | [@owner] | [Target sprint] |
 
 ---
 
@@ -73,16 +47,7 @@
 
 | ID | Description | Solution | Completion Date | Sprint | PR/QR |
 |----|-------|-------|-------------------|--------|-------|
-| TD-001 | `test_marketplace_json_content` (bmad-module-builder) marked as broken test — still listed as P0 in the manifest | Verified with pytest on 2026-08-26: 9/9 test_scaffold_standalone_module + 7/7 test_scaffold_setup_skill + 21/21 test_validate_module (total 37/37) PASS. Scaffold produces `marketplace_name = f"bmad-{args.module_code}"`, test expects `bmad-exc` — compatible. Debt record was old (2026-08-19) and scaffold had been working correctly since the initial commit; the record was incorrectly updated | 2026-08-26 | — | 1fcc9fd |
-| TD-003 | Test suites of other installed skills (except bmad-workflow-builder) had never been run | Verified with pytest on 2026-08-26 — 9 test files, **114/114 PASS**: bmad-architecture (28) + bmad-brainstorming (27) + bmad-customize (13) + bmad-eval-runner (4+11=15) + bmad-forge-idea (16) + bmad-workflow-builder (2+7+6=15). All active skill tests deterministic and green | 2026-08-26 | — | 1fcc9fd |
-| TD-002 | Monitor false-positive: `tech-debt.md` template placeholders were mistaken for real debt (`sprint-status.sh`/`tech-debt-monitor.sh` showed "4 active debts, P0:1") | `scripts/check-techdebt.sh` 5 sections: (1) template/live identity, (2) active ID unique + sequential, (3) P0 hard limit (<=5), (4) no active/paid overlap, (5) orphan TODO; 3-stage `--negtest`; integrated as `check-plugin.sh §6b` | 2026-08-26 | — | 1de54b1 |
-| TD-010 | Windows UTF-8 corruption in all Python scripts (cp1254) | Added `encoding="utf-8", errors="replace"` to `subprocess.run(..., text=True)` calls (14 files, 19 calls) | 2026-08-19 | — | — |
-| TD-011 | `check-methodology.sh` §2b bridge check false-positive (KÖPRÜ merge seemed "absent") | Added `encoding="utf-8"` to §2b subprocess; `STATUS: HEALTHY` | 2026-08-19 | — | — |
-| TD-012 | SkillOpt API key hard-coded in source (`sk-*` setdefault fallbacks) — security debt + breaking deterministic training | 4 steps: (1) `.env.example` template + `.gitignore` `.env` protection, (2) removed setdefault fallbacks in `optimization/train.py` + `cli.py` + `envs/bmad/adapter.py`, (3) `train._require_llm_env()` errors on missing env in non-`--benchmark` paths, (4) added `check-plugin.sh §6a` 4 sub-checks + 3-stage `--negtest` | 2026-08-26 | — | cf679ea |
-| TD-013 | Tighten gates to hard (`code_guard`/`quality_gate`/`deploy_guard` in `custom/config.toml [hooks]`) | Flipped all three to `"hard"` (`stop_guard` stays `"soft"`); evidence E-014 40/40 + E-015 36/36 + E-016 44/44 + E-017 54/54 + E-018 59/59 and 4 live rehearsals (code DENY, QR-less commit DENY, PR-less deploy DENY, own-commit ALLOW); `docs/CLAUDE.md` toml block synced; road here: S-006 (AC tables), S-007 (orphan), S-008 (status), S-009 (Check-2) | 2026-09-19 | SP-002 | QR-005 |
-| TD-014 | Split-brain in hand-off diagnostics (replay vs snapshot) | Hybrid fix: waiting + stale from the folded snapshot, consumed from the event replay, poster sender persisted into snapshot alerts; evidence E-019 36/36 (ghost/cap/deleted-log agreement, sender attribution, stale flags, robustness, delegation, history) + 795 suite incl. 2 migrated stale-path tests. Deepened 2026-10-03 (E-061): the hybrid's replay is gone — `consumed` now folds into the same board (persisted plane, v3 migration) so no rotated/lost log can stage a divergence; bench 35/35 board_single_source_validity | 2026-09-19 | SP-004 | QR-011 |
-| TD-015 | The scope-coverage guard tests read the *live* plugin working tree (`git -C <plugin-root> diff/ls-files` + its `docs/experiments/`), so any uncommitted edit read as a scope miss and the suite could not testify for a change made in the same session | Fixture repo: `_scope_repo()` builds a real git repo (baseline commit + deterministic edit set + an APPROVED record with a genuine token for a bench-local key) and every scope test points at it; 7 tests de-live-treed (4 planted probes in the real repo, 3 root reads). Evidence E-058 35/35 (20 mirror verdicts, 10 commit-time surfaces, 5 hermeticity incl. `pytest -k scope` green while an out-of-scope probe is planted in the live repo); the full engine suite is green on a dirty tree | 2026-09-28 | SP-004 | QR-016 |
-| TD-016 | Declared-but-unbound mechanisms (the F-06/F-07/F-09 class of E-053): `AlertKind` members with no writer, `guard.cascade_warnings` declared and never returned, `invalidate_verify_cache` never called from anywhere (the engine is cold-started per call, so a cross-call cache cannot exist), and live surfaces citing the pruned canvas doc as their design source | Bind or delete, each closure pinned by the check that would have caught it: lifecycle alert kinds are written through `AlertKind` and the taxonomy is derived by `bench_consistency.py`; `cascade_warnings` is returned and surfaced as a CASCADE INVALIDATION warning derived from `freshness.superseded_by`; `invalidate_verify_cache` and its version counter are deleted and the cache is documented as per-call with the mtime+size key as its own invalidation; dead doc references removed. Evidence E-053: `{metodoloji-root}/scripts/check-handoff.py --freshness-only` (= check-plugin §6h) 2 producers / 18 consumers / no raw-plane reader, §6h negtest stage 10 red-capable, dead-name grep empty | 2026-10-16 | SP-005 | QR-017 |
+| TD-XXX | [Description] | [Solution] | [YYYY-MM-DD] | [Sprint] | [PR/QR] |
 ---
 
 ## Technical Debt Categories
@@ -147,53 +112,31 @@
 ## Technical Debt Metrics
 
 ### Current State
-- **Total active debt:** 1 item
-  - P0 (Critical): 0 items
-  - P1 (High): 0 items
-  - P2 (Medium): 0 items
-  - P3 (Low): 1 item (TD-017)
-- **Estimated repayment time:** 1 sprint (TD-017's repayment is E-114, the checker redesign; target SP-016)
+- **Total active debt:** [X items]
+  - P0 (Critical): [X items]
+  - P1 (High): [X items]
+  - P2 (Medium): [X items]
+  - P3 (Low): [X items]
+- **Estimated repayment time:** [Y weeks]
 
 ### Sprint Allocation
-- **Technical debt time-box per sprint:** 20% of capacity (1 point in a 5-point sprint). SP-015 carries 0 debt points — TD-017 was opened during this sprint's review, not planned into it
-- **Debt paid in the last 3 sprints:** 0 items (SP-013, SP-014, SP-015)
-- **Debt added in the last 3 sprints:** 1 item (TD-017, SP-015)
-- **Net debt change:** 0 - 1 = -1 (negative = debt increasing: one item added, none paid)
+- **Technical debt time-box per sprint:** 20% of capacity ([X] point(s) in a [Y]-point sprint)
+- **Debt paid in the last 3 sprints:** [X items]
+- **Debt added in the last 3 sprints:** [X items]
+- **Net debt change:** [X - Y = Z] (negative = debt increasing)
 
 ### Trend
 ```
 Sprint              | New Debt | Paid Debt | Net Change | Total Debt
---------------------|----------|-----------|------------|-------------
-pre-SP-001 (08-26)  | 6        | 6         | 0          | 0
-SP-001 (10-14)      | 0        | 0         | 0          | 0
-SP-002              | 1        | 1         | 0          | 0
-SP-003              | 0        | 0         | 0          | 0
-SP-004              | 2        | 2         | 0          | 0
-SP-005 (10-16)      | 1        | 1         | 0          | 0
-SP-006              | 0        | 0         | 0          | 0
-SP-007              | 0        | 0         | 0          | 0
-SP-008              | 0        | 0         | 0          | 0
-SP-009              | 0        | 0         | 0          | 0
-SP-010              | 0        | 0         | 0          | 0
-SP-011              | 0        | 0         | 0          | 0
-SP-012              | 0        | 0         | 0          | 0
-SP-013              | 0        | 0         | 0          | 0
-SP-014              | 0        | 0         | 0          | 0
-SP-015 (11-05)      | 1        | 0         | +1         | 1
+--------------------|----------|-----------|------------|------------
+[SP-NNN]            | [X]      | [Y]       | [Z]        | [W]
 ```
 
 **How to read this table** (the derivation is part of the record, not left to the reader):
-- Rows are the `Sprint` column of **Paid Debts** above. `pre-SP-001` is the 2026-08-26 batch
-  (TD-001, TD-002, TD-003, TD-010, TD-011, TD-012), recorded and paid before the sprint records
-  began; the six ids are the ones the table actually carries, not TD-001 through TD-016.
-- `New Debt` counts debts whose Date Added falls in that sprint. A debt the ledger records only
-  by the sprint that paid it is counted as added in that sprint (it was recorded, targeted and
-  closed inside one sprint), so `Net Change` is 0 and the active total matches the dated notes
-  above: 0 after 2026-08-26, 0 after the SP-004 repayment, 0 after TD-016, 1 after TD-017.
-- `Total Debt` is the active count at the sprint's end. It is cumulative only where a debt
-  survives its sprint — SP-015 is the first row since the baseline where one does.
-- No number here is estimated: every row traces to a `Sprint`, `Completion Date` or dated note
-  in this file. TD-004 … TD-009 were never recorded, so their absence is not a gap in the table.
+- One row per sprint, oldest first. Every row traces to a `Sprint`, `Completion Date` or
+  dated note in this file — no number here is estimated.
+- `New Debt` counts debts whose Date Added falls in that sprint.
+- `Total Debt` is the active count at the sprint's end.
 
 ---
 

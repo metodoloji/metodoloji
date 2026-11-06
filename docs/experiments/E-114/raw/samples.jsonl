@@ -1,0 +1,7 @@
+{"check": "shape_only_passes", "ok": true, "detail": "exit=0"}
+{"check": "missing_section_fails", "ok": true, "detail": "exit=1, says structure=True"}
+{"check": "changed_table_column_fails", "ok": true, "detail": "exit=1, says structure=True"}
+{"check": "live_placeholder_fails", "ok": true, "detail": "exit=1, names placeholder=True"}
+{"check": "template_placeholder_allowed", "ok": true, "detail": "exit=0"}
+{"check": "template_without_placeholder_fails", "ok": true, "detail": "exit=1, names placeholder=True"}
+{"check": "live_history_is_not_drift", "ok": true, "detail": "exit=0"}

@@ -25,7 +25,12 @@ LIVE = PLUGIN / "docs" / "development" / "tech-debt.md"
 
 
 def _fixture(tmp_path: Path) -> Path:
-    """A minimal plugin tree with the real (identical) inventory pair + auditor."""
+    """A minimal plugin tree with the real inventory pair + auditor.
+
+    The pair is deliberately NOT identical since E-114: the template ships with
+    placeholders while the live ledger is filled, and only the structure is
+    shared.
+    """
     root = tmp_path / "plugin"
     (root / "scripts").mkdir(parents=True)
     (root / "templates").mkdir(parents=True)
@@ -94,3 +99,39 @@ def test_inventory_example_does_not_false_positive(tmp_path):
     r = _run(root)
     assert r.returncode == 0, r.stdout
     assert "TD-042" not in r.stdout
+
+
+def test_template_and_live_may_differ(tmp_path):
+    """E-114: §1 compares shape, not bytes — the pair is not a twin."""
+    root = _fixture(tmp_path)
+    live = root / "docs" / "development" / "tech-debt.md"
+    live.write_text(
+        live.read_text(encoding="utf-8").replace(
+            "# Technical Debt Tracking\n",
+            "# Technical Debt Tracking\n\nThis ledger is filled; the template is not.\n",
+            1),
+        encoding="utf-8")
+    r = _run(root)
+    assert r.returncode == 0, r.stdout
+    assert "follows templates/tech-debt.md" in r.stdout
+
+
+def test_live_placeholder_is_caught(tmp_path):
+    """E-114 §7: a template slot left in the live ledger means it was never read."""
+    root = _fixture(tmp_path)
+    live = root / "docs" / "development" / "tech-debt.md"
+    live.write_text(live.read_text(encoding="utf-8")
+                    + "\n- **Total active debt:** [X items]\n", encoding="utf-8")
+    r = _run(root)
+    assert r.returncode == 1, r.stdout
+    assert "placeholder" in r.stdout.lower()
+
+
+def test_template_without_placeholder_is_caught(tmp_path):
+    """E-114 §7: a template that lost its slots is a filled ledger, not a template."""
+    root = _fixture(tmp_path)
+    live = root / "docs" / "development" / "tech-debt.md"
+    shutil.copy(live, root / "templates" / "tech-debt.md")
+    r = _run(root)
+    assert r.returncode == 1, r.stdout
+    assert "not a template" in r.stdout

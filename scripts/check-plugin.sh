@@ -1520,7 +1520,12 @@ echo "== 6c) Template copy identity (templates/ ↔ docs/_template copies) =="
 # plugin repo itself dogfoods those docs copies (docs/development/…,
 # docs/experiments/…), so they must stay byte-identical to the canonical
 # templates/ files — updating a template in only one place is drift. tech-debt.md
-# is excluded here because check-techdebt §1 (run in §6b) already enforces it.
+# is excluded here on purpose: it is the one pair that must NOT be identical.
+# Templates/tech-debt.md ships placeholders for a new project; the plugin's own
+# docs/development/tech-debt.md is a filled ledger. check-techdebt.sh §1 compares
+# their structure (headings + table columns) and §7 refuses a template
+# placeholder in the live ledger (E-114), so byte identity would contradict the
+# contract instead of protecting it.
 # Pairs whose destination dir does not exist yet (docs/research/, docs/design/)
 # are skipped: those record families are not used inside the plugin itself.
 "$PY" - <<'PY'
@@ -1574,7 +1579,8 @@ for label, src, dst in PAIRS:
         problems.append("%s: DRIFT %s <> %s (update templates/ AND the docs copy together)"
                         % (label, src, dst))
 print("  template pairs checked: %d, skipped (dir absent): %d" % (checked, skipped))
-print("  coverage: tech-debt.md excluded here — enforced by check-techdebt.sh §1; "
+print("  coverage: tech-debt.md excluded here — check-techdebt.sh §1 compares its "
+      "structure and §7 keeps the live ledger placeholder-free (E-114); "
       "absent-dest-dir pairs skipped (record family unused in plugin)")
 for p in problems:
     print("  MISS: %s" % p)
