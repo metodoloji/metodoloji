@@ -244,7 +244,8 @@ def _shell() -> str:
             continue
         try:
             probe = subprocess.run([candidate, "-c", "echo bench-shell-ok"],
-                                   capture_output=True, text=True, timeout=15)
+                                   capture_output=True, text=True, timeout=15,
+                                   stdin=subprocess.DEVNULL)
         except OSError:
             continue
         if "bench-shell-ok" in (probe.stdout or ""):

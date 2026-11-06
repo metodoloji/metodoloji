@@ -317,11 +317,12 @@ def test_check6_reads_the_shipped_sprint_status():
         # SP-014 done: 11-1/11-2/11-3 (S-011/012/013) landed under
         # E-105/E-106/E-108 (all APPROVED) and are CLOSED by QR-027/028/029.
         # SP-015 done: 12-1-subscription-cap-observability (S-014) landed under
-        # E-113 (APPROVED) and is CLOSED by QR-030 — exactly fourteen stories
-        # are done.
+        # E-113 (APPROVED) and is CLOSED by QR-030.
+        # SP-016 done: 13-1-tech-debt-ledger-shape (S-015) landed under E-114
+        # (APPROVED) and is CLOSED by QR-031 — exactly fifteen stories are done.
         assert _count(text, "in-progress") == 0
         assert _count(text, "review") == 0
-        assert _count(text, "done") == 14
+        assert _count(text, "done") == 15
         return
     text = ("development_status:\n"
             "  epic-1: in-progress\n"
