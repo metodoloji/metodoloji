@@ -171,6 +171,71 @@ def test_build_surfaces_epic_lag_as_next_step(tmp_path):
     steps = " \n".join(digest["next_steps"])
     assert "roll the epic up to done" in steps
     assert "bmad-retrospective" in steps
+    # ...but never without saying which ledger it counted: no plan on disk here,
+    # and the advice has to admit that (see the plan-aware test below).
+    assert "no epic plan on disk" in steps
+
+
+def test_build_does_not_claim_completion_when_the_plan_has_unwritten_slices(tmp_path):
+    """The m-tesil EP-1 trap (2026-11-06).
+
+    A sprint-status file lists only the stories that already have a draft (its
+    own SCOPE NOTE says so) while epic status is computed over the full plan.
+    EP-1 had two listed stories done and three planned slices, two of them never
+    written — the digest said "every story done, roll the epic up", which would
+    have been a false claim. With the plan readable the digest must name it and
+    refuse the assertion.
+    """
+    _write_sprint(tmp_path,
+                  "development_status:\n"
+                  "  epic-1: in-progress\n"
+                  "  1-1-a: done\n"
+                  "  1-2-b: done\n")
+    plan = tmp_path / "docs" / "planning" / "epics.md"
+    plan.parent.mkdir(parents=True, exist_ok=True)
+    plan.write_text(
+        "## EP-1 — Denetim izi\n\n"
+        "### S-101 — Audit zinciri şeması\n\n"
+        "### S-102 — Zincir doğrulama\n\n"
+        "### S-103 — Denetim kaydı okuma yüzeyi\n",
+        encoding="utf-8")
+    steps = " \n".join(orient.build(tmp_path)["next_steps"])
+    assert "every story done" not in steps
+    assert "roll the epic up to done" not in steps
+    assert "plans 3 slices" in steps
+    assert "plan→record mapping" in steps
+    assert "epics.md" in steps
+
+
+def test_build_still_advises_roll_up_when_the_plan_agrees(tmp_path):
+    """A plan whose slice count does not exceed the board is still reported —
+    the digest asks for the mapping check, not for paralysis."""
+    _write_sprint(tmp_path,
+                  "development_status:\n"
+                  "  epic-5: in-progress\n"
+                  "  5-1-a: done\n"
+                  "  5-2-b: done\n")
+    plan = tmp_path / "docs" / "planning" / "epics.md"
+    plan.parent.mkdir(parents=True, exist_ok=True)
+    plan.write_text("## EP-5 — Kiracı izolasyonu\n\n### S-501 — a\n### S-502 — b\n",
+                    encoding="utf-8")
+    steps = " \n".join(orient.build(tmp_path)["next_steps"])
+    assert "plans 2 slices" in steps
+    assert "before rolling the epic up" in steps
+
+
+def test_build_ignores_a_plan_without_epic_sections(tmp_path):
+    """An unrecognised plan shape is 'unknown', never 'zero slices': the advice
+    falls back to naming the sprint file alone instead of inventing coverage."""
+    _write_sprint(tmp_path,
+                  "development_status:\n"
+                  "  epic-1: in-progress\n"
+                  "  1-1-a: done\n")
+    plan = tmp_path / "docs" / "planning" / "epics.md"
+    plan.parent.mkdir(parents=True, exist_ok=True)
+    plan.write_text("# Plan\n\nNo epic headings here.\n", encoding="utf-8")
+    steps = " \n".join(orient.build(tmp_path)["next_steps"])
+    assert "no epic plan on disk" in steps
 
 
 def test_build_surfaces_review_story_as_next_step(tmp_path):

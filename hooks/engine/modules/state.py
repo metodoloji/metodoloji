@@ -408,6 +408,66 @@ _EPIC_ENTRY_RE = re.compile(
 
 _STORY_STATUSES = ("backlog", "ready-for-dev", "in-progress", "review", "done")
 
+# The epic PLAN and the sprint file are two different ledgers, and only the
+# second one is a subset: a sprint-status file lists the stories that already
+# have a draft (the shipped template's SCOPE NOTE says exactly that) while epic
+# status is computed over the full plan. Counting membership alone therefore
+# cannot answer "is this epic finished?" — the digest told a project with three
+# planned-but-unwritten slices to "roll the epic up to done" because the two
+# stories it could see were done (m-tesil EP-1, 2026-11-06). Read the plan when
+# it is on disk so the advice can name what the sprint file cannot see.
+_PLAN_CANDIDATES = (
+    "docs/planning/epics.md",
+    "docs/planning/*epic*.md",
+    "bmad-output/planning-artifacts/epics.md",
+    "_bmad-output/planning-artifacts/epics.md",
+    "bmad-output/planning-artifacts/*epic*.md",
+)
+_EPIC_SECTION_RE = re.compile(r"^##\s+(?:EP|Epic)[\s\-]*(\d+)\b", re.MULTILINE)
+_PLAN_SLICE_RE = re.compile(r"^###\s+(S-\d+)\b", re.MULTILINE)
+
+
+def epic_plan_path(project_root: str | pathlib.Path,
+                   planning_dir: str | None = None) -> str | None:
+    """The readable epic plan document, canonical path first (None = absent)."""
+    root = pathlib.Path(project_root)
+    candidates = ([f"{planning_dir.rstrip('/')}/epics.md"] if planning_dir else [])
+    candidates.extend(_PLAN_CANDIDATES)
+    for rel in candidates:
+        for hit in sorted(root.glob(rel)):
+            if hit.is_file():
+                return str(hit)
+    return None
+
+
+def epic_plan_slices(project_root: str | pathlib.Path,
+                     planning_dir: str | None = None) -> dict:
+    """{epic_key: {"slices": n, "path": …}} — planned slice count per epic.
+
+    A slice is a ``### S-NNN`` heading under a ``## EP-N`` section. Only that
+    shape is counted: a plan written differently yields ``{}`` and the caller
+    must then say it could not check the plan rather than claim coverage.
+    Absence is "unknown", never "zero".
+    """
+    path = epic_plan_path(project_root, planning_dir)
+    if path is None:
+        return {}
+    try:
+        text = pathlib.Path(path).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return {}
+    sections = [(m.start(), int(m.group(1)))
+                for m in _EPIC_SECTION_RE.finditer(text)]
+    if not sections:
+        return {}
+    out: dict = {}
+    for idx, (pos, num) in enumerate(sections):
+        end = sections[idx + 1][0] if idx + 1 < len(sections) else len(text)
+        slices = _PLAN_SLICE_RE.findall(text[pos:end])
+        if slices:
+            out[f"epic-{num}"] = {"slices": len(slices), "path": path}
+    return out
+
 
 def sprint_status_path(project_root: str | pathlib.Path) -> str | None:
     """The canonical-first existing sprint-status.yaml path (None = absent)."""
@@ -438,6 +498,11 @@ def sprint_summary(project_root: str | pathlib.Path) -> dict:
     - ``counts``          — {status: n} over stories only
     - ``epic_progress``   — per epic: {done, total, started} (stories under its
       number; `started` = members past `backlog`)
+    - ``epic_plan``       — per epic: {slices, path} counted from the epic plan
+      document; ``{}`` when no plan is readable. Membership above is the subset
+      that has a story draft, so an epic is only finished when the plan agrees:
+      compare ``epic_progress[k]["total"]`` against ``epic_plan[k]["slices"]``
+      and resolve the plan→record mapping before claiming completion.
 
     Status vocabulary is the shipped template's (check-methodology.sh §6
     conventions); unknown statuses are kept verbatim, never invented.
@@ -494,7 +559,11 @@ def sprint_summary(project_root: str | pathlib.Path) -> dict:
         }
 
     return {"found": True, "path": path, "stories": stories, "epics": epics,
-            "counts": counts, "epic_progress": epic_progress}
+            "counts": counts, "epic_progress": epic_progress,
+            # The plan is the authority on whether an epic is finished; the
+            # sprint file only knows the slices that have a draft. Empty dict
+            # means "no readable plan" — callers must say that, not assume 0.
+            "epic_plan": epic_plan_slices(root)}
 
 
 def format_sprint_line(summary: dict) -> str:
@@ -510,6 +579,7 @@ def format_sprint_line(summary: dict) -> str:
     epics = summary.get("epics") or {}
     counts = summary.get("counts") or {}
     epic_progress = summary.get("epic_progress") or {}
+    epic_plan = summary.get("epic_plan") or {}
 
     parts: list[str] = []
     # Order the vocabulary so the important states lead.
@@ -534,8 +604,17 @@ def format_sprint_line(summary: dict) -> str:
         # Show the epic only on disagreement: claimed in-progress with all
         # member stories done (completion lag), or done with gaps.
         if prog["total"] and status == "in-progress" and prog["done"] == prog["total"]:
-            parts.append(f"⚠ {epic_key}: stories all done — epic still "
-                         f"in-progress, roll up to done + run the retro")
+            planned = (epic_plan.get(epic_key) or {}).get("slices")
+            if planned:
+                # The sprint file lists only drafted stories; the plan is the
+                # authority. Never say "all done" while the plan has slices the
+                # board cannot account for.
+                parts.append(f"⚠ {epic_key}: {prog['done']}/{prog['total']} listed "
+                             f"done, plan has {planned} slices — verify mapping "
+                             f"before roll-up")
+            else:
+                parts.append(f"⚠ {epic_key}: stories all done — epic still "
+                             f"in-progress, roll up to done + run the retro")
         elif prog["total"] and status == "done" and prog["done"] < prog["total"]:
             parts.append(f"⚠ {epic_key}: marked done but "
                          f"{prog['total'] - prog['done']} story/stories not done")

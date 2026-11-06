@@ -122,6 +122,74 @@ def test_sprint_summary_comment_legend_lines_are_not_entries(tmp_path):
     assert "in-progress" not in s["counts"]
 
 
+# --- epic plan (the ledger the sprint file is a subset of) ---------------------
+#
+# A sprint-status file lists only the stories that already have a draft; epic
+# status is computed over the full plan. Counting membership alone made the
+# digest tell a project with three planned, unwritten slices to roll an epic up
+# to done (m-tesil EP-1, 2026-11-06). These tests pin the plan reader that
+# lets the advice name what the sprint file cannot see.
+
+def _write_plan(tmp_path, body):
+    d = tmp_path / "docs" / "planning"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "epics.md").write_text(body, encoding="utf-8")
+    return d / "epics.md"
+
+
+def test_epic_plan_slices_counts_only_headings_inside_their_epic(tmp_path):
+    _write_plan(tmp_path,
+                "## EP-1 — Denetim izi\n\n"
+                "### S-101 — a\n\n### S-102 — b\n\n"
+                "## EP-5 — Kiracı izolasyonu\n\n"
+                "### S-501 — c\n")
+    plan = state.epic_plan_slices(tmp_path)
+    assert plan["epic-1"]["slices"] == 2
+    assert plan["epic-5"]["slices"] == 1
+    assert plan["epic-1"]["path"].endswith("epics.md")
+
+
+def test_epic_plan_slices_is_unknown_not_zero(tmp_path):
+    # Absence must never read as "the plan has no slices" — that would let the
+    # caller claim completion it never checked.
+    assert state.epic_plan_slices(tmp_path) == {}
+    _write_plan(tmp_path, "# Plan\n\nNo epic headings.\n")
+    assert state.epic_plan_slices(tmp_path) == {}
+
+
+def test_sprint_summary_carries_the_plan_alongside_membership(tmp_path):
+    _write_sprint(tmp_path,
+                  "development_status:\n"
+                  "  epic-1: in-progress\n"
+                  "  1-1-a: done\n")
+    _write_plan(tmp_path, "## EP-1 — x\n\n### S-101 — a\n### S-102 — b\n### S-103 — c\n")
+    s = state.sprint_summary(tmp_path)
+    # The subset says 1/1; the plan says three slices were promised.
+    assert s["epic_progress"]["epic-1"]["total"] == 1
+    assert s["epic_plan"]["epic-1"]["slices"] == 3
+
+
+def test_sprint_line_asks_for_the_mapping_instead_of_claiming_completion(tmp_path):
+    _write_sprint(tmp_path,
+                  "development_status:\n"
+                  "  epic-1: in-progress\n"
+                  "  1-1-a: done\n")
+    _write_plan(tmp_path, "## EP-1 — x\n\n### S-101 — a\n### S-102 — b\n")
+    line = state.format_sprint_line(state.sprint_summary(tmp_path))
+    assert "stories all done" not in line
+    assert "plan has 2 slices" in line
+    assert "verify mapping" in line
+
+
+def test_sprint_line_keeps_the_plain_roll_up_when_no_plan_exists(tmp_path):
+    _write_sprint(tmp_path,
+                  "development_status:\n"
+                  "  epic-1: in-progress\n"
+                  "  1-1-a: done\n")
+    line = state.format_sprint_line(state.sprint_summary(tmp_path))
+    assert "stories all done" in line and "roll up" in line
+
+
 def test_sprint_summary_epic_lag_flags_are_in_the_line(tmp_path):
     # The mailjs shape: epic claimed in-progress while every story is done.
     _write_sprint(tmp_path,
