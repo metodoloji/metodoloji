@@ -734,10 +734,27 @@ def build(project_root: pathlib.Path) -> dict:
                 f"before opening anything new")
         for epic_key, prog in sorted((sprint.get("epic_progress") or {}).items()):
             epic_status = (sprint.get("epics") or {}).get(epic_key, "")
+            plan_entry = (sprint.get("epic_plan") or {}).get(epic_key) or {}
+            planned = plan_entry.get("slices")
             if prog["total"] and epic_status == "in-progress" and prog["done"] == prog["total"]:
-                next_steps.append(
-                    f"{epic_key}: every story done — roll the epic up to done "
-                    f"in sprint-status and run bmad-retrospective")
+                if planned:
+                    # "Every story done" was measured over the sprint file's
+                    # membership, which lists only stories that already have a
+                    # draft. Three planned-but-unwritten slices hid behind two
+                    # done ones, and the digest advised a roll-up that would
+                    # have been a false claim. Name the plan instead of
+                    # asserting completion from the subset.
+                    next_steps.append(
+                        f"{epic_key}: all {prog['total']} stories listed in "
+                        f"sprint-status are done, but {plan_entry['path']} plans "
+                        f"{planned} slices — resolve the plan→record mapping "
+                        f"(does every slice have a record?) before rolling the "
+                        f"epic up; the sprint file only lists stories with a draft")
+                else:
+                    next_steps.append(
+                        f"{epic_key}: every story done — roll the epic up to done "
+                        f"in sprint-status and run bmad-retrospective "
+                        f"(no epic plan on disk — this counts the sprint file only)")
             elif prog["total"] and epic_status == "done" and prog["done"] < prog["total"]:
                 next_steps.append(
                     f"{epic_key}: marked done but {prog['total'] - prog['done']} "
