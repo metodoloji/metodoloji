@@ -137,7 +137,7 @@ development_status:
   12-1-subscription-cap-observability: done
   epic-13: done
   # S-015 — "Repay TD-017: the ledger's shape is shared, its content is not".
-  # E-114 APPROVED at techdebt_reporting 1.00 (7/7) with the pre-fix control at
+  # E-116 APPROVED at techdebt_reporting 1.00 (7/7) with the pre-fix control at
   # 0.00; §1 scoped to structure, §7 added, negtest grown to five stages, and the
   # shipped template rewritten as a generic ledger in 061e99b (v0.2.31). CLOSED
   # by QR-031, which moved TD-017 to Paid Debts.

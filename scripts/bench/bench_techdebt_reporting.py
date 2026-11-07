@@ -1,6 +1,6 @@
-"""Ledger reporting bench — E-114.
+"""Ledger reporting bench — E-116.
 
-docs/experiments/E-114.md (H-114: techdebt_reporting_accuracy >= 0.95).
+docs/experiments/E-116.md (H-116: techdebt_reporting_accuracy >= 0.95).
 
 TD-017: §1 of ``scripts/check-techdebt.sh`` demanded that the shipped template
 and the live ledger be byte-identical, so the template could not keep its
@@ -69,7 +69,7 @@ elif [ ! -f "$LIVE" ]; then
     echo "[ERROR] $LIVE not found"
     PROBLEMS=$((PROBLEMS + 1))
 else
-    # TD-017 / E-114: the template owns the SHAPE, the live ledger owns the
+    # TD-017 / E-116: the template owns the SHAPE, the live ledger owns the
     # CONTENT. Comparing bytes forced the shipped template to carry this repo's
     # debt history (or the live ledger to keep the template's placeholders), so
     # the audit could stay HEALTHY while the metrics block read `[X items]`.
@@ -104,7 +104,7 @@ fi
 """
 
 NEW_SECTION_7 = """echo "== 7) Live ledger carries no template placeholders =="
-# E-114: the template is a template, so it keeps `[X items]`-style slots; the
+# E-116: the template is a template, so it keeps `[X items]`-style slots; the
 # live ledger has to replace every one of them with a real number. Before this
 # check the reporting half was never read by anything.
 PLACEHOLDER_RE='\\[(X|Y|Z|W|V) [^]]*\\]|\\[(TBD|PLACEHOLDER)[^]]*\\]|\\[YYYY-MM-DD\\]|\\[20% or [^]]*\\]'

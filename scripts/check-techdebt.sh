@@ -161,7 +161,7 @@ finally:
         negtest_artifact.write_text(artifact_orig, encoding="utf-8")
 
 # Stage 5/5: Placeholder: append a template slot to the live ledger → does §7
-# catch it? (E-114: the live ledger owns the content, the template owns the
+# catch it? (E-116: the live ledger owns the content, the template owns the
 # shape; a `[X items]` left behind means the reporting half was never read.)
 print(f"[5/{total_stages}] does §7 catch a template placeholder injected into the live ledger")
 td.write_text(orig + "\n- **Total active debt:** [X items]\n", encoding="utf-8")
@@ -197,7 +197,7 @@ elif [ ! -f "$LIVE" ]; then
     echo "[ERROR] $LIVE not found"
     PROBLEMS=$((PROBLEMS + 1))
 else
-    # TD-017 / E-114: the template owns the SHAPE, the live ledger owns the
+    # TD-017 / E-116: the template owns the SHAPE, the live ledger owns the
     # CONTENT. Comparing bytes forced the shipped template to carry this repo's
     # debt history (or the live ledger to keep the template's placeholders), so
     # the audit could stay HEALTHY while the metrics block read `[X items]`.
@@ -334,7 +334,7 @@ else
 fi
 
 echo "== 7) Live ledger carries no template placeholders =="
-# E-114: the template is a template, so it keeps `[X items]`-style slots; the
+# E-116: the template is a template, so it keeps `[X items]`-style slots; the
 # live ledger has to replace every one of them with a real number. Before this
 # check the reporting half was never read by anything.
 PLACEHOLDER_RE='\[(X|Y|Z|W|V) [^]]*\]|\[(TBD|PLACEHOLDER)[^]]*\]|\[YYYY-MM-DD\]|\[20% or [^]]*\]'

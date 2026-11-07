@@ -1524,7 +1524,7 @@ echo "== 6c) Template copy identity (templates/ ↔ docs/_template copies) =="
 # Templates/tech-debt.md ships placeholders for a new project; the plugin's own
 # docs/development/tech-debt.md is a filled ledger. check-techdebt.sh §1 compares
 # their structure (headings + table columns) and §7 refuses a template
-# placeholder in the live ledger (E-114), so byte identity would contradict the
+# placeholder in the live ledger (E-116), so byte identity would contradict the
 # contract instead of protecting it.
 # Pairs whose destination dir does not exist yet (docs/research/, docs/design/)
 # are skipped: those record families are not used inside the plugin itself.
@@ -1580,7 +1580,7 @@ for label, src, dst in PAIRS:
                         % (label, src, dst))
 print("  template pairs checked: %d, skipped (dir absent): %d" % (checked, skipped))
 print("  coverage: tech-debt.md excluded here — check-techdebt.sh §1 compares its "
-      "structure and §7 keeps the live ledger placeholder-free (E-114); "
+      "structure and §7 keeps the live ledger placeholder-free (E-116); "
       "absent-dest-dir pairs skipped (record family unused in plugin)")
 for p in problems:
     print("  MISS: %s" % p)

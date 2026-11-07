@@ -5,13 +5,13 @@
 
 **Last updated:** 2026-11-06 (QR-031 — TD-017 paid: the ledger's shape is shared, its content is not)
 
-> **2026-11-06 — QR-031 (S-015 review, SP-016).** TD-017 paid by E-114. §1 of
+> **2026-11-06 — QR-031 (S-015 review, SP-016).** TD-017 paid by E-116. §1 of
 > `scripts/check-techdebt.sh` now compares the **shape** (heading sequence + every table's
 > header row) instead of the bytes, and a new §7 refuses a template placeholder in this
 > ledger while requiring `templates/tech-debt.md` to keep at least one. The shipped template
 > is now a generic placeholder ledger — it no longer ships this repository's history — and
 > the checker's negative test grew a fifth stage that injects a placeholder here and expects
-> a red verdict. Evidence: E-114 APPROVED+VERIFIED, techdebt_reporting 1.00 (7/7) against a
+> a red verdict. Evidence: E-116 APPROVED+VERIFIED, techdebt_reporting 1.00 (7/7) against a
 > 0.00 pre-fix control; `check-techdebt.sh` HEALTHY; 8 pytest guards; negtest 5/5.
 > Active debt: **0**.
 
@@ -93,7 +93,7 @@
 | TD-014 | Split-brain in hand-off diagnostics (replay vs snapshot) | Hybrid fix: waiting + stale from the folded snapshot, consumed from the event replay, poster sender persisted into snapshot alerts; evidence E-019 36/36 (ghost/cap/deleted-log agreement, sender attribution, stale flags, robustness, delegation, history) + 795 suite incl. 2 migrated stale-path tests. Deepened 2026-10-03 (E-061): the hybrid's replay is gone — `consumed` now folds into the same board (persisted plane, v3 migration) so no rotated/lost log can stage a divergence; bench 35/35 board_single_source_validity | 2026-09-19 | SP-004 | QR-011 |
 | TD-015 | The scope-coverage guard tests read the *live* plugin working tree (`git -C <plugin-root> diff/ls-files` + its `docs/experiments/`), so any uncommitted edit read as a scope miss and the suite could not testify for a change made in the same session | Fixture repo: `_scope_repo()` builds a real git repo (baseline commit + deterministic edit set + an APPROVED record with a genuine token for a bench-local key) and every scope test points at it; 7 tests de-live-treed (4 planted probes in the real repo, 3 root reads). Evidence E-058 35/35 (20 mirror verdicts, 10 commit-time surfaces, 5 hermeticity incl. `pytest -k scope` green while an out-of-scope probe is planted in the live repo); the full engine suite is green on a dirty tree | 2026-09-28 | SP-004 | QR-016 |
 | TD-016 | Declared-but-unbound mechanisms (the F-06/F-07/F-09 class of E-053): `AlertKind` members with no writer, `guard.cascade_warnings` declared and never returned, `invalidate_verify_cache` never called from anywhere (the engine is cold-started per call, so a cross-call cache cannot exist), and live surfaces citing the pruned canvas doc as their design source | Bind or delete, each closure pinned by the check that would have caught it: lifecycle alert kinds are written through `AlertKind` and the taxonomy is derived by `bench_consistency.py`; `cascade_warnings` is returned and surfaced as a CASCADE INVALIDATION warning derived from `freshness.superseded_by`; `invalidate_verify_cache` and its version counter are deleted and the cache is documented as per-call with the mtime+size key as its own invalidation; dead doc references removed. Evidence E-053: `{metodoloji-root}/scripts/check-handoff.py --freshness-only` (= check-plugin §6h) 2 producers / 18 consumers / no raw-plane reader, §6h negtest stage 10 red-capable, dead-name grep empty | 2026-10-16 | SP-005 | QR-017 |
-| TD-017 | The ledger could not testify for itself: its metrics block still carried the shipped template's placeholders and its trend table stopped at SP-003, while §1 of `scripts/check-techdebt.sh` forced the live ledger to stay byte-identical to `templates/tech-debt.md` — so a template (which must keep placeholders) and a live ledger (which must not) could never diverge | Split the pair's one invariant into the two it actually has: §1 now compares structure (heading sequence + every table's header row), and a new §7 refuses a template placeholder in the live ledger while requiring the shipped template to keep at least one. The shipped template is rewritten as a generic placeholder ledger, the negative test grows a fifth stage, and `scripts/tests/test_check_techdebt.py` pins the new contract. Evidence E-114: techdebt_reporting 1.00 (7/7) with the pre-fix control at 0.00; `check-techdebt.sh` HEALTHY; negtest 5/5; 8 pytest guards | 2026-11-06 | SP-016 | QR-031 |
+| TD-017 | The ledger could not testify for itself: its metrics block still carried the shipped template's placeholders and its trend table stopped at SP-003, while §1 of `scripts/check-techdebt.sh` forced the live ledger to stay byte-identical to `templates/tech-debt.md` — so a template (which must keep placeholders) and a live ledger (which must not) could never diverge | Split the pair's one invariant into the two it actually has: §1 now compares structure (heading sequence + every table's header row), and a new §7 refuses a template placeholder in the live ledger while requiring the shipped template to keep at least one. The shipped template is rewritten as a generic placeholder ledger, the negative test grows a fifth stage, and `scripts/tests/test_check_techdebt.py` pins the new contract. Evidence E-116: techdebt_reporting 1.00 (7/7) with the pre-fix control at 0.00; `check-techdebt.sh` HEALTHY; negtest 5/5; 8 pytest guards | 2026-11-06 | SP-016 | QR-031 |
 ---
 
 ## Technical Debt Categories
@@ -163,7 +163,7 @@
   - P1 (High): 0 items
   - P2 (Medium): 0 items
   - P3 (Low): 0 items
-- **Estimated repayment time:** n/a — no active debt (TD-017 was repaid by E-114 in SP-016)
+- **Estimated repayment time:** n/a — no active debt (TD-017 was repaid by E-116 in SP-016)
 
 ### Sprint Allocation
 - **Technical debt time-box per sprint:** 20% of capacity (1 point in a 5-point sprint). SP-016 carries 2 debt points — the sprint's entire load is TD-017's repayment
