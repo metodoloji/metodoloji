@@ -5,6 +5,11 @@ from __future__ import annotations
 # --- doctor (one-glance diagnostic) ---------------------------------------------------
 _DOCTOR_CAP_WARN_PCT = 90  # warn when a plane is this close to its cap
 
+# E-117: the drift check normalizes the time-based handoff TTL before comparing
+# the snapshot with the replayed log. The marker lets the census bench prove it
+# is measuring the shipped comparator (and keeps the pre-fix control separate).
+_DRIFT_TTL_NORMALIZED = True
+
 def _doctor_age(ts: float) -> str:
     """Human age of a timestamp ('2s', '5m', '3h', '6d')."""
     from . import blackboard as _board_api
@@ -26,14 +31,26 @@ def _doctor_drift(paths: dict, board: dict) -> dict:
     from . import blackboard as _board_api
     _replay_events = _board_api._replay_events
     replay = _replay_events(paths)
+    # E-117: the fold prunes handoff signals past their 24-hour TTL on every
+    # replay, while the snapshot is only pruned on the next mutation (reads stay
+    # side-effect free). Apply the SAME time rule to both representations here,
+    # so an idle board's expired signal — not a divergence — cannot read as
+    # DRIFTED. Only the TTL is normalized; every other difference still fails.
+    now = _board_api.time.time()
+    ttl = _board_api.HANDOFF_SIGNAL_TTL_SECONDS
 
     def norm(b: dict) -> dict:
         keys = {k: v for k, v in b["keys"].items() if v.get("type") != "tool"}
+        alerts = [
+            a for a in b.get("alerts", [])
+            if not (a.get("kind") == "handoff"
+                    and now - float(a.get("ts", 0.0) or 0.0) > ttl)
+        ]
         return {"keys": keys, "tags": b["tags"], "canvases": b["canvases"],
                 "consumed": b.get("consumed", {}),
                 "open_handoffs": b.get("open_handoffs", {}),
                 "links": b["links"], "subscriptions": b["subscriptions"],
-                "alerts": b["alerts"], "hot": b["hot"],
+                "alerts": alerts, "hot": b["hot"],
                 "hot_canvas": b["hot_canvas"]}
 
     in_sync = norm(replay) == norm(board)

@@ -1,0 +1,12 @@
+{"check": "empty_board_in_sync", "expected": true, "actual": true, "ok": true, "detail": "no snapshot, no log \u2014 both representations are empty"}
+{"check": "fresh_handoff_in_sync", "expected": true, "actual": true, "ok": true, "detail": "a fresh handoff is present in both representations"}
+{"check": "stale_handoff_is_not_drift", "expected": true, "actual": true, "ok": true, "detail": "the replay pruned the expired signal; the snapshot still carries it"}
+{"check": "stale_handoff_plus_shared_key_is_not_drift", "expected": true, "actual": true, "ok": true, "detail": "an expired signal beside a key both representations carry"}
+{"check": "stale_handoff_plus_snapshot_key_is_drift", "expected": false, "actual": false, "ok": true, "detail": "a snapshot-only key survives TTL normalization and must still be drift"}
+{"check": "stale_handoff_plus_snapshot_alert_is_drift", "expected": false, "actual": false, "ok": true, "detail": "a snapshot-only fresh alert must still be drift"}
+{"check": "fresh_handoff_plus_snapshot_key_is_drift", "expected": false, "actual": false, "ok": true, "detail": "a fresh handoff does not excuse a snapshot-only key"}
+{"check": "snapshot_stale_session_alert_is_drift", "expected": false, "actual": false, "ok": true, "detail": "the TTL governs handoffs only; an old session alert is still divergence"}
+{"check": "snapshot_only_link_is_drift", "expected": false, "actual": false, "ok": true, "detail": "a snapshot-only graph edge is divergence"}
+{"check": "fresh_handoff_missing_from_snapshot_is_drift", "expected": false, "actual": false, "ok": true, "detail": "a fresh signal absent from the snapshot is divergence"}
+{"check": "retired_stale_handoff_is_not_drift", "expected": true, "actual": true, "ok": true, "detail": "retirement leaves the expired alert in the snapshot; both TTL-prune it"}
+{"check": "stale_handoff_plus_replay_key_is_drift", "expected": false, "actual": false, "ok": true, "detail": "a replay-only key is divergence even beside an expired signal"}

@@ -22,6 +22,7 @@
 # Methodology record: docs/development/SP-014.md
 # Methodology record: docs/development/SP-015.md
 # Methodology record: docs/development/SP-016.md
+# Methodology record: docs/development/SP-017.md
 #
 # project: metodoloji
 # tracking_system: file-system
@@ -33,7 +34,7 @@
 # Epic:  backlog | in-progress | done
 
 generated: 2026-10-15
-last_updated: 2026-11-06
+last_updated: 2026-11-09
 project: metodoloji
 project_key: METODOLOJI
 tracking_system: file-system
@@ -142,3 +143,11 @@ development_status:
   # shipped template rewritten as a generic ledger in 061e99b (v0.2.31). CLOSED
   # by QR-031, which moved TD-017 to Paid Debts.
   13-1-tech-debt-ledger-shape: done
+  epic-14: done
+  # S-016 — "Make the drift diagnostic distinguish divergence from expiry".
+  # E-117 APPROVED at board_drift_classification 1.00 (12/12) with the pre-fix
+  # control at 0.75 (9/12); `_doctor_drift` now applies the same 24-hour handoff
+  # TTL to the snapshot and the replay before comparing them, so an idle board
+  # reads in sync while a snapshot-only key/alert/link still reads as drift.
+  # CLOSED by QR-032.
+  14-1-board-drift-ttl: done

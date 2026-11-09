@@ -12,6 +12,7 @@ import os
 import pathlib
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 import pytest
@@ -2466,6 +2467,48 @@ def test_doctor_healthy_on_lived_in_board(root):
     assert d["checks"]["focus"]["hot"] == "prd.acme"
     assert d["checks"]["focus"]["hot_canvas"] == "m"
     assert d["checks"]["drift"]["in_sync"] is True
+
+
+def test_doctor_drift_treats_an_expired_handoff_as_time_not_divergence(root):
+    """E-117: an idle board's expired handoff is pruned by the replay but not
+    by the snapshot; the doctor must apply the same TTL before calling drift."""
+    bb.post_alert(root, "handoff.bmad-ux", "handoff", "E-999: signal")
+    paths = bb.board_paths(root)
+    old = time.time() - (bb.HANDOFF_SIGNAL_TTL_SECONDS + 3600)
+    snap_path = pathlib.Path(paths["snapshot"])
+    snap = json.loads(snap_path.read_text(encoding="utf-8"))
+    for alert in snap["alerts"]:
+        if alert.get("kind") == "handoff":
+            alert["ts"] = old
+    for entries in snap.get("open_handoffs", {}).values():
+        for entry in entries:
+            if isinstance(entry, list) and len(entry) > 1:
+                entry[-1] = old
+    snap_path.write_text(json.dumps(snap), encoding="utf-8")
+    event_path = pathlib.Path(paths["events"])
+    lines = []
+    for line in event_path.read_text(encoding="utf-8").splitlines():
+        ev = json.loads(line)
+        if ev.get("event") == "alert" and ev.get("kind") == "handoff":
+            ev["ts"] = old
+        lines.append(json.dumps(ev))
+    event_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    assert bb.doctor(root)["checks"]["drift"]["in_sync"] is True
+
+
+def test_doctor_drift_still_reports_a_true_snapshot_divergence(root):
+    """E-117: TTL normalization must not turn the comparator into a blanket
+    'in sync' — a snapshot-only key is still drift."""
+    bb.write_key(root, "shared", "v")
+    snap_path = pathlib.Path(bb.board_paths(root)["snapshot"])
+    snap = json.loads(snap_path.read_text(encoding="utf-8"))
+    snap["keys"]["snapshot.only"] = {
+        "value": "x", "type": "state", "updated": time.time(),
+    }
+    snap_path.write_text(json.dumps(snap), encoding="utf-8")
+
+    assert bb.doctor(root)["checks"]["drift"]["in_sync"] is False
 
 
 def test_doctor_warns_on_cap_pressure(root):
