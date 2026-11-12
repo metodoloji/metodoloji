@@ -108,7 +108,8 @@ def has_fix(path: str) -> bool:
 def prefix_gate_from_git(rev: str, dest: str) -> str:
     """Write the gate as it was at `rev` and return the path."""
     proc = subprocess.run(["git", "show", f"{rev}:{GATE_REL}"], cwd=PLUGIN_ROOT,
-                          capture_output=True, text=True, encoding="utf-8")
+                          capture_output=True, text=True, encoding="utf-8",
+                          stdin=subprocess.DEVNULL)
     if proc.returncode != 0:
         raise SystemExit(f"REFUSING: cannot read {GATE_REL} at {rev}: "
                          f"{proc.stderr.strip()[:200]}")
