@@ -1,0 +1,13 @@
+fix(bench): give each mode its own samples file, restore E-132's evidence
+
+The budget bench defaulted its samples path to E-132's directory for every mode. When the
+parity mode (E-135's claim) ran, it overwrote E-132's four budget samples with 131 parity
+rows, and E-132 stopped matching the sha256 it declares in its own Raw Sample Evidence
+line - a record whose evidence no longer supports its decision.
+
+- samples path is now per record, resolved at write time; BENCH_SAMPLES still overrides
+- E-132/raw/samples.jsonl restored byte for byte to the 136-byte, sha256 af19ab954337f67c
+  content the gate recorded (reconstructed from the bench's own deterministic output and
+  checked against the declared hash before writing)
+
+All four records pass `create-record.py --check` again.

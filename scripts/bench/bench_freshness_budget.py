@@ -37,8 +37,15 @@ import sys
 import time
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-RAW = ROOT / "docs" / "experiments" / "E-132" / "raw"
-SAMPLES = pathlib.Path(os.environ.get("BENCH_SAMPLES", str(RAW / "samples.jsonl")))
+#: Each mode belongs to a different record, so each writes its own evidence file. Sharing
+#: one default path let a later mode overwrite an earlier record samples: that happened
+#: once here - a parity run replaced the four budget samples with 131 parity ones, and the
+#: record stopped matching its own declared sha256. BENCH_SAMPLES still overrides.
+def _samples_path(record: str) -> pathlib.Path:
+    override = os.environ.get("BENCH_SAMPLES")
+    if override:
+        return pathlib.Path(override)
+    return ROOT / "docs" / "experiments" / record / "raw" / "samples.jsonl"
 
 ENGINE = ROOT / "hooks" / "engine" / "main.py"
 HOOKS_JSON = ROOT / "hooks" / "hooks.json"
@@ -182,8 +189,9 @@ def main() -> int:
         n = len(cells)
         rate = (len(disagree) / n) if n else 0.0
         if "--samples" in sys.argv and not wrong:
-            SAMPLES.parent.mkdir(parents=True, exist_ok=True)
-            with SAMPLES.open("w", encoding="utf-8") as fh:
+            samples = _samples_path("E-135")
+            samples.parent.mkdir(parents=True, exist_ok=True)
+            with samples.open("w", encoding="utf-8") as fh:
                 for label, same, _a, _b in cells:
                     # H-135 is a "<=" claim, so a sample records the DEFECT: ok is true
                     # only when the record disagreed. The gate checks the sample count
@@ -223,8 +231,9 @@ def main() -> int:
     rate = over / n if n else 0.0
 
     if "--samples" in sys.argv:
-        SAMPLES.parent.mkdir(parents=True, exist_ok=True)
-        with SAMPLES.open("w", encoding="utf-8") as fh:
+        samples = _samples_path("E-132")
+        samples.parent.mkdir(parents=True, exist_ok=True)
+        with samples.open("w", encoding="utf-8") as fh:
             for label, _blocked, _decision, _elapsed, _note in cells:
                 # H-132 claims every probe is over budget: one sample per cell so the
                 # sample count equals the printed numerator.
