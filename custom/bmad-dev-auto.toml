@@ -1,6 +1,6 @@
 # Team overrides for bmad-dev-auto — Research methodology (Mod A → Code: autonomous realization).
 # This workflow writes code directly (autonomous dev). It must load the manifesto and require a
-# verified experiment approval before implementing, exactly like bmad-agent-dev.
+# verified experiment approval before implementing, exactly like bmad-dev-story.
 # Without this, invoking /bmad-dev-auto directly would bypass the methodology gate.
 
 [workflow]

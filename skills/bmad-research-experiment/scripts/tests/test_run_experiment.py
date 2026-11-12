@@ -1100,6 +1100,109 @@ def test_rule7_a_failing_control_approves_and_records_the_proof(tmp_path):
     assert "**Falsifiability:** verified — control" in text
 
 
+# --- rule 7 for a COMPARISON claim: the control needs its own paired verdicts --
+#
+# A comparison claim ('a_rate > b_rate') has no numeric threshold, so the scalar
+# `evaluate()` path could not judge its control: it read the right-hand side as a
+# number and raised "threshold … is not a number", which switched rule 7 off on
+# exactly the records that adjudicate a design choice. These two cases pin the
+# repaired behaviour end to end through the CLI.
+
+
+def _comparison_control_fixture(tmp_path):
+    project = tmp_path / "proj"
+    (project / "docs" / "experiments").mkdir(parents=True)
+    bench = project / "scripts" / "bench"
+    bench.mkdir(parents=True)
+    (bench / "cprobe.py").write_text(
+        "import json, sys\n"
+        "args = sys.argv[1:]\n"
+        "def opt(name, default):\n"
+        "    return args[args.index(name) + 1] if name in args else default\n"
+        "n = int(opt('--n', '20'))\n"
+        "a = int(opt('--a-ok', '20'))\n"
+        "b = int(opt('--b-ok', '8'))\n"
+        "print('alpha_rate=%.4f (%d/%d)' % (a / n, a, n))\n"
+        "print('beta_rate=%.4f (%d/%d)' % (b / n, b, n))\n"
+        "if '--samples' in args:\n"
+        "    with open(opt('--samples', ''), 'w', encoding='utf-8') as fh:\n"
+        "        for i in range(n):\n"
+        "            fh.write(json.dumps({'case': i, 'a': i < a, 'b': i < b}) + '\\n')\n",
+        encoding="utf-8")
+    record = project / "docs" / "experiments" / "E-902.md"
+    record.write_text(
+        "## Experiment: E-902 — comparison control probe\n\n"
+        "- **Date:** 24.10.2026\n"
+        "- **Status:** planned\n"
+        "- **Theory:** a comparison has no threshold; its control needs paired verdicts.\n"
+        '- **Hypothesis:** H-902: "alpha_rate > beta_rate"\n'
+        "- **Measurement Metrics:** alpha_rate > beta_rate over paired cases\n"
+        "- **Experiment Design:** one deterministic probe, run intact and broken.\n"
+        "- **Code Scope:** none\n"
+        "- **Lineage:** none\n"
+        f"- **Raw Samples:** {project / 'samples.jsonl'}\n",
+        encoding="utf-8")
+    return project, record
+
+
+def _run_comparison_control_gate(project, record, control_args, extra=()):
+    env = dict(os.environ)
+    env.pop("CLAUDE_PROJECT_DIR", None)
+    env.pop("OPENHANDS_PROJECT_DIR", None)
+    probe = " ".join([shlex.quote(sys.executable), "scripts/bench/cprobe.py"])
+    run_cmd = " ".join([probe, "--a-ok", "20", "--b-ok", "8", "--n", "20",
+                        "--samples", str(project / "samples.jsonl")])
+    cmd = [sys.executable, str(SCRIPTS_DIR / "run_experiment.py"),
+           "--record", str(record), "--run", run_cmd,
+           "--control", " ".join([probe] + list(control_args)),
+           "--no-blackboard", *extra]
+    return subprocess.run(cmd, cwd=str(project), capture_output=True, text=True,
+                          encoding="utf-8", errors="replace", env=env,
+                          timeout=180, stdin=subprocess.DEVNULL)
+
+
+def test_rule7_comparison_control_that_also_wins_refuses_the_record(tmp_path):
+    """Broken arm clearing the same paired test mints nothing."""
+    project, record = _comparison_control_fixture(tmp_path)
+    ctl = project / "ctl.jsonl"
+    proc = _run_comparison_control_gate(
+        project, record,
+        ["--a-ok", "20", "--b-ok", "8", "--n", "20", "--samples", str(ctl)],
+        extra=("--control-samples", str(ctl)))
+    assert proc.returncode == 3, proc.stdout + proc.stderr
+    text = record.read_text(encoding="utf-8")
+    assert "**Decision:**" not in text
+    assert "**Falsifiability:** REFUSED" in text
+
+
+def test_rule7_comparison_control_without_separation_approves(tmp_path):
+    """A control that shows no separation fails the comparison, as rule 7 requires."""
+    project, record = _comparison_control_fixture(tmp_path)
+    ctl = project / "ctl.jsonl"
+    proc = _run_comparison_control_gate(
+        project, record,
+        ["--a-ok", "8", "--b-ok", "8", "--n", "20", "--samples", str(ctl)],
+        extra=("--control-samples", str(ctl)))
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    text = record.read_text(encoding="utf-8")
+    assert "**Decision:** APPROVED" in text
+    assert "**Falsifiability:** verified — control" in text
+
+
+def test_rule7_comparison_control_without_a_paired_file_names_the_flag(tmp_path):
+    """A missing paired file must name --control-samples, not 'not a number'."""
+    project, record = _comparison_control_fixture(tmp_path)
+    proc = _run_comparison_control_gate(
+        project, record, ["--a-ok", "8", "--b-ok", "8", "--n", "20"])
+    assert proc.returncode == 2, proc.stdout + proc.stderr
+    blob = proc.stdout + proc.stderr
+    assert "--control-samples" in blob
+    # The pre-fix failure is recognisable by its parse of the claim's right-hand
+    # side (`threshold in '...'`); assert on that phrase rather than on "is not a
+    # number", which the new message quotes when explaining the old behaviour.
+    assert "threshold in" not in blob
+
+
 # --- record kind / contract draft rules -------------------------------------
 
 def _contract_text(**overrides):

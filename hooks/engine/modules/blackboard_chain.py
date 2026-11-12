@@ -37,18 +37,6 @@ _KEY_PREFIX_TO_SKILL = [
     # ALT DEV BRANCH prefixes (alternative implementations of the dev stage)
     ("quickdev.", "bmad-quick-dev"),
     ("devauto.", "bmad-dev-auto"),
-    ("agentdev.", "bmad-agent-dev"),
-    # TESTING CHAIN prefixes (TEA toolbox + academy — specific prefixes first)
-    ("test.atdd.", "bmad-testarch-atdd"),
-    ("test.automate.", "bmad-testarch-automate"),
-    ("test.ci.", "bmad-testarch-ci"),
-    ("test.framework.", "bmad-testarch-framework"),
-    ("test.nfr.", "bmad-testarch-nfr"),
-    ("test.design.", "bmad-testarch-test-design"),
-    ("test.review.", "bmad-testarch-test-review"),
-    ("test.trace.", "bmad-testarch-trace"),
-    ("test.e2e.", "bmad-qa-generate-e2e-tests"),
-    ("teach.", "bmad-teach-me-testing"),
     ("prd.", "bmad-prd"),
     ("ux.", "bmad-ux"),
     ("architecture.", "bmad-architecture"),

@@ -386,27 +386,6 @@ SUB_CHAINS: dict[str, list[tuple[str, str]]] = {
     "alt_dev": [
         ("bmad-quick-dev", "bmad-code-review"),
         ("bmad-dev-auto", "bmad-code-review"),
-        # The dev persona implements too (its BRIDGE carries S→QR→PR), so it is
-        # the third branch converging on the same formal review gate.
-        ("bmad-agent-dev", "bmad-code-review"),
-    ],
-    # Testing — the TEA toolbox feeds the quality record's mechanical checks
-    # (every one of these skills is a registered QR feeder: it adds evidence to
-    # an existing QR, it never opens a record of its own), plus TEA Academy
-    # routing the learner into the workflow chain it teaches.
-    "testing": [
-        ("bmad-testarch-atdd", "bmad-quality-record"),
-        ("bmad-testarch-automate", "bmad-quality-record"),
-        ("bmad-testarch-ci", "bmad-quality-record"),
-        ("bmad-testarch-framework", "bmad-quality-record"),
-        ("bmad-testarch-nfr", "bmad-quality-record"),
-        ("bmad-testarch-test-design", "bmad-quality-record"),
-        ("bmad-testarch-test-review", "bmad-quality-record"),
-        ("bmad-testarch-trace", "bmad-quality-record"),
-        ("bmad-qa-generate-e2e-tests", "bmad-quality-record"),
-        # Academy close-out recommends "start with Framework setup": the
-        # learner lands in the chain it just studied.
-        ("bmad-teach-me-testing", "bmad-testarch-framework"),
     ],
     # Governance — the hops that CLOSE the methodology loop: a retrospective's
     # lessons become the next hypothesis, and a course correction lands on the

@@ -246,7 +246,6 @@ This methodology is compliant with the following components:
 | guard hook | ✅ Active | Mode A |
 | audit hook | ✅ Active | All modes |
 | stop hook | ✅ Active | Mode A |
-| bmad-agent-dev | ✅ Mode A | Code |
 | bmad-create-story | ✅ Mode C | Story creation |
 | bmad-dev-story | ✅ Mode A | Story realization |
 | bmad-code-review | ✅ Mode A | Change review |

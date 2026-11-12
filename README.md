@@ -1,10 +1,10 @@
 # metodoloji
 
-![version](https://img.shields.io/badge/version-0.2.51-0b7285?style=flat-square) ![license](https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square) ![python](https://img.shields.io/badge/python-3.11%2B-3776ab?style=flat-square) ![tests](https://img.shields.io/badge/tests-1%2C400%2B-4c1?style=flat-square) ![runtimes](https://img.shields.io/badge/runtimes-Claude%20Code%20%7C%20OpenHands%20%7C%20OpenCode%20%7C%20Hermes-555?style=flat-square)
+![version](https://img.shields.io/badge/version-0.2.52-0b7285?style=flat-square) ![license](https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square) ![python](https://img.shields.io/badge/python-3.11%2B-3776ab?style=flat-square) ![tests](https://img.shields.io/badge/tests-1%2C400%2B-4c1?style=flat-square) ![runtimes](https://img.shields.io/badge/runtimes-Claude%20Code%20%7C%20OpenHands%20%7C%20OpenCode%20%7C%20Hermes-555?style=flat-square)
 
 **A methodology plugin that applies approval gates to coding-agent actions through supported runtime hooks.**
 
-For **Claude Code**, **OpenHands**, **OpenCode**, and **Hermes**: a 6-stage record chain (`E → IR → SP → S → QR → PR`), hooks that gate writes/commits/deploys using approved records, declared structural scope, and configured policy, 71 skills, a blackboard that carries context across sessions, and a declared workflow engine. Compatible with the [BMad Method](https://github.com/bmad-code-org/BMAD-METHOD).
+For **Claude Code**, **OpenHands**, **OpenCode**, and **Hermes**: a 6-stage record chain (`E → IR → SP → S → QR → PR`), hooks that gate writes/commits/deploys using approved records, declared structural scope, and configured policy, 53 skills, a blackboard that carries context across sessions, and a declared workflow engine. Compatible with the [BMad Method](https://github.com/bmad-code-org/BMAD-METHOD).
 
 ---
 
@@ -30,7 +30,7 @@ For **Claude Code**, **OpenHands**, **OpenCode**, and **Hermes**: a 6-stage reco
 - **Experiments and contracts are different claims.** A stochastic claim is an `experiment`; a deterministic test over a closed input set is a `contract` that must prove 100% of its enumerated cases and is not dressed up with sampling statistics. `- **Record Kind:**` makes the choice explicit.
 - **A chain that unlocks itself.** `E → IR → SP → S → QR → PR`: research, readiness, sprint, story, quality, production readiness. Each link checks the one before it, on commit and on deploy.
 - **Rigor tiers, not one-size ceremony.** A story declares `- **Rigor Tier:** 1|2|3`. Tier 1 (trivial/doc/hotfix) needs QR + regression evidence; Tier 2 (feature/refactor) adds the story record, AC metadata and unit tests; Tier 3 (probabilistic/security/core/ML) keeps the full chain. The tier never relaxes the code guard or the QR requirement; absent or malformed values fall back to Tier 3.
-- **71 skills, 65 TOMLs, 17 BRIDGEs.** PRD, architecture, story, sprint, dev, code review, test/QA, retro and correction workflows for product projects — customized per skill in up to three TOML layers.
+- **53 skills, 48 TOMLs, 7 BRIDGEs.** PRD, architecture, story, sprint, dev, code review, test/QA, retro and correction workflows for product projects — customized per skill in up to three TOML layers.
 - **Context that survives sessions.** The blackboard (`write --hot`, run lists, handoffs, canvases) carries focus and pending batons between skills and across windows. Storage is SQLite by default (one WAL database, transactional read-modify-write); set `blackboard_backend = "json"` for the legacy snapshot + event-log files.
 - **One manifest, two shell runtimes.** A single `hooks/hooks.json` serves both Claude Code and OpenHands; hook commands self-locate the plugin, and the engine fails closed when it cannot run.
 - **Four runtimes, one decision engine.** OpenCode and Hermes join Claude Code and OpenHands through adapters that call the same Python hook engine. The decision logic is shared; tool coverage and interception points differ by runtime. See [`docs/runtime-security-coverage.md`](docs/runtime-security-coverage.md), [`docs/OPENCODE.md`](docs/OPENCODE.md), and [`HERMES.md`](HERMES.md).
@@ -212,8 +212,8 @@ CI runs two separate workflows. `.github/workflows/quality.yml` runs the Python 
 metodoloji/
 ├── hooks/engine/        # shared hook engine; gate policy and blackboard domains are split into modules
 ├── hooks/hooks.json     # generated dispatch manifest (sync-hooks-json.py --write)
-├── skills/              # 71 skills (native bodies)
-├── custom/              # 65 TOMLs (17 BRIDGE active) + config.toml (soft/hard)
+├── skills/              # 53 skills (native bodies)
+├── custom/              # 48 TOMLs (7 BRIDGE active) + config.toml (soft/hard)
 ├── bmad/                # module data (bmm, tea, core, bmb, loop) + scripts/
 ├── templates/           # _template_E/IR/SP/QR/PR/S/PM/BD/C/STRUCT + README/tech-debt/scratch-README/external-context-README/external-context
 ├── commands/            # /metodoloji:init, gate-setup, verify, audit (.md)

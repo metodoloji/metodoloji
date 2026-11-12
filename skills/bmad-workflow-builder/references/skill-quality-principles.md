@@ -101,6 +101,6 @@ Institutional names for patterns the LLM won't generate by default:
 - **Implicit-read trap** in a stage that precedes subagent delegation → Parent reads everything anyway. Fix: explicit "don't read these now".
 - **Boolean toggles in customize.toml** → Author didn't decide what the skill does; the surface becomes a permutation forest. Fix: pick a default and let users fork if they want the other shape.
 - **Hardcoded path in SKILL.md while customize.toml declares the scalar** → Override silently does nothing. Fix: SKILL.md must read `{workflow.<name>}`.
-- **Identity, communication style, or principles in `[workflow]`** → The workflow wants to be an agent. Fix: point the author at agent-builder and remove it from the workflow surface.
+- **Identity, communication style, or principles in `[workflow]`** → The workflow wants to be an agent. Fix: move those fields to an agent surface (a `customize.toml` carrying an `[agent]` block) and remove them from the workflow surface.
 - **Multi-turn producing skill with no working-state strategy** → state lives only in the conversation and dies on compaction or revisit. Fix: choose a structured working artifact (`references/working-state-patterns.md`).
 - **Working-state strategy buried under ceremony** → a state-discipline enumeration or a meta `## Workspace` section pays the pattern's cost without its value. Fix: thread it through the intents at the points that matter; `bmad-product-brief` is the model.

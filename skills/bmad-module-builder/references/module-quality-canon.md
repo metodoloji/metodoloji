@@ -41,7 +41,7 @@ A standalone module (single skill) MUST have:
 
 ## §3 Skill Quality Within a Module
 
-Each skill in the module must meet the bar defined in the agent-builder's and workflow-builder's quality canons. At minimum:
+Each skill in the module must meet the bar defined in the workflow-builder's quality canon. At minimum:
 
 ### §3.1 SKILL.md
 - **Lean** — every line earns its place against: "would a capable model do this without being told?"
@@ -103,7 +103,7 @@ A module must install cleanly:
 
 ## §7 The Leanness Test
 
-Apply the same test the agent-builder and workflow-builder use:
+Apply the same test the workflow-builder uses:
 
 > If a capable model would do this correctly without being told, the line is friction and stays out.
 

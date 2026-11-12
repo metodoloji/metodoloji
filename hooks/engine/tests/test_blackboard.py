@@ -1780,7 +1780,7 @@ def test_sub_chains_registry_declares_every_phase():
     """SUB_CHAINS is the single registry every diagnostic follows: each phase
     declares at least one hop, and no hop is a self-loop (a skill handing off
     to itself is a wiring bug, not a relay)."""
-    assert {"discovery", "alt_dev", "testing", "governance"} <= set(bb.SUB_CHAINS)
+    assert {"discovery", "alt_dev", "governance"} <= set(bb.SUB_CHAINS)
     for name, hops in bb.SUB_CHAINS.items():
         assert hops, f"{name} declares no hops"
         for sender, receiver in hops:
@@ -1832,19 +1832,6 @@ def test_sub_chain_signals_are_first_class_not_extra(root):
     assert bb._signal_sender("devauto.slug: dev-auto done") == "bmad-dev-auto"
 
 
-def test_dev_persona_is_the_third_alt_dev_branch(root):
-    """The dev persona implements and carries the S→QR→PR bridge itself, so it
-    converges on the same formal review gate as quick-dev and dev-auto — and
-    like them it stamps no methodology position (a branch, not a stage)."""
-    bb.post_handoff(root, "bmad-code-review", "agentdev.3-2-digest",
-                    "dev persona complete")
-    h = bb.chain_health(root)
-    hops = {(hop["from"], hop["to"]): hop for hop in h["sub_chains"]["alt_dev"]}
-    assert hops[("bmad-agent-dev", "bmad-code-review")]["waiting"] == 1
-    assert hops[("bmad-quick-dev", "bmad-code-review")]["status"] == "idle"
-    assert h["extra"] == []
-    assert bb._signal_sender("agentdev.3-2-digest: done") == "bmad-agent-dev"
-
 
 def test_sub_chain_hop_drains_when_consumed(root):
     bb.post_handoff(root, "bmad-code-review", "devauto.slug", "dev-auto done")
@@ -1854,34 +1841,6 @@ def test_sub_chain_hop_drains_when_consumed(root):
     assert hops[("bmad-dev-auto", "bmad-code-review")]["consumed"] == 1
     assert hops[("bmad-dev-auto", "bmad-code-review")]["status"] == "clear"
     assert h["total_waiting"] == 0
-
-
-def test_testing_sub_chain_feeders_fan_in_on_the_quality_record(root):
-    """The TEA toolbox feeds ONE record: nine feeder hops into the quality
-    record, each attributed to its own run-key namespace and none of them
-    leaking into 'extra'."""
-    bb.post_handoff(root, "bmad-quality-record", "test.trace.R-1",
-                    "traceability gate: PASS")
-    bb.post_handoff(root, "bmad-quality-record", "test.e2e.checkout", "tests generated")
-    h = bb.chain_health(root)
-    hops = {(hop["from"], hop["to"]): hop for hop in h["sub_chains"]["testing"]}
-    assert hops[("bmad-testarch-trace", "bmad-quality-record")]["waiting"] == 1
-    assert hops[("bmad-qa-generate-e2e-tests", "bmad-quality-record")]["waiting"] == 1
-    assert h["extra"] == []
-    assert bb._signal_sender("test.trace.R-1: gate PASS") == "bmad-testarch-trace"
-    assert bb._signal_sender("test.e2e.checkout: done") == "bmad-qa-generate-e2e-tests"
-
-
-def test_teach_me_testing_routes_into_the_tea_chain(root):
-    """TEA Academy's close-out is a real baton, not decoration: the framework
-    run is a routed receiver, so the signal surfaces in the start nudge."""
-    bb.post_handoff(root, "bmad-testarch-framework", "teach.ada", "academy complete")
-    h = bb.chain_health(root)
-    hops = {(hop["from"], hop["to"]): hop for hop in h["sub_chains"]["testing"]}
-    assert hops[("bmad-teach-me-testing", "bmad-testarch-framework")]["waiting"] == 1
-    assert h["extra"] == []
-    assert bb.pending_handoff_channels(root) == {"bmad-testarch-framework": 1}
-    assert bb._signal_sender("teach.ada: academy complete") == "bmad-teach-me-testing"
 
 
 def test_governance_sub_chain_closes_the_methodology_loop(root):

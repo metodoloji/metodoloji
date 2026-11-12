@@ -409,7 +409,6 @@ handoffs and chain-health before you do.
 | `Turn this into epics and stories.` | `bmad-create-epics-and-stories`, `bmad-create-story` |
 | `Implement this story.` | `bmad-dev-story` (tek: `bmad-quick-dev`, toplu: `bmad-dev-auto`) |
 | `Review the code and record quality.` | `bmad-code-review`, `bmad-quality-record` |
-| `Add tests / raise coverage / wire CI checks.` | `bmad-testarch-*`, `bmad-qa-generate-e2e-tests` |
 | `Prepare production readiness.` | `bmad-production-readiness` |
 | `We went off track — correct course.` | `bmad-correct-course`, `bmad-retrospective` |
 | `Run this skill in a clean room and report transcript, time and tokens.` | `bmad-eval-runner` |

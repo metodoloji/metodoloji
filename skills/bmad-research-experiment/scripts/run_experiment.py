@@ -1038,6 +1038,60 @@ def evaluate_comparison(comp: dict, metrics: dict, pairs: tuple) -> tuple:
     return (delta, a_ok, n, passed, summary, line)
 
 
+def _control_pairs_spec(control_samples: str, fields: dict) -> str:
+    """Where the control arm's paired verdicts live, or raise a naming error."""
+    spec = (control_samples or fields.get("Control Samples", "") or "").strip()
+    if not spec or spec.lower().startswith("none"):
+        raise ValueError(
+            "this record's hypothesis is a comparison ('a_rate > b_rate'), which has "
+            "no numeric threshold for a control arm to fall below — the decision comes "
+            "from the paired verdicts and a McNemar test. Pass the control's own paired "
+            "file with --control-samples <jsonl>, or with a '- **Control Samples:**' "
+            "line in the record: one {'a': bool, 'b': bool} object per case, written by "
+            "the control run itself. (Before this requirement existed the gate read the "
+            "claim's right-hand side as a number and died with 'threshold … is not a "
+            "number', so rule 7 silently never ran on comparison records.)")
+    return spec.split()[0].strip("`\"'")
+
+
+def evaluate_control_comparison(control_cmd: str, comp: dict, claim: str,
+                                control_samples: str, root: str,
+                                fields: dict) -> tuple:
+    """Judge a comparison claim's control arm by the SAME paired rule as the subject.
+
+    Rule 7 asks that a broken implementation fail the claim. For a comparison the
+    only way to fail it is to fail the paired test, so the control needs its own
+    {a, b} verdicts; a scalar `evaluate()` cannot express that and used to raise
+    "threshold … is not a number", turning rule 7 off on precisely the records
+    that adjudicate a design choice.
+    """
+    spec = _control_pairs_spec(control_samples, fields)
+    path = pathlib.Path(spec)
+    if not path.is_absolute():
+        path = pathlib.Path(root) / path
+    measure = (fields.get("Measure", "") or "categorical").strip().lower()
+    continuous = measure in ("continuous", "numeric", "measured")
+    # Run the control BEFORE reading its pairs: the control command is what
+    # writes them. Reading first reads a file the run has not produced yet and
+    # reports "raw samples unreadable", which looks like a missing fixture.
+    cmetrics = measure_all(control_cmd)
+    if continuous:
+        cpairs = _load_numeric_pairs(path)
+    else:
+        cpairs = _load_paired_samples(path)
+    if continuous:
+        _v, _x, _y, cpassed, csummary, _l = evaluate_continuous(comp, cpairs)
+    else:
+        _v, _x, _y, cpassed, csummary, _l = evaluate_comparison(comp, cmetrics, cpairs)
+    if cpassed:
+        return True, (f"REFUSED — control '{control_cmd}' also satisfies the comparison "
+                      f"'{claim}' ({csummary}), so the bench cannot separate working code "
+                      f"from broken code. No decision was written; the record stays "
+                      f"undecided so the bench or the hypothesis can be fixed and re-run.")
+    return False, (f"verified — control '{control_cmd}' does not satisfy the comparison "
+                   f"'{claim}' ({csummary}), as rule 7 requires")
+
+
 def _wilcoxon_signed_rank(diffs: list) -> tuple:
     """Two-sided Wilcoxon signed-rank p-value for paired differences.
 
@@ -1661,6 +1715,8 @@ def main() -> int:
     ap.add_argument("--record", help="path to the experiment record .md")
     ap.add_argument("--run", help="measurement command to execute; the gate parses the "
                                   "measured value from its output (only mechanical path)")
+    ap.add_argument("--control-samples", default="",
+                    help="paired verdicts for the control arm of a comparison claim")
     ap.add_argument("--control", default="",
                     help="control command: an implementation the hypothesis says must "
                          "FAIL. Rule 7 — if the control also clears the threshold the "
@@ -1989,21 +2045,30 @@ def main() -> int:
     unfalsifiable = False
     if control_cmd and not _is_placeholder(control_cmd):
         try:
-            cval, cx, cy, _cmetric = run_and_measure(control_cmd, claim_metric=claim_metric)
-            cpassed, _csummary = evaluate(claim, cval)
+            if comp is not None:
+                # A comparison has no threshold, so evaluate() cannot judge its
+                # control: it read the claim's right-hand side as a number and
+                # raised, which switched rule 7 off for every comparison record.
+                unfalsifiable, control_note = evaluate_control_comparison(
+                    control_cmd, comp, claim, args.control_samples,
+                    _derive_project_root(args.record, args.project_root) or os.getcwd(),
+                    fields)
+            else:
+                cval, cx, cy, _cmetric = run_and_measure(control_cmd, claim_metric=claim_metric)
+                cpassed, _csummary = evaluate(claim, cval)
+                if cpassed:
+                    unfalsifiable = True
+                    control_note = (f"REFUSED — control '{control_cmd}' measured {cval} and also "
+                                    f"clears the claim '{claim}', so the bench cannot separate "
+                                    f"working code from broken code. No decision was written; the "
+                                    f"record stays undecided so the bench or the hypothesis can be "
+                                    f"fixed and re-run.")
+                else:
+                    control_note = (f"verified — control '{control_cmd}' measured {cval}, which "
+                                    f"does not clear the claim '{claim}', as rule 7 requires")
         except ValueError as exc:
             print(f"ERROR: control measurement failed: {exc}", file=sys.stderr)
             return 2
-        if cpassed:
-            unfalsifiable = True
-            control_note = (f"REFUSED — control '{control_cmd}' measured {cval} and also "
-                            f"clears the claim '{claim}', so the bench cannot separate "
-                            f"working code from broken code. No decision was written; the "
-                            f"record stays undecided so the bench or the hypothesis can be "
-                            f"fixed and re-run.")
-        else:
-            control_note = (f"verified — control '{control_cmd}' measured {cval}, which "
-                            f"does not clear the claim '{claim}', as rule 7 requires")
     else:
         control_note = ("UNVERIFIED — no control command declared. Rule 7 asks for one: a "
                         "bench whose broken mode can also pass proves nothing. Declare it "

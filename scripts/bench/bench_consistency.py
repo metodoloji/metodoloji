@@ -355,7 +355,7 @@ def _check_help_menu_code_uniqueness() -> str | None:
     collision scan mirrors it so the two cannot disagree (SP colliding with
     bmad-spec while also naming the Sprint-Plan record prefix is the shape that
     misrouted a real session). A skill legitimately owns several menu codes
-    (bmad-agent-builder: BA + AA) — uniqueness is per (module, code), not per
+    (bmad-workflow-builder: AW + BW + CW) — uniqueness is per (module, code), not per
     skill; `_meta` rows carry no code. It also pins that every non-`_meta`
     `skill` names a directory that ships (E-042): a catalog row that offers a
     skill with no `skills/<name>/` directory dies as "no such skill".
@@ -1977,11 +1977,10 @@ def _check_bridge_producer_verify_audit() -> str | None:
     """E-018: the producer-VERIFY audit must read every producer BRIDGE surface.
 
     GUIDE.md promises "Producer BRIDGEs carry a VERIFY step ... (automatic
-    anti-skip check; audit #2c)" and names the producers — one of which keeps
-    its BRIDGE inside ``[agent].principles``. Before E-018 #2c read only
-    ``workflow.activation_steps_append`` for most of them: stripping the VERIFY
-    marker from an agent-principles producer (``bmad-agent-dev``) left the
-    audit green. This check pins #2c's producer set *and* per-surface key to
+    anti-skip check; audit #2c)" and names the producers. Before E-018 #2c read
+    only ``workflow.activation_steps_append``, so a surface whose BRIDGE lived
+    elsewhere (``[agent].principles``) was never read and could drop the marker
+    silently. This check pins #2c's producer set *and* per-surface key to
     GUIDE's documented set, then re-evaluates the verify-marker invariant on
     each producer TOML — so a surface cannot silently drop out of the audit
     (the "guard is only as wide as this tuple" class E-002/E-017 named).
@@ -2007,7 +2006,7 @@ def _check_bridge_producer_verify_audit() -> str | None:
         missing = sorted(documented - set(audited))
         extra = sorted(set(audited) - documented)
         problems.append(f"§2c producer set != GUIDE.md (missing {missing}, extra {extra})")
-    agent_surfaces = {"bmad-agent-dev"}
+    agent_surfaces: set[str] = set()  # no agent-principles producer ships today
     for name, key in audited.items():
         want = "agent.principles" if name in agent_surfaces else "workflow.activation_steps_append"
         if key != want:

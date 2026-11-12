@@ -3,7 +3,7 @@
 # Tables deep-merge over base config; keyed entries merge by key.
 # Example: override an agent descriptor, or add a new agent.
 #
-# [agents.bmad-agent-pm]
+# [agents.<your-agent>]
 # description = "Prefers short, bulleted PRDs over narrative drafts."
 
 # --- Artifact paths: point to the target project (NOT the plugin!) ---
@@ -22,12 +22,6 @@ output_folder = "{project-root}/docs"
 planning_artifacts = "{project-root}/docs/planning"
 implementation_artifacts = "{project-root}/docs/development/native"
 project_knowledge = "{project-root}/docs"
-
-[modules.tea]
-test_artifacts = "{project-root}/docs/quality"
-test_design_output = "{project-root}/docs/quality/test-design"
-test_review_output = "{project-root}/docs/quality/test-reviews"
-trace_output = "{project-root}/docs/quality/traceability"
 
 # --- Hook enforcement modu ---
 # GLOBAL SCOPE WARNING: this file is plugin policy shared by EVERY project

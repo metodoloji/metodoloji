@@ -259,15 +259,13 @@ def test_digest_first_covers_the_chain_run_openers():
         # every stage opener of E → IR → SP → S → dev → review → QR → PR
         "bmad-research-experiment", "bmad-check-implementation-readiness",
         "bmad-sprint-planning", "bmad-create-story", "bmad-dev-story",
-        "bmad-quick-dev", "bmad-dev-auto", "bmad-agent-dev",
+        "bmad-quick-dev", "bmad-dev-auto",
         "bmad-code-review", "bmad-quality-record", "bmad-production-readiness",
         # the governance openers that re-enter the chain
         "bmad-retrospective", "bmad-correct-course",
         # front doors: personas/routers, the contributor and the reporter whose
         # read side is a promise (their grounding IS the digest)
-        "bmad-agent-analyst", "bmad-agent-architect", "bmad-agent-pm",
-        "bmad-agent-tech-writer", "bmad-agent-ux-designer", "bmad-agent-builder",
-        "bmad-tea", "bmad-party-mode", "bmad-sprint-status",
+        "bmad-party-mode", "bmad-sprint-status",
         # a human-decision entry point: opens a review session, so it needs the
         # relay position and the waiting batons (one call, where it made three)
         "bmad-checkpoint-preview",
@@ -369,7 +367,7 @@ def test_config_dumps_are_flagged_everywhere(tmp_path, capsys, monkeypatch):
     # 3) the lowercase header no longer hides the activation from the rule
     (skill / "SKILL.md").write_text(
         "## On activation\n\n1. Resolve config: `python3 x/resolve_config.py "
-        "--project-root {project-root} --module tea`\n", encoding="utf-8")
+        "--project-root {project-root} --module bmm`\n", encoding="utf-8")
     assert mod.check_targeted_config_reads() != 0
     capsys.readouterr()
 
@@ -394,7 +392,7 @@ def test_module_dump_is_banned_across_the_skill_package(tmp_path, capsys,
     monkeypatch.setattr(mod, "SKILLS", tmp_path)
     (skill / "SKILL.md").write_text("# tool\n", encoding="utf-8")
     (skill / "steps-c" / "step-01.md").write_text(
-        "Resolve: `python3 x/resolve_config.py --project-root . --module tea`\n",
+        "Resolve: `python3 x/resolve_config.py --project-root . --module bmm`\n",
         encoding="utf-8")
     assert mod.check_no_module_dump_in_skills() != 0
     assert "module dump" in capsys.readouterr().out
@@ -563,8 +561,7 @@ def test_persona_menus_dispatch_into_registered_skills():
 
     Two legitimate persona shapes are allowed: a pure ROUTER (posts nothing),
     and a producing persona registered as an ENTRY POINT (it dispatches a menu
-    AND signals its hop). The producing personas are locked in here because
-    they were filed as tools while shipping exactly the router template.
+    AND signals its hop).
     """
     import tomllib
     mod = _load_lint()
@@ -574,9 +571,7 @@ def test_persona_menus_dispatch_into_registered_skills():
         if agent.get("menu"):
             routers[cfg.parent.name] = agent["menu"]
 
-    assert set(routers) >= {
-        "bmad-agent-pm", "bmad-tea",
-    }
+    assert set(routers) >= set()
     for skill, menu in sorted(routers.items()):
         reason = mod.PEEK_EXEMPT.get(skill)
         assert reason in ("router", "entry point"), f"{skill}: {reason}"

@@ -45,7 +45,7 @@ project_name = "base-project"
 output_folder = "{project-root}/docs"
 document_output_language = "English"
 
-[modules.tea]
+[modules.sample]
 risk_threshold = "p1"
 test_stack_type = "auto"
 
@@ -139,8 +139,8 @@ def test_parse_legacy_yaml_scalars_and_lists(tmp_path):
     _write_yaml(f, """
 # comment
 test_artifacts: "{project-root}/bmad-output/test-artifacts"
-tea_use_playwright_utils: true
-tea_use_pactjs_utils: false
+sample_use_playwright_utils: true
+sample_use_pactjs_utils: false
 risk_threshold: p1
 count: 3
 ratio: 1.5
@@ -151,8 +151,8 @@ empty_list:
 """)
     data = rc.load_legacy_yaml(f)
     assert data["test_artifacts"] == "{project-root}/bmad-output/test-artifacts"
-    assert data["tea_use_playwright_utils"] is True
-    assert data["tea_use_pactjs_utils"] is False
+    assert data["sample_use_playwright_utils"] is True
+    assert data["sample_use_pactjs_utils"] is False
     assert data["risk_threshold"] == "p1"
     assert data["count"] == 3
     assert data["ratio"] == 1.5
@@ -185,28 +185,28 @@ def test_legacy_yaml_overrides_plugin_default(plugin, tmp_path):
     # A project-root legacy config.yaml is a PROJECT setting: it must beat the
     # plugin's installer defaults even though it is YAML and they are TOML.
     _write_yaml(
-        project / "bmad" / "tea" / "config.yaml",
+        project / "bmad" / "sample" / "config.yaml",
         "risk_threshold: p0\ntest_stack_type: playwright\n",
     )
-    out = _run(plugin, project, "--key", "modules.tea.risk_threshold")
-    assert out == {"modules.tea.risk_threshold": "p0"}
+    out = _run(plugin, project, "--key", "modules.sample.risk_threshold")
+    assert out == {"modules.sample.risk_threshold": "p0"}
 
 
 def test_project_toml_beats_legacy_yaml(plugin, tmp_path):
     project = _make_project(tmp_path)
-    _write_yaml(project / "bmad" / "tea" / "config.yaml", "risk_threshold: p0\n")
-    _write_toml(project / "bmad" / "config.toml", '[modules.tea]\nrisk_threshold = "p2"\n')
-    out = _run(plugin, project, "--key", "modules.tea.risk_threshold")
-    assert out == {"modules.tea.risk_threshold": "p2"}
+    _write_yaml(project / "bmad" / "sample" / "config.yaml", "risk_threshold: p0\n")
+    _write_toml(project / "bmad" / "config.toml", '[modules.sample]\nrisk_threshold = "p2"\n')
+    out = _run(plugin, project, "--key", "modules.sample.risk_threshold")
+    assert out == {"modules.sample.risk_threshold": "p2"}
 
 
 def test_legacy_yaml_and_plugin_toml_deep_merge(plugin, tmp_path):
     project = _make_project(tmp_path)
     # YAML overrides one key; the other plugin key survives.
-    _write_yaml(project / "bmad" / "tea" / "config.yaml", "risk_threshold: p0\n")
-    out = _run(plugin, project, "--key", "modules.tea")
-    assert out["modules.tea"]["risk_threshold"] == "p0"
-    assert out["modules.tea"]["test_stack_type"] == "auto"
+    _write_yaml(project / "bmad" / "sample" / "config.yaml", "risk_threshold: p0\n")
+    out = _run(plugin, project, "--key", "modules.sample")
+    assert out["modules.sample"]["risk_threshold"] == "p0"
+    assert out["modules.sample"]["test_stack_type"] == "auto"
 
 
 def test_legacy_yaml_fills_missing_module_section(plugin, tmp_path):
@@ -255,7 +255,7 @@ def test_legacy_core_yaml_authority_over_module_stamps(plugin, tmp_path):
     # Conflicting stamps: core/config.yaml is the authority for core keys;
     # per-module stamps only fill gaps.
     _write_yaml(project / "bmad" / "core" / "config.yaml", "user_name: CoreAuthority\n")
-    _write_yaml(project / "bmad" / "tea" / "config.yaml", "user_name: StaleStamp\n")
+    _write_yaml(project / "bmad" / "sample" / "config.yaml", "user_name: StaleStamp\n")
     out = _run(plugin, project, "--key", "core.user_name")
     assert out == {"core.user_name": "CoreAuthority"}
 
@@ -264,9 +264,9 @@ def test_module_stamp_fills_gap_when_core_yaml_missing(plugin, tmp_path):
     project = _make_project(tmp_path)
     # No core/config.yaml — the module file's core stamp fills the gap in the
     # flat --module output (the realistic legacy skill query).
-    _write_yaml(project / "bmad" / "tea" / "config.yaml", "user_name: FromStamp\n")
-    out = _run(plugin, project, "--module", "tea")
-    assert out["tea"]["user_name"] == "FromStamp"
+    _write_yaml(project / "bmad" / "sample" / "config.yaml", "user_name: FromStamp\n")
+    out = _run(plugin, project, "--module", "sample")
+    assert out["sample"]["user_name"] == "FromStamp"
 
 
 def test_project_user_toml_beats_legacy_core(plugin, tmp_path):
@@ -283,10 +283,10 @@ def test_project_bmad_toml_overrides_plugin_and_legacy(plugin, tmp_path):
     project = _make_project(tmp_path)
     _write_toml(
         project / "bmad" / "config.toml",
-        '[modules.tea]\nrisk_threshold = "p0"\n',
+        '[modules.sample]\nrisk_threshold = "p0"\n',
     )
-    out = _run(plugin, project, "--key", "modules.tea.risk_threshold")
-    assert out == {"modules.tea.risk_threshold": "p0"}
+    out = _run(plugin, project, "--key", "modules.sample.risk_threshold")
+    assert out == {"modules.sample.risk_threshold": "p0"}
 
 
 def test_project_config_user_toml_overrides_project_team(plugin, tmp_path):
@@ -334,8 +334,8 @@ def test_project_user_output_beats_everything(plugin, tmp_path):
 
 def test_project_layers_absent_is_fine(plugin, tmp_path):
     project = _make_project(tmp_path)  # no project files at all
-    out = _run(plugin, project, "--key", "modules.tea.risk_threshold")
-    assert out == {"modules.tea.risk_threshold": "p1"}
+    out = _run(plugin, project, "--key", "modules.sample.risk_threshold")
+    assert out == {"modules.sample.risk_threshold": "p1"}
 
 
 # ── --module flat output ─────────────────────────────────────────────
@@ -358,10 +358,10 @@ def test_module_output_project_override_applies(plugin, tmp_path):
     project = _make_project(tmp_path)
     _write_toml(
         project / "bmad" / "config.toml",
-        '[modules.tea]\nrisk_threshold = "p0"\n',
+        '[modules.sample]\nrisk_threshold = "p0"\n',
     )
-    out = _run(plugin, project, "--module", "tea")
-    assert out["tea"]["risk_threshold"] == "p0"
+    out = _run(plugin, project, "--module", "sample")
+    assert out["sample"]["risk_threshold"] == "p0"
 
 
 def test_module_unknown_module_errors(plugin, tmp_path):
@@ -375,12 +375,12 @@ def test_module_unknown_module_errors(plugin, tmp_path):
 def test_module_via_legacy_yaml(plugin, tmp_path):
     project = _make_project(tmp_path)
     _write_yaml(
-        project / "bmad" / "tea" / "config.yaml",
+        project / "bmad" / "sample" / "config.yaml",
         "risk_threshold: p0\nuser_name: Yunus\n",
     )
-    out = _run(plugin, project, "--module", "tea")
-    assert out["tea"]["risk_threshold"] == "p0"
-    assert out["tea"]["user_name"] == "Yunus"
+    out = _run(plugin, project, "--module", "sample")
+    assert out["sample"]["risk_threshold"] == "p0"
+    assert out["sample"]["user_name"] == "Yunus"
 
 
 # ── deep_merge sanity (unchanged semantics) ──────────────────────────
@@ -433,7 +433,7 @@ def test_keyed_array_merge_by_code():
 
 
 def test_modules_from_key_paths():
-    assert rc._modules_from_key_paths(["modules.tea.risk_threshold", "core"]) == ["tea"]
+    assert rc._modules_from_key_paths(["modules.sample.risk_threshold", "core"]) == ["sample"]
     assert rc._modules_from_key_paths([]) == []
 
 

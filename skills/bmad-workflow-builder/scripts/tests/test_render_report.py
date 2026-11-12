@@ -21,7 +21,6 @@ SKILLS_DIR = Path(__file__).resolve().parents[3]
 SCRIPT = SKILLS_DIR / "bmad-workflow-builder" / "scripts" / "render_report.py"
 SHELLS = [
     SKILLS_DIR / "bmad-workflow-builder" / "assets" / "report-shell.html",
-    SKILLS_DIR / "bmad-agent-builder" / "assets" / "report-shell.html",
 ]
 ISLAND_RE = re.compile(
     r'<script[^>]*\bid="report-data"[^>]*>(.*?)</script>', re.DOTALL
@@ -181,16 +180,9 @@ def test_shipped_shells_carry_placeholder_island():
         assert island["findings"] == []
 
 
-def test_render_script_copies_identical():
-    other = SKILLS_DIR / "bmad-agent-builder" / "scripts" / "render_report.py"
-    assert SCRIPT.read_bytes() == other.read_bytes(), (
-        "render_report.py copies have drifted between the two builder skills"
-    )
-
 
 if __name__ == "__main__":
     # The capsys-parameterized tests run under pytest; the __main__ self-check
     # covers the two subprocess-free tests.
     test_shipped_shells_carry_placeholder_island()
-    test_render_script_copies_identical()
     print("ok: render_report self-check passed (run full suite with pytest)")

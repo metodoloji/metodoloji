@@ -54,7 +54,7 @@ def test_catalog_output_locations_match_the_skill_defaults():
 def test_catalog_digest_reports_real_ambiguity():
     digest = orient.catalog_digest()
     assert digest["available"] is True
-    assert digest["skill_count"] > 50 and len(digest["modules"]) > 3
+    assert digest["skill_count"] > 40 and len(digest["modules"]) > 2
     ambiguous = digest["ambiguous_menu_codes"]
     # SP must not list the spec skill: bmad-spec collided with
     # bmad-sprint-planning, and SP is this methodology's own Sprint-Plan record
@@ -109,7 +109,7 @@ def test_build_on_the_plugin_repo_is_self_consistent():
     assert digest["skeleton"]["installed"] is True  # dogfood marker (see §6d)
     assert digest["core"]["project_name"]
     assert digest["board"]["available"] is True
-    assert set(digest["module_codes"]) >= {"bmm", "tea"}
+    assert set(digest["module_codes"]) >= {"bmm", "bmb"}
 
 
 def test_build_names_the_plugin_default_project_name(tmp_path):

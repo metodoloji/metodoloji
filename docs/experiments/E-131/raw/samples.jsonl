@@ -1,0 +1,11 @@
+{"check": "testarch skill dirs removed", "ok": true, "detail": "none"}
+{"check": "tea persona and academy removed", "ok": true, "detail": "none"}
+{"check": "TEA TOMLs removed", "ok": true, "detail": "none"}
+{"check": "tea module data removed", "ok": true, "detail": "none"}
+{"check": "skill manifest has no TEA rows", "ok": true, "detail": "none"}
+{"check": "help catalog has no TEA rows", "ok": true, "detail": "none"}
+{"check": "base config has no tea sections", "ok": true, "detail": "none"}
+{"check": "engine registries carry no test./teach. entries", "ok": true, "detail": "none"}
+{"check": "handoff lint carries no TEA entries", "ok": true, "detail": "none"}
+{"check": "team config has no [modules.tea]", "ok": true, "detail": "none"}
+{"check": "shipped manifests declare the surviving count", "ok": true, "detail": "53 skills declared"}

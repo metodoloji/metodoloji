@@ -62,22 +62,6 @@ EXPECTED_POSTS = {
     # review gate the delivery relay terminates at)
     "bmad-quick-dev": ["bmad-code-review"],
     "bmad-dev-auto": ["bmad-code-review"],
-    "bmad-agent-dev": ["bmad-code-review"],  # dev persona implements too
-    # TESTING SUB-CHAIN (TEA toolbox feeders — each adds evidence to an
-    # existing QR record's mechanical checks instead of opening its own
-    # record, so all of them signal the quality record they feed)
-    "bmad-testarch-atdd": ["bmad-quality-record"],
-    "bmad-testarch-automate": ["bmad-quality-record"],
-    "bmad-testarch-ci": ["bmad-quality-record"],
-    "bmad-testarch-framework": ["bmad-quality-record"],
-    "bmad-testarch-nfr": ["bmad-quality-record"],
-    "bmad-testarch-test-design": ["bmad-quality-record"],
-    "bmad-testarch-test-review": ["bmad-quality-record"],
-    "bmad-testarch-trace": ["bmad-quality-record"],
-    "bmad-qa-generate-e2e-tests": ["bmad-quality-record"],
-    # TEA Academy close-out recommends "start with Framework setup": the
-    # learner lands in the chain the academy teaches.
-    "bmad-teach-me-testing": ["bmad-testarch-framework"],
     # GOVERNANCE SUB-CHAIN (the hops that close the methodology loop)
     "bmad-retrospective": ["bmad-research-experiment"],
     "bmad-correct-course": ["bmad-sprint-planning"],
@@ -90,24 +74,6 @@ EXPECTED_POSTS = {
     "bmad-customize": [],
     "bmad-checkpoint-preview": [],
     "bmad-eval-runner": [],
-    # Terminal phase: it consumes the asset-generation baton and hands nothing
-    # on (the pipeline is done until an evolution cycle re-enters the brief).
-    # Registered so the lint checks its peek — an unregistered terminal receiver
-    # would leave a baton nobody can claim.
-    # The playtest plan's BRIDGE feeds the QR record the review session owns
-    # ("feed the findings into the QR, do not open a separate record") — the
-    # Vertical documentation tools — docs, no hop.
-    # PERSONA / ORCHESTRATION SURFACE — [] = no hop to post. A persona adopts
-    # an identity, grounds in the board and dispatches the user into a
-    # workflow; it produces no methodology record of its own, so it never
-    # signals downstream (see ROUTERS below for the read-side requirement).
-    "bmad-agent-analyst": [],
-    "bmad-agent-architect": [],
-    "bmad-agent-builder": [],
-    "bmad-agent-pm": [],
-    "bmad-agent-tech-writer": [],
-    "bmad-agent-ux-designer": [],
-    "bmad-tea": [],
     "bmad-party-mode": [],
     "bmad-sprint-status": [],
     # The help surface recommends the next skill; it never produces, so its
@@ -156,7 +122,7 @@ EXPECTED_POSTS = {
 #    to the caller and posts no hop. The blind reviewers must NOT read the
 #    caller's board context either — the information asymmetry is by design.
 #  - tool: a builder/standalone tool whose product is not a chain artifact
-#    (bmad-agent-builder emits agent skills, bmad-document-project emits docs).
+#    (bmad-document-project emits docs, bmad-index-docs indexes them).
 PEEK_EXEMPT = {
     # NOTE: bmad-research-experiment is deliberately NOT exempt. It opens the
     # methodology relay, but 'governance' sends a retrospective's lessons back
@@ -164,24 +130,7 @@ PEEK_EXEMPT = {
     # loop's return edge waits forever.
     "bmad-quick-dev": "entry point",
     "bmad-dev-auto": "entry point",
-    "bmad-agent-dev": "entry point",
-    "bmad-teach-me-testing": "entry point",
-    "bmad-testarch-atdd": "feeder",
-    "bmad-testarch-automate": "feeder",
-    "bmad-testarch-ci": "feeder",
-    "bmad-testarch-nfr": "feeder",
-    "bmad-testarch-test-design": "feeder",
-    "bmad-testarch-test-review": "feeder",
-    "bmad-testarch-trace": "feeder",
-    "bmad-qa-generate-e2e-tests": "feeder",
-    "bmad-agent-analyst": "router",
-    "bmad-agent-architect": "router",
-    "bmad-agent-pm": "router",
-    "bmad-agent-tech-writer": "router",
-    "bmad-agent-ux-designer": "router",
-    "bmad-agent-builder": "tool",
     "bmad-advanced-elicitation": "contributor",
-    "bmad-tea": "router",
     # Discovery entry points: ideation and research start from user intent, and
     # the registry declares no hop into them — nothing can tell them a baton
     "bmad-brainstorming": "entry point",
@@ -388,7 +337,7 @@ DIGEST_FIRST = (
     # E → IR → SP → S → dev → review → QR → PR, plus the governance loop
     "bmad-research-experiment", "bmad-check-implementation-readiness",
     "bmad-sprint-planning", "bmad-create-story", "bmad-dev-story",
-    "bmad-quick-dev", "bmad-dev-auto", "bmad-agent-dev", "bmad-code-review",
+    "bmad-quick-dev", "bmad-dev-auto", "bmad-code-review",
     "bmad-quality-record", "bmad-production-readiness", "bmad-retrospective",
     "bmad-correct-course",
     # planning chain + the spec/spine/epic openers it feeds
@@ -402,9 +351,7 @@ DIGEST_FIRST = (
     # whose read side is a promise): for these the digest IS the grounding, so
     # the older two-call board read (`read --context` + `handoffs`) is now the
     # fallback, not the contract.
-    "bmad-agent-analyst", "bmad-agent-architect", "bmad-agent-pm",
-    "bmad-agent-tech-writer", "bmad-agent-ux-designer", "bmad-agent-builder",
-    "bmad-tea", "bmad-party-mode", "bmad-sprint-status",
+    "bmad-party-mode", "bmad-sprint-status",
     # A human-decision entry point: it opens a review session, so it needs the
     # roots, the config, the relay position and the waiting batons — one digest
     # call where the activation used to make three reads.
@@ -430,11 +377,11 @@ def check() -> int:
             continue
         text = md.read_text(encoding="utf-8", errors="replace")
         # step/reference files carry the close-out handoff for some skills, and
-        # the BRIDGE layer carries it for others (bmad-agent-dev's close-out is
-        # a team principle) — read the whole skill tree plus the bridge TOMLs,
-        # so a post cannot hide outside the lint's reach. Steps sit at the skill
-        # root for some skills (quick-dev, dev-auto) and under steps/ for others
-        # (research), so the skill-tree scan must be recursive.
+        # the BRIDGE layer carries it for others (an agent-principles surface's
+        # close-out is a team principle) — read the whole skill tree plus the
+        # bridge TOMLs, so a post cannot hide outside the lint's reach. Steps sit
+        # at the skill root for some skills (quick-dev, dev-auto) and under
+        # steps/ for others (research), so the skill-tree scan must be recursive.
         blob = text
         for f in sorted((SKILLS / skill).rglob("*.md")):
             if f.name == "SKILL.md" or "__pycache__" in f.parts:

@@ -572,7 +572,7 @@ Sıra önerisi: önce pytest (motor davranışı), sonra check-plugin (en geniş
 Negatif testler (kapıların gerçekten çalıştığının kanıtı):
 
 ```bash
-sh {metodoloji-root}/scripts/check-plugin.sh --negtest   # 10 aşama: .env/.gitignore, 2 BRIDGE sökme (#2b), #1b hooks.json, #6c template, #6d marker, #6e help catalog, #6g priming token, #3 sahte-token, #6h ham-uyarı düzlemi okuma → hepsi yakalanıp restore edilir
+sh {metodoloji-root}/scripts/check-plugin.sh --negtest   # 9 aşama: .env/.gitignore, 1 BRIDGE sökme (#2b), #1b hooks.json, #6c template, #6d marker, #6e help catalog, #6g priming token, #3 sahte-token, #6h ham-uyarı düzlemi okuma → hepsi yakalanıp restore edilir
 sh {metodoloji-root}/scripts/check-custom.sh --negtest   # 4 test: #3 hard-gate + #7 bridge drift ×2 (#2.3 silme + "bolum N.N" enjeksiyonu) + #2b çıplak aktivasyon adımı
 ```
 
@@ -1024,15 +1024,13 @@ Tüm kaynak kod + yürütülebilir config (#9.2 tablosu). Not: gate **hiçbir fr
 
 Aileler:
 
-- **bmad-**\* (çekirdek): PRD, mimari, story, sprint, dev-story/quick-dev/dev-auto, code-review, testarch-*, QA e2e, TEA, retrospective, correct-course, loop-*, eval-runner, forge-idea, brainstorming, araştırma skill'leri.
+- **bmad-**\* (çekirdek): PRD, mimari, story, sprint, dev-story/quick-dev/dev-auto, code-review, retrospective, correct-course, loop-*, eval-runner, forge-idea, brainstorming, araştırma skill'leri.
 - **cis-**\* (yaratıcılık): design-thinking, innovation-strategy, problem-solving, storytelling + koç ajanları.
 - **Araç/meta (bridge YOK — tasarım gereği):** `bmad-customize`, `bmad-help`, `memory`, `sync`.
 
 **BRIDGE dağılımı (33 aktif):**
 
-- **Producer (8, kayıt yaratır/günceller):** `bmad-dev-story`, `bmad-quick-dev`, `bmad-dev-auto`, `bmad-agent-dev`, `bmad-code-review`, `bmad-create-story`, `bmad-sprint-planning`, `bmad-check-implementation-readiness`.
-- **Feeder (9, mevcut QR'ı besler):** `bmad-testarch-*` (atdd, automate, ci, framework, nfr, test-design, test-review, trace), `bmad-qa-generate-e2e-tests`.
-- 1'i agent-principles yüzeyi (`bmad-agent-dev` — BRIDGE `[agent].principles` içinde).
+- **Producer (7, kayıt yaratır/günceller):** `bmad-dev-story`, `bmad-quick-dev`, `bmad-dev-auto`, `bmad-code-review`, `bmad-create-story`, `bmad-sprint-planning`, `bmad-check-implementation-readiness`.
 - Producer BRIDGE'lerde **VERIFY** adımı vardır — LLM kaydı yarattıktan hemen sonra `ls -la` ile varlığını doğrulamalı, ve dosya yoksa BRIDGE onarımı da adlandırır (`error and recreate`). Denetim #2c **her iki yarıyı da** ister (§4'ün gate-enforcing kümesinde istediği iki parçalı desenin aynısı) ve 8 producer'ın tümünde uygular.
 
 **İşe göre skill seç:**
@@ -1041,13 +1039,13 @@ Aileler:
 | İş                | Skill                                                                                          |
 | ----------------- | ---------------------------------------------------------------------------------------------- |
 | Fikirden hipoteze | `bmad-forge-idea`, `bmad-brainstorming`, `bmad-prfaq`, `bmad-product-brief`                    |
-| PRD yaz           | `bmad-prd`, `bmad-create-prd`, `bmad-validate-prd`, `bmad-agent-pm`                            |
-| Mimari            | `bmad-architecture`, `bmad-create-architecture`, `bmad-agent-architect`                        |
+| PRD yaz           | `bmad-prd`, `bmad-create-prd`, `bmad-validate-prd`                                            |
+| Mimari            | `bmad-architecture`, `bmad-create-architecture`                                               |
 | Sprint/story      | `bmad-sprint-planning`, `bmad-create-epics-and-stories`, `bmad-create-story`, `bmad-dev-story` |
-| Hızlı kod         | `bmad-quick-dev` (tek story), `bmad-dev-auto` (toplu), `bmad-agent-dev`                        |
-| Kalite            | `bmad-code-review`, `bmad-quality-record`, `bmad-testarch-*`, `bmad-qa-generate-e2e-tests`     |
+| Hızlı kod         | `bmad-quick-dev` (tek story), `bmad-dev-auto` (toplu)                                         |
+| Kalite            | `bmad-code-review`, `bmad-quality-record`                                                     |
 | Deploy hazırlık   | `bmad-production-readiness`                                                                    |
-| Düzeltme rotası   | `bmad-correct-course`, `bmad-retrospective`, `bmad-teach-me-testing`                           |
+| Düzeltme rotası   | `bmad-correct-course`, `bmad-retrospective`                                                   |
 | Değerlendirme     | `bmad-eval-runner` (skill'i temiz odada koşar: transkript, süre, token, kalıcı run klasörü)    |
 
 
@@ -1104,8 +1102,8 @@ user_name = "Ayla"
 communication_language = "Turkish"
 
 # {project-root}/bmad/config.toml (takım — commitlenir)
-[modules.tea]
-risk_threshold = "p0"
+[modules.bmm]
+planning_artifacts = "{project-root}/docs/planning"
 ```
 
 Legacy YAML köprüsü: eski kurulumlardaki modül `config.yaml`'ları plugin TOML ile proje TOML **arasında** bir katman olarak okunur (plugin default'u ezer, proje TOML'una yenilir). Değerleri proje TOML'una taşıyıp YAML'ları silerek migrate et.
@@ -1113,12 +1111,12 @@ Legacy YAML köprüsü: eski kurulumlardaki modül `config.yaml`'ları plugin TO
 Flat modül çıktısı (yalnız CLI/legacy şekli):
 
 ```bash
-python3 {metodoloji-root}/bmad/scripts/resolve_config.py --project-root . --module tea
+python3 {metodoloji-root}/bmad/scripts/resolve_config.py --project-root . --module bmm
 ```
 
 Paylaşılan `core` + o modülün anahtarlarını döndürür (eski modül config.yaml şekli). `--module core` sadece core döndürür. Plugin katmanlarındaki artefakt path'leri çıktıyı `{project-root}`'a (`docs/`) işaret eder, plugin içine değil.
 
-**Aktivasyonların kuralı bu değil:** adı geçen anahtarları ister — `--key` (tekrarlanabilir). `--module tea` 23 satır / 818 B iken hedefli okuma 5 satır / 142 B'dir; modül görünümü çalıştırmanın hiç kullanmadığı anahtarları da taşır ve "dump'ı koştur, geleni oku" alışkanlığını öğretir (bkz. #18 madde 50).
+**Aktivasyonların kuralı bu değil:** adı geçen anahtarları ister — `--key` (tekrarlanabilir). `--module bmm` 23 satır / 818 B iken hedefli okuma 5 satır / 142 B'dir; modül görünümü çalıştırmanın hiç kullanmadığı anahtarları da taşır ve "dump'ı koştur, geleni oku" alışkanlığını öğretir (bkz. #18 madde 50).
 
 ### 13.3 Manifesto wiring
 
@@ -1178,16 +1176,14 @@ python3 {metodoloji-root}/bmad/scripts/blackboard.py hot --clear
 **Alt zincirler (faz bazlı, `SUB_CHAINS` kayıt defteri):** İki kanonik röle dışındaki fazlar tek kayıt defterinde tanımlanır ve `chain-health` çıktısında `sub_chains` altında aynı birinci sınıf muameleyi görür — `extra` yalnızca gerçekten bilinmeyen alıcılar için ayrılmıştır. Yeni faz eklemek = kayıt defterine bir satır; `doctor` (bekleyen hop'lar), session\_start/stop dürtmesi ve statik lint kendiliğinden takip eder.
 
 - **discovery** — fikir ve araştırma brief/PRD girdisine fan-in yapar (`bmad-forge-idea`, `bmad-brainstorming`, `bmad-prfaq`, üç araştırma skill'i → `bmad-product-brief`/`bmad-prd`; run-key önekleri `forge.`, `brainstorm.`, `brief.`, `prfaq.`, `research.market.`, `research.domain.`, `research.tech.`). Keşif skill'leri aktivasyon tarafında **giriş noktasıdır**: hiçbir hop onlara yönelmez, dolayısıyla asla karşılanamayacak bir peek vaat etmezler.
-- **alt\_dev** — geliştirme aşamasının alternatif yolları: `bmad-quick-dev` (`quickdev.`), `bmad-dev-auto` (`devauto.`) ve dev personası `bmad-agent-dev` (`agentdev.`; BRIDGE'i S→QR→PR taşır) teslim rölesinin terminal kapısı `bmad-code-review`'e yakınsar. Bunlar zincirin **giriş noktalarıdır** (peek yok, kapanışta post var) ve E→IR→SP→S→QR→PR pozisyonu damgalamaz — dal, aşama değil.
-- **testing** — TEA araç kutusu kalite kaydının mekanik kontrollerini besler (`bmad-testarch-atdd`, `-automate`, `-ci`, `-framework`, `-nfr`, `-test-design`, `-test-review`, `-trace` ve `bmad-qa-generate-e2e-tests` → `bmad-quality-record`; run-key önekleri `test.<araç>.`); TEA Academy (`bmad-teach-me-testing`, önek `teach.`) mezunu öğrettiği zincire yönlendirir (`bmad-testarch-framework`). Besleyici **mevcut QR kaydına kanıt ekler**, kendi kaydını açmaz ve metodoloji pozisyonu damgalamaz. Peek yapan tek TEA workflow'u `bmad-testarch-framework`'tür — academy ona devreder.
+- **alt\_dev** — geliştirme aşamasının alternatif yolları: `bmad-quick-dev` (`quickdev.`) ve `bmad-dev-auto` (`devauto.`) teslim rölesinin terminal kapısı `bmad-code-review`'e yakınsar. Bunlar zincirin **giriş noktalarıdır** (peek yok, kapanışta post var) ve E→IR→SP→S→QR→PR pozisyonu damgalamaz — dal, aşama değil.
 - **governance** — döngüyü kapatan hop'lar: retrospective (`bmad-retrospective`, önek `retro.`) sınanabilir derslerini başlangıca geri verir (`bmad-research-experiment`), bir rota düzeltmesi (`bmad-correct-course`, önek `change.`) ise backlog'un sahibi olan yüzeye iner (`bmad-sprint-planning`) — yani büyük bir yeniden planlama bile zincire oradan girer. İkisi de zincirin **giriş noktalarıdır** (peek yok, kapanışta post var) ve mevcut bir röle skill'ine yeniden girdikleri için röleyi uzatmaz, pozisyon damgalamaz. Hedefleri **peek yapar**: `bmad-research-experiment` gelen dersi tüketir (dönüş kenarı bildirim değil, batondur) — artık `origin` muafiyeti yoktur, çünkü alan bir aşama tüketebilmelidir.
-- **Yönlendirici personalar** (`bmad-agent-pm` / `-analyst` / `-architect` / `-ux-designer` / `-tech-writer` — persona şablonu: kimlik + menü + dispatch) oturumun ön kapısıdır: kimlik alır, tahtaya göre açılır ve kullanıcıyı bir workflow'a yönlendirir. Hiç post atmaz (dolayısıyla onlara da yönlendirme yapılmaz); zorunlu yarıları **okuma** tarafıdır — selamlamadan önce oryantasyon digest'i (röle pozisyonu *ve* bekleyen batonlar tek sınırlı çağrıda; digest çalışmazsa yedek yalnızca baton listesidir), menü genel bir liste değil *bu* projenin sıradaki gerçek adımı olsun diye. `check-handoff.py` her gerekçenin vaat ettiği okuma tarafını tek **sınırlı** çağrı olarak denetler: yönlendirici ve raporlayıcı digest ile, konuk katkıcı tek `read --context` ile. Eski iki çağrılık okuma (`read --context` + `handoffs`) artık hiçbir aktivasyonda geçemez — etiket tek başına yetmez.
 - **Katkıcı (`bmad-advanced-elicitation`, `bmad-party-mode`, `bmad-eval-runner`)** — satır-içi teknik yükseltici: başka bir skill'in oturumu *içinde* çağrılır, çağıranın tahta bağlamını okur ve tam olarak bir `contribute` izi bırakır; diğer tüm yazımlar yasak (focus, run list ve kapanış çağıranın malı).
 - **Raporlayıcı (`bmad-sprint-status`)** — proje durumunu raporlar, dolayısıyla yalnızca dosyadan rapor edemez: tahtayı okur ve bekleyen bir batonu, planın henüz bilmediği canlı iş olarak öne çıkarır.
 - **Yardım yönlendiricisi (`bmad-help`)** — sıradaki skill'i önerir; bekleyen batonları da okur (salt-okunur) ve onları kataloğun önüne geçirir — bekleyen sinyal, haritanın henüz göstermediği canlı iştir.
 - **Satır-içi (`bmad-review-*`, `bmad-editorial-review-*`, `bmad-loop-sweep`)** — bulgularını çağırana döndürür, hop atmaz; gözden geçiriciler çağıranın tahta bağlamını **okumaz** — bilgi asimetrisi tasarım gereğidir. `bmad-loop-sweep` yalnızca bmad-loop oturumu içinde çalışır, makine-okunur triajı orkestratöre döndürür.
 - **İnsan kararı giriş noktaları (`bmad-checkpoint-preview`, `bmad-loop-resolve`)** — kullanıcı isteğiyle çağrılır ve bir insan kararını yönetir; karar vermeden önce tahtaya açılır (salt-okunur) — zincir bağlamı olmadan verilen karar boşluktan verilmiş karardır.
-- **Araç (`bmad-agent-builder`, `bmad-document-project`, `bmad-generate-project-context`, `bmad-index-docs`, `bmad-shard-doc`, kurucular: `bmad-loop-setup`, `bmad-bmb-setup`, `bmad-module-builder`, `bmad-workflow-builder`, `bmad-customize`)** — zincir kaydı olmayan bir çıktı üretir (ajan skill'i, proje dokümanı, kurulu modül, ilerleme dosyası): ne hop ne tahta sözleşmesi. Dört doküman/bağlam skill'inin çıktısı (`project-context.md` vb.) birçok aşama tarafından *okunur* — ama baton olarak değil, aktivasyonda `persistent_facts` dosyası olarak: kayıt defteri bu bağımlılığı kimsenin tüketmeyeceği bir sinyal icat etmeden modeller.
+- **Araç (`bmad-document-project`, `bmad-generate-project-context`, `bmad-index-docs`, `bmad-shard-doc`, kurucular: `bmad-loop-setup`, `bmad-bmb-setup`, `bmad-module-builder`, `bmad-workflow-builder`, `bmad-customize`)** — zincir kaydı olmayan bir çıktı üretir (proje dokümanı, kurulu modül, ilerleme dosyası): ne hop ne tahta sözleşmesi. Dört doküman/bağlam skill'inin çıktısı (`project-context.md` vb.) birçok aşama tarafından *okunur* — ama baton olarak değil, aktivasyonda `persistent_facts` dosyası olarak: kayıt defteri bu bağımlılığı kimsenin tüketmeyeceği bir sinyal icat etmeden modeller.
 - **Deprecated shim'ler** (`bmad-create-prd`, `bmad-validate-prd` → `bmad-prd`; `bmad-create-architecture` → `bmad-architecture`) kendi zincir mantığını taşımaz; `check-handoff.py` shim'in DEPRECATED olduğunu ve **zincir üyesi** bir skill'e yönlendirdiğini doğrular.
 
 **Lint'in iki yapısal değişmezi (gerekçe etiketlerinin üstünde):** (1) *Bir hop alıcısı "bana kimse devretmiyor" diyemez* — `entry point`/`feeder`/`origin` etiketli bir alıcı kanalına hiç bakmaz, dolayısıyla bildirilen baton bayatlayana kadar bekler; ayrıca her alıcı kayıtlı bir üye olmalıdır (kayıtsız alıcıyı lint hiç denetlemez). (2) *Birden fazla aşamanın yazdığı run-key namespace'i imzalanmalıdır* — `story.` iki tarafından yazıldığı için dev kapanışı `--sender bmad-dev-story` taşır; imza olmadan önek atıfı create-story'yi krediler ve terminal hop bildirilmemiş bir çift gibi görünür. Terminal alıcılar da açıkça bildirilir (`CHAIN_TERMINAL`).
@@ -1251,7 +1247,7 @@ python scripts/check-handoff.py
 
 # Customization
 python3 {metodoloji-root}/bmad/scripts/resolve_customization.py -s skills/bmad-dev-story -k workflow.activation_steps_append
-python3 {metodoloji-root}/bmad/scripts/resolve_config.py --project-root . --key core.communication_language --key modules.tea.test_artifacts
+python3 {metodoloji-root}/bmad/scripts/resolve_config.py --project-root . --key core.communication_language --key modules.bmm.planning_artifacts
 python3 {metodoloji-root}/scripts/sync-hooks-json.py --write
 
 # Blackboard
@@ -1287,7 +1283,7 @@ sh scripts/check-techdebt.sh      # borç drift/ID/P0/orphan (#6b olarak da koş
 python scripts/check-triggers.py  # trigger/description çakışması (#6f olarak da koşar)
 ```
 
-**# haritası:** #0 gate key · #0b base config proje-adı sızıntısı · #1 motor selfcheck (birleşik `pre` + tekil modlar) · #1b hooks.json byte-identical · #2 manifesto wiring · #2b bridge runtime görünürlüğü (16 workflow + 1 agent-principles) · #2c bridge VERIFY (8 skill) · #3 approved envanter (VERIFIED/ADVISORY-BLOCK + CROSS-MACHINE uyarısı) · #3b code-scope coverage · #4 dokümantatif kayıtlar · #5 motor bütünlüğü (py\_compile) · #5b hard-gate geçerliliği · #5c custom/ statik · #6 development format · #6a `.env` · #6b tech-debt · #6c template kopya kimliği · #6d init marker bütünlüğü · #6d2 command→script referans bütünlüğü · #6d3 plugin sürüm tutarlılığı (`.plugin/plugin.json` ↔ `.plugin/marketplace.json` ↔ `.claude-plugin/plugin.json` ↔ `.claude-plugin/marketplace.json` ↔ `.opencode-plugin/plugin.json` ↔ `opencode-plugin/package.json` ↔ `plugin.yaml` ↔ `pyproject.toml`) · #6e help catalog bütünlüğü · #6f trigger/description çakışması · #6g namespaced-tool priming token yok · #6h tazelik sözleşmesi (witness üreticisi ↔ verdict tüketicileri, ağaçtan türetilir).
+**# haritası:** #0 gate key · #0b base config proje-adı sızıntısı · #1 motor selfcheck (birleşik `pre` + tekil modlar) · #1b hooks.json byte-identical · #2 manifesto wiring · #2b bridge runtime görünürlüğü (16 workflow + 1 agent-principles) · #2c bridge VERIFY (7 skill) · #3 approved envanter (VERIFIED/ADVISORY-BLOCK + CROSS-MACHINE uyarısı) · #3b code-scope coverage · #4 dokümantatif kayıtlar · #5 motor bütünlüğü (py\_compile) · #5b hard-gate geçerliliği · #5c custom/ statik · #6 development format · #6a `.env` · #6b tech-debt · #6c template kopya kimliği · #6d init marker bütünlüğü · #6d2 command→script referans bütünlüğü · #6d3 plugin sürüm tutarlılığı (`.plugin/plugin.json` ↔ `.plugin/marketplace.json` ↔ `.claude-plugin/plugin.json` ↔ `.claude-plugin/marketplace.json` ↔ `.opencode-plugin/plugin.json` ↔ `opencode-plugin/package.json` ↔ `plugin.yaml` ↔ `pyproject.toml`) · #6e help catalog bütünlüğü · #6f trigger/description çakışması · #6g namespaced-tool priming token yok · #6h tazelik sözleşmesi (witness üreticisi ↔ verdict tüketicileri, ağaçtan türetilir).
 
 **Tek kayıt doğrulama + envanter:**
 
@@ -1399,7 +1395,7 @@ Bu 60 madde "iyi pratik" değil, sistemin mekanik sınırlarıdır. Her birini i
 47. Dizi merge'ü `code`/`id`'ye bakar — anahtarsız diziler append olur (duplicate şişmesine dikkat).
 48. Kişisel ayarlar `*.user.toml` (gitignored), takım ayarları commitli — tersi bilgi sızıntısı/çatışma üretir.
 49. Legacy `config.yaml` proje TOML'una yenilir — migrate edip YAML'ı sil.
-50. Aktivasyonlar config'i hedefli okur: `{metodoloji-root}/bmad/scripts/resolve_config.py --key <dotted.path>` (tekrarlanabilir). `--module tea` (23 satır / 818 B) yalnız eski kurulumlar için CLI şeklidir — modülün gördüğü flat görünümü verir ama çalıştırılacak biçim değil; controller `check_targeted_config_reads` + `check_no_module_dump_in_skills`.
+50. Aktivasyonlar config'i hedefli okur: `{metodoloji-root}/bmad/scripts/resolve_config.py --key <dotted.path>` (tekrarlanabilir). `--module bmm` (23 satır / 818 B) yalnız eski kurulumlar için CLI şeklidir — modülün gördüğü flat görünümü verir ama çalıştırılacak biçim değil; controller `check_targeted_config_reads` + `check_no_module_dump_in_skills`.
 51. Çıktı kuralı: kayıt/artefakt → `{project-root}`; template/config/script → `{metodoloji-root}`. Şüphede "dosya NE?" diye sor.
 52. Manifesto projeye kopyalanmaz — stale `docs/bmad/` kopyasını sil.
 53. `init` mevcutu ezmez — "template güncellenmedi" sanıyorsan sebebi bu; gerekiyorsa elle güncelle.
@@ -1448,8 +1444,8 @@ metodoloji/
 │   ├── engine/modules/                  # guard (guard+quality+deploy), audit, stop, plan, mirror, state, config, archive, bash_targets, blackboard, utils
 │   ├── engine/resolve_customization.py  # ince re-export (gerçek: bmad/scripts/resolve_customization.py)
 │   └── scripts/bootstrap.sh, hook-entry.sh, run-hook.sh
-├── skills/                              # 71 skill (native gövde)
-├── custom/                              # 65 TOML (17 BRIDGE aktif) + config.toml (soft/hard)
+├── skills/                              # 53 skill (native gövde)
+├── custom/                              # 48 TOML (7 BRIDGE aktif) + config.toml (soft/hard)
 ├── bmad/                                # modül verisi (bmm,tea,core,bmb,loop,_config) + scripts/ (blackboard, workflow, orient, resolve_config, resolve_customization, skeleton)
 ├── templates/                           # _template_E/IR/SP/QR/PR/S/PM/BD/C/STRUCT + README/tech-debt/scratch-README/external-context-README/external-context
 ├── commands/                            # /metodoloji:init, gate-setup, verify, audit (.md)

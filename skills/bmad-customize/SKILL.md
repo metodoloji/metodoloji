@@ -14,7 +14,7 @@ Meta yuzey: urettigi yuzeyler arastirma metodolojisini miras alir
 
 Translate the user's intent into a correctly-placed TOML override file under `{metodoloji-root}/custom/` for a customizable agent or workflow skill. Discover, route, author, write, verify.
 
-Scope v1: per-skill `[agent]` overrides (`bmad-agent-<role>.toml` / `.user.toml`) and per-skill `[workflow]` overrides (`bmad-<workflow>.toml` / `.user.toml`). Central config (`{metodoloji-root}/custom/config.toml`) is out of scope — point users at the [How to Customize BMad guide](https://docs.bmad-method.org/how-to/customize-bmad/).
+Scope v1: per-skill `[agent]` overrides (`<agent-skill>.toml` / `.user.toml`) and per-skill `[workflow]` overrides (`bmad-<workflow>.toml` / `.user.toml`). Central config (`{metodoloji-root}/custom/config.toml`) is out of scope — point users at the [How to Customize BMad guide](https://docs.bmad-method.org/how-to/customize-bmad/).
 
 When the target's `customize.toml` doesn't expose what the user wants, say so plainly. Don't invent fields.
 
@@ -54,7 +54,7 @@ Read the target's `customize.toml`. Top-level `[agent]` or `[workflow]` block de
 If a team or user override already exists, read it first and summarize what's already overridden before composing.
 
 **Cross-cutting intent — walk both surfaces with the user:**
-- Every workflow a given agent runs → agent surface (e.g. `bmad-agent-pm.toml` with `persistent_facts`, `principles`).
+- Every workflow a given agent runs → agent surface (e.g. `<agent-skill>.toml` with `persistent_facts`, `principles`).
 - One workflow only → workflow surface (e.g. `bmad-prd.toml` with `activation_steps_prepend`).
 - Several specific workflows → multiple workflow overrides in sequence, not an agent override.
 

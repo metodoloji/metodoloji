@@ -573,7 +573,7 @@ Suggested order: pytest first (engine behaviour), then check-plugin (the widest 
 Negative tests (proof the gates actually work):
 
 ```bash
-sh {metodoloji-root}/scripts/check-plugin.sh --negtest   # 10 stages: .env/.gitignore, 2 BRIDGE removals (#2b), #1b hooks.json, #6c template, #6d marker, #6e help catalog, #6g priming token, #3 forged-token, #6h raw-plane freshness read → all caught and restored
+sh {metodoloji-root}/scripts/check-plugin.sh --negtest   # 9 stages: .env/.gitignore, 1 BRIDGE removal (#2b), #1b hooks.json, #6c template, #6d marker, #6e help catalog, #6g priming token, #3 forged-token, #6h raw-plane freshness read → all caught and restored
 sh {metodoloji-root}/scripts/check-custom.sh --negtest   # 4 tests: #3 hard-gate + #7 bridge drift ×2 (#2.3 removal + "bolum N.N" injection) + #2b bare activation step
 ```
 
@@ -1025,14 +1025,12 @@ Even inside `scratch/` these contents **DENY**: the `.bmad` directory, `gate-key
 
 Families:
 
-- **bmad-**\* (core): PRD, architecture, story, sprint, dev-story/quick-dev/dev-auto, code-review, testarch-*, QA e2e, TEA, retrospective, correct-course, loop-*, eval-runner, forge-idea, brainstorming, research skills.
+- **bmad-**\* (core): PRD, architecture, story, sprint, dev-story/quick-dev/dev-auto, code-review, retrospective, correct-course, loop-*, eval-runner, forge-idea, brainstorming, research skills.
 - **Tool/meta (NO bridge — by design):** `bmad-customize`, `bmad-help`.
 
 **BRIDGE distribution (17 active):**
 
-- **Producer (8, creates/updates records):** `bmad-dev-story`, `bmad-quick-dev`, `bmad-dev-auto`, `bmad-agent-dev`, `bmad-code-review`, `bmad-create-story`, `bmad-sprint-planning`, `bmad-check-implementation-readiness`.
-- **Feeder (9, feeds an existing QR):** `bmad-testarch-*` (atdd, automate, ci, framework, nfr, test-design, test-review, trace), `bmad-qa-generate-e2e-tests`.
-- 1 of them is an agent-principles surface (`bmad-agent-dev` — inside the BRIDGE `[agent].principles`).
+- **Producer (7, creates/updates records):** `bmad-dev-story`, `bmad-quick-dev`, `bmad-dev-auto`, `bmad-code-review`, `bmad-create-story`, `bmad-sprint-planning`, `bmad-check-implementation-readiness`.
 - Producer BRIDGEs carry a **VERIFY** step — the LLM must confirm the file exists with `ls -la` right after creating the record, and the BRIDGE names the repair for the missing-file case (`error and recreate`). Audit #2c demands **both halves** (the same two-part pattern §4 demands of its gate-enforcing set) on all 8 producers.
 
 **Pick the skill by job:**
@@ -1041,13 +1039,13 @@ Families:
 | Job               | Skill                                                                                                  |
 | ----------------- | ------------------------------------------------------------------------------------------------------ |
 | Idea → hypothesis | `bmad-forge-idea`, `bmad-brainstorming`, `bmad-prfaq`, `bmad-product-brief`                            |
-| Write a PRD       | `bmad-prd`, `bmad-create-prd`, `bmad-validate-prd`, `bmad-agent-pm`                                    |
-| Architecture      | `bmad-architecture`, `bmad-create-architecture`, `bmad-agent-architect`                                |
+| Write a PRD       | `bmad-prd`, `bmad-create-prd`, `bmad-validate-prd`                                                    |
+| Architecture      | `bmad-architecture`, `bmad-create-architecture`                                                       |
 | Sprint/story      | `bmad-sprint-planning`, `bmad-create-epics-and-stories`, `bmad-create-story`, `bmad-dev-story`         |
-| Fast code         | `bmad-quick-dev` (single story), `bmad-dev-auto` (batch), `bmad-agent-dev`                             |
-| Quality           | `bmad-code-review`, `bmad-quality-record`, `bmad-testarch-*`, `bmad-qa-generate-e2e-tests`             |
+| Fast code         | `bmad-quick-dev` (single story), `bmad-dev-auto` (batch)                                               |
+| Quality           | `bmad-code-review`, `bmad-quality-record`                                                             |
 | Deploy readiness  | `bmad-production-readiness`                                                                            |
-| Correction route  | `bmad-correct-course`, `bmad-retrospective`, `bmad-teach-me-testing`                                   |
+| Correction route  | `bmad-correct-course`, `bmad-retrospective`                                                           |
 | Evaluation        | `bmad-eval-runner` (runs a skill in a clean room: transcript, duration, tokens, persistent run folder) |
 
 
@@ -1104,8 +1102,8 @@ user_name = "Ayla"
 communication_language = "Turkish"
 
 # {project-root}/bmad/config.toml (team — committed)
-[modules.tea]
-risk_threshold = "p0"
+[modules.bmm]
+planning_artifacts = "{project-root}/docs/planning"
 ```
 
 Legacy YAML bridge: module `config.yaml` files from old installs are read as a layer **between** the plugin TOML and the project TOML (it overrides the plugin default and loses to the project TOML). Migrate by moving the values into the project TOML and deleting the YAMLs.
@@ -1113,12 +1111,12 @@ Legacy YAML bridge: module `config.yaml` files from old installs are read as a l
 Flat module output (CLI/legacy shape only):
 
 ```bash
-python3 {metodoloji-root}/bmad/scripts/resolve_config.py --project-root . --module tea
+python3 {metodoloji-root}/bmad/scripts/resolve_config.py --project-root . --module bmm
 ```
 
 Returns the shared `core` plus that module's keys (the old module config.yaml shape). `--module core` returns only core. Artifact paths in the plugin layers point the output at `{project-root}` (`docs/`), not inside the plugin.
 
-**That is not the rule for activations:** they ask for the named keys — `--key` (repeatable). `--module tea` is 23 lines / 818 B while a targeted read is 5 lines / 142 B; the module view also carries keys the run never uses and teaches the habit of "run the dump, read what comes back" (see #18 item 50).
+**That is not the rule for activations:** they ask for the named keys — `--key` (repeatable). `--module bmm` is 23 lines / 818 B while a targeted read is 5 lines / 142 B; the module view also carries keys the run never uses and teaches the habit of "run the dump, read what comes back" (see #18 item 50).
 
 ### 13.3 Manifesto wiring
 
@@ -1178,16 +1176,14 @@ python3 {metodoloji-root}/bmad/scripts/blackboard.py hot --clear
 **Sub-chains (phase-based, the `SUB_CHAINS` registry):** phases other than the two canonical relays are defined in one registry and get the same first-class treatment under `sub_chains` in `chain-health` output — `extra` is reserved for genuinely unknown receivers. Adding a phase = adding one row to the registry; `doctor` (pending hops), the session\_start/stop nudge and the static lint follow automatically.
 
 - **discovery** — ideas and research fan into the brief/PRD input (`bmad-forge-idea`, `bmad-brainstorming`, `bmad-prfaq`, the three research skills → `bmad-product-brief`/`bmad-prd`; run-key prefixes `forge.`, `brainstorm.`, `brief.`, `prfaq.`, `research.market.`, `research.domain.`, `research.tech.`). Discovery skills are **entry points** on the activation side: no hop points at them, so they never promise a peek that can never be satisfied.
-- **alt\_dev** — alternative routes of the development stage: `bmad-quick-dev` (`quickdev.`), `bmad-dev-auto` (`devauto.`) and the dev persona `bmad-agent-dev` (`agentdev.`; its BRIDGE carries S→QR→PR) converge on the delivery relay's terminal gate `bmad-code-review`. These are chain **entry points** (no peek, post at close) and do not stamp an E→IR→SP→S→QR→PR position — a branch, not a stage.
-- **testing** — the TEA toolbox feeds the quality record's mechanical checks (`bmad-testarch-atdd`, `-automate`, `-ci`, `-framework`, `-nfr`, `-test-design`, `-test-review`, `-trace` and `bmad-qa-generate-e2e-tests` → `bmad-quality-record`; run-key prefixes `test.<tool>.`); TEA Academy (`bmad-teach-me-testing`, prefix `teach.`) routes its graduate into the chain it taught (`bmad-testarch-framework`). A feeder **adds evidence to the existing QR record**, it does not open its own record and does not stamp a methodology position. The only TEA workflow that peeks is `bmad-testarch-framework` — the academy hands off to it.
+- **alt\_dev** — alternative routes of the development stage: `bmad-quick-dev` (`quickdev.`) and `bmad-dev-auto` (`devauto.`) converge on the delivery relay's terminal gate `bmad-code-review`. These are chain **entry points** (no peek, post at close) and do not stamp an E→IR→SP→S→QR→PR position — a branch, not a stage.
 - **governance** — the hops that close the loop: retrospective (`bmad-retrospective`, prefix `retro.`) returns its testable lessons to the start (`bmad-research-experiment`), while a course correction (`bmad-correct-course`, prefix `change.`) lands on the surface that owns the backlog (`bmad-sprint-planning`) — so even a large re-plan enters the chain from there. Both are chain **entry points** (no peek, post at close) and, because they re-enter an existing relay skill, they neither extend the relay nor stamp a position. Their targets **do** peek: `bmad-research-experiment` consumes the incoming lesson (the return edge is a baton, not a notification) — the `origin` exemption is gone, because a receiving stage must be able to consume.
-- **Routing personas** (`bmad-agent-pm` / `-analyst` / `-architect` / `-ux-designer` / `-tech-writer` — the persona template: identity + menu + dispatch) are the session's front door: they take identity, open against the board and route the user into a workflow. They never post (so nothing routes to them either); their mandatory half is the **read** side — an orientation digest before greeting (relay position *and* pending batons in one bounded call; if the digest fails, the fallback is the baton list alone), so the menu is not a generic list but *this* project's real next step. `check-handoff.py` checks the read side each rationale promises as one **bounded** call: routing and reporting via the digest, guest contributors via a single `read --context`. The old two-call read (`read --context` + `handoffs`) can no longer appear in any activation — a label alone is not enough.
 - **Contributor (`bmad-advanced-elicitation`, `bmad-party-mode`, `bmad-eval-runner`)** — an in-line technique booster: called *inside* another skill's session, it reads the caller's board context and leaves exactly one `contribute` trace; all other writes are forbidden (focus, run list and closure belong to the caller).
 - **Reporter (`bmad-sprint-status`)** — reports project state, so it cannot report from files alone: it reads the board and surfaces a pending baton as live work the plan does not yet know about.
 - **Help router (`bmad-help`)** — suggests the next skill; it also reads pending batons (read-only) and puts them ahead of the catalog — a pending signal is live work the map does not yet show.
 - **In-line (`bmad-review-*`, `bmad-editorial-review-*`, `bmad-loop-sweep`)** — returns findings to the caller, posts no hop; reviewers do **not** read the caller's board context — the information asymmetry is by design. `bmad-loop-sweep` runs only inside a bmad-loop session and returns machine-readable triage to the orchestrator.
 - **Human-decision entry points (`bmad-checkpoint-preview`, `bmad-loop-resolve`)** — called at the user's request and managing a human decision; they open against the board (read-only) before deciding — a decision taken without chain context is a decision taken from a vacuum.
-- **Tool (`bmad-agent-builder`, `bmad-document-project`, `bmad-generate-project-context`, `bmad-index-docs`, `bmad-shard-doc`, the builders: `bmad-loop-setup`, `bmad-bmb-setup`, `bmad-module-builder`, `bmad-workflow-builder`, `bmad-customize`)** — produces an output with no chain record (an agent skill, a project document, an installed module, a progress file): neither hop nor board contract. The output of the four document/context skills (`project-context.md` etc.) is *read* by many stages — but not as a baton: as a `persistent_facts` file at activation. The registry models that dependency without inventing a signal nobody will consume.
+- **Tool (`bmad-document-project`, `bmad-generate-project-context`, `bmad-index-docs`, `bmad-shard-doc`, the builders: `bmad-loop-setup`, `bmad-bmb-setup`, `bmad-module-builder`, `bmad-workflow-builder`, `bmad-customize`)** — produces an output with no chain record (a project document, an installed module, a progress file): neither hop nor board contract. The output of the four document/context skills (`project-context.md` etc.) is *read* by many stages — but not as a baton: as a `persistent_facts` file at activation. The registry models that dependency without inventing a signal nobody will consume.
 - **Deprecated shims** (`bmad-create-prd`, `bmad-validate-prd` → `bmad-prd`; `bmad-create-architecture` → `bmad-architecture`) carry no chain logic of their own; `check-handoff.py` verifies the shim is DEPRECATED and points at a skill that **is** a chain member.
 
 **Two structural invariants of the lint (above the rationale labels):** (1) *A hop receiver cannot say "nobody hands off to me"* — a receiver labelled `entry point`/`feeder`/`origin` never looks at its channel, so a declared baton waits until it goes stale; also every receiver must be a registered member (the lint never checks an unregistered receiver). (2) *A run-key namespace written by more than one stage must be signed* — because `story.` is written by both sides, the dev closure carries `--sender bmad-dev-story`; without the signature the prefix attribution credits create-story and the terminal hop looks like an undeclared pair. Terminal receivers are declared explicitly too (`CHAIN_TERMINAL`).
@@ -1251,7 +1247,7 @@ python scripts/check-handoff.py
 
 # Customization
 python3 {metodoloji-root}/bmad/scripts/resolve_customization.py -s skills/bmad-dev-story -k workflow.activation_steps_append
-python3 {metodoloji-root}/bmad/scripts/resolve_config.py --project-root . --key core.communication_language --key modules.tea.test_artifacts
+python3 {metodoloji-root}/bmad/scripts/resolve_config.py --project-root . --key core.communication_language --key modules.bmm.planning_artifacts
 python3 {metodoloji-root}/scripts/sync-hooks-json.py --write
 
 # Blackboard
@@ -1287,7 +1283,7 @@ sh scripts/check-techdebt.sh      # debt drift/ID/P0/orphan (also runs as #6b)
 python scripts/check-triggers.py  # trigger/description collision (also runs as #6f)
 ```
 
-**# map:** #0 gate key · #0b base config project-name leak · #1 engine selfcheck (combined `pre` + individual modes) · #1b hooks.json byte-identical · #2 manifesto wiring · #2b bridge runtime visibility (16 workflow + 1 agent-principles) · #2c bridge VERIFY (8 skills) · #3 approved inventory (VERIFIED/ADVISORY-BLOCK + CROSS-MACHINE warning) · #3b code-scope coverage · #4 documentary records · #5 engine integrity (py\_compile) · #5b hard-gate validity · #5c custom/ static · #6 development format · #6a `.env` · #6b tech-debt · #6c template copy identity · #6d init marker integrity · #6d2 command→script reference integrity · #6d3 plugin version consistency (`.plugin/plugin.json` ↔ `.plugin/marketplace.json` ↔ `.claude-plugin/plugin.json` ↔ `.claude-plugin/marketplace.json` ↔ `.opencode-plugin/plugin.json` ↔ `opencode-plugin/package.json` ↔ `plugin.yaml` ↔ `pyproject.toml`) · #6e help catalog integrity · #6f trigger/description collision · #6g no namespaced-tool priming tokens · #6h freshness contract (witness producer ↔ verdict consumers, derived from the tree).
+**# map:** #0 gate key · #0b base config project-name leak · #1 engine selfcheck (combined `pre` + individual modes) · #1b hooks.json byte-identical · #2 manifesto wiring · #2b bridge runtime visibility (16 workflow + 1 agent-principles) · #2c bridge VERIFY (7 skills) · #3 approved inventory (VERIFIED/ADVISORY-BLOCK + CROSS-MACHINE warning) · #3b code-scope coverage · #4 documentary records · #5 engine integrity (py\_compile) · #5b hard-gate validity · #5c custom/ static · #6 development format · #6a `.env` · #6b tech-debt · #6c template copy identity · #6d init marker integrity · #6d2 command→script reference integrity · #6d3 plugin version consistency (`.plugin/plugin.json` ↔ `.plugin/marketplace.json` ↔ `.claude-plugin/plugin.json` ↔ `.claude-plugin/marketplace.json` ↔ `.opencode-plugin/plugin.json` ↔ `opencode-plugin/package.json` ↔ `plugin.yaml` ↔ `pyproject.toml`) · #6e help catalog integrity · #6f trigger/description collision · #6g no namespaced-tool priming tokens · #6h freshness contract (witness producer ↔ verdict consumers, derived from the tree).
 
 **Single-record verification + inventory:**
 
@@ -1399,7 +1395,7 @@ These 60 items are not "good practice" — they are the system's mechanical boun
 47. Array merge looks at `code`/`id` — arrays without those keys append (watch for duplicate bloat).
 48. Personal settings in `*.user.toml` (gitignored), team settings committed — the reverse leaks information or causes conflicts.
 49. Legacy `config.yaml` loses to the project TOML — migrate and delete the YAML.
-50. Activations read config in a targeted way: `{metodoloji-root}/bmad/scripts/resolve_config.py --key <dotted.path>` (repeatable). `--module tea` (23 lines / 818 B) is a CLI shape only for old installs — it gives the flat view a module sees, but it is not the shape to run; the controller has `check_targeted_config_reads` + `check_no_module_dump_in_skills`.
+50. Activations read config in a targeted way: `{metodoloji-root}/bmad/scripts/resolve_config.py --key <dotted.path>` (repeatable). `--module bmm` (23 lines / 818 B) is a CLI shape only for old installs — it gives the flat view a module sees, but it is not the shape to run; the controller has `check_targeted_config_reads` + `check_no_module_dump_in_skills`.
 51. Output rule: record/artifact → `{project-root}`; template/config/script → `{metodoloji-root}`. When in doubt ask "what IS the file?".
 52. Manifests are not copied into the project — delete a stale `docs/bmad/` copy.
 53. `init` never overwrites — that is why "the template didn't update"; update it by hand if needed.
@@ -1448,8 +1444,8 @@ metodoloji/
 │   ├── engine/modules/                  # guard (guard+quality+deploy), audit, stop, plan, mirror, state, config, archive, bash_targets, blackboard, utils
 │   ├── engine/resolve_customization.py  # thin re-export (real: bmad/scripts/resolve_customization.py)
 │   └── scripts/bootstrap.sh, hook-entry.sh, run-hook.sh
-├── skills/                              # 71 skills (native bodies)
-├── custom/                              # 65 TOMLs (17 BRIDGE active) + config.toml (soft/hard)
+├── skills/                              # 53 skills (native bodies)
+├── custom/                              # 48 TOMLs (7 BRIDGE active) + config.toml (soft/hard)
 ├── bmad/                                # module data (bmm,tea,core,bmb,loop,_config) + scripts/ (blackboard, workflow, orient, resolve_config, resolve_customization, skeleton)
 ├── templates/                           # _template_E/IR/SP/QR/PR/S/PM/BD/C/STRUCT + README/tech-debt/scratch-README/external-context-README/external-context
 ├── commands/                            # /metodoloji:init, gate-setup, verify, audit (.md)

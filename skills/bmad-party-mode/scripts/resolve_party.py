@@ -95,7 +95,7 @@ def load_workflow(project_root: Path, skill_root: Path):
 
 
 def _alias(code: str) -> str:
-    """Short alias for an installed agent code: bmad-agent-analyst -> analyst."""
+    """Short alias for an installed skill code: bmad-agent-x -> agent-x."""
     for prefix in ("bmad-agent-", "bmad-"):
         if code.startswith(prefix):
             return code[len(prefix):]

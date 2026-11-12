@@ -1,7 +1,7 @@
 # Team overrides for bmad-document-project — Research methodology (Documentation: documentation).
 # Documentation is the terminal stage of the methodology: it must bind experiment → measurement
 # → decision → code, and report negative results honestly.
-# This workflow is directly invocable (/bmad-document-project), independent of bmad-agent-tech-writer.
+# This workflow is directly invocable (/bmad-document-project).
 
 [workflow]
 persistent_facts = [

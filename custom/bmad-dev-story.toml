@@ -1,6 +1,6 @@
 # Team overrides for bmad-dev-story — Research methodology (Mod A → Code: story realization).
 # This workflow writes story code directly. It must load the manifesto and require a
-# verified experiment approval before implementing, exactly like bmad-agent-dev.
+# verified experiment approval before implementing, exactly like bmad-quick-dev.
 # Without this, invoking /bmad-dev-story directly would bypass the methodology gate.
 
 [workflow]

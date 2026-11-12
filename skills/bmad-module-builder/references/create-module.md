@@ -21,7 +21,7 @@ For each skill, understand:
 - What it produces and where
 - Dependencies on other skills or external tools
 
-**Also read `customize.toml` if present.** Skills built by the agent-builder ship a `customize.toml` alongside SKILL.md with an `[agent]` metadata block — `code`, `name`, `title`, `icon`, `description`, `agent_type`. Skills built by the workflow-builder may ship a `customize.toml` with a `[workflow]` block when the author opted in to end-user customization. Capture:
+**Also read `customize.toml` if present.** A persona-shaped skill ships a `customize.toml` alongside SKILL.md with an `[agent]` metadata block — `code`, `name`, `title`, `icon`, `description`, `agent_type`. Skills built by the workflow-builder may ship a `customize.toml` with a `[workflow]` block when the author opted in to end-user customization. Capture:
 
 - **Agent metadata:** the full `[agent]` block from each agent skill — this will populate `module.yaml:agents[]` in step 3.5.
 - **Workflow customization:** presence/absence of `[workflow]` is informational only; workflows don't contribute to the module's agent roster.

@@ -46,19 +46,6 @@ def test_stage_of_sub_chain_prefixes():
     assert mir.stage_of("research.tech.stack") == "technical-research"
     assert mir.stage_of("quickdev.3-2-digest") == "quick-dev"
     assert mir.stage_of("devauto.gh-47-fix-auth") == "dev-auto"
-    assert mir.stage_of("agentdev.3-2-digest") == "agent-dev"
-    assert mir.stage_of("test.atdd.3-2-digest") == "test-atdd"
-    assert mir.stage_of("test.automate.x") == "test-automate"
-    assert mir.stage_of("test.ci.acme") == "test-ci"
-    assert mir.stage_of("test.framework.acme") == "test-framework"
-    assert mir.stage_of("test.nfr.api") == "test-nfr"
-    assert mir.stage_of("test.design.epic-1") == "test-design"
-    assert mir.stage_of("test.review.svc") == "test-review"
-    assert mir.stage_of("test.trace.R-1") == "test-trace"
-    assert mir.stage_of("test.e2e.checkout") == "test-e2e"
-    # specific prefixes win over the generic test. fallback
-    assert mir.stage_of("test.unknown-namespace") == "testing"
-    assert mir.stage_of("teach.ada") == "teaching"
     assert mir.stage_of("retro.epic-1") == "retrospective"
     assert mir.stage_of("change.2026-09-17") == "correct-course"
 
@@ -85,25 +72,6 @@ def test_mirror_governance_hops_close_the_loop(root):
     assert ack2["stage"] == "correct-course" and ack2["handed_off"] is True
     assert bb.pending_handoff_channels(root) == {"bmad-research-experiment": 1,
                                                 "bmad-sprint-planning": 1}
-
-
-def test_mirror_tea_feeder_signals_the_quality_record(root):
-    """A TEA feeder adds evidence to an existing QR: it binds a run key and
-    signals the quality record, without stamping an E→IR→SP→S→QR→PR position
-    (it is a feeder, not a stage of that relay)."""
-    ack = mir.mirror(root, "test.design.epic-1", "test design complete",
-                     to="bmad-quality-record", note="fold into the QR")
-    assert ack["ok"] is True and ack["stage"] == "test-design"
-    assert ack["handed_off"] is True and ack["dedup"] is False
-    pending = bb.pending_handoffs(root, "bmad-quality-record")
-    assert pending[0]["text"].startswith("test.design.epic-1")
-    assert not [k for k in bb.read_board(root)["keys"]
-                if k.startswith("methodology.last_")]
-    # repeat — idempotent, the QR channel is not flooded
-    ack2 = mir.mirror(root, "test.design.epic-1", "test design complete",
-                      to="bmad-quality-record", note="fold into the QR")
-    assert ack2["dedup"] is True
-    assert len(bb.pending_handoffs(root, "bmad-quality-record")) == 1
 
 
 def test_mirror_alt_dev_branches_converge_on_the_review_gate(root):

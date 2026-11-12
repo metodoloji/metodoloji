@@ -429,11 +429,6 @@ This document is compliant with the following skills:
 | stop hook | ✅ | Reports in-progress story status; never blocks session close |
 | audit hook | ✅ | Methodology compliance warnings |
 | bmad-edit-prd | ❌ REMOVED | DEPRECATED — merged into bmad-prd |
-| bmad-testarch-atdd | ✅ Feeder | Adds ATDD tests/checklist to the existing QR record's Mechanical checks — opens no record of its own |
-| bmad-testarch-automate / -ci / -framework / -nfr / -test-design / -test-review / -trace | ✅ Feeder | Same feeder contract as atdd: evidence lands in the QR's Mechanical checks (`custom/bmad-testarch-*.toml` BRIDGE) |
-| bmad-qa-generate-e2e-tests | ✅ Feeder | Generated API/E2E tests → QR Mechanical checks |
-| bmad-teach-me-testing | ❌ N/A | Learning workflow — produces a certificate, not a methodology record |
-| TEA feeders (all of the above except teach-me-testing) | ✅ Chain | Each posts one `test.<tool>.<slug>` baton to `handoff.bmad-quality-record` on close-out (sub-chain `testing`); feeders never stamp an E→IR→SP→S→QR→PR position |
 
 ---
 

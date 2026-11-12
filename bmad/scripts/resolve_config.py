@@ -24,7 +24,7 @@ The project layers let a user configure BMad entirely from their own repo,
 without touching the plugin. Values set there override plugin defaults.
 
 Legacy YAML bridge (read-only): project-root per-module ``config.yaml`` files
-written by older installers (e.g. ``{project-root}/bmad/tea/config.yaml``,
+written by older installers (e.g. ``{project-root}/bmad/<module>/config.yaml``,
 ``{project-root}/bmad/core/config.yaml``) are merged as one layer BETWEEN the
 plugin layers and the project TOML layers — they are project settings, so
 they override plugin defaults and are overridden by any project TOML:
@@ -51,8 +51,8 @@ transition. Either runner needs Python 3.11+ for `tomllib`.
   uv run resolve_config.py --project-root /abs/path/to/project
   uv run resolve_config.py --project-root ... --key core
   uv run resolve_config.py --project-root ... --key agents
-  uv run resolve_config.py --project-root ... --module tea
-  uv run resolve_config.py --project-root ... --module tea --module bmb
+  uv run resolve_config.py --project-root ... --module bmb
+  uv run resolve_config.py --project-root ... --module bmb --module core
 
 ``--project-root`` is resolved with ``Path.resolve()``, i.e. relative to the
 PROCESS's current working directory — a bare ``.`` works only when you invoke
@@ -60,8 +60,8 @@ the script FROM the project root. Safest: ``--project-root "$PWD"``.
 
 ``--module`` returns a FLAT object: shared ``core`` keys overlaid by that
 module's own keys — exactly the shape the legacy per-module config.yaml files
-had, so skills can migrate from "read bmad/tea/config.yaml" to
-"run resolve_config.py --module tea" without restructuring their logic.
+had, so skills can migrate from "read bmad/<module>/config.yaml" to
+"run resolve_config.py --module <module>" without restructuring their logic.
 
 Merge rules (same as resolve_customization.py):
   - Scalars: override wins
@@ -296,7 +296,7 @@ def apply_legacy_bridge(project_root: Path, merged: dict, wanted_modules: list[s
 
 
 def _modules_from_key_paths(keys: list[str]) -> list[str]:
-    """Extract module codes from --key paths like modules.tea.risk_threshold."""
+    """Extract module codes from --key paths like modules.<code>.risk_threshold."""
     codes: list[str] = []
     for key in keys:
         parts = key.split(".")
@@ -520,7 +520,7 @@ def main():
     )
     parser.add_argument(
         "--module", "-m", action="append", default=[],
-        help="Module code (e.g. tea, bmb) — output a flat core+module object (repeatable)",
+        help="Module code (e.g. bmb, core) — output a flat core+module object (repeatable)",
     )
     parser.add_argument(
         "--key", "-k", action="append", default=[],

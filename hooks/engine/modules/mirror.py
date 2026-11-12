@@ -52,18 +52,6 @@ _STAGE_BY_PREFIX = (
     ("change.", "correct-course"),
     ("quickdev.", "quick-dev"),
     ("devauto.", "dev-auto"),
-    ("agentdev.", "agent-dev"),
-    ("test.atdd.", "test-atdd"),
-    ("test.automate.", "test-automate"),
-    ("test.ci.", "test-ci"),
-    ("test.framework.", "test-framework"),
-    ("test.nfr.", "test-nfr"),
-    ("test.design.", "test-design"),
-    ("test.review.", "test-review"),
-    ("test.trace.", "test-trace"),
-    ("test.e2e.", "test-e2e"),
-    ("test.", "testing"),
-    ("teach.", "teaching"),
 )
 
 

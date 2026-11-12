@@ -6,7 +6,7 @@ Claude Code plugin for methodology enforcement, compatible with BMad Method.
 
 - **Record chain**: E → IR → SP → S → QR → PR (experiment → implementation readiness → sprint planning → story → quality review → production readiness)
 - **Mechanical gates**: guard (write/edit blocking, config-gated), quality (`git commit` chain check, config-gated), deploy (deploy-command chain check, config-gated), audit (post-write trail), stop (session-end report, never blocks)
-- **71 skills** with **65 customization TOMLs** + `config.toml` (17 active BRIDGEs linking native outputs to methodology records). `bmad-customize`, `bmad-help`, `memory`, `sync` are tool/meta skills with no bridge TOML by design: `memory`/`sync` are in {metodoloji-root}/scripts/check-plugin.sh §2 EXCLUDED, while `bmad-customize`/`bmad-help` ship no customize.toml and are audited through their SKILL.md manifesto pointer (see §2 / §6b pairing).
+- **53 skills** with **48 customization TOMLs** + `config.toml` (7 active BRIDGEs linking native outputs to methodology records). `bmad-customize`/`bmad-help` are tool/meta skills with no bridge TOML by design: they ship no customize.toml and are audited through their SKILL.md manifesto pointer (see §2 / §6b pairing).
 
 ## Hooks
 
@@ -180,14 +180,14 @@ full `resolve_config.py` dump: that output is large enough to arrive truncated,
 which is what made a real session re-run it repeatedly. It is activation step 1
 for every skill that starts a run — the E → IR → SP → S → dev → review → QR → PR
 stage openers, the governance openers, the planning chain, the discovery entry
-points, the persona front doors and the human-review entry point — 35 run
+points, the persona front doors and the human-review entry point — 27 run
 openers and front doors across the BMad verticals (`DIGEST_FIRST`
 in `scripts/check-handoff.py`). For a router or persona the digest *is* the
 board grounding, so it replaces the raw `read --context` + `handoffs` pair; a
 guest contributor that only needs the invoking run's focus keeps the single
 bounded `read --context`. Config beyond the digest: `{metodoloji-root}/bmad/scripts/resolve_config.py --key
 <dotted.path>` — no dump of any kind, the module-scoped one (`--module`)
-included: `--module tea` is 23 lines / 818 B here against 5 lines / 142 B for a
+included: `--module bmm` is 23 lines / 818 B here against 5 lines / 142 B for a
 targeted read, and the unbounded dump is every key of every layer (~13.7 KB).
 `check_targeted_config_reads` enforces the named-keys rule on every activation,
 `check_bounded_board_reads` refuses the old board pair, and

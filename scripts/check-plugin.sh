@@ -28,7 +28,7 @@
 # Usage:  sh scripts/check-plugin.sh   (from the plugin root or anywhere;
 #            target project root is cwd or $OPENHANDS_PROJECT_DIR)
 #            sh scripts/check-plugin.sh --negtest
-#            (negative tests, 10 stages: §6a .env inventory, §2b BRIDGE
+#            (negative tests, 9 stages: §6a .env inventory, §2b BRIDGE
 #             visibility ×2 (skill + agent principles), §1b dispatch locator
 #             drift, §6c template copy drift, §6d init marker integrity,
 #             §6e help catalog integrity, §6g priming-token scan,
@@ -73,7 +73,7 @@ from pathlib import Path
 
 PLUGIN = Path(os.environ["PLUGIN_ROOT"])
 check_script = PLUGIN / "scripts" / "check-plugin.sh"
-total_stages = 10
+total_stages = 9
 # The full check runs every section (engine audit, gate, records, catalog) and
 # takes ~65s on Windows CI-class disks, so the 60s budget it used to carry made
 # stage 1 fail as a timeout rather than as a fixable defect.
@@ -135,40 +135,8 @@ try:
 finally:
     toml.write_bytes(orig_bytes)
 
-# Stage 3/9: BRIDGE removed from an agent-principles surface → §2b should catch a MISS
-print(f"[3/{total_stages}] does §2b emit a MISS when BRIDGE is removed from custom/bmad-agent-dev.toml (agent.principles)")
-atoml = PLUGIN / "custom" / "bmad-agent-dev.toml"
-askill = PLUGIN / "skills" / "bmad-agent-dev"
-aorig_bytes = atoml.read_bytes()
-aorig = aorig_bytes.decode("utf-8")
-
-def agent_bridge_visible(text: str) -> bool:
-    # write_bytes: see bridge_visible — text mode corrupts CRLF on Windows.
-    atoml.write_bytes(text.encode("utf-8"))
-    try:
-        r = subprocess.run(
-            [sys.executable, str(resolver), "-s", str(askill),
-             "-k", "agent.principles"],
-            capture_output=True, text=True, encoding="utf-8", timeout=15)
-        d = json.loads(r.stdout)
-        return any("BRIDGE" in s for s in d.get("agent.principles", []))
-    finally:
-        atoml.write_bytes(aorig_bytes)  # byte-exact: no CRLF/LF churn
-
-try:
-    abroken = "\n".join(l for l in aorig.splitlines() if "BRIDGE" not in l)
-    if not agent_bridge_visible(aorig):
-        print("  [ERROR] agent BRIDGE not visible even in intact custom TOML — test setup broken")
-        sys.exit(1)
-    if agent_bridge_visible(abroken):
-        print("  [ERROR] §2b MISS expected for agent.principles, BRIDGE still visible after removal")
-        sys.exit(1)
-    print("  [OK] agent-principles §2b MISS caught, custom TOML restored")
-finally:
-    atoml.write_bytes(aorig_bytes)
-
-# Stage 4/9: hooks.json locator desynced in ONE hook → §1b should catch drift
-print(f"[4/{total_stages}] does §1b catch a desynced hooks.json dispatch locator")
+# Stage 3/9: hooks.json locator desynced in ONE hook → §1b should catch drift
+print(f"[3/{total_stages}] does §1b catch a desynced hooks.json dispatch locator")
 hj = PLUGIN / "hooks" / "hooks.json"
 hj_bytes = hj.read_bytes()
 hj_orig = hj_bytes.decode("utf-8")
@@ -192,8 +160,8 @@ try:
 finally:
     hj.write_bytes(hj_bytes)  # byte-exact: no CRLF/LF churn
 
-# Stage 5/9: docs template copy desynced from templates/ → §6c should catch DRIFT
-print(f"[5/{total_stages}] does §6c catch template copy drift")
+# Stage 4/9: docs template copy desynced from templates/ → §6c should catch DRIFT
+print(f"[4/{total_stages}] does §6c catch template copy drift")
 tmpl = PLUGIN / "templates" / "_template_IR.md"
 cp = PLUGIN / "docs" / "development" / "_template_IR.md"
 if not tmpl.is_file() or not cp.is_file():
@@ -217,8 +185,8 @@ finally:
     cp.write_bytes(cp_orig)
     tmpl.write_bytes(tmpl_orig)
 
-# Stage 6/9: init marker removed while the skeleton is present → §6d should ERROR
-print(f"[6/{total_stages}] does §6d catch a missing init marker with the skeleton present")
+# Stage 5/9: init marker removed while the skeleton is present → §6d should ERROR
+print(f"[5/{total_stages}] does §6d catch a missing init marker with the skeleton present")
 marker = PLUGIN / ".metodoloji" / "initialized"
 if not (PLUGIN / "docs" / "experiments" / "_template.md").is_file():
     print("  [ERROR] test setup broken: skeleton copy docs/experiments/_template.md missing")
@@ -242,10 +210,10 @@ try:
 finally:
     marker.write_bytes(marker_orig)  # byte-exact restore
 
-# Stage 7/9: a second skill inside one module wears an existing menu code →
+# Stage 6/9: a second skill inside one module wears an existing menu code →
 # §6e should catch the intra-module duplicate (the ambiguity class that made
 # "[SP]" mean two different skills).
-print(f"[7/{total_stages}] does §6e catch a duplicate menu code inside one module")
+print(f"[6/{total_stages}] does §6e catch a duplicate menu code inside one module")
 catalog = PLUGIN / "bmad" / "_config" / "bmad-help.csv"
 cat_orig = catalog.read_bytes()
 cat_text = cat_orig.decode("utf-8")
@@ -270,10 +238,10 @@ try:
 finally:
     catalog.write_bytes(cat_orig)  # byte-exact restore
 
-# Stage 8/9: a namespaced-tool token reintroduced into agent-facing text →
+# Stage 7/9: a namespaced-tool token reintroduced into agent-facing text →
 # §6g should catch the priming class that made a real session emit `default.Bash`
 # (harness: "No such tool available: default.X") after reading its own docs.
-print(f"[8/{total_stages}] does §6g catch a reintroduced `default.Bash` priming token")
+print(f"[7/{total_stages}] does §6g catch a reintroduced `default.Bash` priming token")
 audit_cmd = PLUGIN / "commands" / "audit.md"
 audit_orig = audit_cmd.read_bytes()
 try:
@@ -291,10 +259,10 @@ try:
 finally:
     audit_cmd.write_bytes(audit_orig)  # byte-exact restore
 
-# Stage 9/9: a record's Gate Evidence token is corrupted by hand → §3 must
+# Stage 8/9: a record's Gate Evidence token is corrupted by hand → §3 must
 # report the forged approval. §3 is the gate that produced the three FORGED
 # errors E-023 repaired, and it was the one section no stage ever broke.
-print(f"[9/{total_stages}] does §3 catch a hand-edited Gate Evidence token")
+print(f"[8/{total_stages}] does §3 catch a hand-edited Gate Evidence token")
 victim = PLUGIN / "docs" / "experiments" / "E-022.md"
 verify_cmd = (PLUGIN / "skills" / "bmad-research-experiment" / "scripts"
               / "run_experiment.py")
@@ -332,12 +300,12 @@ try:
 finally:
     victim.write_bytes(orig_rec)  # byte-exact restore
 
-# Stage 10/10: a surface is made to read the RAW alert plane (whose entries
+# Stage 9/9: a surface is made to read the RAW alert plane (whose entries
 # carry no verdict) → §6h must report the broken freshness contract. This is
 # the measured defect itself (E-052: a claim delivered as live work because
 # nothing read its code-state anchor), so the stage proves the gate that
 # protects the plane can still see it.
-print(f"[10/{total_stages}] does §6h catch a surface reading the raw alert plane ")
+print(f"[9/{total_stages}] does §6h catch a surface reading the raw alert plane ")
 stop_mod = PLUGIN / "hooks" / "engine" / "modules" / "stop.py"
 orig_stop = stop_mod.read_bytes()
 try:
@@ -630,15 +598,10 @@ DEV_WING = {
     "bmad-create-architecture", "bmad-sprint-planning", "bmad-create-story",
     "bmad-create-epics-and-stories", "bmad-dev-story", "bmad-quick-dev",
     "bmad-dev-auto", "bmad-research-experiment",
-    "bmad-testarch-atdd", "bmad-testarch-automate", "bmad-testarch-ci",
-    "bmad-testarch-framework", "bmad-testarch-nfr", "bmad-testarch-test-design",
-    "bmad-testarch-test-review", "bmad-testarch-trace",
     "bmad-code-review", "bmad-review-adversarial-general",
-    "bmad-review-edge-case-hunter", "bmad-qa-generate-e2e-tests",
+    "bmad-review-edge-case-hunter",
     "bmad-eval-runner", "bmad-document-project",
     "bmad-retrospective", "bmad-correct-course", "bmad-sprint-status",
-    "bmad-agent-dev", "bmad-agent-architect", "bmad-agent-pm",
-    "bmad-agent-ux-designer", "bmad-agent-tech-writer", "bmad-tea",
 }
 
 missing = []
@@ -753,7 +716,6 @@ BRIDGE_SKILLS = {
     "bmad-dev-story": ("S", "docs/development/stories/", "update"),
     "bmad-quick-dev": ("S", "docs/development/stories/", "update"),
     "bmad-dev-auto": ("S", "docs/development/stories/", "update"),
-    "bmad-agent-dev": ("S", "docs/development/stories/", "update"),
 }
 for skill, (rec_type, target, _) in BRIDGE_SKILLS.items():
     toml_path = os.path.join(PLUGIN, "custom", "%s.toml" % skill)
@@ -797,12 +759,7 @@ for skill in QR_FEEDERS_SKILLMD:
 # cites the bridge but carries no VERIFY step (its BRIDGE says "does not produce
 # an independent methodology record"). The bench check "QR feeder audit covers
 # every feeder surface (E-020)" pins that equality.
-QR_FEEDERS_TOML = [
-    "bmad-qa-generate-e2e-tests",
-    "bmad-testarch-atdd", "bmad-testarch-automate", "bmad-testarch-ci",
-    "bmad-testarch-framework", "bmad-testarch-nfr", "bmad-testarch-test-design",
-    "bmad-testarch-test-review", "bmad-testarch-trace",
-]
+QR_FEEDERS_TOML = []
 for skill in QR_FEEDERS_TOML:
     toml_path = os.path.join(PLUGIN, "custom", "%s.toml" % skill)
     if not os.path.isfile(toml_path):
@@ -849,15 +806,10 @@ TOML_SKILLS = [
     "bmad-check-implementation-readiness", "bmad-sprint-planning",
     "bmad-create-story", "bmad-code-review",
     "bmad-dev-story", "bmad-quick-dev", "bmad-dev-auto",
-    "bmad-qa-generate-e2e-tests",
-    "bmad-testarch-atdd", "bmad-testarch-automate", "bmad-testarch-ci",
-    "bmad-testarch-framework", "bmad-testarch-nfr", "bmad-testarch-test-design",
-    "bmad-testarch-test-review", "bmad-testarch-trace",
 ]
 # Agent-BRIDGE surfaces: BRIDGE lives in [agent].principles, not workflow steps.
-AGENT_TOML_SKILLS = [
-    "bmad-agent-dev",
-]
+# Empty: the last one (bmad-agent-dev) left the tree with the persona group.
+AGENT_TOML_SKILLS = []
 missing = []
 checked = 0
 for name in TOML_SKILLS + AGENT_TOML_SKILLS:
@@ -919,7 +871,6 @@ PRODUCER_KEY = {
     "bmad-dev-story": "workflow.activation_steps_append",
     "bmad-quick-dev": "workflow.activation_steps_append",
     "bmad-dev-auto": "workflow.activation_steps_append",
-    "bmad-agent-dev": "agent.principles",
 }
 missing = []
 checked = 0
@@ -1730,7 +1681,7 @@ HEADER = ["module", "skill", "display-name", "menu-code", "description", "action
 # Cross-module collisions that predate this check (upstream module codes we do
 # not rename). A code that is NOT in here and is shared by two skills is a new
 # ambiguity: either rename one side or add it here with a reason.
-KNOWN_AMBIGUOUS = {"TR"}
+KNOWN_AMBIGUOUS = set()
 # The record chain's prefixes (E/IR/SP/S/QR/PR) belong to RECORDS. A skill
 # whose stage produces that record may still wear the code (bmad-sprint-planning
 # → SP, bmad-check-implementation-readiness → IR); anything else wearing it is a

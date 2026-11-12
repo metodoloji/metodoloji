@@ -14,7 +14,7 @@
 #        workflow body there runs the whole flow during activation (E-040).
 #   3. Hard-gate keywords
 #        GATE_REQUIRED    → must contain ONAYLANDI/REDDEDİLDİ/FORGED/VERIFIED
-#        GATE_REFERENCE_OK → may carry as reference (e.g. bmad-tea)
+#        GATE_REFERENCE_OK → may carry as reference (e.g. bmad-quality-record)
 #        Others → leak (wrong layer) → fail
 #   4. Bridge verify pattern (gate enforcers: "ls -la ... error and recreate")
 #   6. config.toml [hooks] soft/hard contract (DRY: same parser as the config audit)
@@ -145,9 +145,9 @@ if not has_bridge_drift_error(broken_bridge):
 print(f"[OK]   negative test 2/{total_stages}: bridge §2.3 removed → §7 MISS caught → bridge restored")
 
 # ---- Test 3: §7 bolum N.N pattern ----
-# Inject "bolum 99.99" into bmad-testarch-atdd.toml — a section not in the
+# Inject "bolum 99.99" into a bridge-citing TOML — a section not in the
 # bridge; §7's "bolum" pattern must also catch it.
-test_toml = PLUGIN / "custom" / "bmad-testarch-atdd.toml"
+test_toml = PLUGIN / "custom" / "bmad-dev-story.toml"
 orig_test_toml = test_toml.read_text(encoding="utf-8")
 
 def has_bolum_drift_error(text: str) -> bool:
@@ -158,23 +158,23 @@ def has_bolum_drift_error(text: str) -> bool:
             capture_output=True, text=True, encoding="utf-8", timeout=30)
         out = r.stdout
         for line in out.splitlines():
-            if "bmad-testarch-atdd" in line and "not in bridge" in line:
+            if "bmad-dev-story" in line and "not in bridge" in line:
                 return True
         return False
     finally:
         test_toml.write_text(orig_test_toml, encoding="utf-8")
 
 if has_bolum_drift_error(orig_test_toml):
-    print("[ERROR] bolum drift error visible even in intact testarch TOML — test setup broken")
+    print("[ERROR] bolum drift error visible even in the intact TOML — test setup broken")
     sys.exit(1)
 
-# Inject as a comment line so TOML semantics are not broken. The testarch
-# file already carries a bridge reference, so §7 audits it.
+# Inject as a comment line so TOML semantics are not broken. The file
+# already carries a bridge reference, so §7 audits it.
 broken_toml = orig_test_toml + "\n# drift test: bolum 99.99\n"
 if not has_bolum_drift_error(broken_toml):
     print("[ERROR] negative test 3 failed: §7 logic did not catch injected 'bolum 99.99'")
     sys.exit(1)
-print(f"[OK]   negative test 3/{total_stages}: 'bolum 99.99' injected → §7 MISS caught → testarch TOML restored")
+print(f"[OK]   negative test 3/{total_stages}: 'bolum 99.99' injected → §7 MISS caught → TOML restored")
 
 # ---- Test 4: §2b activation compliance frame ----
 # Inject a bare workflow-stage command into a custom TOML's
@@ -286,15 +286,9 @@ DEV_WING = {
     "bmad-create-architecture", "bmad-sprint-planning", "bmad-create-story",
     "bmad-create-epics-and-stories", "bmad-dev-story", "bmad-quick-dev",
     "bmad-dev-auto",
-    "bmad-testarch-atdd", "bmad-testarch-automate", "bmad-testarch-ci",
-    "bmad-testarch-framework", "bmad-testarch-nfr", "bmad-testarch-test-design",
-    "bmad-testarch-test-review", "bmad-testarch-trace",
     "bmad-code-review",
-    "bmad-qa-generate-e2e-tests",
     "bmad-document-project",
     "bmad-retrospective", "bmad-correct-course", "bmad-sprint-status",
-    "bmad-agent-dev", "bmad-agent-architect", "bmad-agent-pm",
-    "bmad-agent-ux-designer", "bmad-agent-tech-writer", "bmad-tea",
 }
 
 problems = []
@@ -352,7 +346,7 @@ PLUGIN = os.environ.get("PLUGIN_ROOT") or "."
 # This distinction targets the files that actually use the hard-gate contract.
 GATE_REQUIRED = {
     "bmad-dev-story", "bmad-dev-auto", "bmad-quick-dev",
-    "bmad-code-review", "bmad-agent-dev",
+    "bmad-code-review",
     "bmad-create-story",   # ONAYLANDI check on AC experiments = gate verifier
 }
 MOD_A_RECORD_ONLY = {
@@ -472,22 +466,15 @@ PLUGIN = os.environ.get("PLUGIN_ROOT") or "."
 # records (produce records but don't enforce the gate) are NOT here.
 GATE_REQUIRED = {
     "bmad-dev-story", "bmad-dev-auto", "bmad-quick-dev",
-    "bmad-code-review", "bmad-agent-dev",
+    "bmad-code-review",
     "bmad-create-story",   # APPROVED check on AC experiments = gate verifier
 }
 # Surfaces that carry the gate as a reference but don't enforce it (principle
 # statement or for training). For those in this list the hard-gate keyword is
 # not counted as a leak; appearing anywhere else is an error.
 GATE_REFERENCE_OK = {
-    "bmad-tea",  # test strategy documentary: "depends on Mod A mechanical approval"
     "bmad-quality-record",        # QR consumer: reads experiment/story gate status
     "bmad-production-readiness",  # PR consumer: reads QR gate status before certifying
-    # Meta/generator surface: its principles DESCRIBE the gate ("writes without
-    # a VERIFIED record are mechanically blocked by the guard hook"); it
-    # produces surfaces, it does not enforce the gate itself. Before this entry
-    # §3 reported it as a leak on every run — a permanent red that masked the
-    # next real hard-gate regression.
-    "bmad-agent-builder",
 }
 # May appear in both activation_steps_append and principles.
 # Accept both the legacy Turkish markers and the new English markers.
