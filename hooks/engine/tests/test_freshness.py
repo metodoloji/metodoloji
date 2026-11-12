@@ -95,6 +95,42 @@ def test_scope_digest_is_normalized_and_stable():
     assert fr.scope_digest("src/**") != fr.scope_digest("src/*")
 
 
+def test_glob_parser_is_memoised_without_changing_its_answer():
+    """The parser is pure, so memoising it cannot change a result — this pins both halves.
+
+    E-132 measured the scan calling this 114,109 times over 248 distinct patterns; the
+    memo exists so the second and later parses of a pattern cost a dict lookup. The test
+    guards the perf fix from being silently deleted, and guards the equality that makes
+    the deletion safe to reason about: a cached answer must be the recomputed answer.
+    """
+    fr.reset_cache()
+    pattern = "hooks/engine/modules/*.py"
+
+    first = fr.glob_to_regex(pattern)
+    before = fr.glob_to_regex.cache_info()
+    second = fr.glob_to_regex(pattern)
+    after = fr.glob_to_regex.cache_info()
+
+    assert first == second, "the memo returned a different regex for the same pattern"
+    assert before.misses == 1 and before.hits == 0, before  # the first call parsed
+    assert after.hits == before.hits + 1, "the second call was not served from the memo"
+    assert after.misses == before.misses, "a repeat of the same pattern re-parsed it"
+
+    # And the memo is not a second opinion: recomputing by hand agrees.
+    fr.glob_to_regex.cache_clear()
+    assert fr.glob_to_regex(pattern) == first
+
+
+def test_reset_cache_drops_the_glob_memo():
+    """`reset_cache` promises every per-process cache; tests count hits through it."""
+    fr.glob_to_regex("docs/**")
+    assert fr.glob_to_regex.cache_info().currsize >= 1
+
+    fr.reset_cache()
+
+    assert fr.glob_to_regex.cache_info().currsize == 0
+
+
 # --- verdicts -----------------------------------------------------------------
 def test_classify_current_when_code_state_unchanged(repo):
     verdict, detail = fr.classify(repo, commit=fr.head(repo), scope="src/**")

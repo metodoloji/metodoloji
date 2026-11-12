@@ -39,6 +39,7 @@ Design rules (E-053):
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import pathlib
 import re
@@ -179,18 +180,54 @@ def dirty_files(root: str) -> list[str] | None:
     return _cached(_DIRTY_CACHE, str(root), produce)
 
 
-def changed_since(root: str, commit: str) -> list[str] | None:
+def _scope_pathspec(scope: str) -> list[str]:
+    """Literal directory prefixes of a Code Scope — a pathspec for the version-control ask.
+
+    `git diff -- <pathspec>` accepts a superset of what the scope matches, so narrowing to
+    the prefix before the first wildcard can never hide an in-scope file; the exact scope
+    filter still runs afterwards. A glob with no literal prefix (a bare `**/*.py`) yields
+    nothing, and the caller then asks for the whole tree as before.
+
+    Why this exists at all (E-134): the diff price was set by repository size rather than
+    by the claim under test. One record scoping `hooks/engine` paid 0.90s for 1,794 paths
+    to learn about 44, against 0.019s for the same question restricted to that directory.
+    """
+    prefixes = []
+    for pattern in parse_scope(scope or ""):
+        cleaned = pattern.replace("\\", "/")
+        stop = len(cleaned)
+        for wildcard in "*?[":
+            index = cleaned.find(wildcard)
+            if index != -1:
+                stop = min(stop, index)
+        prefix = cleaned[:stop].rstrip("/")
+        if prefix and prefix not in (".", "./"):
+            prefixes.append(prefix)
+    return sorted(set(prefixes))
+
+
+def changed_since(root: str, commit: str, scope: str = "") -> list[str] | None:
     """Files moved since `commit`: committed diff plus the dirty work tree.
 
     None when the question cannot be answered (unknown commit, git failure) —
     the caller then reports UNKNOWN rather than assuming nothing moved.
+
+    `scope` narrows the diff to the claim's own directories (E-134). It never widens the
+    answer: the returned list is the scoped diff plus the dirty set, and the caller still
+    applies the exact glob filter. An empty scope (or a glob-only one) asks for the whole
+    tree exactly as before, and the cache key carries the scope so a narrowed answer is
+    never served to a wider question.
     """
     if not commit or commit == "none":
         return None
-    key = (str(root), commit)
+    pathspec = _scope_pathspec(scope)
+    key = (str(root), commit, tuple(pathspec))
 
     def produce() -> list[str] | None:
-        out = _git(root, "diff", "--name-only", f"{commit}..HEAD")
+        if pathspec:
+            out = _git(root, "diff", "--name-only", f"{commit}..HEAD", "--", *pathspec)
+        else:
+            out = _git(root, "diff", "--name-only", f"{commit}..HEAD")
         if out is None:
             # A commit that is not in this repo (a rewritten history, or a
             # different checkout) is not "no change": it is unanswerable.
@@ -226,6 +263,15 @@ def parse_scope(scope: str) -> list[str]:
     return [p for p in re.split(r"[,\s]+", scope) if p]
 
 
+#: Bounded memo for the glob parser. A scope glob is a constant string, but
+#: `scope_matches` runs once per (record, changed file) pair, so the same handful of
+#: patterns is parsed tens of thousands of times per scan: measured 114,109 calls over
+#: 248 distinct patterns on a 102-record corpus, 13.1s of a 21.7s scan (E-132). The bound
+#: is generous for any real corpus and stops a pathological caller from growing it.
+GLOB_CACHE_SIZE = 4096
+
+
+@functools.lru_cache(maxsize=GLOB_CACHE_SIZE)
 def glob_to_regex(pattern: str) -> str:
     """Convert a scope glob to a regex.
 
@@ -233,6 +279,10 @@ def glob_to_regex(pattern: str) -> str:
     the single source): `*` one path segment, `**` any depth, `?` one char.
     A parity test pins the two implementations — this copy exists so the read
     path never pays a gate import, not to define new semantics.
+
+    Memoised on the pattern alone: the function is pure (no state, no I/O), so a cached
+    answer is identical to a recomputed one by construction, and the parity test keeps
+    holding. Callers must not mutate the returned string — it is shared.
     """
     pat = pattern.replace("\\", "/")
     out = ["^"]
@@ -534,7 +584,7 @@ def classify(root: str, *, commit: str = "", scope: str = "",
         # treated as touching the claim. Deliberately noisy, deliberately
         # explicit, and never an accidental downgrade to CURRENT.
         if commit != head_now or (dirty_files(root) or []):
-            moved = changed_since(root, commit) or []
+            moved = changed_since(root, commit, scope) or []
             return STALE, {**detail, "changed": moved,
                            "reason": ("the code moved since the witness and "
                                       "[freshness] scope_digest is off "
@@ -553,7 +603,7 @@ def classify(root: str, *, commit: str = "", scope: str = "",
             return CURRENT, {**detail,
                              "reason": "work tree moved, but outside the claim's scope"}
         return CURRENT, {**detail, "reason": "code state unchanged since the witness"}
-    changed = changed_since(root, commit)
+    changed = changed_since(root, commit, scope)
     if changed is None:
         return UNKNOWN, {**detail, "reason": "cannot compare code states (git cannot read the witness commit)"}
     if len(changed) > max_digest_files():
@@ -664,3 +714,7 @@ def reset_cache() -> None:
     _CHANGED_CACHE.clear()
     _DIRTY_CACHE.clear()
     _SUPERSEDE_CACHE.clear()
+    # The glob memo is keyed on the pattern alone, so it never holds a stale answer about
+    # the code state — it is cleared here only so this function remains what its name says
+    # (every per-process cache), which is what tests rely on to count hits.
+    glob_to_regex.cache_clear()

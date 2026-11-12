@@ -1,0 +1,30 @@
+fix(freshness): memoise the glob parser and scope witness diffs to the claim
+
+A downstream project reported every commit failing with "Methodology pre hook timed out"
+while the engine's own verdict was allow. The gate was right; the answer arrived after the
+budget, and the runtime discarded it.
+
+Measured on this repository (127 records at the time): 32.7s per write-shaped command
+against a 10s hooks.json PreToolUse timeout. Two causes, both of them work the scan paid
+for and could not use.
+
+1. glob_to_regex is a pure string function with no memo. The scan called it 114,109 times
+   over 248 distinct patterns (13.1s of a 21.7s scan). One lru_cache, bounded at 4096.
+
+2. changed_since asked for every changed path in the tree and then filtered in Python
+   against the record's Code Scope, so a record scoping hooks/engine paid 0.90s for 1,794
+   paths to learn about 44. It now passes the scope's literal directory prefixes as a
+   pathspec: 0.019s for the same question. The exact glob filter still runs afterwards, and
+   the cache key carries the scope so a narrowed answer is never served to a wider one.
+
+End to end: 32.7s -> 1.6-2.0s, and the over-budget rate went from 4/4 probes to 0/4.
+
+Records: E-132 measured the overrun, E-133 verified the memo (1.64-1.97x, control 0.0),
+E-134 measured the diff waste (74/74 narrowable records, up to 105x, control 0.0), E-135
+verified that narrowing changes no verdict across all 130 records (control with a
+deliberately wrong pathspec flips 56 of them to CURRENT, which is the silent-approval
+failure the parity check exists to catch).
+
+Also: reset_cache now clears the glob memo too, so it still drops every per-process cache;
+and the new benches pass an explicit stdin to their children, which the repo's own spawn
+rule enforces.
