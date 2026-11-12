@@ -30,6 +30,18 @@ def _doctor_drift(paths: dict, board: dict) -> dict:
     drift)."""
     from . import blackboard as _board_api
     _replay_events = _board_api._replay_events
+    # `rotate` archives the stream and resets it, and the truncation guard drops
+    # the oldest rows at MAX_EVENTS. The retained window is then a SUFFIX of the
+    # history the snapshot folds: a replay of it can neither reproduce the
+    # snapshot nor prove a divergence (an archived `key-forget` or `consume`
+    # reads as an extra entry). Equality therefore reported the board's own
+    # maintenance as DRIFT, and the remedy it names would have DELETED live
+    # state (E-125). A suffix is reported as unverifiable instead.
+    # shortcut: after the first rotate/cap the check stays silent, because a
+    # partial stream carries no evidence either way; upgrade if the archive
+    # becomes part of the replay.
+    if not _board_api._log_covers_history(paths):
+        return {"in_sync": True, "status": "info", "stream": "partial"}
     replay = _replay_events(paths)
     # E-117: the fold prunes handoff signals past their 24-hour TTL on every
     # replay, while the snapshot is only pruned on the next mutation (reads stay
@@ -245,10 +257,13 @@ def doctor(project_root: str, *, post: bool = False) -> dict:
                                      else paths["snapshot"])
     drift = _doctor_drift(paths, board)
     if not drift["in_sync"]:
-        warnings.append(
-            "board state drifts from the event stream — rebuild it "
-            + ("with `blackboard.py rebuild`" if sqlite_backend
-               else "by deleting blackboard.json"))
+        # One remedy for both backends: `rebuild` re-folds the event stream
+        # over the snapshot, where the JSON advice used to be "delete
+        # blackboard.json" — the same repair by hand, minus the risk. It
+        # refuses a stream that is only a suffix, so the advice cannot cost
+        # state (E-125).
+        warnings.append("board state drifts from the event stream — rebuild it "
+                        "with `blackboard.py rebuild`")
 
     # tmp residue (crash leftovers, snapshot dir + event-log dir)
     tmp_files: list[str] = []

@@ -60,6 +60,14 @@ def test_invalid_tier_falls_back_to_strict():
     assert story_rigor_tier("- **Rigor Tier:** 9\n") == 3
     assert story_rigor_tier("- **Rigor Tier:** two\n") == 3
 
+def test_multi_digit_tier_is_not_read_as_its_first_digit():
+    # `12` used to parse as Tier 1 and `2.5`/`2x` as Tier 2 — a malformed value
+    # bought the fast path the fallback exists to deny (E-125).
+    for bad in ("12", "13", "10", "2.5", "2x"):
+        assert story_rigor_tier(f"- **Rigor Tier:** {bad}\n") == 3
+        assert story_rigor_tier(f"| Rigor Tier | {bad} |\n") == 3
+    assert story_rigor_tier("- **Rigor Tier:** 2 (feature)\n") == 2
+
 
 def test_tier_one_and_two_skip_ir_requirement(tmp_path):
     _story(tmp_path, "2")

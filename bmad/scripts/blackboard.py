@@ -43,6 +43,8 @@ Usage:
     python3 blackboard.py contribute --who W --what X
     python3 blackboard.py hot --key K | --clear
     python3 blackboard.py stats
+    python3 blackboard.py rotate                      (archive + reset the event log)
+    python3 blackboard.py rebuild                     (snapshot ← complete event stream)
 
 All commands accept --project-root R (default: CLAUDE_PROJECT_DIR /
 OPENHANDS_PROJECT_DIR env, then cwd — the engine's repo_root() priority).
@@ -411,6 +413,11 @@ def cmd_stats(args) -> int:
     _emit(bb.stats(_root(args)))
     return 0
 
+def cmd_rebuild(args) -> int:
+    ack = bb.rebuild(_root(args))
+    _emit(ack)
+    return 0 if ack.get("ok") else 1
+
 
 def main(argv: list | None = None) -> int:
     p = argparse.ArgumentParser(prog="blackboard.py",
@@ -692,6 +699,10 @@ def main(argv: list | None = None) -> int:
     ro = sub.add_parser("rotate", help="Rotate the event log (bounds enforcement)")
     common(ro)
     ro.set_defaults(fn=lambda a: _emit(bb.rotate_event_log(_root(a))) or 0)
+
+    rb = sub.add_parser("rebuild", help="Rewrite the snapshot from the event stream")
+    common(rb)
+    rb.set_defaults(fn=cmd_rebuild)
 
     args = p.parse_args(argv)
     try:

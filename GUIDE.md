@@ -1462,7 +1462,7 @@ metodoloji/
 ├── commands/                            # /metodoloji:init, gate-setup, verify, audit (.md)
 ├── scripts/                             # check-plugin/custom/methodology/techdebt, check-handoff, create-*-record, sync-*, bench/
 ├── docs/                                # CLAUDE.md, bmad manifests, record templates (experiments/development/quality/research/design) + native outputs (development/native/)
-└── .metodoloji/                         # blackboard.json + logs/hook-audit.log + workflow/ (created on the first init/audit run — never committed)
+└── .metodoloji/                         # blackboard.sqlite + logs/hook-audit.log + workflow/ (created on the first init/audit run — never committed)
 ```
 
 > Note: the old `bmad-output/` directory is legacy — moved, never written. Guard scans for records under `docs/` + `bmad-output/` + `_bmad-output/` + `design-artifacts/` (read fallback, see `guard.py:_RECORD_SCAN_ROOTS`).
@@ -1507,7 +1507,7 @@ metodoloji/
 | Free zone                                     | Outside guard inspection (`scratch/`, `docs/`, `tmp/`...)                                |
 | Code target                                   | A file under guard protection (whitelist classification)                                 |
 | Gate key / token                              | `~/.bmad/gate-key` and the `GATE-OK-...` HMAC signature                                  |
-| Blackboard                                    | `.metodoloji/blackboard.json` — event-sourced working context                            |
+| Blackboard                                    | `.metodoloji/blackboard.sqlite` (or `blackboard.json` in JSON mode) — event-sourced working context |
 
 
 ### 20.4 Maintenance note

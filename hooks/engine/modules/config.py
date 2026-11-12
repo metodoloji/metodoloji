@@ -65,11 +65,15 @@ def story_status(content: str) -> str:
 # The tier never relaxes the code guard or the QR requirement: it only decides
 # which UPSTREAM planning records are required. A tier is a claim about risk,
 # and the quality gate records it in the deny message so the claim is visible.
+# The value token is captured whole and compared exactly: the old single-digit
+# match read `Rigor Tier: 12` as Tier 1 and `2.5`/`2x` as Tier 2, so a typo
+# silently bought the fast path the fallback promises it cannot (E-125).
 _RIGOR_TIER_RE = re.compile(
-    r"^(?:[-*]\s+)?\*{0,2}(?:Rigor\s+Tier|Tier)\*{0,2}\s*:\s*\*{0,2}\s*(\d)",
+    r"^(?:[-*]\s+)?\*{0,2}(?:Rigor\s+Tier|Tier)\*{0,2}\s*:\s*\*{0,2}\s*(\S+)",
     re.IGNORECASE | re.MULTILINE)
 _RIGOR_TIER_TABLE_RE = re.compile(
-    r"^\s*\|\s*(?:Rigor\s+)?Tier\s*\|\s*(\d)", re.IGNORECASE | re.MULTILINE)
+    r"^\s*\|\s*(?:Rigor\s+)?Tier\s*\|\s*([^|]+?)\s*\|",
+    re.IGNORECASE | re.MULTILINE)
 DEFAULT_RIGOR_TIER = 3
 VALID_RIGOR_TIERS = (1, 2, 3)
 
@@ -85,11 +89,11 @@ def story_rigor_tier(content: str) -> int:
     m = _RIGOR_TIER_RE.search(content or "") or _RIGOR_TIER_TABLE_RE.search(content or "")
     if not m:
         return DEFAULT_RIGOR_TIER
-    try:
-        tier = int(m.group(1))
-    except ValueError:
-        return DEFAULT_RIGOR_TIER
-    return tier if tier in VALID_RIGOR_TIERS else DEFAULT_RIGOR_TIER
+    # The WHOLE value token must be 1, 2 or 3. The old single-digit match read
+    # `Rigor Tier: 12` as Tier 1 and `2.5`/`2x` as Tier 2, so a typo bought the
+    # fast path the fallback exists to deny (E-125).
+    value = m.group(1).strip().strip("*").strip()
+    return int(value) if value in ("1", "2", "3") else DEFAULT_RIGOR_TIER
 
 
 def story_rigor_label(content: str) -> str:

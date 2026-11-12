@@ -738,7 +738,12 @@ else:
         info["malformed"], info["legacy_items"], 1 if info["legacy"] else 0))
 PY
 ) || DW_LINE="error|the ledger could not be read"
-    IFS='|' read -r DW_KIND DW_REL DW_OPEN DW_TOTAL DW_DONE DW_BAD DW_LEGACY_ITEMS DW_LEGACY <<< "$DW_LINE"
+    # A here-document, not a `<<<` herestring: this script is invoked as `sh`
+    # (dash on Debian/Ubuntu), where a herestring is a syntax error that kills
+    # CHECKs 9-10 and the summary after CHECK 8 (E-125).
+    IFS='|' read -r DW_KIND DW_REL DW_OPEN DW_TOTAL DW_DONE DW_BAD DW_LEGACY_ITEMS DW_LEGACY <<EOF
+$DW_LINE
+EOF
     case "$DW_KIND" in
         none)
             echo "  deferred-work: none (no writer has run in this project)" ;;

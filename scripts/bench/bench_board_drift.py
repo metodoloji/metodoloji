@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import pathlib
 import sys
 import tempfile
@@ -32,6 +33,13 @@ import time
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "hooks" / "engine"))
+
+# The fixtures ARE the JSON representation: they read `blackboard.json` by hand
+# and age the handoff in place, so this census cannot run on the shipped SQLite
+# default (it did not — E-117/E-118's measurement command raised FileNotFound
+# after the backend flip, E-125). Pinned, not defaulted: a census must not
+# change shape with the operator's environment.
+os.environ["METODOLOJI_BLACKBOARD_BACKEND"] = "json"
 
 from modules import blackboard as bb  # noqa: E402
 from modules import blackboard_diagnostics as diag  # noqa: E402

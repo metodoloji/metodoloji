@@ -573,9 +573,14 @@ def _truncate_events_if_needed(paths: dict) -> None:
         if conn is None:
             return
         try:
+            # Keep the newest MAX_EVENTS rows by POSITION. AUTOINCREMENT burns
+            # an id on a rolled-back insert, so `MAX(seq) - MAX_EVENTS` cut too
+            # deep once the seq space had a gap, keeping fewer rows than the
+            # JSON backend's exactly-N lines (E-125).
             conn.execute(
-                "DELETE FROM events WHERE seq <= "
-                "(SELECT MAX(seq) FROM events) - ?", (MAX_EVENTS,))
+                "DELETE FROM events WHERE seq < (SELECT MIN(seq) FROM "
+                "(SELECT seq FROM events ORDER BY seq DESC LIMIT ?))",
+                (MAX_EVENTS,))
         except sqlite3.Error:
             pass
         return
@@ -598,6 +603,15 @@ def _truncate_events_if_needed(paths: dict) -> None:
 def _read_board_unchecked(project_root: str) -> dict:
     """Load and migrate the board; the public wrapper handles read failures."""
     paths = board_paths(project_root)
+    # A project that never wrote a board has nothing to read, and reading must
+    # not create one (E-040/IR-017: reads stay side-effect free). The SQLite
+    # lock opens the database with create=True, which would otherwise leave a
+    # runtime .metodoloji/blackboard.sqlite in every project a hook only
+    # looked at. JSON history is still imported on this first read.
+    if _is_sqlite() and not (os.path.isfile(paths["db"])
+                             or os.path.isfile(paths["snapshot"])
+                             or os.path.isfile(paths["events"])):
+        return _empty_board()
     with _board_lock(paths):
         board = _read_snapshot(paths)
         # Rebuild from event log when the snapshot is empty but events exist.
@@ -646,7 +660,10 @@ def event_stats(paths: dict) -> tuple[list[dict], int]:
     """(decoded events, malformed-line count) for the active backend."""
     out: list[dict] = []
     garbage = 0
-    if _is_sqlite():
+    # No database yet: read the JSON event log, which is the migration source
+    # the first board read imports. Opening the database here would create it
+    # and report a legacy board as "silent" before anything migrated it.
+    if _is_sqlite() and os.path.isfile(paths["db"]):
         conn = _sqlite_active(paths)
         own = None
         if conn is None:
@@ -654,17 +671,30 @@ def event_stats(paths: dict) -> tuple[list[dict], int]:
                 conn = _sqlite_conn(paths, create=False)
                 own = conn
             except sqlite3.Error:
-                return out, garbage
-        try:
-            rows = conn.execute("SELECT data FROM events ORDER BY seq").fetchall()
-        except sqlite3.Error:
-            rows = []
-        finally:
-            if own is not None:
-                try:
-                    own.close()
-                except sqlite3.Error:
-                    pass
+                conn = None
+        rows: list = []
+        imported = False
+        if conn is not None:
+            try:
+                rows = conn.execute(
+                    "SELECT data FROM events ORDER BY seq").fetchall()
+                # The one-time import writes the board row first, so a row means
+                # the database is authoritative: an empty events table is a
+                # ROTATED stream, not an un-imported JSON log. Without a row the
+                # file below is still the history the first read imports.
+                imported = conn.execute(
+                    "SELECT 1 FROM board WHERE id = 1").fetchone() is not None
+            except sqlite3.Error:
+                # Unreadable database (no tables yet, or locked): the JSON log
+                # is the only evidence left, so fall through to it rather than
+                # report a live board as silent.
+                rows, imported = [], False
+            finally:
+                if own is not None:
+                    try:
+                        own.close()
+                    except sqlite3.Error:
+                        pass
         for (data,) in rows:
             try:
                 ev = json.loads(data)
@@ -675,7 +705,10 @@ def event_stats(paths: dict) -> tuple[list[dict], int]:
                 out.append(ev)
             else:
                 garbage += 1
-        return out, garbage
+        if out or imported or not os.path.isfile(paths["events"]):
+            return out, garbage
+        # Not migrated yet: the JSON log IS the history the first read imports,
+        # and reporting "no events" would call a live board silent (E-125).
     try:
         with open(paths["events"], encoding="utf-8") as fh:
             for line in fh:
@@ -701,10 +734,49 @@ def event_entries(paths: dict) -> list[dict]:
 
     Diagnostics must not read `blackboard-events.log` when the active backend is
     SQLite: the file may be a stale migration source while the database holds
-    the live stream. Malformed entries are skipped exactly like `_replay_events`
+    the live stream. The exception is a database that was never imported (no
+    board row, no events) — there the file IS the history the first read
+    imports. Malformed entries are skipped exactly like `_replay_events`
     skips them; this is a reporting view, not a state rebuild.
     """
     return event_stats(paths)[0]
+
+
+def _log_covers_history(paths: dict) -> bool:
+    """True when the retained event window is the board's WHOLE history.
+
+    `rotate` archives the stream and resets it, and the truncation guard drops
+    the oldest rows once the log hits MAX_EVENTS; either way the window is then
+    a SUFFIX of the history the snapshot folds, so replaying it can neither
+    reproduce the snapshot nor safely replace it (E-125 — a rotated board read
+    as DRIFTED, and the named remedy would have deleted live state).
+    """
+    # An archive beside the stream proves history was moved out of it, even
+    # when new events have since been appended.
+    if any(pathlib.Path(os.path.dirname(paths["events"])).glob("events-*.log.gz")):
+        return False
+    return 0 < len(event_stats(paths)[0]) < MAX_EVENTS
+
+
+def rebuild(project_root: str) -> dict:
+    """Rewrite the snapshot from the event log (the drift remedy doctor names).
+
+    Refuses a log that does not cover the whole history: replaying a rotated
+    or capped window would DROP live state instead of repairing it (E-125).
+    """
+    paths = board_paths(project_root)
+    if not any(os.path.isfile(paths[k]) for k in ("db", "snapshot", "events")):
+        return {"ok": False, "error": "no board to rebuild"}
+    with _board_lock(paths):
+        # Same one-time JSON import a read performs, so a legacy board folds
+        # its file-backed history instead of an empty events table.
+        _read_snapshot(paths)
+        if not _log_covers_history(paths):
+            return {"ok": False,
+                    "error": "the retained event log is a suffix of the history "
+                             "(rotated or capped) — a rebuild would lose state"}
+        _write_snapshot_atomic(paths, _replay_events(paths))
+    return {"ok": True}
 
 
 def _replay_events(paths: dict) -> dict:
@@ -719,6 +791,12 @@ def _replay_events(paths: dict) -> dict:
     board = _empty_board()
     skipped_lines = 0
     if _is_sqlite():
+        # No database and no JSON history = nothing to replay; opening the
+        # database would CREATE it (sqlite3.connect), turning a diagnostic into
+        # a writer (E-040). With a JSON log present we still open it: that is
+        # the one-time import path.
+        if not os.path.isfile(paths["db"]) and not os.path.isfile(paths["events"]):
+            return board
         conn = _sqlite_active(paths)
         own = None
         if conn is None:

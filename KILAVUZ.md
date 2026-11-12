@@ -1461,7 +1461,7 @@ metodoloji/
 ├── commands/                            # /metodoloji:init, gate-setup, verify, audit (.md)
 ├── scripts/                             # check-plugin/custom/methodology/techdebt, check-handoff, create-*-record, sync-*, bench/
 ├── docs/                                # CLAUDE.md, bmad manifestoları, kayıt şablonları (experiments/development/quality/research/design) + native çıktılar (development/native/)
-└── .metodoloji/                         # blackboard.json + logs/hook-audit.log + workflow/ (ilk init/audit koşusunda oluşur — repo'ya commitlenmez)
+└── .metodoloji/                         # blackboard.sqlite + logs/hook-audit.log + workflow/ (ilk init/audit koşusunda oluşur — repo'ya commitlenmez)
 ```
 
 > Not: eski `bmad-output/` dizini legacy'dir — taşınmıştır, yazılmaz. Guard `docs/` + `bmad-output/` + `_bmad-output/` + `design-artifacts/` altında kayıt tarar (okuma fallback'i, bkz. `guard.py:_RECORD_SCAN_ROOTS`).
@@ -1506,7 +1506,7 @@ metodoloji/
 | Free zone                                     | Guard denetimi dışı (`scratch/`, `docs/`, `tmp/`...)                                   |
 | Code target                                   | Guard koruması altındaki dosya (whitelist sınıflandırma)                               |
 | Gate key / token                              | `~/.bmad/gate-key` ve `GATE-OK-...` HMAC imzası                                        |
-| Blackboard                                    | `.metodoloji/blackboard.json` — event-sourced çalışma bağlamı                          |
+| Blackboard                                    | `.metodoloji/blackboard.sqlite` (JSON modunda `blackboard.json`) — event-sourced çalışma bağlamı |
 
 
 ### 20.4 Bakım notu

@@ -20,6 +20,13 @@ import re
 import sys
 from pathlib import Path
 
+# The tier rule is the ENGINE's (`story_rigor_tier`), not a second copy: the
+# generator writes the value into the S record the gate later reads, so a local
+# regex that drifted (one digit matched `12` as Tier 1) would declare a fast
+# path the gate never granted (E-125).
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "hooks" / "engine"))
+from modules.config import story_rigor_tier  # noqa: E402
+
 
 # Markdown decoration the story templates wrap around field values: a story
 # writes `- **Epic:** epic-1`, so a naive `Epic:\s*(.+)` captures `** epic-1`.
@@ -163,16 +170,10 @@ def extract_story_metadata(content: str) -> dict:
     if sprint_match:
         meta["sprint"] = _clean_field(sprint_match.group(1))
 
-    # Rigor tier: line-start anchored (`- **Rigor Tier:** 2` / `Tier: 1`) so a
-    # prose mention elsewhere never decides how much ceremony a record gets.
-    # Invalid/absent values become the strict default (3), matching the gate.
-    tier_match = re.search(
-        r"^(?:[-*]\s+)?\*{0,2}(?:Rigor\s+Tier|Tier)\*{0,2}\s*:\s*\*{0,2}\s*(\d)",
-        content, re.MULTILINE | re.IGNORECASE)
-    if tier_match and tier_match.group(1) in ("1", "2", "3"):
-        meta["rigor_tier"] = tier_match.group(1)
-    else:
-        meta["rigor_tier"] = "3"
+    # Rigor tier: the engine's own reader (`story_rigor_tier`), not a second
+    # regex — the S record's `| Rigor Tier |` row is what the gate reads back,
+    # and a copy that matched one digit read `12` as Tier 1 (E-125).
+    meta["rigor_tier"] = str(story_rigor_tier(content))
 
     # Acceptance Criteria — one block per AC, so each AC keeps its OWN
     # metadata. The engine parses the same five fields, from the same shapes

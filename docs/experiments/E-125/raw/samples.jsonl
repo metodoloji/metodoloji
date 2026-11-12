@@ -1,0 +1,11 @@
+{"check": "dash_parses_the_checker", "ok": true, "detail": "the checker parses under sh/dash (no herestring)"}
+{"check": "tier_rejects_malformed", "ok": true, "detail": "12 / 2.5 / 2x / two fall back to Tier 3"}
+{"check": "tier_accepts_declared", "ok": true, "detail": "1|2|3 parse in both the bullet and the table dialect"}
+{"check": "generator_agrees_with_the_engine", "ok": true, "detail": "the S-record generator reads the tier with the engine's rule"}
+{"check": "read_creates_no_board", "ok": true, "detail": "reading a project with no board leaves no database behind"}
+{"check": "pre_import_log_is_read", "ok": true, "detail": "a legacy JSON log is not reported as a silent board"}
+{"check": "rotated_stream_is_not_resurrected", "ok": true, "detail": "an empty events table after rotate does not fall back to the stale file"}
+{"check": "event_cap_keeps_newest_rows", "ok": true, "detail": "the cap keeps the newest N rows despite burned AUTOINCREMENT ids"}
+{"check": "rotate_is_not_drift", "ok": true, "detail": "a rotated stream is a suffix, not a snapshot divergence"}
+{"check": "drift_remedy_exists_and_repairs", "ok": true, "detail": "the named remedy is a real CLI command that repairs the board"}
+{"check": "rebuild_refuses_a_partial_stream", "ok": true, "detail": "a rebuild over a rotated/capped window refuses instead of dropping state"}

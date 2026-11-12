@@ -236,6 +236,21 @@ def test_story_fields_lose_their_markdown_decoration():
     assert meta["sprint"].startswith("SP-001")
 
 
+def test_s_generator_reads_the_tier_with_the_engine_rule():
+    """The S record's tier is read back by the gate, so it is the SAME reader.
+
+    The generator's own single-digit pattern read `Rigor Tier: 12` as Tier 1
+    and wrote that claim into the record the gate then trusts (E-125).
+    """
+    from hooks.engine.modules.config import story_rigor_tier
+    for tier in ("1", "2", "3", "12", "2.5", "2x", "two", ""):
+        text = f"- **Rigor Tier:** {tier}\n"
+        assert S_GEN.extract_story_metadata(text)["rigor_tier"] == str(
+            story_rigor_tier(text)), text
+    assert S_GEN.extract_story_metadata("| Rigor Tier | 2 |\n")["rigor_tier"] == "2"
+    assert S_GEN.extract_story_metadata("| Rigor Tier | 12 |\n")["rigor_tier"] == "3"
+
+
 def test_s_generator_keeps_every_ac_metadata_field():
     meta = S_GEN.extract_story_metadata(SHIPPED_STORY.read_text(encoding="utf-8"))
     acs = meta["acceptance_criteria"]

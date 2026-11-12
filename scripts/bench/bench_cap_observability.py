@@ -26,12 +26,18 @@ import argparse
 import contextlib
 import io
 import json
+import os
 import pathlib
 import sys
 import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "hooks" / "engine"))
+
+# The census reads `blackboard.json` by hand to see what the write path stored,
+# so it needs the JSON backend whatever the shipped default is (E-125: the
+# SQLite flip made this measurement command raise FileNotFound).
+os.environ["METODOLOJI_BLACKBOARD_BACKEND"] = "json"
 
 from modules import blackboard as bb  # noqa: E402
 
