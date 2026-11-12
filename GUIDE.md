@@ -76,6 +76,8 @@ These are not preferences; they are the system's operating conditions. Violating
 
 1. **Writing code requires permission.** Permission = the `docs/experiments/E-NNN.md` record running the gate and producing `APPROVED` + a `GATE-OK-...` token.
 2. **Chain:** `E (experiment) → IR (are we ready?) → SP (sprint plan) → S (story) → QR (quality) → PR (prod readiness)`. Each link unlocks the next one.
+   - **Rigor tiers decide the upstream links, never the evidence link.** A story declares `Rigor Tier: 1|2|3`. Tier 1 (trivial/docs/hotfix) needs QR + regression evidence; Tier 2 (feature/refactor) adds the story record, AC metadata and unit tests; Tier 3 (probabilistic/security/core/ML) keeps the full chain. Tier 1/2 skip IR/SP/PR by policy; QR is required for every tier. Absent or malformed tier = Tier 3.
+   - **An experiment is stochastic; a contract is closed.** A deterministic unit/regression suite over an enumerated set is `Record Kind: contract`: it must name the population in `Census`, claim 100%, and pass every case. Do not dress a test suite as a sampling experiment.
 3. **Guards (hooks):** On every file-write / commit / deploy attempt the engine asks: "is there a covering VERIFIED experiment? is the chain complete?" If not, `DENY` (hard) or warning (soft).
 4. **Output always goes to the project root:** Methodology *output* (story, experiment, planning/test artifacts — all under `docs/`) is never written inside the plugin. Plugin *source* (template, TOML, script) is read from the plugin root.
 5. **Single exception:** `bmad-customize` writes user overrides under the plugin's `custom/`. Decision rule: *a file goes where it belongs* (record/artifact → `{project-root}`, template/config/script → `{metodoloji-root}`).

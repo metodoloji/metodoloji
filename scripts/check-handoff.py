@@ -1222,28 +1222,50 @@ def runtime_check(project_root: str) -> int:
     run_keys: set = set()
     posted = 0
     consumed = 0
+    # Read through the engine when available: the shipped backend is SQLite, so
+    # the JSON event file may be a stale migration source. The file path stays
+    # as the fallback for a standalone/older checkout.
+    entries = None
     try:
-        for line in log.read_text(encoding="utf-8", errors="replace").splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                ev = json.loads(line)
-            except ValueError:
-                continue
-            if ev.get("event") == "write":
-                key = str(ev.get("key", ""))
-                if re.match(r"^(E-|IR-|SP-|S-|QR-|PR-)", key):
-                    run_keys.add(key)
-            elif ev.get("event") == "alert" and ev.get("kind") == "handoff":
-                posted += 1
-            elif ev.get("event") == "consume" and str(
-                    ev.get("channel", "")).startswith("handoff."):
-                consumed += 1
-    except OSError:
+        engine = Path(__file__).resolve().parent.parent / "hooks" / "engine"
+        if str(engine) not in sys.path:
+            sys.path.insert(0, str(engine))
+        from modules import blackboard as _bb
+        entries = _bb.event_entries(_bb.board_paths(str(root)))
+    except Exception:
+        entries = None
+    if entries is not None:
+        events = entries
+        source_error = None
+    else:
+        try:
+            events = []
+            for line in log.read_text(encoding="utf-8", errors="replace").splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    events.append(json.loads(line))
+                except ValueError:
+                    continue
+            source_error = None
+        except OSError:
+            events = []
+            source_error = True
+    if source_error:
         print(f"[WARNING] runtime: no event log at {log} — board never written "
               f"(gate mirror / skill close-out never ran here, or wrong --project-root)")
         return 1
+    for ev in events:
+        if ev.get("event") == "write":
+            key = str(ev.get("key", ""))
+            if re.match(r"^(E-|IR-|SP-|S-|QR-|PR-)", key):
+                run_keys.add(key)
+        elif ev.get("event") == "alert" and ev.get("kind") == "handoff":
+            posted += 1
+        elif ev.get("event") == "consume" and str(
+                ev.get("channel", "")).startswith("handoff."):
+            consumed += 1
     print(f"[INFO] runtime: {len(run_keys)} methodology run key(s), "
           f"{posted} handoff signal(s) posted, {consumed} channel(s) consumed @ {root}")
     if not run_keys:

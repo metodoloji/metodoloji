@@ -913,7 +913,9 @@ def _extract_raw(command: str) -> tuple[list[str], bool]:
     # is passed as a quoted string, so a dotted quoted path inside it is a
     # likely write destination. The invoked script operand itself is never a
     # candidate here: eval mode requires the flag BEFORE the operand.
+    opaque_inline_write = False
     if any(_interpreter_eval_hit(seg) for seg in seg_tokens) and not _inline_readonly(command):
+        before_inline = len(targets)
         for m in re.finditer(r"""['"]([^'"]+\.[A-Za-z0-9]+)['"]""", command):
             if is_code_target(m.group(1)):
                 targets.append(m.group(1))
@@ -926,8 +928,23 @@ def _extract_raw(command: str) -> tuple[list[str], bool]:
             if (first in CODE_DIRS and ("/" in s or "\\" in s)) or base in CODE_BASENAMES:
                 if is_code_target(s):
                     targets.append(s)
+        # Fail closed on an OPAQUE interpreter write (critique #4): inline code
+        # can build its destination at runtime (`p = 'src/x'; open(p + '.py',
+        # 'w')`) or hand the write to a compiled binary, so static regexes
+        # cannot name the target. If the inline code carries a write/dynamic
+        # exec marker and we resolved no COMPLETE path (a filename with an
+        # extension) from it, report an UNRESOLVED write instead of silently
+        # allowing it. Recognizably read-only code never reaches this branch
+        # (`_inline_readonly` above), and plain `print(1)` carries no write
+        # marker, so the false-positive class that blocked a legitimate read
+        # (2026-10-01) stays closed.
+        inline_targets = targets[before_inline:]
+        resolved_complete = any(
+            re.search(r"\.[A-Za-z0-9]+$", t) for t in inline_targets)
+        if not resolved_complete and _INLINE_WRITE_RE.search(command):
+            opaque_inline_write = True
     # Drop unexpanded shell variable targets (e.g. $spool_file, ${OUT_DIR}/x)
     kept = [t for t in targets if t and "$" not in t]
-    dropped = any(t and "$" in t for t in targets)
+    dropped = any(t and "$" in t for t in targets) or opaque_inline_write
     return kept, dropped
 

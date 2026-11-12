@@ -41,6 +41,7 @@ import json
 import os
 import pathlib
 import re
+import sqlite3
 import sys
 import threading
 import time
@@ -238,7 +239,41 @@ def _thread_lock(lock_path: str) -> threading.Lock:
 
 @contextmanager
 def _board_lock(paths: dict):
-    """Hold an exclusive advisory lock for the duration of the block."""
+    """Hold an exclusive lock/transaction for the duration of the block.
+
+    JSON backend: in-process threading lock + cross-process advisory lock file.
+    SQLite backend: one `BEGIN IMMEDIATE` transaction on the WAL database. The
+    transaction IS the lock, so there is no lock file to leak or expire and a
+    crash rolls the read-modify-write back instead of leaving a torn state.
+    """
+    if _is_sqlite():
+        tl = _thread_lock(paths["db"])
+        with tl:
+            conn = _sqlite_conn(paths)
+            conns = getattr(_SQLITE_LOCAL, "conns", None)
+            if conns is None:
+                conns = {}
+                _SQLITE_LOCAL.conns = conns
+            conns[paths["db"]] = conn
+            try:
+                conn.execute("BEGIN IMMEDIATE")
+                try:
+                    yield
+                except BaseException:
+                    try:
+                        conn.execute("ROLLBACK")
+                    except sqlite3.Error:
+                        pass
+                    raise
+                else:
+                    conn.execute("COMMIT")
+            finally:
+                conns.pop(paths["db"], None)
+                try:
+                    conn.close()
+                except sqlite3.Error:
+                    pass
+        return
     tl = _thread_lock(paths["lock"])
     with tl:
         f = _acquire_lock(paths["lock"])
@@ -259,7 +294,132 @@ def board_paths(project_root: str) -> dict:
         "snapshot": os.path.join(bb_dir, "blackboard.json"),
         "events": os.path.join(bb_dir, "logs", "blackboard-events.log"),
         "lock": os.path.join(bb_dir, "blackboard.json.lock"),
+        "db": os.path.join(bb_dir, "blackboard.sqlite"),
     }
+
+
+# --- Backend selection (critique #3: SQLite WAL, transactional) ---------------
+# SQLite is the shipped default: the same board dict and event stream in one
+# WAL database, with one `BEGIN IMMEDIATE` per mutation, so a crash cannot
+# leave a snapshot and an event log disagreeing. JSON mode is the historical
+# opt-out: snapshot + event log + advisory lock file (select with
+# `blackboard_backend = "json"`).
+def _backend() -> str:
+    try:
+        from .config import blackboard_backend
+        return blackboard_backend()
+    except Exception:
+        return "json"
+
+
+_SQLITE_LOCAL = threading.local()
+
+
+def _is_sqlite() -> bool:
+    return _backend() == "sqlite"
+
+
+def _sqlite_conn(paths: dict, *, create: bool = True) -> sqlite3.Connection:
+    """A connection with the board schema installed.
+
+    `journal_mode=WAL` is persistent in the database file; `synchronous=NORMAL`
+    is the usual WAL durability point (a crash can lose the last transaction
+    only if the OS also loses power, never a torn snapshot).
+    """
+    os.makedirs(paths["dir"], exist_ok=True)
+    conn = sqlite3.connect(paths["db"], timeout=30.0, isolation_level=None)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute("PRAGMA busy_timeout=30000")
+    if create:
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS board ("
+            "id INTEGER PRIMARY KEY CHECK (id = 1), "
+            "data TEXT NOT NULL, updated REAL NOT NULL)")
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS events ("
+            "seq INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "ts REAL NOT NULL, data TEXT NOT NULL)")
+    return conn
+
+
+def _sqlite_active(paths: dict) -> sqlite3.Connection | None:
+    conns = getattr(_SQLITE_LOCAL, "conns", None)
+    if not conns:
+        return None
+    return conns.get(paths["db"])
+
+
+def _sqlite_migrate_files(paths: dict, conn: sqlite3.Connection) -> None:
+    """One-time import of the JSON snapshot + event log into the database.
+
+    Runs only when the database carries no board row and no events: a project
+    switching backends keeps its history instead of starting empty. Malformed
+    files are skipped (the same fail-open rule the JSON backend uses); the
+    database then simply starts from whatever could be read.
+    """
+    try:
+        row = conn.execute("SELECT 1 FROM board WHERE id = 1").fetchone()
+        ev_count = conn.execute("SELECT COUNT(*) FROM events").fetchone()[0]
+    except sqlite3.Error:
+        return
+    if row is not None or ev_count:
+        return
+    log = paths.get("events")
+    if log and os.path.isfile(log):
+        try:
+            with open(log, encoding="utf-8") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        ev = json.loads(line)
+                    except ValueError:
+                        continue
+                    if isinstance(ev, dict):
+                        conn.execute(
+                            "INSERT INTO events (ts, data) VALUES (?, ?)",
+                            (float(ev.get("ts") or time.time()),
+                             json.dumps(ev, ensure_ascii=False,
+                                        separators=(",", ":"))))
+        except (OSError, UnicodeDecodeError):
+            pass
+
+    # The JSON snapshot is authoritative when it exists (the same rule the JSON
+    # backend applies); the event log is imported for audit. Only when there is
+    # no snapshot do we fold the imported events into a starting board.
+    board: dict | None = None
+    snap = paths.get("snapshot")
+    if snap and os.path.isfile(snap):
+        try:
+            with open(snap, encoding="utf-8") as fh:
+                loaded = json.load(fh)
+            if isinstance(loaded, dict):
+                board = loaded
+        except (OSError, ValueError):
+            board = None
+    if board is None:
+        folded = _empty_board()
+        folded_any = False
+        try:
+            for (data,) in conn.execute("SELECT data FROM events ORDER BY seq"):
+                try:
+                    ev = json.loads(data)
+                except ValueError:
+                    continue
+                try:
+                    _apply_event(folded, ev)
+                    folded_any = True
+                except Exception:
+                    continue
+        except sqlite3.Error:
+            pass
+        board = folded if folded_any else _empty_board()
+    conn.execute(
+        "INSERT OR REPLACE INTO board (id, data, updated) VALUES (1, ?, ?)",
+        (json.dumps(board, ensure_ascii=False, separators=(",", ":")),
+         float(board.get("updated") or time.time())))
 
 # --- Snapshot handling --------------------------------------------------------
 def _empty_board() -> dict:
@@ -274,6 +434,26 @@ def _empty_board() -> dict:
             "updated": 0.0}
 
 def _read_snapshot(paths: dict) -> dict:
+    if _is_sqlite():
+        conn = _sqlite_active(paths)
+        if conn is None:
+            return _empty_board()
+        try:
+            _sqlite_migrate_files(paths, conn)
+            row = conn.execute("SELECT data FROM board WHERE id = 1").fetchone()
+        except sqlite3.Error:
+            return _empty_board()
+        if not row:
+            return _empty_board()
+        try:
+            data = json.loads(row[0])
+        except (TypeError, ValueError):
+            return _empty_board()
+        if not isinstance(data, dict):
+            return _empty_board()
+        board = _empty_board()
+        board.update({k: v for k, v in data.items() if k in board})
+        return _normalize_board(board)
     try:
         with open(paths["snapshot"], encoding="utf-8") as f:
             data = json.load(f)
@@ -283,6 +463,11 @@ def _read_snapshot(paths: dict) -> dict:
         return _empty_board()
     board = _empty_board()
     board.update({k: v for k, v in data.items() if k in board})
+    return _normalize_board(board)
+
+
+def _normalize_board(board: dict) -> dict:
+    """Shared shape repair for both backends."""
     if not isinstance(board.get("consumed"), dict):
         board["consumed"] = {}
     if not isinstance(board.get("open_handoffs"), dict):
@@ -303,6 +488,15 @@ def _read_snapshot(paths: dict) -> dict:
     return board
 
 def _write_snapshot_atomic(paths: dict, board: dict) -> None:
+    if _is_sqlite():
+        conn = _sqlite_active(paths)
+        if conn is None:
+            raise BoardError("sqlite blackboard write outside a transaction")
+        conn.execute(
+            "INSERT OR REPLACE INTO board (id, data, updated) VALUES (1, ?, ?)",
+            (json.dumps(board, ensure_ascii=False, separators=(",", ":")),
+             float(board.get("updated") or time.time())))
+        return
     import tempfile
     os.makedirs(paths["dir"], exist_ok=True)
     with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8",
@@ -335,15 +529,56 @@ def _replace_atomic(src: str, dst: str, attempts: int = 5) -> None:
 
 # --- Event log ----------------------------------------------------------------
 def _append_event(paths: dict, event: dict) -> None:
-    """Append one JSON line. Called under the board lock from mutations."""
+    """Append one event. Called under the board lock from mutations.
+
+    JSON backend appends a line; SQLite inserts a row in the same transaction
+    as the snapshot update, so event and state cannot disagree after a crash.
+    """
+    if _is_sqlite():
+        conn = _sqlite_active(paths)
+        if conn is None:
+            raise BoardError("sqlite blackboard event outside a transaction")
+        conn.execute(
+            "INSERT INTO events (ts, data) VALUES (?, ?)",
+            (float(event.get("ts") or time.time()),
+             json.dumps(event, ensure_ascii=False, separators=(",", ":"))))
+        return
     os.makedirs(os.path.dirname(paths["events"]), exist_ok=True)
     with open(paths["events"], "a", encoding="utf-8") as f:
         f.write(json.dumps(event, ensure_ascii=False, separators=(",", ":")) + "\n")
+
+def clear_events(paths: dict) -> None:
+    """Drop the live event stream after an archive (backend-aware).
+
+    Called under a transaction/lock by `rotate`. The archive file is the
+    history; the live stream is reset so the bound starts from zero.
+    """
+    if _is_sqlite():
+        conn = _sqlite_active(paths)
+        if conn is None:
+            raise BoardError("sqlite event clear outside a transaction")
+        conn.execute("DELETE FROM events")
+        return
+    os.makedirs(os.path.dirname(paths["events"]), exist_ok=True)
+    with open(paths["events"], "w", encoding="utf-8"):
+        pass
+
 
 def _truncate_events_if_needed(paths: dict) -> None:
     """Bound the event log. Runs under the board lock (from _mutate); only
     rewrites the file when it actually exceeds the cap, so the common path
     never races with concurrent appends."""
+    if _is_sqlite():
+        conn = _sqlite_active(paths)
+        if conn is None:
+            return
+        try:
+            conn.execute(
+                "DELETE FROM events WHERE seq <= "
+                "(SELECT MAX(seq) FROM events) - ?", (MAX_EVENTS,))
+        except sqlite3.Error:
+            pass
+        return
     try:
         with open(paths["events"], "rb") as f:
             lines = f.readlines()
@@ -407,6 +642,71 @@ def read_board(project_root: str) -> dict:
     except Exception:
         return _empty_board()
 
+def event_stats(paths: dict) -> tuple[list[dict], int]:
+    """(decoded events, malformed-line count) for the active backend."""
+    out: list[dict] = []
+    garbage = 0
+    if _is_sqlite():
+        conn = _sqlite_active(paths)
+        own = None
+        if conn is None:
+            try:
+                conn = _sqlite_conn(paths, create=False)
+                own = conn
+            except sqlite3.Error:
+                return out, garbage
+        try:
+            rows = conn.execute("SELECT data FROM events ORDER BY seq").fetchall()
+        except sqlite3.Error:
+            rows = []
+        finally:
+            if own is not None:
+                try:
+                    own.close()
+                except sqlite3.Error:
+                    pass
+        for (data,) in rows:
+            try:
+                ev = json.loads(data)
+            except ValueError:
+                garbage += 1
+                continue
+            if isinstance(ev, dict):
+                out.append(ev)
+            else:
+                garbage += 1
+        return out, garbage
+    try:
+        with open(paths["events"], encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    ev = json.loads(line)
+                except ValueError:
+                    garbage += 1
+                    continue
+                if isinstance(ev, dict):
+                    out.append(ev)
+                else:
+                    garbage += 1
+    except (OSError, UnicodeDecodeError):
+        pass
+    return out, garbage
+
+
+def event_entries(paths: dict) -> list[dict]:
+    """The event stream as decoded objects, for either backend.
+
+    Diagnostics must not read `blackboard-events.log` when the active backend is
+    SQLite: the file may be a stale migration source while the database holds
+    the live stream. Malformed entries are skipped exactly like `_replay_events`
+    skips them; this is a reporting view, not a state rebuild.
+    """
+    return event_stats(paths)[0]
+
+
 def _replay_events(paths: dict) -> dict:
     """Fold the event log into a board (used to rebuild a lost snapshot).
     
@@ -418,6 +718,41 @@ def _replay_events(paths: dict) -> dict:
     """
     board = _empty_board()
     skipped_lines = 0
+    if _is_sqlite():
+        conn = _sqlite_active(paths)
+        own = None
+        if conn is None:
+            try:
+                conn = _sqlite_conn(paths)
+                own = conn
+            except sqlite3.Error:
+                return board
+        try:
+            if own is not None:
+                _sqlite_migrate_files(paths, conn)
+            rows = conn.execute("SELECT data FROM events ORDER BY seq").fetchall()
+        except sqlite3.Error:
+            rows = []
+        finally:
+            if own is not None:
+                try:
+                    own.close()
+                except sqlite3.Error:
+                    pass
+        for (data,) in rows:
+            try:
+                ev = json.loads(data)
+            except ValueError:
+                skipped_lines += 1
+                continue
+            try:
+                _apply_event(board, ev)
+            except Exception:
+                skipped_lines += 1
+        if skipped_lines:
+            board["_metadata"] = board.get("_metadata", {})
+            board["_metadata"]["replay_skipped_lines"] = skipped_lines
+        return board
     try:
         with open(paths["events"], encoding="utf-8") as f:
             for line_num, line in enumerate(f, 1):
@@ -1521,12 +1856,7 @@ def compact_context(project_root: str) -> dict:
 def stats(project_root: str) -> dict:
     board = read_board(project_root)
     paths = board_paths(project_root)
-    event_count = 0
-    try:
-        with open(paths["events"], "rb") as f:
-            event_count = sum(1 for _ in f)
-    except OSError:
-        pass
+    event_count = len(event_entries(paths))
     lists = sum(1 for e in board["keys"].values() if isinstance(e.get("value"), list))
     cells = sum(len(cv.get("cells", {})) for cv in board["canvases"].values())
     return {

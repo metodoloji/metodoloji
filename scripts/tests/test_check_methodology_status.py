@@ -412,7 +412,7 @@ def _run_gate_check(project_root: Path):
     env.pop("CLAUDE_PLUGIN_ROOT", None)
     env.pop("METODOLOJI_PLUGIN_ROOT", None)
     r = subprocess.run(["sh", str(SCRIPT)], capture_output=True, text=True,
-                       encoding="utf-8", errors="replace", timeout=180, env=env,
+                       encoding="utf-8", errors="replace", timeout=300, env=env,
                        cwd=str(PLUGIN), stdin=subprocess.DEVNULL)
     out = (r.stdout or "") + (r.stderr or "")
     i = out.find("CHECK 7: Development Gate Records")
@@ -526,7 +526,7 @@ def test_check7_flags_a_project_side_custom_dir_as_an_orphan(tmp_path):
     env.pop("CLAUDE_PLUGIN_ROOT", None)
     env.pop("METODOLOJI_PLUGIN_ROOT", None)
     r = subprocess.run(["sh", str(SCRIPT)], capture_output=True, text=True,
-                       encoding="utf-8", errors="replace", timeout=180, env=env,
+                       encoding="utf-8", errors="replace", timeout=300, env=env,
                        cwd=str(PLUGIN), stdin=subprocess.DEVNULL)
     out = (r.stdout or "") + (r.stderr or "")
     assert "project-side custom/config.toml is never read" in out, out

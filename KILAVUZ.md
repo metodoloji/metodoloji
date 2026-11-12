@@ -76,6 +76,8 @@ Bunlar tercih değil, sistemin çalışma koşulu. İhlali ya mekanik olarak red
 
 1. **Kod yazmak izne bağlıdır.** İzin = `docs/experiments/E-NNN.md` kaydının gate'i çalıştırıp `APPROVED` + `GATE-OK-...` token üretmesi.
 2. **Zincir:** `E (deney) → IR (hazır mıyız?) → SP (sprint planı) → S (story) → QR (kalite) → PR (prod hazırlık)`. Her halka bir sonrakini açar.
+   - **Rigor tier'ları yalnızca üst halkaları belirler, kanıt halkasını asla.** Story `Rigor Tier: 1|2|3` ilan eder. Tier 1 (ufak/docs/hotfix) QR + regresyon kanıtı ister; Tier 2 (feature/refactor) story kaydı, AC metadata'sı ve unit test ekler; Tier 3 (olasılıksal/güvenlik/çekirdek/ML) tam zinciri korur. Tier 1/2 IR/SP/PR'yi politika gereği atlar; QR her tier'da zorunludur. Alan yoksa veya bozuksa Tier 3'tür.
+   - **Deney olasılıksaldır; sözleşme kapalıdır.** Numaralandırılmış bir küme üzerinde deterministik unit/regresyon testi `Record Kind: contract`'tır: `Census`'ta popülasyonu adlandırmalı, %100 iddia etmeli ve her vakayı geçmelidir. Test suite'ini örnekleme deneyi gibi giydirme.
 3. **Bekçiler (hook'lar):** Her dosya yazma / commit / deploy girişiminde motor sorar: "kapsayan VERIFIED deney var mı? zincir tamam mı?" Yoksa `DENY` (hard) veya uyarı (soft).
 4. **Çıktı hep proje köküne:** Metodoloji *çıktısı* (story, deney, planlama/test artefaktları — hepsi `docs/` altında) asla plugin içine yazılmaz. Plugin *kaynağı* (template, TOML, script) plugin kökünden okunur.
 5. **İstisna tek:** `bmad-customize` kullanıcı override'larını plugin'in `custom/` altına yazar. Karar kuralı: *dosya neyse oraya gider* (kayıt/artefakt → `{project-root}`, template/config/script → `{metodoloji-root}`).

@@ -1,6 +1,6 @@
 # metodoloji
 
-![version](https://img.shields.io/badge/version-0.2.45-0b7285?style=flat-square) ![license](https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square) ![python](https://img.shields.io/badge/python-3.11%2B-3776ab?style=flat-square) ![tests](https://img.shields.io/badge/tests-1%2C400%2B-4c1?style=flat-square) ![runtimes](https://img.shields.io/badge/runtimes-Claude%20Code%20%7C%20OpenHands%20%7C%20OpenCode%20%7C%20Hermes-555?style=flat-square)
+![version](https://img.shields.io/badge/version-0.2.46-0b7285?style=flat-square) ![license](https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square) ![python](https://img.shields.io/badge/python-3.11%2B-3776ab?style=flat-square) ![tests](https://img.shields.io/badge/tests-1%2C400%2B-4c1?style=flat-square) ![runtimes](https://img.shields.io/badge/runtimes-Claude%20Code%20%7C%20OpenHands%20%7C%20OpenCode%20%7C%20Hermes-555?style=flat-square)
 
 **A methodology plugin that applies approval gates to coding-agent actions through supported runtime hooks.**
 
@@ -27,9 +27,11 @@ For **Claude Code**, **OpenHands**, **OpenCode**, and **Hermes**: a 6-stage reco
 ## What you get
 
 - **A mechanical experiment gate.** Code is written only from a record that the gate itself measured and signed (`APPROVED` + a `GATE-OK-...` token). No record, no write — `DENY`, not a lecture.
+- **Experiments and contracts are different claims.** A stochastic claim is an `experiment`; a deterministic test over a closed input set is a `contract` that must prove 100% of its enumerated cases and is not dressed up with sampling statistics. `- **Record Kind:**` makes the choice explicit.
 - **A chain that unlocks itself.** `E → IR → SP → S → QR → PR`: research, readiness, sprint, story, quality, production readiness. Each link checks the one before it, on commit and on deploy.
+- **Rigor tiers, not one-size ceremony.** A story declares `- **Rigor Tier:** 1|2|3`. Tier 1 (trivial/doc/hotfix) needs QR + regression evidence; Tier 2 (feature/refactor) adds the story record, AC metadata and unit tests; Tier 3 (probabilistic/security/core/ML) keeps the full chain. The tier never relaxes the code guard or the QR requirement; absent or malformed values fall back to Tier 3.
 - **129 skills, 121 TOMLs, 33 BRIDGEs.** PRD, architecture, story, sprint, dev, code review, test/QA, retro and correction workflows for product, game and web/UX projects — customized per skill in up to three TOML layers.
-- **Context that survives sessions.** The blackboard (`write --hot`, run lists, handoffs, canvases) carries focus and pending batons between skills and across windows.
+- **Context that survives sessions.** The blackboard (`write --hot`, run lists, handoffs, canvases) carries focus and pending batons between skills and across windows. Storage is SQLite by default (one WAL database, transactional read-modify-write); set `blackboard_backend = "json"` for the legacy snapshot + event-log files.
 - **One manifest, two shell runtimes.** A single `hooks/hooks.json` serves both Claude Code and OpenHands; hook commands self-locate the plugin, and the engine fails closed when it cannot run.
 - **Four runtimes, one decision engine.** OpenCode and Hermes join Claude Code and OpenHands through adapters that call the same Python hook engine. The decision logic is shared; tool coverage and interception points differ by runtime. See [`docs/runtime-security-coverage.md`](docs/runtime-security-coverage.md), [`docs/OPENCODE.md`](docs/OPENCODE.md), and [`HERMES.md`](HERMES.md).
 - hook engine (main.py + modules/): pre, guard, quality, deploy, audit, stop, session_start.
@@ -52,6 +54,22 @@ Three hooks guard the three moments that matter:
 | **guard** | Adapter-mapped write and shell calls (runtime-specific; see [coverage matrix](docs/runtime-security-coverage.md)) | No covering VERIFIED experiment → `DENY` in hard mode; warn in soft mode |
 | **quality** | A mapped terminal command recognized as `git commit` | Chain check `IR → QR → SP`, plus story metadata and QR coherence |
 | **deploy** | A mapped terminal command matching the deploy-command rules | Chain check `IR → QR → SP → PR` |
+
+The commit/deploy chain is tier-aware: Tier 1/2 stories skip the upstream IR/SP/PR planning records by policy, but every tier still requires its QR. Legacy stories without a `Rigor Tier` field keep the full chain.
+
+New drafts are generated through the schema-checked CLI, not hand-written:
+
+```bash
+python scripts/create-record.py --kind experiment --id E-119 --title "..." \
+  --theory "..." --hypothesis 'H-119: "x >= 0.90"' --metrics "x >= 0.90" \
+  --design "..." --scope "src/**" --lineage none \
+  --raw-samples docs/experiments/E-119/raw/samples.jsonl
+python scripts/create-record.py --check docs/experiments/E-119.md
+```
+
+The CLI refuses a draft that violates its schema and stamps `- **Record Schema:** metodoloji.record/v1`; the gate remains the only writer of the decision, and from 2026-11-10 refuses an experiment/contract draft that lacks the attestation. Legacy records without the marker are skipped by `--check`, never retroactively failed. `scripts/migrate-contract-records.py` classifies the existing corpus by `Record Kind`.
+
+The **self-modification rule** distinguishes a methodology checkout from ordinary product code by a marker set (`hooks/engine/main.py` + `.claude-plugin/plugin.json`, with the gate directory present), not just path equality with the loaded engine. Editing a checkout is therefore not blocked by an experiment approved by an installed copy of the very gate being edited; `src/`, `lib/` and other product paths stay gated.
 
 What it looks like in practice:
 

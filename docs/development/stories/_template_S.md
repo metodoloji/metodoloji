@@ -8,6 +8,14 @@
 
 - **Date:** [YYYY-MM-DD]
 - **Status:** backlog | ready-for-dev | in-progress | review | done | blocked
+- **Rigor Tier:** 3
+  <!-- 1 = trivial/doc/hotfix: QR + regression evidence only (no IR/SP).
+       2 = feature/refactor: story record + AC metadata + unit tests (no IR/SP).
+       3 = probabilistic/security/core/ML: full E→IR→SP→S→QR→PR chain (default).
+       The tier never relaxes the code guard or the QR requirement; it only
+       decides which UPSTREAM planning records are required. A typo or an
+       unknown value falls back to Tier 3 — a fast path must be claimed
+       explicitly, never inferred from a malformed field. -->
 - **Sprint:** [SP-id reference, e.g. SP-003]
 - **Priority:** Critical / High / Medium / Low
 - **Story points:** [X points]

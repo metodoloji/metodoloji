@@ -25,6 +25,31 @@ bounded by the host's registered interception points. Use the runtime's
 configuration and this matrix when assessing enforcement in a particular
 installation; this plugin is not an operating-system sandbox.
 
+## Enforcement boundary (read this before calling it "100%")
+
+The guard is a **hook-level policy engine**, not a syscall sandbox. Its
+enforcement claim is precise:
+
+- A mapped tool call whose write destination the engine can resolve is gated
+  mechanically: no covering VERIFIED record → `DENY` in hard mode.
+- Interpreter inline evaluation (`python -c`, `node -e`, `sh -c`, …) is
+  inspected for write markers. When the code contains a write/dynamic-exec
+  marker but no complete destination can be resolved statically (a
+  runtime-built path, for example), the engine reports an **unresolved write**
+  and fails closed in `hard` mode. Recognizably read-only one-liners remain
+  allowed.
+- A compiled binary or an external process that writes files internally is
+  **outside** the extraction boundary: the hook sees the command, not the
+  syscalls the child makes. Direct filesystem writes made outside a mapped tool
+  call are likewise outside the gate.
+- Host coverage varies (see the matrix above). An event the host never emits
+  cannot be decided.
+
+So "100% mechanical" means "every resolvable mapped write is decided by the
+gate", not "no write can escape the operating system". The distinction is
+deliberate: an engine that claimed the second would be lying, and a methodology
+that cannot state its own boundary cannot be audited.
+
 ## Maintenance rule
 
 When adding a runtime or changing a tool mapping, update this matrix and the

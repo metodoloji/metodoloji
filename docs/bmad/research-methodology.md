@@ -125,7 +125,11 @@ Each mode's gate rules determine the quality and compliance of that mode's outpu
   - **Experiment Design:** Inputs, procedure, control variables
   - **Code Scope:** File globs opened by the approval
   - **Lineage:** `none` (a genuinely new line of inquiry) or the prior E-ids this experiment builds on / supersedes, with what it inherits — the gate refuses a draft without this field, a dangling/self-citing ref, or silence about a REJECTED record whose Code Scope it re-treads (E-022)
+  - **Record Kind:** `experiment` (default) or `contract`. An `experiment` is a stochastic claim whose result could have come out otherwise; a `contract` is a deterministic test over a closed input set and must name that population in `Census`, claim 100% (`== 1.0` or `>= 1.0`), ship per-case samples, and pass every case. Contract records get a contract uncertainty note, not a Wilson interval.
+  - **Census:** for a contract (and for an exact-zero/exact-something experiment claim): the complete population the cases constitute and why it is complete (≥ 40 characters).
   - **Status:** planned → APPROVED | REJECTED (written by the gate)
+
+New drafts are generated with `scripts/create-record.py` (schema-checked, stamps `metodoloji.record/v1`); a draft dated 2026-11-10 or later without that attestation is refused by the gate. Hand-written legacy records remain readable and are never retroactively failed. `scripts/migrate-contract-records.py` classifies the existing corpus (`--report` by default, `--apply` to write `Record Kind`).
 
 ### §4.2 Experiment Approval
 - Experiment approval is verified with `{metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --verify`

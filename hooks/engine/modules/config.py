@@ -54,6 +54,54 @@ def story_status(content: str) -> str:
         return m.group(1).strip().lower()
     return ""
 
+# Rigor tier (fast-path policy). A story declares how much ceremony its risk
+# justifies; absent means Tier 3 (the full historical chain) so legacy records
+# keep every gate they had.
+#
+#   Tier 1 — trivial / docs / hotfix: QR + regression evidence only.
+#   Tier 2 — feature / refactor: story record + AC metadata + unit tests; no IR/SP.
+#   Tier 3 — probabilistic / security / core / ML: full E→IR→SP→S→QR→PR chain.
+#
+# The tier never relaxes the code guard or the QR requirement: it only decides
+# which UPSTREAM planning records are required. A tier is a claim about risk,
+# and the quality gate records it in the deny message so the claim is visible.
+_RIGOR_TIER_RE = re.compile(
+    r"^(?:[-*]\s+)?\*{0,2}(?:Rigor\s+Tier|Tier)\*{0,2}\s*:\s*\*{0,2}\s*(\d)",
+    re.IGNORECASE | re.MULTILINE)
+_RIGOR_TIER_TABLE_RE = re.compile(
+    r"^\s*\|\s*(?:Rigor\s+)?Tier\s*\|\s*(\d)", re.IGNORECASE | re.MULTILINE)
+DEFAULT_RIGOR_TIER = 3
+VALID_RIGOR_TIERS = (1, 2, 3)
+
+
+def story_rigor_tier(content: str) -> int:
+    """The story's declared rigor tier (1-3); Tier 3 when absent/invalid.
+
+    Supports both dialects the records use: the bullet field
+    (`- **Rigor Tier:** 2`) and the generated record's bridge table row
+    (`| Rigor Tier | 2 |`). Invalid values fail toward the STRICTER tier: a typo
+    must never silently buy a fast path.
+    """
+    m = _RIGOR_TIER_RE.search(content or "") or _RIGOR_TIER_TABLE_RE.search(content or "")
+    if not m:
+        return DEFAULT_RIGOR_TIER
+    try:
+        tier = int(m.group(1))
+    except ValueError:
+        return DEFAULT_RIGOR_TIER
+    return tier if tier in VALID_RIGOR_TIERS else DEFAULT_RIGOR_TIER
+
+
+def story_rigor_label(content: str) -> str:
+    """A short human label for the story's tier (used in deny messages)."""
+    tier = story_rigor_tier(content)
+    return {
+        1: "Tier 1 (trivial/doc/hotfix — QR + regression)",
+        2: "Tier 2 (feature/refactor — S + AC + unit tests)",
+        3: "Tier 3 (probabilistic/security/core/ML — full chain)",
+    }[tier]
+
+
 # Log file location
 def log_file() -> str:
     # OpenHands plugin olarak her zaman .metodoloji/logs/ kullan
@@ -230,6 +278,10 @@ _VALID_HOOKS_KEYS = frozenset({
     "code_guard",
     "stop_guard",
     "blackboard",
+    # Storage backend for the blackboard: "sqlite" (one WAL database,
+    # transactional writes, the shipped default) or "json" (legacy snapshot +
+    # event log + advisory lock file).
+    "blackboard_backend",
     # Freshness plane (E-053): how a claim whose code state moved is treated.
     #   "off"  → no witness is written and no verdict is derived (pre-E-053
     #            behavior; the board keeps working, it just cannot say stale)
@@ -330,6 +382,23 @@ def blackboard_enabled() -> bool:
     working (fail-open) because skills own their writes.
     """
     return _read_hooks_section().get("blackboard", "on") != "off"
+
+
+def blackboard_backend() -> str:
+    """Storage backend for the blackboard: 'sqlite' (default) or 'json'.
+
+    SQLite mode stores the board snapshot and the event log in ONE WAL database
+    and wraps every read-modify-write in a transaction, removing the JSON
+    snapshot + advisory lock-file + separate event-log failure modes the
+    critique names. An existing JSON board is imported once on first read; set
+    `[hooks] blackboard_backend = "json"` (or
+    `METODOLOJI_BLACKBOARD_BACKEND=json`) to keep the legacy files.
+    """
+    env = os.environ.get("METODOLOJI_BLACKBOARD_BACKEND", "").strip().lower()
+    if env in ("json", "sqlite"):
+        return env
+    val = _read_hooks_section().get("blackboard_backend", "").strip().lower()
+    return val if val in ("json", "sqlite") else "sqlite"
 
 def hook_gate_mode(gate_key: str) -> str:
     """Public per-call accessor for one [hooks] gate mode: 'soft' | 'hard'.

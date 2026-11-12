@@ -15,6 +15,15 @@ lines; the gate writes them.
 ## Experiment: E-NNN — <short title>
 - **Date:** <DD.MM.YYYY>
 - **Status:** planned
+- **Record Kind:** experiment | contract
+  <!-- experiment (default): a stochastic/empirical claim whose result could have
+       come out otherwise — Wilson/McNemar/Wilcoxon uncertainty applies.
+       contract: a deterministic test over a CLOSED input set (unit, regression,
+       property, conformance). It must name the closed population in Census,
+       claim 100% (`== 1.0` or `>= 1.0`), ship per-case samples, and pass EVERY
+       case; the gate writes a contract note instead of sampling statistics.
+       Calling a deterministic test an "experiment" is methodological theatre;
+       this field makes the choice explicit. -->
 - **Theory:** <which theory/framework this comes from — "I was curious" is not enough>
 - **Hypothesis:** H-NNN: "metric >= threshold"   <!-- e.g. H-001: "accuracy >= 0.90" -->
 - **Measurement Metrics:** <metric name + threshold, unitless numeric>  <!-- e.g. accuracy >= 0.90 -->
@@ -150,6 +159,20 @@ path outside the project, refuses a sample without a boolean `ok`, and records
 A record may decline the samples — `- **Raw Samples:** none — <reason>` — but the
 reason must run to at least 40 characters and the refusal is written into the
 record. An exemption is a public act, never a silent default.
+
+### Contract records: deterministic tests are not experiments
+
+Set `- **Record Kind:** contract` when the measurement is a deterministic test
+over a closed input set. The gate then requires:
+
+- a `Census` naming the complete population (at least 40 characters),
+- a `== 1.0` or `>= 1.0` claim (100%, no rate),
+- per-case raw samples (one boolean `ok` per enumerated case),
+- **every** case passing — one failure rejects the record.
+
+The `Uncertainty` line reads `none (contract — closed deterministic input set …)`
+instead of a Wilson bound. A 40/40 unit-test run is evidence that the closed set
+passes; it is not evidence about a population the tests did not enumerate.
 
 ## Reproduce — the only check against the world
 

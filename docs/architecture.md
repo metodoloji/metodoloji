@@ -47,7 +47,8 @@ testable responsibility, rather than moving code based only on file length.
 | Workflow state/spec mutation | Lock or state-write failure refuses the mutation; stale read-modify-write is rejected |
 | Workflow event log | State remains authoritative; an event-log failure is returned as a warning with the successful mutation |
 | Blackboard notification from workflow | Advisory only; workflow proceeds and the notification failure is written to stderr |
-| Blackboard mutation | Supported-lock failure raises `BoardError`; reads/reporting can degrade to safe defaults |
+| Blackboard mutation (JSON backend) | Supported-lock failure raises `BoardError`; reads/reporting can degrade to safe defaults |
+| Blackboard mutation (SQLite backend) | The transaction rolls back on any exception; a lock/contention failure surfaces as `BoardError`, never as a partial write |
 
 Workflow state is updated under a thread mutex and an operating-system advisory
 lock. A mutation also checks the
@@ -58,6 +59,63 @@ unique same-directory temporary file and atomic rename. The append-only event lo
 secondary evidence: if it cannot be updated after the state commit, the caller
 receives a warning rather than a false failure that could encourage a duplicate
 retry.
+
+## Record kinds and rigor tiers
+
+The record chain has two distinct claim types and three rigor tiers:
+
+- **Experiment** (`Record Kind: experiment`, default) — a stochastic claim whose
+  result could have come out otherwise. The gate applies sampling statistics
+  (Wilson bounds, McNemar, Wilcoxon) and an exact-zero claim needs a `Census`.
+- **Contract** (`Record Kind: contract`) — a deterministic test over a closed,
+  enumerated input set. It must name the population in `Census`, claim 100%
+  (`== 1.0` or `>= 1.0`), ship per-case samples, and pass every enumerated case.
+  The gate writes a contract note instead of a sampling interval. A unit or
+  regression suite is a contract; calling it an experiment is methodological
+  theatre.
+
+Stories declare `- **Rigor Tier:** 1|2|3`:
+
+| Tier | Use | Required records |
+|---|---|---|
+| 1 | trivial / docs / hotfix | QR + regression evidence |
+| 2 | feature / refactor | story record + AC metadata + unit tests; QR |
+| 3 | probabilistic / security / core / ML | full `E → IR → SP → S → QR → PR` |
+
+The tier is read from the story file; absent or malformed values fall back to
+Tier 3, so no legacy story loses a gate. Tier 1/2 filter the upstream IR/SP/PR
+checks only; the QR and the code guard are never relaxed. The commit/deploy
+gates print the tier when they deny, so the claimed fast path stays visible.
+
+New drafts are produced by `scripts/create-record.py`, which validates the
+kind's schema before and after writing and stamps `metodoloji.record/v1`.
+`run_experiment.py` refuses an experiment/contract draft dated on or after
+2026-11-10 that lacks the attestation, so a hand-edited draft cannot reach a
+decision; older records stay readable. `scripts/migrate-contract-records.py`
+reports (and with `--apply`, writes) the `Record Kind` of the legacy corpus
+without touching any gate-written line.
+
+## Blackboard backends
+
+The board has two interchangeable storage backends, selected by
+`[hooks] blackboard_backend`:
+
+- **SQLite WAL (shipped default).** One database
+  (`.metodoloji/blackboard.sqlite`) holds the board JSON and the event stream.
+  Every read-modify-write runs inside one `BEGIN IMMEDIATE` transaction with
+  `journal_mode=WAL`, so a crash rolls the mutation back instead of leaving the
+  snapshot and audit log disagreeing. The first read in SQLite mode imports an
+  existing JSON snapshot and event log once; the JSON files remain on disk as
+  the migration source and are not deleted.
+- **JSON (legacy, opt-in).** One snapshot (`.metodoloji/blackboard.json`) plus
+  an append-only event log and an advisory lock file. Mutations use a lock,
+  atomic temp-file replacement, and bounded event-log truncation. Select it with
+  `blackboard_backend = "json"`.
+
+Diagnostics, rotation, and the live-relay check read through the active backend,
+so a SQLite board is never diagnosed from a stale JSON file.
+
+`METODOLOJI_BLACKBOARD_BACKEND=json|sqlite` overrides the file for one process.
 
 ## OpenCode distribution
 

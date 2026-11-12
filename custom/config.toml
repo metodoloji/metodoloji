@@ -75,6 +75,7 @@ deploy_guard = "hard"   # "soft" | "hard" (code fallback default when absent: "s
 code_guard = "hard"     # hardened 2026-09-19 (S-005, TD-013 paid — E-014 40/40 + E-015 36/36 + E-016 44/44 + E-017 54/54 + E-018 59/59 + 4 live rehearsals)
 stop_guard = "soft"     # backward-compat key: stop is report-only and never blocks — leave "soft"
 blackboard = "on"       # dynamic working context (the code is canonical); "off" disables engine integration
+blackboard_backend = "sqlite"  # "sqlite" (default: one WAL database, transactional) | "json" (legacy files)
 
 # Freshness plane details (E-053). Read live per-call by hooks/engine/modules/freshness.py.
 # `scope_digest = false` classifies on the commit only: every commit after the

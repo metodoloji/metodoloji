@@ -755,21 +755,49 @@ def norm_path(p: str) -> str:
     return ("/" + out) if absolute else out
 
 
-def _project_is_methodology_root() -> bool:
-    """True when the project being guarded IS this plugin's own repository.
+# A methodology CHECKOUT can be edited while an INSTALLED engine guards it
+# (this repository's own dogfood sessions run exactly that way: the hook process
+# loads the installed plugin, while the operator's cwd is the checkout). The
+# path-equality test alone then sees "installed root != project root" and gates
+# the plugin's own source behind an experiment — the self-referential deadlock.
+# These markers identify a full methodology checkout: the engine entrypoint and
+# the plugin manifest as files, plus the gate directory that config.py already
+# resolves (its path is derived there, never spelled here, so this module emits
+# no bare script name).
+_METHODOLOGY_CHECKOUT_MARKERS = (
+    "hooks/engine/main.py",
+    ".claude-plugin/plugin.json",
+)
 
-    The plugin root resolved from env always equals the engine's methodology
-    root (the engine lives inside the install dir), so the meaningful signal is
-    the project root: CLAUDE_PROJECT_DIR / OPENHANDS_PROJECT_DIR / cwd. When it
-    resolves to the methodology root, the plugin source trees (hooks/,
-    scripts/, skills/, custom/) are released as a
-    self-modification free zone — the methodology working on itself. In any
-    ordinary project those trees stay behind the experiment gate.
+
+def _project_is_methodology_root() -> bool:
+    """True when the project being guarded IS a methodology checkout.
+
+    Two accepted shapes:
+
+    1. The project root resolves to the engine's own methodology root (the
+       historical self-modification case).
+    2. The project root is a full plugin checkout (marker set + the gate
+       directory present) even when the active engine was loaded from an
+       install elsewhere. Without this, editing the checkout that defines the
+       gate requires an experiment approved by the installed gate — a circular
+       gate with no first move.
+
+    In both shapes only the plugin source trees (hooks/, scripts/, skills/,
+    custom/, ...) are released. Product code (`src/`, `lib/`, ...) stays behind
+    the experiment gate, and the release is still checked through the symlink
+    resolver.
     """
     try:
-        from .config import _METHODOLOGY_ROOT
-        project_root = repo_root({})
-        return pathlib.Path(project_root).resolve() == pathlib.Path(_METHODOLOGY_ROOT).resolve()
+        from .config import _METHODOLOGY_ROOT, GATE_DIR
+        project_root = pathlib.Path(repo_root({})).resolve()
+        if project_root == pathlib.Path(_METHODOLOGY_ROOT).resolve():
+            return True
+        if not all((project_root / rel).is_file()
+                   for rel in _METHODOLOGY_CHECKOUT_MARKERS):
+            return False
+        gate_rel = "hooks/engine/main.py"
+        return bool(GATE_DIR) and (project_root / gate_rel).is_file()
     except Exception:
         return False
 

@@ -686,6 +686,54 @@ PY
     esac
 fi
 
+# ─── CHECK 10: schema-attested record integrity ───
+echo ""
+echo "═══════════════════════════════════════════════════"
+echo "CHECK 10: Schema-Attested Records"
+echo "═══════════════════════════════════════════════════"
+
+# New records are produced by scripts/create-record.py, which stamps
+# `- **Record Schema:** metodoloji.record/v1` after validating the kind's
+# required fields. Legacy records have no marker and are deliberately skipped:
+# this check must not retroactively fail the corpus. A marked record that no
+# longer satisfies its schema (a hand edit removed a field) is an ISSUE.
+SCHEMA_CHECKED=0
+SCHEMA_FAILED=0
+SCHEMA_MISSING=0
+SCHEMA_CUTOFF="2026-11-10"
+for rec in docs/experiments/E-*.md docs/development/IR-*.md \
+           docs/development/SP-*.md docs/development/PR-*.md; do
+    [ -f "$rec" ] || continue
+    case "$(basename "$rec")" in _template.md) continue ;; esac
+    if grep -q -- '- \*\*Record Schema:\*\* metodoloji.record/v1' "$rec"; then
+        SCHEMA_CHECKED=$((SCHEMA_CHECKED + 1))
+        if [ -n "$PY" ] && ! "$PY" "$SCRIPT_DIR/create-record.py" --check "$rec" >/dev/null 2>&1; then
+            log_issue "schema-attested record failed validation: $rec (run: $PY $SCRIPT_DIR/create-record.py --check $rec)"
+            SCHEMA_FAILED=$((SCHEMA_FAILED + 1))
+        fi
+        continue
+    fi
+    # A record dated at/after the cut-off with no attestation is a hand-edited
+    # draft: the CLI is the sanctioned producer. Older records stay readable.
+    rec_date=$(grep -m1 -oE -- '- \*\*Date:\*\*[[:space:]]*([0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{2}\.[0-9]{2}\.[0-9]{4})' "$rec" 2>/dev/null | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{2}\.[0-9]{2}\.[0-9]{4}' | head -1)
+    [ -z "$rec_date" ] && continue
+    if echo "$rec_date" | grep -q '\.'; then
+        # DD.MM.YYYY -> YYYY-MM-DD (portable, no `date -d`).
+        _d="${rec_date%%.*}"; _rest="${rec_date#*.}"; _m="${_rest%%.*}"; _y="${_rest##*.}"
+        iso_date="$_y-$_m-$_d"
+    else
+        iso_date="$rec_date"
+    fi
+    if [ "$iso_date" \> "$SCHEMA_CUTOFF" ] || [ "$iso_date" = "$SCHEMA_CUTOFF" ]; then
+        log_warn "record dated $iso_date has no schema attestation: $rec (generate with $PY $SCRIPT_DIR/create-record.py)"
+        SCHEMA_MISSING=$((SCHEMA_MISSING + 1))
+    fi
+done
+if [ "$SCHEMA_FAILED" -eq 0 ]; then
+    log_ok "$SCHEMA_CHECKED schema-attested record(s) satisfy metodoloji.record/v1"
+    echo "  schema-attested records: $SCHEMA_CHECKED (new unattested: $SCHEMA_MISSING; legacy records before $SCHEMA_CUTOFF skipped)"
+fi
+
 # ─── SUMMARY ───
 echo ""
 echo "═══════════════════════════════════════════════════"

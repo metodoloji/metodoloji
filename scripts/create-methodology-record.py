@@ -119,6 +119,7 @@ def extract_story_metadata(content: str) -> dict:
         "epic": "",
         "status": "",
         "sprint": "",
+        "rigor_tier": "",
         "acceptance_criteria": [],
         "experiment_refs": [],
         "tasks": [],
@@ -161,6 +162,17 @@ def extract_story_metadata(content: str) -> dict:
     sprint_match = re.search(r"Sprint:\s*(.+)$", content, re.MULTILINE)
     if sprint_match:
         meta["sprint"] = _clean_field(sprint_match.group(1))
+
+    # Rigor tier: line-start anchored (`- **Rigor Tier:** 2` / `Tier: 1`) so a
+    # prose mention elsewhere never decides how much ceremony a record gets.
+    # Invalid/absent values become the strict default (3), matching the gate.
+    tier_match = re.search(
+        r"^(?:[-*]\s+)?\*{0,2}(?:Rigor\s+Tier|Tier)\*{0,2}\s*:\s*\*{0,2}\s*(\d)",
+        content, re.MULTILINE | re.IGNORECASE)
+    if tier_match and tier_match.group(1) in ("1", "2", "3"):
+        meta["rigor_tier"] = tier_match.group(1)
+    else:
+        meta["rigor_tier"] = "3"
 
     # Acceptance Criteria — one block per AC, so each AC keeps its OWN
     # metadata. The engine parses the same five fields, from the same shapes
@@ -318,6 +330,7 @@ def create_methodology_record(meta: dict, sira: int, project_root: Path) -> Path
 |------|-------|
 | Date | {today} |
 | Status | {meta.get('status') or 'backlog'} |
+| Rigor Tier | {meta.get('rigor_tier') or '3'} |
 | Story Title | {meta.get('title') or '—'} |
 | Epic | {meta.get('epic') or '—'} |
 | Acceptance Criteria | {ac_ids_str} |

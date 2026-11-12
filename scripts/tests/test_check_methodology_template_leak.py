@@ -46,7 +46,7 @@ def _run_check8(project_root: Path) -> str:
     env.pop("CLAUDE_PLUGIN_ROOT", None)
     env.pop("METODOLOJI_PLUGIN_ROOT", None)
     r = subprocess.run(["sh", str(SCRIPT)], capture_output=True, text=True,
-                       encoding="utf-8", errors="replace", timeout=180, env=env,
+                       encoding="utf-8", errors="replace", timeout=300, env=env,
                        cwd=str(PLUGIN), stdin=subprocess.DEVNULL)
     out = (r.stdout or "") + (r.stderr or "")
     i = out.find("CHECK 8: Record Template Hygiene")

@@ -264,6 +264,30 @@ def test_plugin_trees_protected_when_no_project_env(monkeypatch, tmp_path):
     assert not is_free("skills/anything.py")
 
 
+def test_plugin_checkout_is_self_modifying_with_an_installed_engine(monkeypatch, tmp_path):
+    """A full plugin checkout is the methodology working on itself.
+
+    Real dogfood session: the hook process loaded the INSTALLED engine, while
+    the operator edited the checkout. Path equality said "different roots", so
+    editing `hooks/engine/modules/*.py` demanded an experiment approved by the
+    very gate being edited — a circular gate. The marker set identifies a
+    checkout without weakening ordinary projects.
+    """
+    from modules import config, utils
+    checkout = tmp_path / "checkout"
+    for rel in utils._METHODOLOGY_CHECKOUT_MARKERS:
+        path = checkout / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("marker\n", encoding="utf-8")
+    monkeypatch.setattr(config, "_METHODOLOGY_ROOT", tmp_path / "installed")
+    monkeypatch.setattr(utils, "repo_root", lambda json_in: str(checkout))
+    assert utils._project_is_methodology_root() is True
+    assert is_free("hooks/engine/modules/guard.py") is True
+    assert is_free("scripts/check-plugin.sh") is True
+    # Product code is still gated: the release is only for plugin trees.
+    assert is_free("src/app.py") is False
+
+
 def test_version_literal_is_not_a_code_target():
     """A dotted version token is not a file (E-037).
 

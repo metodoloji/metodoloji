@@ -12,25 +12,20 @@ def rotate_event_log(project_root: str, max_lines: int = 10000) -> dict:
 
     paths = blackboard.board_paths(project_root)
     events_path = pathlib.Path(paths["events"])
-    if not events_path.exists():
+    is_sqlite = blackboard._is_sqlite()
+    if not is_sqlite and not events_path.exists():
         return {"ok": False, "error": "no event log to rotate"}
 
     try:
-        all_events = []
-        with open(events_path, "r", encoding="utf-8") as stream:
-            for line in stream:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    all_events.append(json.loads(line))
-                except (json.JSONDecodeError, ValueError):
-                    pass  # Skip corrupted lines, matching the reader's recovery policy.
+        # Backend-aware read: SQLite keeps the live stream in the database, so
+        # reading blackboard-events.log there would rotate a stale migration
+        # source instead of the real history.
+        all_events, _garbage = blackboard.event_stats(paths)
 
         if not all_events or len(all_events) < max_lines:
             return {
                 "ok": False,
-                "message": f"log has {len(all_events)} lines (threshold: {max_lines})",
+                "message": f"log has {len(all_events)} events (threshold: {max_lines})",
             }
 
         # Rebuild before archiving so the snapshot represents the full event
@@ -43,12 +38,16 @@ def rotate_event_log(project_root: str, max_lines: int = 10000) -> dict:
         now = datetime.datetime.now()
         archive_name = f"events-{now.strftime('%Y-%m-%d-%H%M%S')}.log.gz"
         archive_path = events_path.parent / archive_name
+        archive_path.parent.mkdir(parents=True, exist_ok=True)
         with gzip.open(archive_path, "wt", encoding="utf-8") as stream:
             for event in all_events:
                 stream.write(json.dumps(event, ensure_ascii=False) + "\n")
 
-        with open(events_path, "w", encoding="utf-8"):
-            pass
+        # Reset the live stream under the same lock/transaction the backend
+        # uses for mutation, so a concurrent writer cannot append between the
+        # archive read and the clear.
+        with blackboard._board_lock(paths):
+            blackboard.clear_events(paths)
 
         return {
             "ok": True,

@@ -596,3 +596,42 @@ def test_powershell_read_only_cmdlets_are_inert():
     assert extract_bash_targets("Get-Content src/a.py") == []
     assert extract_bash_targets("Write-Host hello") == []
     assert extract_bash_targets("Test-Path src/a.py") == []
+
+# --- opaque interpreter writes fail closed (critique #4) --------------------
+
+
+def test_opaque_inline_write_reports_unresolved_destination():
+    """A runtime-built destination cannot be resolved statically -> dropped.
+
+    `python -c "p = 'src/x'; open(p + '.py', 'w')"` writes a code file but no
+    quoted path is a complete target. The extractor must not answer "no
+    targets" (which the guard reads as "allow"); it must report an unresolved
+    write so code_guard=hard denies it.
+    """
+    cmd = 'python3 -c "p = \'src/x\'; open(p + \'.py\', \'w\').write(\'y\')"'
+    targets, dropped = extract_bash_targets_ex(cmd)
+    # The partial token may be reported, but the unresolved write MUST be
+    # flagged so code_guard=hard denies it.
+    assert dropped is True
+
+
+def test_readonly_inline_code_is_not_an_opaque_write():
+    """A recognizably read-only one-liner stays allowed (E-037 false positive)."""
+    targets, dropped = extract_bash_targets_ex(
+        "python3 -c \"print(open('src/config.ts').read())\"")
+    assert targets == []
+    assert dropped is False
+
+
+def test_plain_inline_print_is_not_an_opaque_write():
+    targets, dropped = extract_bash_targets_ex("python3 -c \"print(1)\"")
+    assert targets == []
+    assert dropped is False
+
+
+def test_resolved_inline_write_is_not_reported_unresolved():
+    """When the destination IS resolved, the normal target path applies."""
+    targets, dropped = extract_bash_targets_ex(
+        "python3 -c \"open('src/new_module.py','w').write('x')\"")
+    assert targets == ["src/new_module.py"]
+    assert dropped is False

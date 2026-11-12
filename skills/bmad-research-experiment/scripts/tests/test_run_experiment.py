@@ -1088,3 +1088,121 @@ def test_rule7_a_failing_control_approves_and_records_the_proof(tmp_path):
     text = record.read_text(encoding="utf-8")
     assert "**Decision:** APPROVED" in text
     assert "**Falsifiability:** verified — control" in text
+
+
+# --- record kind / contract draft rules -------------------------------------
+
+def _contract_text(**overrides):
+    base = {
+        "Status": "planned",
+        "Record Kind": "contract",
+        "Theory": "closed set",
+        "Hypothesis": 'H-001: "rate == 1.0"',
+        "Measurement Metrics": "rate == 1.0",
+        "Experiment Design": "run every case",
+        "Code Scope": "src/**",
+        "Lineage": "none",
+        "Raw Samples": "raw/samples.jsonl",
+        "Census": "the five enumerated cases are the complete closed set",
+    }
+    base.update(overrides)
+    lines = ["## Experiment: E-001 — contract"]
+    lines += [f"- **{k}:** {v}" for k, v in base.items() if v is not None]
+    return "\n".join(lines) + "\n"
+
+
+def test_record_kind_defaults_to_experiment():
+    assert gate.record_kind("## Experiment: E-001\n") == "experiment"
+
+
+def test_record_kind_rejects_unknown_value():
+    assert gate.record_kind_issue(_contract_text(**{"Record Kind": "vibes"})) is not None
+
+
+def test_contract_draft_accepts_a_complete_closed_set():
+    assert gate.contract_draft_issue(_contract_text(), "rate == 1.0") is None
+
+
+def test_contract_draft_requires_census():
+    text = _contract_text(Census="short")
+    assert "Census" in gate.contract_draft_issue(text, "rate == 1.0")
+
+
+def test_contract_draft_requires_a_100_percent_claim():
+    text = _contract_text()
+    assert "100%" in gate.contract_draft_issue(text, "rate >= 0.90")
+
+
+def test_contract_draft_refuses_a_comparison():
+    text = _contract_text()
+    assert "comparison" in gate.contract_draft_issue(text, "a_rate > b_rate")
+
+
+def test_contract_draft_requires_per_case_samples():
+    text = _contract_text(**{"Raw Samples": "none — because"})
+    assert "Raw Samples" in gate.contract_draft_issue(text, "rate == 1.0")
+
+
+# --- schema attestation for new drafts --------------------------------------
+
+def test_attestation_required_for_a_new_record():
+    text = (
+        "## Experiment: E-001 — new draft\n"
+        "- **Date:** 2026-11-15\n"
+        "- **Hypothesis:** H-001: \"x >= 0.9\"\n"
+    )
+    assert gate.schema_attestation_issue(text, "E-001.md") is not None
+
+
+def test_attestation_not_required_for_a_legacy_record():
+    text = (
+        "## Experiment: E-001 — legacy\n"
+        "- **Date:** 2026-10-01\n"
+        "- **Hypothesis:** H-001: \"x >= 0.9\"\n"
+    )
+    assert gate.schema_attestation_issue(text, "E-001.md") is None
+
+
+def test_attestation_accepts_the_cli_marker():
+    text = (
+        "## Experiment: E-001 — generated\n"
+        "- **Date:** 2026-11-15\n"
+        "- **Record Schema:** metodoloji.record/v1\n"
+        "- **Hypothesis:** H-001: \"x >= 0.9\"\n"
+    )
+    assert gate.schema_attestation_issue(text, "E-001.md") is None
+
+
+def test_measurement_timeout_is_bounded(monkeypatch):
+    monkeypatch.delenv("METODOLOJI_MEASUREMENT_TIMEOUT", raising=False)
+    assert gate.measurement_timeout() == gate.DEFAULT_MEASUREMENT_TIMEOUT
+    monkeypatch.setenv("METODOLOJI_MEASUREMENT_TIMEOUT", "999999")
+    assert gate.measurement_timeout() == gate.MAX_MEASUREMENT_TIMEOUT
+    monkeypatch.setenv("METODOLOJI_MEASUREMENT_TIMEOUT", "abc")
+    assert gate.measurement_timeout() == gate.DEFAULT_MEASUREMENT_TIMEOUT
+
+
+def test_contract_bench_honours_the_same_budget(monkeypatch):
+    """The bench runs INSIDE the gate's budget: it must not cap lower.
+
+    A hard-coded 1800s in the bench made a slow (but healthy) suite report a
+    timeout before the gate's own limit — the outer timeout is the gate's, and
+    both sides read the same clamped environment value.
+    """
+    import importlib.util
+    from pathlib import Path
+
+    root = Path(gate.__file__).resolve().parents[3]
+    bench_path = root / "scripts" / "bench" / "bench_methodology_contract.py"
+    spec = importlib.util.spec_from_file_location("bench_budget", bench_path)
+    bench = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(bench)
+
+    monkeypatch.delenv("METODOLOJI_MEASUREMENT_TIMEOUT", raising=False)
+    assert bench.measurement_timeout() == gate.DEFAULT_MEASUREMENT_TIMEOUT
+    monkeypatch.setenv("METODOLOJI_MEASUREMENT_TIMEOUT", "999999")
+    assert bench.measurement_timeout() == gate.MAX_MEASUREMENT_TIMEOUT
+    monkeypatch.setenv("METODOLOJI_MEASUREMENT_TIMEOUT", "abc")
+    assert bench.measurement_timeout() == gate.DEFAULT_MEASUREMENT_TIMEOUT
+
+

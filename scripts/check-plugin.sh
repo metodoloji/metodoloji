@@ -39,6 +39,20 @@
 
 set -u
 
+# Cross-machine approvals: `run_experiment.py --verify` reports UNVERIFIABLE
+# (the token is well-formed but re-derives under no key in this machine's trust
+# ring) — it does NOT report FORGED. The audit keeps that distinction: a
+# cross-machine record is a WARNING by default, not a failure of this machine's
+# plugin. Set --strict-keys (or METODOLOJI_STRICT_KEYS=1) to treat it as an
+# error, e.g. on a release gate that requires the whole corpus to verify here.
+STRICT_KEYS=0
+if [ "${METODOLOJI_STRICT_KEYS:-0}" = "1" ]; then STRICT_KEYS=1; fi
+for _arg in "$@"; do
+    case "$_arg" in
+        --strict-keys) STRICT_KEYS=1 ;;
+    esac
+done
+
 if [ "${1:-}" = "--negtest" ]; then
     # Negative test (repo convention: break → catch MISS → restore).
     # Temporarily removes the BRIDGE line from custom/bmad-dev-story.toml,
@@ -1032,11 +1046,18 @@ for rec in "$PROJECT_ROOT"/docs/experiments/*.md; do
             # (normal for a teammate's record) and tampering with a token here.
             # Naming only FORGED accused the first case of forgery; the verdict
             # is UNVERIFIABLE, and the remedies below resolve which one it is.
-            echo "[ERROR] $rec -> approved but --verify failed (UNVERIFIABLE, not re-derivable under this machine's ring — or a tampered token here)"
+            # The audit keeps the verifier's three-state vocabulary: warning by
+            # default, error only under --strict-keys.
+            if [ "$STRICT_KEYS" -eq 1 ]; then
+                echo "[ERROR] $rec -> approved but --verify failed (UNVERIFIABLE, not re-derivable under this machine's ring — or a tampered token here)"
+                PROBLEMS=$((PROBLEMS + 1))
+            else
+                echo "[WARN] $rec -> CROSS-MACHINE/UNVERIFIABLE: the token is well-formed but re-derives under no key in this machine's trust ring (or was tampered with here)."
+            fi
             echo "        If approved on another machine of yours: import that key (run_experiment.py --import-key;"
             echo "        key material via BMAD_PEER_GATE_KEY) — or re-measure with a Re-Measured-By marker."
             echo "        A structural fault (missing evidence, claim mismatch, doctored plan/witness) still reports FORGED."
-            PROBLEMS=$((PROBLEMS + 1))
+            echo "        Use --strict-keys to make this class an error on a release gate."
         fi
     fi
 done

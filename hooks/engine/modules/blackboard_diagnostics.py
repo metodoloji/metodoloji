@@ -110,20 +110,9 @@ def doctor(project_root: str, *, post: bool = False) -> dict:
 
     # event log
     lines = garbage = 0
-    try:
-        with open(paths["events"], encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                lines += 1
-                try:
-                    json.loads(line)
-                except ValueError:
-                    garbage += 1
-        events_exist = lines > 0
-    except OSError:
-        events_exist = False
+    entries, garbage = _board_api.event_stats(paths)
+    lines = len(entries)
+    events_exist = lines > 0
     if garbage:
         warnings.append(f"event log carries {garbage} unparseable line(s) "
                         "(tolerated, but investigate the writer)")
@@ -211,23 +200,17 @@ def doctor(project_root: str, *, post: bool = False) -> dict:
         session_count = 0
         current_session_id = ""
 
-        with open(paths["events"], "r", encoding="utf-8") as f:
-            for line in f:
-                try:
-                    entry = json.loads(line)
-                except (json.JSONDecodeError, ValueError):
-                    continue
+        for entry in entries:
+            entry_type = entry.get("type", "")
+            if entry_type == "session_marker":
+                if entry.get("hook_event") == "SessionStart":
+                    last_session_start = entry.get("ts", 0.0)
+                    last_session_id = entry.get("session_id", "")
+                    current_session_id = last_session_id
+                    session_count += 1
 
-                entry_type = entry.get("type", "")
-                if entry_type == "session_marker":
-                    if entry.get("hook_event") == "SessionStart":
-                        last_session_start = entry.get("ts", 0.0)
-                        last_session_id = entry.get("session_id", "")
-                        current_session_id = last_session_id
-                        session_count += 1
-
-                elif entry_type == "session_stop":
-                    last_session_stop = entry.get("ts", 0.0)
+            elif entry_type == "session_stop":
+                last_session_stop = entry.get("ts", 0.0)
 
         # Check if there's an unclosed session
         if last_session_start and (last_session_stop is None or last_session_start > last_session_stop):
@@ -253,11 +236,19 @@ def doctor(project_root: str, *, post: bool = False) -> dict:
         pass  # Can't check session history, skip
 
     # integrity: snapshot presence + drift
-    snapshot_exists = os.path.exists(paths["snapshot"])
+    sqlite_backend = False
+    try:
+        sqlite_backend = _board_api._is_sqlite()
+    except Exception:
+        sqlite_backend = False
+    snapshot_exists = os.path.exists(paths["db"] if sqlite_backend
+                                     else paths["snapshot"])
     drift = _doctor_drift(paths, board)
     if not drift["in_sync"]:
-        warnings.append("snapshot drifts from the event log — delete "
-                        "blackboard.json to force a rebuild")
+        warnings.append(
+            "board state drifts from the event stream — rebuild it "
+            + ("with `blackboard.py rebuild`" if sqlite_backend
+               else "by deleting blackboard.json"))
 
     # tmp residue (crash leftovers, snapshot dir + event-log dir)
     tmp_files: list[str] = []

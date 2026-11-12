@@ -229,13 +229,17 @@ def _methodology_mirror_map(root: str) -> dict[str, str]:
     return out
 
 def _find_done_stories_without_record(root: str, record_glob: str, record_dir: str,
-                                      require_sp_ref: bool = False) -> list[str]:
+                                      require_sp_ref: bool = False,
+                                      min_tier: int = 1) -> list[str]:
     """Find stories with Status: done that lack a record of the given type.
 
     Args:
         record_glob: glob for record files (e.g. 'QR-*.md', 'SP-*.md').
         record_dir: directory to scan (project-relative, e.g. 'docs/quality').
         require_sp_ref: only check stories that reference an SP record.
+        min_tier: only check stories at or above this rigor tier. Tier 1/2
+            stories intentionally skip the IR/SP/PR planning chain; the tier
+            is read from the story's own `- **Rigor Tier:**` field.
 
     Returns list of story keys (e.g. '1-2-user-auth' or 'S-001') missing the record.
     """
@@ -250,6 +254,7 @@ def _find_done_stories_without_record(root: str, record_glob: str, record_dir: s
     _story_key_of = _guard._story_key_of
     pathlib = _guard.pathlib
     story_status = _guard.story_status
+    from .config import story_rigor_tier
     rec_dir = pathlib.Path(root) / record_dir
 
     # Collect all record content to search for story references.
@@ -276,6 +281,8 @@ def _find_done_stories_without_record(root: str, record_glob: str, record_dir: s
         except OSError:
             continue
         if story_status(content) != "done":
+            continue
+        if story_rigor_tier(content) < min_tier:
             continue
         sp_ref = None
         if require_sp_ref:
@@ -344,17 +351,26 @@ def _find_done_stories_without_pr(root: str) -> list[str]:
     Restored: the deploy gate (Gate 4) calls this when include_pr is set;
     commit 48ed1f2 dropped the definition while the call site survived,
     raising NameError at deploy time.
+
+    Tier 1/2 stories skip the production-readiness chain by policy; Tier 3
+    keeps it. The tier is read from the story itself (default Tier 3), so a
+    legacy story without the field is still checked.
     """
     from . import guard as _guard
     _find_done_stories_without_record = _guard._find_done_stories_without_record
-    return _find_done_stories_without_record(root, "PR-*.md", "docs/development")
+    return _find_done_stories_without_record(root, "PR-*.md", "docs/development",
+                                             min_tier=3)
 
 def _find_done_stories_without_sp(root: str) -> list[str]:
-    """Find stories with Status: done that reference an SP but lack SP record."""
+    """Find stories with Status: done that reference an SP but lack SP record.
+
+    Only Tier 3 stories require the sprint-planning record; Tier 1/2 skip the
+    IR→SP chain by policy (the tier field is the operator's public risk claim).
+    """
     from . import guard as _guard
     _find_done_stories_without_record = _guard._find_done_stories_without_record
     return _find_done_stories_without_record(root, "SP-*.md", "docs/development",
-                                             require_sp_ref=True)
+                                             require_sp_ref=True, min_tier=3)
 
 def _find_done_stories_without_ir(root: str) -> list[str]:
     """Find done stories when no IR record exists (Kapi 1 gate bypassed).
@@ -368,6 +384,7 @@ def _find_done_stories_without_ir(root: str) -> list[str]:
     _story_key_of = _guard._story_key_of
     pathlib = _guard.pathlib
     story_status = _guard.story_status
+    from .config import story_rigor_tier
     dev_dir = pathlib.Path(root) / "docs" / "development"
 
     # Check if ANY IR record exists
@@ -389,6 +406,8 @@ def _find_done_stories_without_ir(root: str) -> list[str]:
         except OSError:
             continue
         if story_status(content) != "done":
+            continue
+        if story_rigor_tier(content) < 3:
             continue
         missing.append(_story_key_of(content, story_file))
     return missing
@@ -501,7 +520,7 @@ def _validate_methodology_chain(content: str, rel_path: str, root: str = "") -> 
     re = _guard.re
     repo_root = _guard.repo_root
     story_status = _guard.story_status
-    from .config import MAX_DUPLICATE_CHECK_RECORDS, MAX_STORY_COUNT
+    from .config import MAX_DUPLICATE_CHECK_RECORDS, MAX_STORY_COUNT, story_rigor_tier
 
     issues = []
     if not root:
@@ -542,6 +561,13 @@ def _validate_methodology_chain(content: str, rel_path: str, root: str = "") -> 
     if not story_key:
         return True, ""
 
+    # Rigor tier: the story's own declaration of how much ceremony its risk
+    # justifies. Tier 1 (trivial/doc/hotfix) needs QR + regression only;
+    # Tier 2 (feature/refactor) adds the story record + AC + unit tests;
+    # Tier 3 (probabilistic/security/core/ML) keeps the full chain. Absent
+    # means Tier 3, so no legacy story loses a gate.
+    tier = story_rigor_tier(content)
+
     # Check 1: If status is 'done', QR record must exist.
     # ponytail: read each QR file at most once per story write — the chain
     # cache below keeps (mtime_ns, size) so repeated writes don't re-read
@@ -579,7 +605,7 @@ def _validate_methodology_chain(content: str, rel_path: str, root: str = "") -> 
     # Story |` field row) cannot lack one — hunting peers for it only
     # matched on coincidence (a debug log quoting the slug). Native-shaped
     # drafts without record markers are still hunted exactly as before.
-    if status in ("review", "done") and not _is_methodology_record(content):
+    if status in ("review", "done") and tier >= 2 and not _is_methodology_record(content):
         meth_dir = pathlib.Path(root) / "docs" / "development" / "stories"
         if meth_dir.is_dir():
             # S-014 fix (E-010, GATE-OK-E-010-44abfab68a12b8b4f46ba8984dfa3f89):
@@ -612,7 +638,8 @@ def _validate_methodology_chain(content: str, rel_path: str, root: str = "") -> 
                 )
 
     # Check 3: If story references SP-XXX, SP record must exist AND backreference chain S→SP→IR→E
-    sprint_match = _SP_REF_RE.search(content)
+    # Only Tier 3 requires the planning chain; Tier 1/2 skip IR and SP by policy.
+    sprint_match = _SP_REF_RE.search(content) if tier >= 3 else None
     if sprint_match:
         sp_id = sprint_match.group(0)  # e.g. SP-001
         # Same segment-wise id match the done-story gate uses: the record may
@@ -727,6 +754,7 @@ def _check_all_stories_quality(root: str, blocked_action: str) -> dict:
     _validate_story_metadata = _guard._validate_story_metadata
     pathlib = _guard.pathlib
     rel_to_root = _guard.rel_to_root
+    from .config import story_rigor_tier
     stories_dir = pathlib.Path(root) / "docs" / "development" / "stories"
     if not stories_dir.is_dir():
         return {"decision": "allow"}
@@ -744,7 +772,7 @@ def _check_all_stories_quality(root: str, blocked_action: str) -> dict:
                 "reason": f"{blocked_action}: Story metadata validation failed for {s_file.name}: {reason}",
             }
         orphan = _orphan_story_reason(content)
-        if orphan:
+        if orphan and story_rigor_tier(content) >= 2:
             return {
                 "decision": "deny",
                 "reason": f"{blocked_action}: Story experiment validation failed for {s_file.name}: {orphan}",

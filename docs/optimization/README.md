@@ -455,3 +455,24 @@ that record for this module. The kernel's own gate (`gate.py`) is about
 *artifacts*; the methodology gate (`run_experiment.py`) is about *code*. They
 share the same discipline — a claim needs a measurement, a control, and a
 record — and neither substitutes for the other.
+
+### The boundary in one table
+
+| Question | Optimization lane (`optimization/`) | BMad/methodology lane (`skills/`, `hooks/`) |
+|---|---|---|
+| What changes? | A text artifact (`SKILL.md` / `ADAPTER.md`) consumed by a frozen agent | Code and project records |
+| What is the claim? | "Candidate B beats incumbent A on held-out cases" (stochastic) | "This code satisfies an approved contract/experiment" |
+| What decides it? | `optimization/gate.py`: paired McNemar, `min_cases`, ties reject | `run_experiment.py`: mechanical measurement, control, HMAC token |
+| What is the output? | Immutable version + `steps.jsonl` audit under the artifact tree | `E → IR → SP → S → QR → PR` records and a code scope |
+| Can it approve code? | **No.** It produces an artifact, not a write scope | **Yes.** Only a VERIFIED record opens a code scope |
+| Can it be skipped by the other? | **No.** A kernel code change still needs an E record | **No.** A verified E record does not certify an optimized artifact |
+
+Rule of thumb: if the result can come out differently on a re-run, it belongs to
+the optimization lane (or an `experiment` record); if every enumerated case must
+pass, it is a `contract`. Neither lane may consume the other's token: the
+optimizer's `steps.jsonl` is not a GATE-OK token, and a GATE-OK token says
+nothing about whether an artifact improved.
+
+This boundary is pinned by `optimization/tests/test_lane_boundary.py`: the
+optimizer's `GateDecision` has no token and no code scope, `gate.py` contains no
+token minting, and `run_experiment.py` imports nothing from `optimization/`.
