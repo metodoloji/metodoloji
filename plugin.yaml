@@ -2,7 +2,7 @@
 # in .claude-plugin/, .plugin/ and .opencode-plugin/; all four ship the same
 # engine, the same 71 skills and the same version number.
 name: metodoloji
-version: 0.2.50
+version: 0.2.51
 description: "Methodology plugin compatible with BMad Method: record chain (E→IR→SP→S→QR→PR), mechanical experiment/commit/deploy gates, declared workflows and 71 skills / 65 bridge TOMLs. Hermes port adds in-process pre_tool_call enforcement, 5 tools, 6 slash commands and the full skill catalog."
 author: yunusgungor
 license: MIT

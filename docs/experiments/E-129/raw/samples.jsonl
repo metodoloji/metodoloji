@@ -1,0 +1,12 @@
+{"check": "gds skill dirs removed", "ok": true, "detail": "none"}
+{"check": "wds skill dirs removed", "ok": true, "detail": "none"}
+{"check": "cis skill dirs removed", "ok": true, "detail": "none"}
+{"check": "wds tool skills removed", "ok": true, "detail": "none"}
+{"check": "vertical TOMLs removed", "ok": true, "detail": "none"}
+{"check": "vertical module data removed", "ok": true, "detail": "none"}
+{"check": "skill manifest has no vertical rows", "ok": true, "detail": "none"}
+{"check": "help catalog has no vertical rows", "ok": true, "detail": "none"}
+{"check": "config has no vertical sections", "ok": true, "detail": "none"}
+{"check": "engine registries carry no vertical entries", "ok": true, "detail": "none"}
+{"check": "handoff lint carries no vertical entries", "ok": true, "detail": "none"}
+{"check": "shipped manifests declare the surviving count", "ok": true, "detail": "71 skills declared"}
