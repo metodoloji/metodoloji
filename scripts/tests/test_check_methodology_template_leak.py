@@ -45,7 +45,8 @@ def _run_check8(project_root: Path) -> str:
     # Pin plugin-root resolution to this checkout (env vars would win over it).
     env.pop("CLAUDE_PLUGIN_ROOT", None)
     env.pop("METODOLOJI_PLUGIN_ROOT", None)
-    r = subprocess.run(["sh", str(SCRIPT)], capture_output=True, text=True,
+    r = subprocess.run(["sh", str(SCRIPT), "--only", "8"],
+                       capture_output=True, text=True,
                        encoding="utf-8", errors="replace", timeout=300, env=env,
                        cwd=str(PLUGIN), stdin=subprocess.DEVNULL)
     out = (r.stdout or "") + (r.stderr or "")

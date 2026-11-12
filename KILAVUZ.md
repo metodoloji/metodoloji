@@ -565,6 +565,8 @@ python scripts/check-handoff.py
 
 Sıra önerisi: önce pytest (motor davranışı), sonra check-plugin (en geniş statik yüzey), sonra diğerleri. `check-methodology.sh` kayıtsız taze kurulumda uyarıyla exit 0 verir — korkma.
 
+**Kapsamlı koşu (`--only`):** `sh {metodoloji-root}/scripts/check-methodology.sh --only 7` yalnız CHECK 7'yi koşar, geri kalanı `SKIP` diye yazar ve özette `PARTIAL RUN` bandı basar. Test paketi içindir: tek blok hakkındaki bir doğrulama, 161 kayıtlık corpus taramasının bedelini ödememeli. Kısmi koşu **asla** gate sonucu değildir — gate sonucu seçicisiz koşudur ve paket onu oturumda bir kez çalıştırır (`test_full_run_passes_with_no_issues`).
+
 **CHECK 8 (şablon hijyeni):** kayıtta `> This template is used…` banner'ı, yinelenen `## <tür>: <id>` başlığı veya `[etiketi tekrarlayan yer tutucu]` görürsen: **şablonda** → ISSUE (kaynağı düzelt), **üretilmiş kayıtta** → WARN (yazılmış verdict sessizce değiştirilmez; sonraki kayıt temiz şablondan kopyalanır).
 
 Negatif testler (kapıların gerçekten çalıştığının kanıtı):

@@ -566,6 +566,8 @@ python scripts/check-handoff.py
 
 Suggested order: pytest first (engine behaviour), then check-plugin (the widest static surface), then the rest. `check-methodology.sh` exits 0 with a warning on a fresh install without records — don't panic.
 
+**Scoped runs (`--only`):** `sh {metodoloji-root}/scripts/check-methodology.sh --only 7` runs CHECK 7 and prints `SKIP` for the rest plus a `PARTIAL RUN` banner. It exists for the test suite: one assertion about one block should not pay for the 161-record corpus scan. A partial run is **never** a gate result — the gate result is the script with no selector, and the suite runs that once per session (`test_full_run_passes_with_no_issues`).
+
 **CHECK 8 (template hygiene):** if a record shows a `> This template is used…` banner, a duplicated `## <type>: <id>` heading, or a placeholder that repeats its own label: **in the template** → ISSUE (fix the source), **in a generated record** → WARN (a written verdict is never silently changed; the next record is copied from the clean template).
 
 Negative tests (proof the gates actually work):

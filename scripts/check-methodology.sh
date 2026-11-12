@@ -6,7 +6,14 @@
 # CHECK 8 (template hygiene) catches a template's own guidance shipped into a
 # record — see B-006/E-070.
 #
-# Usage: sh scripts/check-methodology.sh [--fix] [--verbose]
+# Usage: sh scripts/check-methodology.sh [--fix] [--verbose] [--only N[,N...]]
+#
+# --only runs the named CHECK blocks and skips the rest, printing a SKIP line
+# for each skipped block and a PARTIAL RUN banner in the summary. It exists so a
+# unit test can drive the ONE block it asserts on instead of paying for a full
+# 161-record corpus scan: 17 tests × the whole script was ~37 minutes of suite
+# time (E-124). A partial run is never a gate result — the operator/CI run is
+# this script with no selector.
 #
 # Exit codes:
 #   0 = all checks passed
@@ -40,12 +47,53 @@ _join_newest_first() {
     done | sort -rn | cut -d' ' -f2-
 }
 
+ONLY=""
+_expect_only=false
 for arg in "$@"; do
+    if [ "$_expect_only" = true ]; then
+        ONLY="$arg"
+        _expect_only=false
+        continue
+    fi
     case "$arg" in
         --fix) FIX_MODE=true ;;
         --verbose) VERBOSE=true ;;
+        --only) _expect_only=true ;;
+        --only=*) ONLY="${arg#--only=}" ;;
+        *)
+            echo "unknown argument: $arg" >&2
+            echo "usage: check-methodology.sh [--fix] [--verbose] [--only N[,N...]]" >&2
+            exit 2 ;;
     esac
 done
+if [ "$_expect_only" = true ]; then
+    echo "--only needs a value (e.g. --only 7 or --only 7,8)" >&2
+    exit 2
+fi
+
+# Space-delimited selection set (" 7 8 ") or empty for a full run.
+ONLY_LIST=""
+if [ -n "$ONLY" ]; then
+    for _n in $(printf '%s' "$ONLY" | tr ',' ' '); do
+        case "$_n" in
+            1|2|3|4|5|6|7|8|9|10) ONLY_LIST="$ONLY_LIST $_n " ;;
+            *) echo "unknown check '$_n' in --only (valid: 1..10)" >&2; exit 2 ;;
+        esac
+    done
+fi
+
+# 0 = run the block; 1 = skip it (and say so, so a partial run can never read
+# as a clean full pass).
+_want_check() {
+    if [ -z "$ONLY_LIST" ]; then
+        return 0
+    fi
+    case "$ONLY_LIST" in
+        *" $1 "*) return 0 ;;
+    esac
+    printf 'SKIP: CHECK %s not selected (--only %s)\n' "$1" "$ONLY"
+    return 1
+}
 
 ISSUES=0
 WARNINGS=0
@@ -66,15 +114,14 @@ log_ok() {
     fi
 }
 
-# ─── CHECK 1: plugin methodology manifestos exist (plugin-canonical) ───
-echo "═══════════════════════════════════════════════════"
-echo "CHECK 1: Methodology Files"
-echo "═══════════════════════════════════════════════════"
-
 # The three methodology manifestos are plugin-canonical: they live under the
 # plugin root and are read from there (custom/*.toml persistent_facts use
 # {metodoloji-root}/docs/bmad/...). Resolve the plugin root the same way the
 # hook engine does; fall back to this repo (dogfooding: repo == plugin).
+#
+# Resolution happens OUTSIDE the CHECK blocks: later checks (deferred-work,
+# skip lines, template scope) read $METODOLOJI_ROOT, so a scoped `--only 7`
+# run must still resolve it (E-124).
 METODOLOJI_ROOT="${METODOLOJI_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-}}"
 if [ -z "$METODOLOJI_ROOT" ]; then
     # Fixed candidates first, then versioned cache globs (newest first),
@@ -97,6 +144,12 @@ if [ -z "$METODOLOJI_ROOT" ]; then
     METODOLOJI_ROOT="$SCRIPT_DIR/.."
 fi
 
+# ─── CHECK 1: plugin methodology manifestos exist (plugin-canonical) ───
+if _want_check 1; then
+echo "═══════════════════════════════════════════════════"
+echo "CHECK 1: Methodology Files"
+echo "═══════════════════════════════════════════════════"
+
 for f in docs/bmad/research-methodology.md docs/bmad/development-methodology.md docs/bmad/dev-skill-to-methodology-bridge.md; do
     if [ -f "$METODOLOJI_ROOT/$f" ]; then
         log_ok "$f exists (plugin root)"
@@ -104,8 +157,10 @@ for f in docs/bmad/research-methodology.md docs/bmad/development-methodology.md 
         log_issue "$f is MISSING in plugin root ($METODOLOJI_ROOT) — required by custom/*.toml persistent_facts"
     fi
 done
+fi
 
 # ─── CHECK 2: docs/development/ structure ───
+if _want_check 2; then
 echo ""
 echo "═══════════════════════════════════════════════════"
 echo "CHECK 2: Development Directory Structure"
@@ -132,8 +187,10 @@ elif [ -f "$PROJECT_ROOT/docs/development/_template_S.md" ]; then
 else
     log_issue "docs/development/stories/_template_S.md is MISSING — required by bridge doc §2.3"
 fi
+fi
 
 # ─── CHECK 3: Story files have methodology references ───
+if _want_check 3; then
 echo ""
 echo "═══════════════════════════════════════════════════"
 echo "CHECK 3: Story Files — Methodology References"
@@ -165,8 +222,10 @@ else
     echo "  With native refs: $STORY_WITH_REFS"
     echo "  Without native refs: $STORY_WITHOUT_REFS"
 fi
+fi
 
 # ─── CHECK 4: Experiment records integrity ───
+if _want_check 4; then
 echo ""
 echo "═══════════════════════════════════════════════════"
 echo "CHECK 4: Experiment Records"
@@ -208,8 +267,10 @@ else
     echo "  Rejected: $EXP_REJECTED"
     echo "  Pending: $EXP_PENDING"
 fi
+fi
 
 # ─── CHECK 5: QR records completeness ───
+if _want_check 5; then
 echo ""
 echo "═══════════════════════════════════════════════════"
 echo "CHECK 5: Quality Records"
@@ -248,8 +309,10 @@ else
     echo "  Passed: $QR_PASSED"
     echo "  Failed: $QR_FAILED"
 fi
+fi
 
 # ─── CHECK 6: Chain completeness (E → S → QR) ───
+if _want_check 6; then
 echo ""
 echo "═══════════════════════════════════════════════════"
 echo "CHECK 6: Methodology Chain Completeness"
@@ -403,8 +466,10 @@ PY
 else
     log_warn "No sprint-status.yaml found — chain cannot be validated"
 fi
+fi
 
 # ─── CHECK 7: Development gate records (IR / SP / PR) ───
+if _want_check 7; then
 echo ""
 echo "═══════════════════════════════════════════════════"
 echo "CHECK 7: Development Gate Records (IR / SP / PR)"
@@ -568,8 +633,10 @@ else
         log_warn "IR exists but no SP sprint record — Gate 2 was skipped"
     fi
 fi
+fi
 
 # ─── CHECK 8: record template hygiene (meta-text leakage) ───
+if _want_check 8; then
 echo ""
 echo "═══════════════════════════════════════════════════"
 echo "CHECK 8: Record Template Hygiene (meta-text leakage)"
@@ -631,8 +698,10 @@ for _rec in \
     _leak_check "$_rec" WARN
 done
 echo "  templates checked: $LEAK_TEMPLATES_CHECKED (meta-text is an issue) · records checked: $LEAK_RECORDS_CHECKED (meta-text is a warning)"
+fi
 
 # ─── CHECK 9: Deferred-work ledger (advisory) ───
+if _want_check 9; then
 echo ""
 echo "═══════════════════════════════════════════════════"
 echo "CHECK 9: Deferred-Work Ledger"
@@ -685,8 +754,10 @@ PY
             fi ;;
     esac
 fi
+fi
 
 # ─── CHECK 10: schema-attested record integrity ───
+if _want_check 10; then
 echo ""
 echo "═══════════════════════════════════════════════════"
 echo "CHECK 10: Schema-Attested Records"
@@ -697,18 +768,26 @@ echo "════════════════════════�
 # required fields. Legacy records have no marker and are deliberately skipped:
 # this check must not retroactively fail the corpus. A marked record that no
 # longer satisfies its schema (a hand edit removed a field) is an ISSUE.
+#
+# The scan is rooted at $PROJECT_ROOT, like every other check. It used to glob
+# `docs/...` relative to the CALLER'S CWD, so a run against another project (or
+# a test's throwaway root) validated whichever checkout happened to be current
+# — a silent wrong-target read (E-124).
 SCHEMA_CHECKED=0
 SCHEMA_FAILED=0
 SCHEMA_MISSING=0
 SCHEMA_CUTOFF="2026-11-10"
-for rec in docs/experiments/E-*.md docs/development/IR-*.md \
-           docs/development/SP-*.md docs/development/PR-*.md; do
+for rec in "$PROJECT_ROOT"/docs/experiments/E-*.md \
+           "$PROJECT_ROOT"/docs/development/IR-*.md \
+           "$PROJECT_ROOT"/docs/development/SP-*.md \
+           "$PROJECT_ROOT"/docs/development/PR-*.md; do
     [ -f "$rec" ] || continue
     case "$(basename "$rec")" in _template.md) continue ;; esac
+    rec_rel="${rec#"$PROJECT_ROOT"/}"
     if grep -q -- '- \*\*Record Schema:\*\* metodoloji.record/v1' "$rec"; then
         SCHEMA_CHECKED=$((SCHEMA_CHECKED + 1))
         if [ -n "$PY" ] && ! "$PY" "$SCRIPT_DIR/create-record.py" --check "$rec" >/dev/null 2>&1; then
-            log_issue "schema-attested record failed validation: $rec (run: $PY $SCRIPT_DIR/create-record.py --check $rec)"
+            log_issue "schema-attested record failed validation: $rec_rel (run: $PY $SCRIPT_DIR/create-record.py --check $rec_rel)"
             SCHEMA_FAILED=$((SCHEMA_FAILED + 1))
         fi
         continue
@@ -725,13 +804,14 @@ for rec in docs/experiments/E-*.md docs/development/IR-*.md \
         iso_date="$rec_date"
     fi
     if [ "$iso_date" \> "$SCHEMA_CUTOFF" ] || [ "$iso_date" = "$SCHEMA_CUTOFF" ]; then
-        log_warn "record dated $iso_date has no schema attestation: $rec (generate with $PY $SCRIPT_DIR/create-record.py)"
+        log_warn "record dated $iso_date has no schema attestation: $rec_rel (generate with $PY $SCRIPT_DIR/create-record.py)"
         SCHEMA_MISSING=$((SCHEMA_MISSING + 1))
     fi
 done
 if [ "$SCHEMA_FAILED" -eq 0 ]; then
     log_ok "$SCHEMA_CHECKED schema-attested record(s) satisfy metodoloji.record/v1"
     echo "  schema-attested records: $SCHEMA_CHECKED (new unattested: $SCHEMA_MISSING; legacy records before $SCHEMA_CUTOFF skipped)"
+fi
 fi
 
 # ─── SUMMARY ───
@@ -741,6 +821,11 @@ echo "SUMMARY"
 echo "═══════════════════════════════════════════════════"
 echo "  Issues:  $ISSUES"
 echo "  Warnings: $WARNINGS"
+if [ -n "$ONLY_LIST" ]; then
+    echo ""
+    echo "  PARTIAL RUN (--only $ONLY) — a scoped test run, not a gate result."
+    echo "  The gate result is this script with no selector."
+fi
 
 if [ "$ISSUES" -gt 0 ]; then
     echo ""

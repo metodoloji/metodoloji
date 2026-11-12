@@ -6,6 +6,11 @@ __pycache__/
 .metodoloji/blackboard.json.lock
 .metodoloji/relay-note.state
 .metodoloji/blackboard.json.*.tmp
+# SQLite is the shipped backend: one WAL database plus its sidecars. The board
+# is runtime state, never a commit (E-124).
+.metodoloji/blackboard.sqlite
+.metodoloji/blackboard.sqlite-wal
+.metodoloji/blackboard.sqlite-shm
 # Methodology state anywhere in the tree (e.g. test residue under hooks/):
 # only root-level state files above are tracked-adjacent; nested trees are
 # always local-only.
@@ -15,6 +20,9 @@ __pycache__/
 **/.metodoloji/relay-note.state
 **/.metodoloji/blackboard.json.*.tmp
 **/.metodoloji/canvas.json
+**/.metodoloji/blackboard.sqlite
+**/.metodoloji/blackboard.sqlite-wal
+**/.metodoloji/blackboard.sqlite-shm
 # Runtime lock sidecar files created while verifying experiment records
 # (fail-open advisory locks); never track them.
 docs/experiments/*.lock

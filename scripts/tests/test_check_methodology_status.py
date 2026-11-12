@@ -411,7 +411,12 @@ def _run_gate_check(project_root: Path):
     # Pin plugin-root resolution to this checkout (env vars would win over it).
     env.pop("CLAUDE_PLUGIN_ROOT", None)
     env.pop("METODOLOJI_PLUGIN_ROOT", None)
-    r = subprocess.run(["sh", str(SCRIPT)], capture_output=True, text=True,
+    # Scoped run: the assertion is about CHECK 7, so the other nine blocks (and
+    # the 161-record corpus scan) are skipped. A scoped run is marked PARTIAL by
+    # the script itself (E-124); the full end-to-end scan lives in
+    # test_check_methodology_full_run.py, once per session.
+    r = subprocess.run(["sh", str(SCRIPT), "--only", "7"],
+                       capture_output=True, text=True,
                        encoding="utf-8", errors="replace", timeout=300, env=env,
                        cwd=str(PLUGIN), stdin=subprocess.DEVNULL)
     out = (r.stdout or "") + (r.stderr or "")
@@ -525,7 +530,8 @@ def test_check7_flags_a_project_side_custom_dir_as_an_orphan(tmp_path):
     env["OPENHANDS_PROJECT_DIR"] = str(tmp_path)
     env.pop("CLAUDE_PLUGIN_ROOT", None)
     env.pop("METODOLOJI_PLUGIN_ROOT", None)
-    r = subprocess.run(["sh", str(SCRIPT)], capture_output=True, text=True,
+    r = subprocess.run(["sh", str(SCRIPT), "--only", "7"], capture_output=True,
+                       text=True,
                        encoding="utf-8", errors="replace", timeout=300, env=env,
                        cwd=str(PLUGIN), stdin=subprocess.DEVNULL)
     out = (r.stdout or "") + (r.stderr or "")
@@ -648,3 +654,111 @@ def test_check6_board_keys_must_resolve_to_a_story_record(tmp_path):
     # drives the audit script against the phantom fixture).
     assert guard.board_story_keys_without_records(str(PLUGIN)) == []
     assert bench._check_board_story_keys_resolve() is None
+
+
+# ─── Dispatch: the --only selector and the one full scan ───
+#
+# E-124: this module used to run the WHOLE checker once per CHECK 7 assertion
+# (8 times), and the template-leak module 8 more — ~17 × 2 minutes of a
+# 161-record scan under Git Bash. The selector runs one block; the full scan is
+# still exercised, once per session, by the tests at the bottom of this file,
+# so the cheap tests do not cost the operator's gate its evidence.
+
+
+def _run_script(args, project_root: Path, timeout: int = 180):
+    env = dict(os.environ)
+    env.pop("CLAUDE_PLUGIN_ROOT", None)
+    env.pop("METODOLOJI_PLUGIN_ROOT", None)
+    env["OPENHANDS_PROJECT_DIR"] = str(project_root)
+    r = subprocess.run(["sh", str(SCRIPT), *args], capture_output=True,
+                       text=True, encoding="utf-8", errors="replace",
+                       timeout=timeout, env=env, cwd=str(PLUGIN),
+                       stdin=subprocess.DEVNULL)
+    return r.returncode, (r.stdout or "") + (r.stderr or "")
+
+
+def test_unknown_check_is_rejected_before_any_block_runs(tmp_path):
+    rc, out = _run_script(["--only", "99"], tmp_path)
+    assert rc == 2, out
+    assert "unknown check '99'" in out, out
+    assert "CHECK 1:" not in out, out
+
+
+def test_only_without_a_value_is_rejected(tmp_path):
+    rc, out = _run_script(["--only"], tmp_path)
+    assert rc == 2, out
+    assert "--only needs a value" in out, out
+
+
+def test_unknown_flag_is_rejected_not_ignored(tmp_path):
+    rc, out = _run_script(["--onyl", "7"], tmp_path)
+    assert rc == 2, out
+    assert "unknown argument: --onyl" in out, out
+
+
+def test_scoped_run_names_every_skipped_block(tmp_path):
+    rc, out = _run_script(["--only", "8"], tmp_path)
+    assert rc == 0, out
+    assert "CHECK 8: Record Template Hygiene" in out, out
+    assert "CHECK 3: Story Files" not in out, out
+    for skipped in (1, 2, 3, 4, 5, 6, 7, 9, 10):
+        assert f"SKIP: CHECK {skipped} not selected" in out, out
+
+
+def test_scoped_run_is_marked_partial_and_never_reads_as_a_gate(tmp_path):
+    _, out = _run_script(["--only", "8"], tmp_path)
+    assert "PARTIAL RUN (--only 8)" in out, out
+    assert "not a gate result" in out, out
+
+
+def test_scoping_skips_the_corpus_scan_it_did_not_ask_for(tmp_path):
+    # CHECK 10 is the corpus scan. It must not run when only CHECK 8 was
+    # requested — that is the whole point of the selector.
+    _, out = _run_script(["--only", "8"], tmp_path)
+    assert "CHECK 10: Schema-Attested Records" not in out, out
+    assert "schema-attested records:" not in out, out
+
+
+def test_scoped_run_still_reports_the_issue_in_its_own_block(tmp_path):
+    # Scoping is not a mute button: a template leak is still an ISSUE.
+    clean = (PLUGIN / "templates" / "_template_SP.md").read_text(encoding="utf-8")
+    target = tmp_path / "docs" / "development" / "_template_SP.md"
+    target.parent.mkdir(parents=True)
+    target.write_text(clean + "\n> This template is used for Sprint (SP) records.\n",
+                      encoding="utf-8")
+    rc, out = _run_script(["--only", "8"], tmp_path)
+    assert rc == 1, out
+    assert "❌ ISSUE" in out, out
+
+
+def test_only_10_scans_the_project_root_not_the_callers_cwd(tmp_path):
+    # CHECK 10 used to glob `docs/...` relative to the CWD, so a run against a
+    # throwaway root silently validated the checkout instead. Rooted at
+    # $PROJECT_ROOT, an empty root scans nothing and reports exactly that.
+    _, out = _run_script(["--only", "10"], tmp_path)
+    assert "CHECK 10: Schema-Attested Records" in out, out
+    assert "schema-attested records: 0" in out, out
+
+
+@pytest.fixture(scope="session")
+def full_scan():
+    """The operator's run: the whole checker against this checkout, once."""
+    env = dict(os.environ)
+    env.pop("CLAUDE_PLUGIN_ROOT", None)
+    env.pop("METODOLOJI_PLUGIN_ROOT", None)
+    env["OPENHANDS_PROJECT_DIR"] = str(PLUGIN)
+    r = subprocess.run(["sh", str(SCRIPT)], capture_output=True, text=True,
+                       encoding="utf-8", errors="replace", timeout=900, env=env,
+                       cwd=str(PLUGIN), stdin=subprocess.DEVNULL)
+    return r.returncode, (r.stdout or "") + (r.stderr or "")
+
+
+def test_full_run_passes_with_no_issues(full_scan):
+    rc, out = full_scan
+    assert rc == 0, out[-4000:]
+    assert "Issues:  0" in out, out[-4000:]
+
+
+def test_full_run_is_not_a_partial_run(full_scan):
+    _, out = full_scan
+    assert "PARTIAL RUN" not in out, out[-2000:]
