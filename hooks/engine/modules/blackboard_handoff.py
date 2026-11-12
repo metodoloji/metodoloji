@@ -208,7 +208,7 @@ def pending_handoff_channels(project_root: str) -> dict:
     naming it here), the methodology relay (METHODOLOGY_CHAIN), every sub-chain
     member (SUB_CHAINS — discovery, alt_dev, …), the chain-adjacent surfaces
     (CHAIN_ADJACENT — help, infrastructure, the loop orchestrator's automation
-    layer, the WDS backends), so a waiting signal addressed to any known skill
+    layer), so a waiting signal addressed to any known skill
     surfaces instead of being silently dropped. Off-relay channels stay out of
     the session-start nudge — the skill-side CLI lists every channel: run the
     plugin's ``bmad/scripts/blackboard.py handoffs`` (without `--skill`) from
@@ -380,13 +380,6 @@ SUB_CHAINS: dict[str, list[tuple[str, str]]] = {
         ("bmad-market-research", "bmad-product-brief"),
         ("bmad-domain-research", "bmad-product-brief"),
         ("bmad-technical-research", "bmad-product-brief"),
-        # CIS creative/strategy facilitators — brainstorming's siblings: they
-        # shape the raw problem, so a session that produced a direction worth
-        # building on feeds the brief.
-        ("bmad-cis-design-thinking", "bmad-product-brief"),
-        ("bmad-cis-innovation-strategy", "bmad-product-brief"),
-        ("bmad-cis-problem-solving", "bmad-product-brief"),
-        ("bmad-cis-storytelling", "bmad-product-brief"),
     ],
     # Alt-dev — shortcut (quick-dev) and unattended (dev-auto) implementations
     # fan in on the same formal review gate the delivery relay terminates at.
@@ -422,88 +415,16 @@ SUB_CHAINS: dict[str, list[tuple[str, str]]] = {
         ("bmad-retrospective", "bmad-research-experiment"),
         ("bmad-correct-course", "bmad-sprint-planning"),
     ],
-    # Game Dev Suite (GDS) — the game vertical mirrors the canonical relay
-    # shape (ideation fan-in → design docs → readiness → planning → dev →
-    # review) with game-native artifacts, and re-uses the same patterns: QA
-    # tools feed the playtest record, retro/correct-course re-enter planning,
-    # the dev branches converge on the review gate.
-    "gds": [
-        # ideation & research fan-in on the brief (the discovery pattern)
-        ("gds-domain-research", "gds-create-game-brief"),
-        ("gds-brainstorm-game", "gds-create-game-brief"),
-        ("gds-create-game-brief", "gds-gdd"),
-        ("gds-create-narrative", "gds-gdd"),
-        # design gates — GDD is primary; a formal PRD is the optional
-        # alternative gate; both converge on architecture via UX.
-        ("gds-gdd", "gds-ux"),
-        ("gds-ux", "gds-game-architecture"),
-        ("gds-prd", "gds-game-architecture"),
-        # readiness → planning → dev (the IR twin and the planning relay)
-        ("gds-game-architecture", "gds-check-implementation-readiness"),
-        ("gds-check-implementation-readiness", "gds-sprint-planning"),
-        ("gds-sprint-planning", "gds-create-story"),
-        ("gds-create-story", "gds-dev-story"),
-        ("gds-dev-story", "gds-code-review"),
-        # QA feeders — their BRIDGE (already in the team TOMLs) adds evidence
-        # to the QR record the review session owns, never a record of their
-        # own: the bmad TEA feeder pattern, game-flavored. gds-playtest-plan is
-        # the seventh: it plans the playtest and its findings land in the same
-        # QR (its BRIDGE says so explicitly), so it signals the review too.
-        ("gds-playtest-plan", "gds-code-review"),
-        ("gds-test-design", "gds-code-review"),
-        ("gds-test-framework", "gds-code-review"),
-        ("gds-test-automate", "gds-code-review"),
-        ("gds-test-review", "gds-code-review"),
-        ("gds-e2e-scaffold", "gds-code-review"),
-        ("gds-performance-test", "gds-code-review"),
-        # governance — retro/correct-course re-enter planning (the loop,
-        # game-flavored; the review gate itself is terminal like its bmad twin)
-        ("gds-retrospective", "gds-sprint-planning"),
-        ("gds-correct-course", "gds-sprint-planning"),
-        # dev-branch variants converge on the same review gate
-        ("gds-quick-dev", "gds-code-review"),
-        ("gds-agent-game-dev", "gds-code-review"),
-        ("gds-agent-game-solo-dev", "gds-code-review"),
-        # reporter — live status next to the file-backed plan
-        ("gds-sprint-status", "gds-sprint-planning"),
-        # a forensic investigation's defect feeds course correction
-        ("gds-investigate", "gds-correct-course"),
-    ],
-    # Web Design Suite (WDS) — Freya's design pipeline: setup seeds the
-    # alignment sign-off, the brief flows through trigger mapping and
-    # scenarios into UX design, then the numbered build phases run in order;
-    # brownfield evolution re-enters at the brief (the WDS loop).
-    "wds": [
-        ("wds-0-project-setup", "wds-0-alignment-signoff"),
-        ("wds-0-alignment-signoff", "wds-1-project-brief"),
-        ("wds-1-project-brief", "wds-2-trigger-mapping"),
-        ("wds-2-trigger-mapping", "wds-3-scenarios"),
-        ("wds-3-scenarios", "wds-4-ux-design"),
-        ("wds-4-ux-design", "wds-5-agentic-development"),
-        ("wds-5-agentic-development", "wds-6-asset-generation"),
-        ("wds-6-asset-generation", "wds-7-design-system"),
-        # brownfield re-entry: evolution cycles inform the next brief
-        ("wds-8-product-evolution", "wds-1-project-brief"),
-    ],
 }
 
 # Skills that appear in no hop but are known chain-adjacent surfaces (the help
-# router, the infrastructure tools, the loop orchestrator's automation layer,
-# the WDS session backends). They post and relay nothing, so the hop relays
-# cannot carry them — but they must NOT surface as off-chain 'extra' noise
-# when a signal is (mis)addressed to them, and the lint still checks them.
+# router, the infrastructure tools, the loop orchestrator's automation layer).
+# They post and relay nothing, so the hop relays cannot carry them — but they
+# must NOT surface as off-chain 'extra' noise when a signal is (mis)addressed
+# to them, and the lint still checks them.
 CHAIN_ADJACENT = {
     "bmad-help",           # routes the user; never produces
     "bmad-loop-setup", "bmad-loop-sweep", "bmad-loop-resolve",
     "bmad-bmb-setup", "bmad-module-builder", "bmad-workflow-builder",
     "bmad-customize", "bmad-checkpoint-preview", "bmad-eval-runner",
-    "memory", "sync",
-    # Vertical tooling — the GDS/WDS personas that only advise (architect,
-    # designer, tech-writer, freya/mimir/saga) and the documentation tools;
-    # the producing GDS personas (game-dev, solo-dev) are hop members above, as
-    # is the playtest-plan feeder (gds.playtest.<slug> → gds-code-review).
-    "gds-agent-game-architect", "gds-agent-game-designer",
-    "gds-agent-tech-writer", "gds-document-project",
-    "gds-generate-project-context",
-    "wds-agent-freya-ux", "wds-agent-mimir-builder", "wds-agent-saga-analyst",
 }

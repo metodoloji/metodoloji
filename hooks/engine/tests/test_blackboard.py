@@ -1573,18 +1573,6 @@ def test_governance_return_edge_is_claimable(root):
     assert h["total_waiting"] == 0
 
 
-def test_wds_terminal_phase_claims_its_baton(root):
-    """The WDS pipeline's last phase is a registered hop receiver: its baton is
-    declared under the wds sub-chain (never 'extra') and it is announced as
-    waiting work."""
-    bb.post_handoff(root, "wds-7-design-system", "wds.asset.acme", "assets done")
-    h = bb.chain_health(root)
-    hops = {(r["from"], r["to"]): r for r in h["sub_chains"]["wds"]}
-    assert hops[("wds-6-asset-generation", "wds-7-design-system")]["waiting"] == 1
-    assert h["extra"] == []
-    assert bb.pending_handoff_channels(root) == {"wds-7-design-system": 1}
-
-
 def test_chain_health_surfaces_unknown_receivers_as_extra(root):
     bb.post_handoff(root, "some-future-skill", "ux.acme", "n1")
     h = bb.chain_health(root)
@@ -1792,7 +1780,7 @@ def test_sub_chains_registry_declares_every_phase():
     """SUB_CHAINS is the single registry every diagnostic follows: each phase
     declares at least one hop, and no hop is a self-loop (a skill handing off
     to itself is a wiring bug, not a relay)."""
-    assert {"discovery", "alt_dev", "testing", "governance", "gds", "wds"} <= set(bb.SUB_CHAINS)
+    assert {"discovery", "alt_dev", "testing", "governance"} <= set(bb.SUB_CHAINS)
     for name, hops in bb.SUB_CHAINS.items():
         assert hops, f"{name} declares no hops"
         for sender, receiver in hops:
@@ -1805,7 +1793,7 @@ def test_chain_adjacent_is_known_but_relay_free():
     tool that produced a chain hop would be a wiring bug (installers build
     modules, not methodology records). Every name must be a real skill."""
     assert "bmad-help" in bb.CHAIN_ADJACENT
-    assert "bmad-loop-sweep" in bb.CHAIN_ADJACENT and "memory" in bb.CHAIN_ADJACENT
+    assert "bmad-loop-sweep" in bb.CHAIN_ADJACENT
     assert not (bb.CHAIN_ADJACENT & set(bb.sub_chain_skills()))  # disjoint from relays
     for skill in bb.CHAIN_ADJACENT:
         assert (Path(bb.__file__).parents[3] / "skills" / skill
@@ -1842,22 +1830,6 @@ def test_sub_chain_signals_are_first_class_not_extra(root):
     # the sender attributes via its run-key namespace, not as 'unknown'
     assert bb._signal_sender("quickdev.3-2-digest: quick-dev done") == "bmad-quick-dev"
     assert bb._signal_sender("devauto.slug: dev-auto done") == "bmad-dev-auto"
-
-
-def test_cis_facilitators_feed_the_product_brief(root):
-    """The CIS creative/strategy tools are brainstorming's siblings: a session
-    that produced a direction feeds the brief, attributed to its own namespace
-    (and never as off-chain 'extra' noise)."""
-    bb.post_handoff(root, "bmad-product-brief",
-                    "cis.design.2026-09-17-onboarding", "design thinking complete")
-    h = bb.chain_health(root)
-    hops = {(hop["from"], hop["to"]): hop for hop in h["sub_chains"]["discovery"]}
-    assert hops[("bmad-cis-design-thinking", "bmad-product-brief")]["waiting"] == 1
-    assert h["extra"] == []
-    assert bb._signal_sender("cis.design.x: done") == "bmad-cis-design-thinking"
-    assert bb._signal_sender("cis.innovation.x: done") == "bmad-cis-innovation-strategy"
-    assert bb._signal_sender("cis.solving.x: done") == "bmad-cis-problem-solving"
-    assert bb._signal_sender("cis.story.x: done") == "bmad-cis-storytelling"
 
 
 def test_dev_persona_is_the_third_alt_dev_branch(root):
@@ -1912,61 +1884,6 @@ def test_teach_me_testing_routes_into_the_tea_chain(root):
     assert bb._signal_sender("teach.ada: academy complete") == "bmad-teach-me-testing"
 
 
-def test_gds_vertical_mirrors_the_relay_shape(root):
-    """The game vertical re-uses the canonical patterns: ideation fans in on
-    the brief, QA tools feed the review gate (the QR feeder pattern — their
-    BRIDGE adds evidence to the review's QR record, never a record of their
-    own), dev variants converge on the review, retro re-enters planning. No
-    GDS hop may stamp a methodology position: the vertical runs beside the
-    E→IR→SP→S→QR→PR relay, never inside it."""
-    bb.post_handoff(root, "gds-code-review", "gds.test.review.R-1", "test review done")
-    bb.post_handoff(root, "gds-code-review", "gds.playtest.epic-1", "playtest plan complete")
-    bb.post_handoff(root, "gds-sprint-planning", "gds.retro.4", "retro lessons")
-    h = bb.chain_health(root)
-    hops = {(hop["from"], hop["to"]): hop for hop in h["sub_chains"]["gds"]}
-    assert hops[("gds-test-review", "gds-code-review")]["waiting"] == 1
-    # the playtest plan is a feeder too: its BRIDGE lands findings in the same
-    # QR, so it must signal the review instead of sitting off-chain
-    assert hops[("gds-playtest-plan", "gds-code-review")]["waiting"] == 1
-    assert hops[("gds-retrospective", "gds-sprint-planning")]["waiting"] == 1
-    assert h["extra"] == []
-    # sender attribution via the vertical's own namespace
-    assert bb._signal_sender("gds.dev.3-1-boss-ai: dev done") == "gds-dev-story"
-    assert bb._signal_sender("gds.quickdev.slug: quick dev done") == "gds-quick-dev"
-    assert bb._signal_sender("gds.playtest.epic-1: plan complete") == "gds-playtest-plan"
-    # the feeder is a hop member now, not a chain-adjacent surface
-    assert "gds-playtest-plan" not in bb.CHAIN_ADJACENT
-    assert "gds-playtest-plan" in bb.sub_chain_skills()
-    # the vertical never touches the methodology relay
-    board = bb.read_board(root)
-    assert not [k for k in board["keys"] if k.startswith("methodology.last_")]
-
-
-def test_wds_pipeline_flows_and_evolution_reenters(root):
-    """Freya's design pipeline relays setup→signoff→brief→trigger→scenario→ux→
-    dev→asset→design-system, and brownfield evolution re-enters at the brief —
-    the WDS loop. All first-class, none as 'extra' noise."""
-    bb.post_handoff(root, "wds-5-agentic-development", "wds.ux.checkout-flow", "delivery package ready")
-    bb.post_handoff(root, "wds-1-project-brief", "wds.evolve.2026-09", "cycle findings")
-    h = bb.chain_health(root)
-    hops = {(hop["from"], hop["to"]): hop for hop in h["sub_chains"]["wds"]}
-    assert hops[("wds-4-ux-design", "wds-5-agentic-development")]["waiting"] == 1
-    assert hops[("wds-8-product-evolution", "wds-1-project-brief")]["waiting"] == 1
-    assert h["extra"] == []
-    assert bb._signal_sender("wds.brief.acme: brief ready") == "wds-1-project-brief"
-
-
-def test_gds_wds_verticals_never_stamp_methodology_relay(root):
-    """The verticals are parallel worlds, not methodology stages: no gds./wds.
-    run key may stamp a methodology.last_* position."""
-    from modules.mirror import mirror
-    mirror(root, "gds.gdd.acme", "GDD complete", to="gds-ux")
-    mirror(root, "wds.brief.acme", "brief complete", to="wds-2-trigger-mapping")
-    board = bb.read_board(root)
-    stamped = [k for k in board["keys"] if k.startswith("methodology.last_")]
-    assert stamped == [], f"vertical keys stamped relay positions: {stamped}"
-
-
 def test_governance_sub_chain_closes_the_methodology_loop(root):
     """The governance hops are what make the relay a loop instead of a line:
     retrospective hands its lessons back to the experiment origin, and a course
@@ -2007,91 +1924,6 @@ def _resolve_customization(key: str, skill_dir: str):
     )
     assert r.returncode == 0, r.stderr
     return json.loads(r.stdout)[key]
-
-
-def test_scenario_gds_playtest_feeds_the_review_and_personas_route_it(tmp_path, monkeypatch):
-    """One GDS session, end to end, exercising both vertical repairs together:
-
-    1. the playtest plan closes out through the instruction its own registry
-       TOML resolves (`workflow.on_complete`) — declared hop, no residue;
-    2. the feeder adds evidence to the review's QR without opening a record of
-       its own and without stamping a methodology position;
-    3. session_start ANNOUNCES the waiting baton (routed, announce-only) and
-       the review run is the one that claims it;
-    4. the persona that routes this project (an advisor, previously filed as a
-       tool) resolves its agent block, dispatches into real skills and grounds
-       in the board read-only.
-    """
-    import re
-    import shlex
-    import subprocess
-
-    root = str(tmp_path)
-
-    # --- 1. execute the resolved close-out instruction (not a hand-built one) --
-    instruction = _resolve_customization("workflow.on_complete", "gds-playtest-plan")
-    command = re.search(r"`([^`]+)`", instruction).group(1)
-    argv = shlex.split(
-        command.replace("{metodoloji-root}", PLUGIN_ROOT.as_posix())
-               .replace("{project-root}", Path(root).as_posix())
-               .replace("<slug>", "epic-1"))
-    assert argv[0] == "python3"
-    argv[0] = sys.executable  # same interpreter, no PATH assumption
-    run = subprocess.run(argv, capture_output=True, text=True, encoding="utf-8",
-                         timeout=60, stdin=subprocess.DEVNULL,
-                         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-    ack = json.loads(run.stdout)
-    assert ack["ok"] is True and ack["handed_off"] is True
-    assert ack["key"] == "gds.playtest.epic-1"
-
-    # --- 2. QR feeding: declared hop, no record of its own, no relay stamp ----
-    h = bb.chain_health(root)
-    hops = {(r["from"], r["to"]): r for r in h["sub_chains"]["gds"]}
-    assert hops[("gds-playtest-plan", "gds-code-review")]["waiting"] == 1
-    assert h["extra"] == [] and h["total_waiting"] == 1
-    assert set(bb.read_board(root)["keys"]) == {"gds.playtest.epic-1"}
-    assert not [k for k in bb.read_board(root)["keys"] if k.startswith("methodology.last_")]
-    baton = bb.pending_handoffs(root, "gds-code-review")
-    assert baton and baton[0]["text"].startswith("gds.playtest.epic-1")
-    assert bb.pending_handoff_channels(root) == {"gds-code-review": 1}
-
-    # --- 3. session announcement: routed, never consumed --------------------
-    audit_mod, _, _ = _engine(monkeypatch, root)
-    ctx = audit_mod.session_start({"cwd": root})["additionalContext"]
-    assert "PROACTIVE — hand-off waiting" in ctx
-    assert "gds-code-review (1)" in ctx
-    assert len(bb.pending_handoffs(root, "gds-code-review")) == 1  # announce-only
-
-    # --- 4. the advisor personas route: menu → real skills, board read-only --
-    skills_dir = PLUGIN_ROOT / "skills"
-    for persona in ("gds-agent-game-architect", "gds-agent-game-designer",
-                    "gds-agent-tech-writer"):
-        agent = _resolve_customization("agent", persona)
-        assert agent["name"] and agent["icon"] and agent["menu"]
-        for item in agent["menu"]:
-            target = item.get("skill")
-            if target:
-                assert (skills_dir / target / "SKILL.md").is_file(), f"{persona} → {target}"
-        text = (skills_dir / persona / "SKILL.md").read_text(encoding="utf-8")
-        # The grounding call is the one read-only digest (it replaced the old
-        # read --context + handoffs pair); the baton listing survives only as
-        # the fallback for when the digest could not run.
-        assert "orient.py" in text and "handoffs --project-root" in text
-        assert "read --context" not in text
-        # a persona can neither claim a baton nor post one: it produces no record
-        assert "consume --channel" not in text and "mirror --to" not in text
-
-    # --- 5. the review run claims the baton: hop closes, board drains --------
-    peek = json.loads(_run_cli(root, "handoffs", "--skill", "gds-code-review").stdout)
-    assert len(peek["handoffs"]) == 1
-    assert peek["handoffs"][0]["text"].startswith("gds.playtest.epic-1")
-    _run_cli(root, "consume", "--channel", "handoff.gds-code-review")
-    h = bb.chain_health(root)
-    hops = {(r["from"], r["to"]): r for r in h["sub_chains"]["gds"]}
-    assert hops[("gds-playtest-plan", "gds-code-review")]["status"] == "clear"
-    assert h["total_waiting"] == 0 and h["extra"] == []
-    assert "gds-code-review (1)" not in audit_mod.session_start(
-        {"cwd": root})["additionalContext"]
 
 
 def test_scenario_full_chain_prd_to_deploy_signals_flow(tmp_path, monkeypatch):

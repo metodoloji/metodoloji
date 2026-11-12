@@ -47,10 +47,6 @@ def test_stage_of_sub_chain_prefixes():
     assert mir.stage_of("quickdev.3-2-digest") == "quick-dev"
     assert mir.stage_of("devauto.gh-47-fix-auth") == "dev-auto"
     assert mir.stage_of("agentdev.3-2-digest") == "agent-dev"
-    assert mir.stage_of("cis.design.2026-09-17-onboarding") == "cis-design-thinking"
-    assert mir.stage_of("cis.innovation.x") == "cis-innovation-strategy"
-    assert mir.stage_of("cis.solving.x") == "cis-problem-solving"
-    assert mir.stage_of("cis.story.x") == "cis-storytelling"
     assert mir.stage_of("test.atdd.3-2-digest") == "test-atdd"
     assert mir.stage_of("test.automate.x") == "test-automate"
     assert mir.stage_of("test.ci.acme") == "test-ci"
@@ -65,29 +61,6 @@ def test_stage_of_sub_chain_prefixes():
     assert mir.stage_of("teach.ada") == "teaching"
     assert mir.stage_of("retro.epic-1") == "retrospective"
     assert mir.stage_of("change.2026-09-17") == "correct-course"
-    # GDS vertical (game) — specific before generic
-    assert mir.stage_of("gds.gdd.acme") == "gds-gdd"
-    assert mir.stage_of("gds.quickdev.slug") == "gds-quick-dev"
-    assert mir.stage_of("gds.test.review.R-1") == "gds-test-review"
-    assert mir.stage_of("gds.retro.4") == "gds-retro"
-    assert mir.stage_of("gds.anything") == "gds"
-    # WDS vertical (web design) — numbered phases before generic
-    assert mir.stage_of("wds.brief.acme") == "wds-brief"
-    assert mir.stage_of("wds.ux.checkout") == "wds-ux"
-    assert mir.stage_of("wds.evolve.c2") == "wds-evolve"
-    assert mir.stage_of("wds.anything") == "wds"
-
-
-def test_mirror_vertical_hops_never_stamp_methodology_relay(root):
-    """GDS/WDS run keys mirror fine (fail-open, attributed) but are diagnostic
-    only: the verticals run beside the E→IR→SP→S→QR→PR relay, so no gds./wds.
-    heartbeat may write a methodology.last_* position."""
-    ack = mir.mirror(root, "gds.dev.3-1-boss-ai", "dev complete",
-                     to="gds-code-review", note="fold findings into the QR")
-    assert ack["ok"] is True and ack["stage"] == "gds-dev"
-    board = bb.read_board(root)
-    stamped = [k for k in board["keys"] if k.startswith("methodology.last_")]
-    assert stamped == [], f"vertical heartbeat stamped a relay position: {stamped}"
 
 
 def test_mirror_governance_hops_close_the_loop(root):

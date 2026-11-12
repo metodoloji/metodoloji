@@ -194,7 +194,7 @@ experiment_refs:
 - The ledger is append-only. An entry is `status: open` until closed, then `status: done <date>`; entries are never deleted or renumbered. A repeated issue adds a `seen-again:` line instead of a duplicate.
 - Canonical entry format, severity vocabulary and sweep annotations:
   `{metodoloji-root}/skills/bmad-loop-sweep/deferred-work-format.md`.
-- Writers: `bmad-code-review`, `bmad-quick-dev`, `bmad-dev-auto` (and the gds equivalents). Triage/close: `bmad-loop-sweep` (bmad-loop) or the maintainer.
+- Writers: `bmad-code-review`, `bmad-quick-dev`, `bmad-dev-auto`. Triage/close: `bmad-loop-sweep` (bmad-loop) or the maintainer.
 - Core visibility is **advisory, not a gate**: init installs the ledger from `templates/deferred-work.md`, the orient digest counts open entries through `state.record_inventory` (`DW=<open> (newest DW-N)`), `check-methodology.sh` CHECK 9 parses the format, and the commit quality gate names open entries. Open deferrals never block a write or a commit by themselves.
 
 ---

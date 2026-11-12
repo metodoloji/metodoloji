@@ -51,7 +51,7 @@ If the user overrides the recommendation (e.g., wants a setup skill for a single
 
 Collect through conversation (or extract from a plan document in headless mode):
 
-- **Module name** — Human-friendly display name (e.g., "Creative Intelligence Suite")
+- **Module name** — Human-friendly display name (e.g., "Example Suite")
 - **Module code** — 2-4 letter abbreviation (e.g., "cis"). Used in skill naming, config sections, and folder conventions
 - **Description** — One-line summary of what the module does
 - **Version** — Starting version (default: 1.0.0)

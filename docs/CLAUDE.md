@@ -6,7 +6,7 @@ Claude Code plugin for methodology enforcement, compatible with BMad Method.
 
 - **Record chain**: E → IR → SP → S → QR → PR (experiment → implementation readiness → sprint planning → story → quality review → production readiness)
 - **Mechanical gates**: guard (write/edit blocking, config-gated), quality (`git commit` chain check, config-gated), deploy (deploy-command chain check, config-gated), audit (post-write trail), stop (session-end report, never blocks)
-- **129 skills** with **121 customization TOMLs** + `config.toml` (33 active BRIDGEs linking native outputs to methodology records). `bmad-customize`, `bmad-help`, `memory`, `sync` are tool/meta skills with no bridge TOML by design: `memory`/`sync` are in {metodoloji-root}/scripts/check-plugin.sh §2 EXCLUDED, while `bmad-customize`/`bmad-help` ship no customize.toml and are audited through their SKILL.md manifesto pointer (see §2 / §6b pairing).
+- **71 skills** with **65 customization TOMLs** + `config.toml` (17 active BRIDGEs linking native outputs to methodology records). `bmad-customize`, `bmad-help`, `memory`, `sync` are tool/meta skills with no bridge TOML by design: `memory`/`sync` are in {metodoloji-root}/scripts/check-plugin.sh §2 EXCLUDED, while `bmad-customize`/`bmad-help` ship no customize.toml and are audited through their SKILL.md manifesto pointer (see §2 / §6b pairing).
 
 ## Hooks
 
@@ -180,8 +180,8 @@ full `resolve_config.py` dump: that output is large enough to arrive truncated,
 which is what made a real session re-run it repeatedly. It is activation step 1
 for every skill that starts a run — the E → IR → SP → S → dev → review → QR → PR
 stage openers, the governance openers, the planning chain, the discovery entry
-points, the persona front doors and the human-review entry point — 80 run
-openers and front doors across the BMad, GDS and WDS verticals (`DIGEST_FIRST`
+points, the persona front doors and the human-review entry point — 35 run
+openers and front doors across the BMad verticals (`DIGEST_FIRST`
 in `scripts/check-handoff.py`). For a router or persona the digest *is* the
 board grounding, so it replaces the raw `read --context` + `handoffs` pair; a
 guest contributor that only needs the invoking run's focus keeps the single

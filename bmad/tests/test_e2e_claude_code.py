@@ -113,7 +113,7 @@ def create_test_project() -> tuple[Path, str]:
     
     # Create directory structure
     (temp_dir / "bmad").mkdir(exist_ok=True)
-    (temp_dir / "bmad" / "gds" / "workflows" / "1-preproduction" / "research").mkdir(parents=True, exist_ok=True)
+    (temp_dir / "bmad" / "bmm" / "workflows" / "research").mkdir(parents=True, exist_ok=True)
     (temp_dir / ".metodoloji").mkdir(exist_ok=True)
     (temp_dir / ".metodoloji" / "blackboard").mkdir(exist_ok=True)
     (temp_dir / ".metodoloji" / "logs").mkdir(exist_ok=True)
@@ -137,7 +137,7 @@ status: approved_for_test
 Test hypothesis for E2E workflow validation.
 
 ## Code Scope
-bmad/gds/workflows/1-preproduction/research
+bmad/bmm/workflows/research
 
 ## Measurement Command
 echo "test"
@@ -237,7 +237,7 @@ class BlackboardRoleSimulator:
         # Role #1: Guard detects no valid experiment record
         self.record_event(1, "Cascade Invalidation", {
             "action": "detected_missing_record",
-            "file": "bmad/gds/workflows/1-preproduction/research/test.md",
+            "file": "bmad/bmm/workflows/research/test.md",
             "trigger": "PreToolUse guard check",
         })
         self.post_alert(1, "info", "Write operation detected without valid experiment record")
@@ -270,7 +270,7 @@ class BlackboardRoleSimulator:
         self.record_event(4, "Canvas Integration", {
             "action": "touched_set_lookup",
             "lookup_method": "canvas_O(1)",
-            "files_touched": ["bmad/gds/workflows/1-preproduction/research/test.md"],
+            "files_touched": ["bmad/bmm/workflows/research/test.md"],
             "performance": "1000x faster than replay",
         })
     
@@ -328,7 +328,7 @@ class BlackboardRoleSimulator:
         self.record_event(8, "Diagnostics", {
             "action": "write_diagnostic",
             "diagnostic_type": "guard_decision",
-            "target_file": "bmad/gds/workflows/1-preproduction/research/test.md",
+            "target_file": "bmad/bmm/workflows/research/test.md",
             "decision": "allow_with_warning",
             "reasoning": "Write in free zone or soft gate enabled",
         })
@@ -425,7 +425,7 @@ def test_end_to_end_workflow():
         print("  Tool: Claude Code Edit")
         
         guard_payload = ClaudeCodePayloadGenerator.edit_file(
-            file_path="bmad/gds/workflows/1-preproduction/research/e2e-test.md",
+            file_path="bmad/bmm/workflows/research/e2e-test.md",
             content="# E2E Test File\n\nTesting full workflow.",
             cwd=temp_root_str,
         )
@@ -457,7 +457,7 @@ def test_end_to_end_workflow():
         
         # Step 4: Tool executes
         print("\n[Step 4] Tool Executes (write to file)")
-        target_file = Path(temp_root_str) / "bmad" / "gds" / "workflows" / "1-preproduction" / "research" / "e2e-test.md"
+        target_file = Path(temp_root_str) / "bmad" / "bmm" / "workflows" / "research" / "e2e-test.md"
         target_file.parent.mkdir(parents=True, exist_ok=True)
         target_file.write_text("# E2E Test File\n\nTesting full workflow.")
         print(f"  ✓ File written: {target_file}")

@@ -46,9 +46,6 @@ CONSUMERS = (
     "skills/bmad-create-epics-and-stories/steps/step-02-design-epics.md",
     "skills/bmad-check-implementation-readiness/steps/step-01-document-discovery.md",
     "skills/bmad-check-implementation-readiness/steps/step-04-ux-alignment.md",
-    "skills/gds-create-epics-and-stories/steps/step-01-validate-prerequisites.md",
-    "skills/gds-check-implementation-readiness/steps/step-01-document-discovery.md",
-    "skills/gds-check-implementation-readiness/steps/step-04-ux-alignment.md",
 )
 
 _PROJECT_ROOT_GLOB_RE = re.compile(r"`([^`]*\{project-root\}[^`]*)`")

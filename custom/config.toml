@@ -29,15 +29,6 @@ test_design_output = "{project-root}/docs/quality/test-design"
 test_review_output = "{project-root}/docs/quality/test-reviews"
 trace_output = "{project-root}/docs/quality/traceability"
 
-[modules.gds]
-planning_artifacts = "{project-root}/docs/planning"
-implementation_artifacts = "{project-root}/docs/development/native"
-project_knowledge = "{project-root}/docs"
-
-[modules.wds]
-project_knowledge = "{project-root}/docs"
-design_artifacts = "{project-root}/design-artifacts"
-
 # --- Hook enforcement modu ---
 # GLOBAL SCOPE WARNING: this file is plugin policy shared by EVERY project
 # the plugin serves. Changing a gate here relaxes/hardens all projects at

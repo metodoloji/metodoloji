@@ -56,15 +56,14 @@ def test_catalog_digest_reports_real_ambiguity():
     assert digest["available"] is True
     assert digest["skill_count"] > 50 and len(digest["modules"]) > 3
     ambiguous = digest["ambiguous_menu_codes"]
-    # The codes the real session mis-routed on: CU is bmad-ux and gds-ux, CS is
-    # create-story and the WDS conceptual-sketching row. SP must no longer list
-    # the spec skill: bmad-spec collided with bmad-sprint-planning, and SP is
-    # this methodology's own Sprint-Plan record prefix — the worst possible
-    # code for a Spec skill to carry.
+    # SP must not list the spec skill: bmad-spec collided with
+    # bmad-sprint-planning, and SP is this methodology's own Sprint-Plan record
+    # prefix — the worst possible code for a Spec skill to carry. With the
+    # game/web/creative verticals removed, SP resolves to the sprint planner
+    # alone, so it is no longer an ambiguous code.
     owners = " ".join(ambiguous.get("SP", []))
     assert "bmad-spec" not in owners
-    assert "bmad-sprint-planning" in owners
-    assert "CU" in ambiguous and "CS" in ambiguous
+    assert "bmad-sprint-planning" not in owners
     assert not [owners for code, owners in ambiguous.items()
                 if "bmad-spec" in owners]  # SPEC is unique
     assert any(e["menu_code"] == "SPEC" and e["skill"] == "bmad-spec"
@@ -91,12 +90,12 @@ def test_artifact_dirs_collapse_inherited_paths(tmp_path):
     (tmp_path / "docs" / "planning").mkdir(parents=True)
     (tmp_path / "docs" / "planning" / "epics.md").write_text("x", encoding="utf-8")
     config = {"modules": {"bmm": {"planning_artifacts": "{project-root}/docs/planning"},
-                          "gds": {"planning_artifacts": "{project-root}/docs/planning"}}}
+                          "extra": {"planning_artifacts": "{project-root}/docs/planning"}}}
     out = orient.artifact_dirs(tmp_path, str(tmp_path / "docs"), config)
     # Every module inherits core's paths; the folder is printed once.
     assert out["bmm.planning_artifacts"]["exists"] is True
     assert out["bmm.planning_artifacts"]["entries"] == ["epics.md"]
-    assert out["gds.planning_artifacts"]["alias_of"] == "bmm.planning_artifacts"
+    assert out["extra.planning_artifacts"]["alias_of"] == "bmm.planning_artifacts"
 
 
 def test_build_on_the_plugin_repo_is_self_consistent():

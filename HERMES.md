@@ -1,7 +1,7 @@
 # Hermes Agent üzerinde Metodoloji
 
 Metodoloji'nin Hermes Agent portu. Aynı kayıt zinciri (E → IR → SP → S → QR → PR),
-aynı mekanik kapılar, aynı 129 skill — tek fark, Hermes'in kendi plugin
+aynı mekanik kapılar, aynı 71 skill — tek fark, Hermes'in kendi plugin
 sözleşmesine bağlanması: kapı **gateway süreci içinde**, `pre_tool_call`
 üzerinden çalışır ve tool çağrısını gerçekten bloklar.
 
@@ -55,7 +55,7 @@ Gereksinimler: Hermes Agent (plugin + `pre_tool_call` API'si), Python 3.11+
 | hook | `on_session_start` | Oturum durumunu sıfırlar |
 | hook | `on_session_end` | Motor `stop` — oturum raporu `.metodoloji/logs/hermes-stop.log`'a yazılır |
 | hook | `pre_verify` | `nudge_on_stop` kapalıyken no-op; açıkken açık işi tek sınırlı "devam et" turuna çevirir (Claude `Stop` karşılığı) |
-| skill | `metodoloji:<ad>` | Repodaki 129 skill — hem `skill_view("metodoloji:bmad-brainstorming")` hem `/metodoloji:bmad-brainstorming` slash komutu |
+| skill | `metodoloji:<ad>` | Repodaki 71 skill — hem `skill_view("metodoloji:bmad-brainstorming")` hem `/metodoloji:bmad-brainstorming` slash komutu |
 | komut | `/metodoloji` | Durum özeti |
 | komut | `/metodoloji-init` | İskeleti kur (`--force` destekler) |
 | komut | `/metodoloji-gate-setup` | Gate key'i bir kez oluştur (varsa yeniden üretmez) |
@@ -178,7 +178,7 @@ sonra yeni oturum):
   ile sürekli dürtme yerine bu, metodolojinin "kapanışı asla kilitleme"
   kuralını korur; `nudge_on_stop=true` isteğe bağlı olarak Claude `Stop`
   davranışına yaklaşır (Hermes 3 dürtmeyle sınırlar).
-- **Skill sayısı.** 129 skill'in açıklaması sistem prompt'undaki
+- **Skill sayısı.** 71 skill'in açıklaması sistem prompt'undaki
   `<available_skills>` listesine girer. Yalnızca kapıları istiyorsanız:
   `METODOLOJI_HERMES_SKIP_SKILLS=1`.
 - **`hermes plugins validate` güvenlik taraması.** İşlevsel kontrollerin tümü

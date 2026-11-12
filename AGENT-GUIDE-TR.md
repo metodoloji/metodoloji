@@ -405,15 +405,13 @@ handoffs and chain-health before you do.
 | `Pressure-test this idea before we build anything.` | `bmad-forge-idea`, `bmad-brainstorming`, `bmad-prfaq` |
 | `Write the PRD: goal, scope, NFRs, acceptance criteria.` | `bmad-prd` (shim'ler `bmad-create-prd`/`bmad-validate-prd` buraya yönlenir) |
 | `Produce the architecture: decisions, module boundaries, draft Code Scope.` | `bmad-architecture` |
-| `Design the UX for <flow>.` | `bmad-ux`, `wds-*` |
+| `Design the UX for <flow>.` | `bmad-ux` |
 | `Turn this into epics and stories.` | `bmad-create-epics-and-stories`, `bmad-create-story` |
 | `Implement this story.` | `bmad-dev-story` (tek: `bmad-quick-dev`, toplu: `bmad-dev-auto`) |
 | `Review the code and record quality.` | `bmad-code-review`, `bmad-quality-record` |
 | `Add tests / raise coverage / wire CI checks.` | `bmad-testarch-*`, `bmad-qa-generate-e2e-tests` |
 | `Prepare production readiness.` | `bmad-production-readiness` |
 | `We went off track — correct course.` | `bmad-correct-course`, `bmad-retrospective` |
-| `Build a game:` | `gds-*` (brief → GDD → mimari → story → dev → test → playtest) |
-| `Build a web/UX product:` | `wds-*` + `bmad-ux` |
 | `Run this skill in a clean room and report transcript, time and tokens.` | `bmad-eval-runner` |
 
 ---

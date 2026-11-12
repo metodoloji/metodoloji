@@ -81,7 +81,7 @@ def main() -> int:
     parser.add_argument("--module-code", required=True,
                         help="Module code (2-4 letter abbreviation, e.g. 'cis')")
     parser.add_argument("--module-name", required=True,
-                        help="Module display name (e.g. 'Creative Intelligence Suite')")
+                        help="Module display name (e.g. 'Example Suite')")
     parser.add_argument("--module-yaml", required=True,
                         help="Path to the generated module.yaml content file")
     parser.add_argument("--module-csv", required=True,

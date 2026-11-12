@@ -255,9 +255,7 @@ def test_digest_first_covers_the_chain_run_openers():
         "bmad-create-epics-and-stories", "bmad-brainstorming",
         "bmad-forge-idea", "bmad-prfaq", "bmad-product-brief",
         "bmad-domain-research", "bmad-technical-research",
-        "bmad-market-research", "bmad-cis-design-thinking",
-        "bmad-cis-innovation-strategy", "bmad-cis-problem-solving",
-        "bmad-cis-storytelling",
+        "bmad-market-research",
         # every stage opener of E → IR → SP → S → dev → review → QR → PR
         "bmad-research-experiment", "bmad-check-implementation-readiness",
         "bmad-sprint-planning", "bmad-create-story", "bmad-dev-story",
@@ -265,34 +263,11 @@ def test_digest_first_covers_the_chain_run_openers():
         "bmad-code-review", "bmad-quality-record", "bmad-production-readiness",
         # the governance openers that re-enter the chain
         "bmad-retrospective", "bmad-correct-course",
-        # GDS sub-chain (its own module config, the same chain shape)
-        "gds-domain-research", "gds-brainstorm-game", "gds-create-game-brief",
-        "gds-create-narrative", "gds-gdd", "gds-prd", "gds-ux",
-        "gds-game-architecture", "gds-create-epics-and-stories",
-        "gds-check-implementation-readiness", "gds-sprint-planning",
-        "gds-create-story", "gds-dev-story", "gds-quick-dev",
-        "gds-code-review", "gds-retrospective", "gds-correct-course",
-        # WDS sub-chain (nine phase openers; thin shells whose run's step 1 is
-        # mirrored in each phase's workflow.md)
-        "wds-0-project-setup", "wds-0-alignment-signoff",
-        "wds-1-project-brief", "wds-2-trigger-mapping", "wds-3-scenarios",
-        "wds-4-ux-design", "wds-5-agentic-development",
-        "wds-6-asset-generation", "wds-7-design-system",
-        "wds-8-product-evolution",
         # front doors: personas/routers, the contributor and the reporter whose
         # read side is a promise (their grounding IS the digest)
         "bmad-agent-analyst", "bmad-agent-architect", "bmad-agent-pm",
         "bmad-agent-tech-writer", "bmad-agent-ux-designer", "bmad-agent-builder",
         "bmad-tea", "bmad-party-mode", "bmad-sprint-status",
-        "bmad-cis-agent-brainstorming-coach",
-        "bmad-cis-agent-creative-problem-solver",
-        "bmad-cis-agent-design-thinking-coach",
-        "bmad-cis-agent-innovation-strategist",
-        "bmad-cis-agent-presentation-master", "bmad-cis-agent-storyteller",
-        "gds-agent-game-architect", "gds-agent-game-designer",
-        "gds-agent-tech-writer", "gds-agent-game-dev",
-        "gds-agent-game-solo-dev", "gds-sprint-status",
-        "wds-agent-freya-ux", "wds-agent-saga-analyst",
         # a human-decision entry point: opens a review session, so it needs the
         # relay position and the waiting batons (one call, where it made three)
         "bmad-checkpoint-preview",
@@ -531,62 +506,6 @@ def test_entry_point_reasons_that_review_humans_must_ground(tmp_path, capsys, mo
         assert any(m in text for m in routes), skill
 
 
-def test_gds_wds_verticals_are_lint_members(tmp_path, capsys, monkeypatch):
-    """The verticals are first-class chain members: every producing GDS/WDS
-    skill is lint-checked, advisors/personas are registered with a reason, and
-    the producing dev personas converge on the review gate like bmad-agent-dev."""
-    mod = _load_lint()
-    # producers post their hop; QA feeders and dev branches converge on the review
-    for skill, target in (
-        ("gds-dev-story", "gds-code-review"),
-        ("gds-agent-game-dev", "gds-code-review"),
-        ("gds-agent-game-solo-dev", "gds-code-review"),
-        ("gds-test-design", "gds-code-review"),
-        # the playtest plan's BRIDGE feeds the same QR: it is a feeder, not a
-        # chain-adjacent document tool
-        ("gds-playtest-plan", "gds-code-review"),
-        ("wds-4-ux-design", "wds-5-agentic-development"),
-        ("wds-8-product-evolution", "wds-1-project-brief"),
-    ):
-        assert mod.EXPECTED_POSTS[skill] == [target], skill
-    # registered, relay-free surfaces with a reason
-    assert mod.PEEK_EXEMPT["gds-playtest-plan"] == "feeder"
-    assert mod.PEEK_EXEMPT["gds-sprint-status"] == "reporter"
-    assert mod.PEEK_EXEMPT["wds-agent-freya-ux"] == "router"
-    # the GDS advisor personas ship the same persona template as the WDS ones
-    # (identity + menu + Step 8 dispatch), so they route too — and a router
-    # promises the read side, which the lint enforces
-    for skill in ("gds-agent-game-architect", "gds-agent-game-designer",
-                  "gds-agent-tech-writer"):
-        assert mod.PEEK_EXEMPT[skill] == "router", skill
-    routes = (mod.BOARD_GROUNDED_MARKER,) + tuple(mod.BOARD_GROUNDED_LEGACY)
-    for skill in ("gds-agent-game-architect", "gds-agent-game-designer",
-                  "gds-agent-tech-writer", "wds-agent-freya-ux",
-                  "wds-agent-mimir-builder", "wds-agent-saga-analyst"):
-        text = (mod.SKILLS / skill / "SKILL.md").read_text(encoding="utf-8")
-        # The digest where the router has an activation (all but mimir, a shell
-        # whose grounding it loads on demand) — either route reads the board.
-        assert any(m in text for m in routes), skill
-    # gds-code-review receives the fan-in: it must peek its own channel
-    text = (mod.SKILLS / "gds-code-review" / "SKILL.md").read_text(encoding="utf-8")
-    assert "handoffs --skill gds-code-review" in text
-
-
-def test_verticals_terminal_phase_is_registered_and_claimable():
-    """A hop receiver must be a registered member whose peek exists: the WDS
-    pipeline's last phase receives the asset-generation baton, so it cannot be
-    an unregistered terminal (a baton nobody could claim)."""
-    mod = _load_lint()
-    assert mod.EXPECTED_POSTS["wds-7-design-system"] == []
-    assert "wds-7-design-system" not in mod.PEEK_EXEMPT  # receivers peek
-    text = (mod.SKILLS / "wds-7-design-system" / "SKILL.md").read_text(encoding="utf-8")
-    assert "handoffs --skill wds-7-design-system" in text
-    # the loop's return edge (retro → experiment) is claimable too
-    assert "bmad-research-experiment" not in mod.PEEK_EXEMPT
-    exp = (mod.SKILLS / "bmad-research-experiment" / "SKILL.md").read_text(encoding="utf-8")
-    assert "handoffs --skill bmad-research-experiment" in exp
-
-
 def test_discovery_entry_points_promise_no_unclaimable_peek():
     """Ideation and research start from user intent and no hop targets them, so
     they are entry points — like their CIS siblings. The dead peek is gone
@@ -644,9 +563,8 @@ def test_persona_menus_dispatch_into_registered_skills():
 
     Two legitimate persona shapes are allowed: a pure ROUTER (posts nothing),
     and a producing persona registered as an ENTRY POINT (it dispatches a menu
-    AND signals its hop — gds-agent-game-dev / -solo-dev). The GDS advisor
-    personas are locked in here because they were filed as tools while shipping
-    exactly the router template.
+    AND signals its hop). The producing personas are locked in here because
+    they were filed as tools while shipping exactly the router template.
     """
     import tomllib
     mod = _load_lint()
@@ -657,9 +575,7 @@ def test_persona_menus_dispatch_into_registered_skills():
             routers[cfg.parent.name] = agent["menu"]
 
     assert set(routers) >= {
-        "gds-agent-game-architect", "gds-agent-game-designer", "gds-agent-tech-writer",
-        "wds-agent-saga-analyst", "bmad-agent-pm", "bmad-cis-agent-storyteller",
-        "bmad-tea",
+        "bmad-agent-pm", "bmad-tea",
     }
     for skill, menu in sorted(routers.items()):
         reason = mod.PEEK_EXEMPT.get(skill)
@@ -673,12 +589,6 @@ def test_persona_menus_dispatch_into_registered_skills():
             assert (mod.SKILLS / target / "SKILL.md").is_file(), \
                 f"{skill} → {target} (not installed)"
             assert target in mod.EXPECTED_POSTS, f"{skill} → {target} (not registered)"
-    # the repaired advisors: a dispatch menu AND the read-side promise
-    for skill in ("gds-agent-game-architect", "gds-agent-game-designer",
-                  "gds-agent-tech-writer"):
-        assert mod.PEEK_EXEMPT[skill] == "router", skill
-        text = (mod.SKILLS / skill / "SKILL.md").read_text(encoding="utf-8")
-        assert mod.BOARD_GROUNDED_MARKER in text, skill
 
 
 def test_forwarder_must_name_its_canonical_skill(tmp_path, capsys, monkeypatch):

@@ -51,8 +51,7 @@ def test_review_layers_must_cite_verified_file_lines():
     flows read: the methodology chapter and both code-review skills.
     """
     for rel in ("docs/bmad/development-methodology.md",
-                "skills/bmad-code-review/SKILL.md",
-                "skills/gds-code-review/SKILL.md"):
+                "skills/bmad-code-review/SKILL.md"):
         src = (PLUGIN / rel).read_text(encoding="utf-8")
         assert "VERIFIED by reading that file" in src, (
             f"{rel} lost the verified-citation rule (E-037)")
@@ -525,7 +524,7 @@ def test_bridge_producer_audit_reads_agent_principles_key():
     blk = re.search(r"PRODUCER_KEY = \{(.*?)\}", text, re.DOTALL)
     assert blk, "check-plugin.sh §2c has no PRODUCER_KEY map"
     audited = dict(re.findall(r'"([^"]+)"\s*:\s*"([^"]+)"', blk.group(1)))
-    for name in ("bmad-agent-dev", "gds-agent-game-dev", "gds-agent-game-solo-dev"):
+    for name in ("bmad-agent-dev",):
         assert audited.get(name) == "agent.principles", (
             f"{name} must be audited via agent.principles, got {audited.get(name)!r}"
         )
@@ -573,53 +572,26 @@ def test_bridge_drift_audit_scans_skill_md_surfaces():
 def test_qr_feeder_audit_covers_every_feeder():
     """check-plugin.sh §2 QR_FEEDERS_TOML must equal the tree's feeder surfaces (E-020).
 
-    The 33 BRIDGE surfaces partition into 17 producers (VERIFY step) and 16
-    feeders ("does not produce an independent methodology record"). §2 named
-    only 9 of the 16 TOML feeders; the seven gds feeders went unread. This
-    calls the bench's check, which derives the feeder set and pins §2 to it.
+    The BRIDGE surfaces partition into producers (VERIFY step) and feeders
+    ("does not produce an independent methodology record"). §2 must name every
+    TOML feeder. This calls the bench's check, which derives the feeder set and
+    pins §2 to it.
     """
     bench = _load_bench()
     problem = bench._check_bridge_feeder_audit_covers_every_feeder()
     assert problem is None, problem
 
 
-def test_qr_feeder_audit_lists_gds_feeders():
-    """The gds feeder TOMLs must be in §2's QR_FEEDERS_TOML (the E-020 widening)."""
-    text = (PLUGIN / "scripts" / "check-plugin.sh").read_text(
-        encoding="utf-8", errors="replace")
-    blk = re.search(r"QR_FEEDERS_TOML = \[(.*?)\]", text, re.DOTALL)
-    assert blk, "check-plugin.sh §2 has no QR_FEEDERS_TOML list"
-    listed = set(re.findall(r'"([^"]+)"', blk.group(1)))
-    for name in ("gds-test-automate", "gds-test-design", "gds-test-framework",
-                 "gds-test-review", "gds-e2e-scaffold", "gds-performance-test",
-                 "gds-playtest-plan"):
-        assert name in listed, f"§2 QR_FEEDERS_TOML is missing the gds feeder {name}"
-
-
 def test_producer_record_targets_audited():
     """check-plugin.sh §2 BRIDGE_SKILLS must hold every producer (E-021).
 
-    §2 demands the bridge reference + record path on each entry but listed only
-    7 of the 17 producers. This calls the bench's check, which pins the dict's
-    keys to GUIDE.md's producer set and re-checks the target per TOML.
+    §2 demands the bridge reference + record path on each entry. This calls
+    the bench's check, which pins the dict's keys to GUIDE.md's producer set and
+    re-checks the target per TOML.
     """
     bench = _load_bench()
     problem = bench._check_bridge_record_target_audit_covers_every_producer()
     assert problem is None, problem
-
-
-def test_producer_record_targets_list_gds_and_wds_producers():
-    """§2's BRIDGE_SKILLS must contain the previously-unaudited producers (E-021)."""
-    text = (PLUGIN / "scripts" / "check-plugin.sh").read_text(
-        encoding="utf-8", errors="replace")
-    blk = re.search(r"BRIDGE_SKILLS = \{(.*?)\}", text, re.DOTALL)
-    assert blk, "check-plugin.sh §2 has no BRIDGE_SKILLS dict"
-    listed = set(re.findall(r'"([^"\s]+)"\s*:', blk.group(1)))
-    for name in ("gds-check-implementation-readiness", "gds-sprint-planning",
-                 "gds-create-story", "gds-code-review", "gds-dev-story",
-                 "gds-quick-dev", "gds-agent-game-dev", "gds-agent-game-solo-dev",
-                 "wds-5-agentic-development", "bmad-agent-dev"):
-        assert name in listed, f"§2 BRIDGE_SKILLS is missing the producer {name}"
 
 
 def test_qr_feeder_skillmd_audit_covers_every_surface():
@@ -917,7 +889,7 @@ def test_activation_steps_append_carries_the_methodology_contract():
     gate mechanics read, then the user interrupted) because the team override
     shipped "Define the hypothesis" / "Create the experiment design" /
     "Analyze the results" as its activation steps, on top of the shipped two.
-    The same scaffolding shape recurred in bmb/index/loop/module/shard/wds.
+    The same scaffolding shape recurred in bmb/index/loop/module/shard.
 
     Independent derivation (tomllib, no check-custom import): every entry must
     carry at least one frame marker — a structured check, a temporal/compliance
@@ -941,14 +913,13 @@ def test_activation_steps_append_carries_the_methodology_contract():
 def test_help_catalog_skills_resolve_to_shipped_dirs():
     """E-042: every /bmad-help menu entry must name a skill that ships.
 
-    The Web Design Studio rows offered `bmad-wds-*` names while the shipped
-    directories are `wds-*`, so help recommended skills that do not exist (an
-    offer to run `bmad-wds-project-brief` dies). Independent derivation here
-    (csv + the tree); the bench check is pinned to keep owning it.
+    A catalog row that offers a skill with no shipped directory dies as "no
+    such skill" when the user picks it. Independent derivation here (csv + the
+    tree); the bench check is pinned to keep owning it.
     """
     shipped = {p.parent.name for p in (PLUGIN / "skills").glob("*/SKILL.md")}
     unresolved = []
-    for rel in ("bmad/_config/bmad-help.csv", "bmad/wds/module-help.csv"):
+    for rel in ("bmad/_config/bmad-help.csv",):
         with open(PLUGIN / rel, newline="", encoding="utf-8") as fh:
             rows = list(csv.reader(fh))
         header, data = rows[0], rows[1:]

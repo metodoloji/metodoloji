@@ -73,8 +73,8 @@ story chain check, and one written without it cannot be repaired by prose.
 
 The catalog models the **story cycle** — `SP → CS → VS → DS → CR → ER`
 (plus the planning/readiness stages IR and the analysis agents). It is not an
-exhaustive list of installed skills: agent skills carry no rows, no WDS workflow
-does, and neither do the three methodology **record-machinery** producers —
+exhaustive list of installed skills: agent skills carry no rows, and neither
+do the three methodology **record-machinery** producers —
 `bmad-research-experiment` (E), `bmad-quality-record` (QR) and
 `bmad-production-readiness` (PR). That is deliberate, not a gap to "fix" by
 adding rows: those three are driven by the chain (they own or answer
@@ -110,11 +110,8 @@ memlog-frontmatter capability, now read from the board instead of `.memlog.md`):
 ## Menu codes are not globally unique
 
 `bmad-help.csv` assembles every installed module, and modules reuse codes across
-modules: `SP` is `BMad Method/bmad-sprint-planning`, `Game Dev Studio/gds-sprint-planning`
-and the WDS conceptual-specs row; `CU` is `bmad-ux` and `gds-ux`; `CS` is
-`bmad-create-story`, `gds-create-story` and the WDS conceptual-sketching row;
-`DS`, `CR`, `CE`, `IR`, `PRD`, `VD`, `AT` and others collide too. The digest lists
-the ambiguous ones.
+modules: `DS`, `CR`, `CE`, `IR`, `PRD`, `VD`, `AT` and others collide. The digest
+lists the ambiguous ones.
 
 `Core/bmad-spec` used to carry `SP` as well — the code was changed to `SPEC`,
 because `SP` is this methodology's own Sprint-Plan record prefix and a Spec skill

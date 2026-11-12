@@ -1,7 +1,7 @@
 {
   "name": "metodoloji",
-  "version": "0.2.49",
-  "description": "Methodology plugin compatible with BMad Method: record chain (E→IR→SP→S→QR→PR), mechanical gates, declared workflows and 129 skills / 121 bridge TOMLs",
+  "version": "0.2.50",
+  "description": "Methodology plugin compatible with BMad Method: record chain (E→IR→SP→S→QR→PR), mechanical gates, declared workflows and 71 skills / 65 bridge TOMLs",
   "author": "yunusgungor",
   "license": "MIT",
   "repository": "https://github.com/metodoloji/metodoloji"

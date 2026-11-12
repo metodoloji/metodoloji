@@ -53,10 +53,6 @@ EXPECTED_POSTS = {
     "bmad-market-research": ["bmad-product-brief"],
     "bmad-domain-research": ["bmad-product-brief"],
     "bmad-technical-research": ["bmad-product-brief"],
-    "bmad-cis-design-thinking": ["bmad-product-brief"],
-    "bmad-cis-innovation-strategy": ["bmad-product-brief"],
-    "bmad-cis-problem-solving": ["bmad-product-brief"],
-    "bmad-cis-storytelling": ["bmad-product-brief"],
     # The inline technique amplifier: it reads the invoking run's board and
     # leaves exactly one `contribute` trace, then hands the enhancements back
     # to the caller's close-out. It owns no channel and posts no hop.
@@ -85,9 +81,6 @@ EXPECTED_POSTS = {
     # GOVERNANCE SUB-CHAIN (the hops that close the methodology loop)
     "bmad-retrospective": ["bmad-research-experiment"],
     "bmad-correct-course": ["bmad-sprint-planning"],
-    # INFRASTRUCTURE & SYSTEM — the builder/tooling layer and the WDS session
-    # backends. Their products are not chain artifacts (installed modules,
-    # built skills, TOML overrides, progress files), so they relay nothing.
     "bmad-loop-setup": [],
     "bmad-loop-sweep": [],
     "bmad-loop-resolve": [],
@@ -97,69 +90,13 @@ EXPECTED_POSTS = {
     "bmad-customize": [],
     "bmad-checkpoint-preview": [],
     "bmad-eval-runner": [],
-    "memory": [],
-    "sync": [],
-    # GDS SUB-CHAIN (game vertical — mirrors the canonical relay shape with
-    # game-native artifacts; QA tools feed the playtest record, retro and
-    # correct-course re-enter planning, dev variants converge on the review)
-    "gds-domain-research": ["gds-create-game-brief"],
-    "gds-brainstorm-game": ["gds-create-game-brief"],
-    "gds-create-game-brief": ["gds-gdd"],
-    "gds-create-narrative": ["gds-gdd"],
-    "gds-gdd": ["gds-ux"],
-    "gds-ux": ["gds-game-architecture"],
-    "gds-prd": ["gds-game-architecture"],
-    "gds-game-architecture": ["gds-check-implementation-readiness"],
-    "gds-check-implementation-readiness": ["gds-sprint-planning"],
-    "gds-sprint-planning": ["gds-create-story"],
-    "gds-create-story": ["gds-dev-story"],
-    "gds-dev-story": ["gds-code-review"],
-    "gds-test-design": ["gds-code-review"],
-    "gds-test-framework": ["gds-code-review"],
-    "gds-test-automate": ["gds-code-review"],
-    "gds-test-review": ["gds-code-review"],
-    "gds-e2e-scaffold": ["gds-code-review"],
-    "gds-performance-test": ["gds-code-review"],
-    "gds-code-review": [],  # terminal — retro re-enters planning on demand
-    "gds-retrospective": ["gds-sprint-planning"],
-    "gds-correct-course": ["gds-sprint-planning"],
-    "gds-quick-dev": ["gds-code-review"],
-    "gds-agent-game-dev": ["gds-code-review"],
-    "gds-agent-game-solo-dev": ["gds-code-review"],
-    "gds-sprint-status": ["gds-sprint-planning"],
-    "gds-investigate": ["gds-correct-course"],
-    # WDS SUB-CHAIN (web design vertical — Freya's design pipeline; brownfield
-    # evolution re-enters at the brief)
-    "wds-0-project-setup": ["wds-0-alignment-signoff"],
-    "wds-0-alignment-signoff": ["wds-1-project-brief"],
-    "wds-1-project-brief": ["wds-2-trigger-mapping"],
-    "wds-2-trigger-mapping": ["wds-3-scenarios"],
-    "wds-3-scenarios": ["wds-4-ux-design"],
-    "wds-4-ux-design": ["wds-5-agentic-development"],
-    "wds-5-agentic-development": ["wds-6-asset-generation"],
-    "wds-6-asset-generation": ["wds-7-design-system"],
     # Terminal phase: it consumes the asset-generation baton and hands nothing
     # on (the pipeline is done until an evolution cycle re-enters the brief).
     # Registered so the lint checks its peek — an unregistered terminal receiver
     # would leave a baton nobody can claim.
-    "wds-7-design-system": [],
-    "wds-8-product-evolution": ["wds-1-project-brief"],
     # The playtest plan's BRIDGE feeds the QR record the review session owns
     # ("feed the findings into the QR, do not open a separate record") — the
-    # seventh GDS QA feeder, not an advisory surface.
-    "gds-playtest-plan": ["gds-code-review"],
-    # GDS/WDS advisor personas — route the user into workflows, never produce.
-    # (They adopt an identity and dispatch a menu, so they carry a READ side:
-    # see ROUTERS below.)
-    "gds-agent-game-architect": [],
-    "gds-agent-game-designer": [],
-    "gds-agent-tech-writer": [],
-    "wds-agent-freya-ux": [],
-    "wds-agent-mimir-builder": [],
-    "wds-agent-saga-analyst": [],
     # Vertical documentation tools — docs, no hop.
-    "gds-document-project": [],
-    "gds-generate-project-context": [],
     # PERSONA / ORCHESTRATION SURFACE — [] = no hop to post. A persona adopts
     # an identity, grounds in the board and dispatches the user into a
     # workflow; it produces no methodology record of its own, so it never
@@ -185,12 +122,6 @@ EXPECTED_POSTS = {
     "bmad-editorial-review-structure": [],
     "bmad-review-adversarial-general": [],
     "bmad-review-edge-case-hunter": [],
-    "bmad-cis-agent-brainstorming-coach": [],
-    "bmad-cis-agent-creative-problem-solver": [],
-    "bmad-cis-agent-design-thinking-coach": [],
-    "bmad-cis-agent-innovation-strategist": [],
-    "bmad-cis-agent-presentation-master": [],
-    "bmad-cis-agent-storyteller": [],
     # TOOL & DELIVERY CHAIN
     "bmad-prd": ["bmad-ux"],
     "bmad-ux": ["bmad-architecture"],
@@ -235,10 +166,6 @@ PEEK_EXEMPT = {
     "bmad-dev-auto": "entry point",
     "bmad-agent-dev": "entry point",
     "bmad-teach-me-testing": "entry point",
-    "bmad-cis-design-thinking": "entry point",
-    "bmad-cis-innovation-strategy": "entry point",
-    "bmad-cis-problem-solving": "entry point",
-    "bmad-cis-storytelling": "entry point",
     "bmad-testarch-atdd": "feeder",
     "bmad-testarch-automate": "feeder",
     "bmad-testarch-ci": "feeder",
@@ -254,17 +181,9 @@ PEEK_EXEMPT = {
     "bmad-agent-ux-designer": "router",
     "bmad-agent-builder": "tool",
     "bmad-advanced-elicitation": "contributor",
-    "bmad-cis-agent-brainstorming-coach": "router",
-    "bmad-cis-agent-creative-problem-solver": "router",
-    "bmad-cis-agent-design-thinking-coach": "router",
-    "bmad-cis-agent-innovation-strategist": "router",
-    "bmad-cis-agent-presentation-master": "router",
-    "bmad-cis-agent-storyteller": "router",
     "bmad-tea": "router",
     # Discovery entry points: ideation and research start from user intent, and
     # the registry declares no hop into them — nothing can tell them a baton
-    # waits, so no peek is promised (their CIS siblings are classified the same
-    # way). The lint enforces the alternative: a peek must be claimable.
     "bmad-brainstorming": "entry point",
     "bmad-forge-idea": "entry point",
     "bmad-prfaq": "entry point",
@@ -273,19 +192,6 @@ PEEK_EXEMPT = {
     "bmad-technical-research": "entry point",
     "bmad-sprint-status": "reporter",
     "bmad-party-mode": "contributor",
-    # GDS/WDS advisor personas & documentation tools: produce advice/docs,
-    # never hops (the producing GDS personas are hop members with their own
-    # close-out signal — wired in the BRIDGE layer like bmad-agent-dev).
-    "gds-agent-game-architect": "router",
-    "gds-agent-game-designer": "router",
-    "gds-agent-tech-writer": "router",
-    "gds-document-project": "tool",
-    "gds-generate-project-context": "tool",
-    # These three ship the SAME persona template as the WDS personas (identity
-    # + menu + Step 8 dispatch into a workflow), so they route, not tool.
-    "wds-agent-freya-ux": "router",
-    "wds-agent-mimir-builder": "router",
-    "wds-agent-saga-analyst": "router",
     "bmad-document-project": "tool",
     "bmad-generate-project-context": "tool",
     "bmad-index-docs": "tool",
@@ -299,14 +205,11 @@ PEEK_EXEMPT = {
     # Infrastructure: installers/builders whose product is an installed module
     # or a built skill (it inherits the methodology; the installer does not
     # relay), customization authoring, the loop orchestrator's automation
-    # surfaces and the WDS session backends.
     "bmad-loop-setup": "tool",
     "bmad-bmb-setup": "tool",
     "bmad-module-builder": "tool",
     "bmad-workflow-builder": "tool",
     "bmad-customize": "tool",
-    "memory": "tool",
-    "sync": "tool",
     # bmad-loop-sweep runs INSIDE the orchestrator's session (automation-only,
     # never human-invoked) and returns a machine-readable partition — findings
     # to the caller, no hop, no board I/O: the orchestrator owns that state.
@@ -319,27 +222,7 @@ PEEK_EXEMPT = {
     # all other writes forbidden) — the registry just makes it visible.
     "bmad-eval-runner": "contributor",
     "bmad-help": "router",
-    "gds-quick-dev": "entry point",
-    "gds-agent-game-dev": "entry point",
-    "gds-agent-game-solo-dev": "entry point",
-    "gds-playtest-plan": "entry point",
-    "gds-retrospective": "entry point",   # nothing hands off to retro
-    "gds-sprint-status": "reporter",
-    "gds-investigate": "entry point",
-    "gds-domain-research": "entry point",
-    "gds-brainstorm-game": "entry point",
-    "gds-create-narrative": "entry point",
-    "gds-prd": "entry point",
-    "gds-playtest-plan": "feeder",
-    "gds-test-design": "feeder",
-    "gds-test-framework": "feeder",
-    "gds-test-automate": "feeder",
-    "gds-test-review": "feeder",
-    "gds-e2e-scaffold": "feeder",
-    "gds-performance-test": "feeder",
     # No upstream hands these off — direct entries into the vertical:
-    "wds-0-project-setup": "entry point",
-    "wds-8-product-evolution": "entry point",
 }
 
 # Reasons that assert "nothing hands off to me". If the declared hop table
@@ -362,15 +245,6 @@ SHARED_NAMESPACES = {
 # steps/ tree) and one upstream subscription at activation
 # (`subscribe --watcher <self>` — SKILL.md side). WARNING-level, not ERROR: a
 # missing edge degrades traceability but never breaks the chain the way a
-# missing handoff does — and the GDS/WDS verticals migrate later, so failing
-# the whole lint on them would be wrong. Extend these dicts when they migrate.
-#
-# The declared value is the FULL edge — (source prefix, target prefix,
-# relation) — because the first cut checked only the source half
-# (`"link --a prd." in blob`), so a close-out could point the graph at the
-# WRONG downstream, or ship a relation outside the documented
-# informs|constrains|validates vocabulary, and the lint still printed [OK]
-# (E-044; the same class E-043 closed for the radar).
 EXPECTED_LINKS = {
     "bmad-prd": (("prd.", "ux.", "informs"),),
     "bmad-ux": (("ux.", "architecture.", "informs"),),
@@ -382,36 +256,6 @@ EXPECTED_LINKS = {
     "bmad-sprint-planning": (("IR-", "SP-", "informs"),),
     "bmad-quality-record": (("story.", "QR-", "validates"),),
     "bmad-production-readiness": (("QR-", "PR-", "validates"),),
-    # WDS pipeline (linear phases — links only, no subscriptions: the 16-slot
-    # global subscription cap is reserved for the bmad change radar, and a
-    # strict pipeline already carries its radar in the per-phase baton).
-    # Terminal wds-7-design-system writes no run key, so it carries no edge
-    # (same rule as the bmad-code-review terminal).
-    "wds-0-project-setup": (("wds.setup.", "wds.signoff.", "informs"),),
-    "wds-0-alignment-signoff": (("wds.signoff.", "wds.brief.", "informs"),),
-    "wds-1-project-brief": (("wds.brief.", "wds.trigger.", "informs"),),
-    "wds-2-trigger-mapping": (("wds.trigger.", "wds.scenario.", "informs"),),
-    "wds-3-scenarios": (("wds.scenario.", "wds.ux.", "informs"),),
-    "wds-4-ux-design": (("wds.ux.", "wds.dev.", "informs"),),
-    "wds-5-agentic-development": (("wds.dev.", "wds.asset.", "informs"),),
-    "wds-8-product-evolution": (("wds.evolve.", "wds.brief.", "informs"),),
-    # GDS game vertical (close-outs live in custom/<skill>.toml [workflow]
-    # on_complete — the lint blob covers the bridge TOMLs, so TOML edges
-    # count. Feeders, dev variants and governance post no graph edge
-    # (bmad-side symmetry: a feeder adds evidence, it does not open a run).
-    # Terminal gds-dev-story writes no review key (gds-code-review carries no
-    # mirror), so it carries no edge — same rule as the bmad/wds terminals.
-    "gds-domain-research": (("gds.research.", "gds.brief.", "informs"),),
-    "gds-brainstorm-game": (("gds.brainstorm.", "gds.brief.", "informs"),),
-    "gds-create-game-brief": (("gds.brief.", "gds.gdd.", "informs"),),
-    "gds-create-narrative": (("gds.narrative.", "gds.gdd.", "informs"),),
-    "gds-gdd": (("gds.gdd.", "gds.ux.", "informs"),),
-    "gds-ux": (("gds.ux.", "gds.architecture.", "informs"),),
-    "gds-prd": (("gds.prd.", "gds.architecture.", "informs"),),
-    "gds-game-architecture": (("gds.architecture.", "gds.ir.", "informs"),),
-    "gds-check-implementation-readiness": (("gds.ir.", "gds.sp.", "informs"),),
-    "gds-sprint-planning": (("gds.sp.", "gds.story.", "informs"),),
-    "gds-create-story": (("gds.story.", "gds.dev.", "informs"),),
 }
 # The change radar (GUIDE/KILAVUZ §14): every subscribing skill watches a fixed
 # set of upstream patterns on ONE channel. The value is the FULL contract —
@@ -553,23 +397,7 @@ DIGEST_FIRST = (
     # discovery entry points (they open a session and produce a brief)
     "bmad-brainstorming", "bmad-forge-idea", "bmad-prfaq",
     "bmad-product-brief", "bmad-domain-research", "bmad-technical-research",
-    "bmad-market-research", "bmad-cis-design-thinking",
-    "bmad-cis-innovation-strategy", "bmad-cis-problem-solving",
-    "bmad-cis-storytelling",
-    # GDS sub-chain (game vertical — the same chain shape, its own module
-    # config: the digest resolves `gds` paths the same way it resolves `bmm`'s)
-    "gds-domain-research", "gds-brainstorm-game", "gds-create-game-brief",
-    "gds-create-narrative", "gds-gdd", "gds-prd", "gds-ux",
-    "gds-game-architecture", "gds-create-epics-and-stories",
-    "gds-check-implementation-readiness", "gds-sprint-planning",
-    "gds-create-story", "gds-dev-story", "gds-quick-dev", "gds-code-review",
-    "gds-retrospective", "gds-correct-course",
-    # WDS sub-chain (web-design vertical — nine phase openers; their SKILL.md is
-    # a shell, so the run's step 1 is mirrored in the phase's workflow.md)
-    "wds-0-project-setup", "wds-0-alignment-signoff", "wds-1-project-brief",
-    "wds-2-trigger-mapping", "wds-3-scenarios", "wds-4-ux-design",
-    "wds-5-agentic-development", "wds-6-asset-generation",
-    "wds-7-design-system", "wds-8-product-evolution",
+    "bmad-market-research",
     # FRONT DOORS (personas/routers, plus the contributor and reporter surfaces
     # whose read side is a promise): for these the digest IS the grounding, so
     # the older two-call board read (`read --context` + `handoffs`) is now the
@@ -581,14 +409,6 @@ DIGEST_FIRST = (
     # roots, the config, the relay position and the waiting batons — one digest
     # call where the activation used to make three reads.
     "bmad-checkpoint-preview",
-    "bmad-cis-agent-brainstorming-coach",
-    "bmad-cis-agent-creative-problem-solver",
-    "bmad-cis-agent-design-thinking-coach",
-    "bmad-cis-agent-innovation-strategist", "bmad-cis-agent-presentation-master",
-    "bmad-cis-agent-storyteller",
-    "gds-agent-game-architect", "gds-agent-game-designer", "gds-agent-tech-writer",
-    "gds-agent-game-dev", "gds-agent-game-solo-dev", "gds-sprint-status",
-    "wds-agent-freya-ux", "wds-agent-saga-analyst",
 )
 
 # Deprecated shims kept for backward compatibility: they hold no chain logic of

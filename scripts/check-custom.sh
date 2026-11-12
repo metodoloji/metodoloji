@@ -17,8 +17,7 @@
 #        GATE_REFERENCE_OK → may carry as reference (e.g. bmad-tea)
 #        Others → leak (wrong layer) → fail
 #   4. Bridge verify pattern (gate enforcers: "ls -la ... error and recreate")
-#   5. gds-* Mod A bridge reference (dev-skill-to-methodology-bridge required)
-#   6. config.toml [hooks] soft/hard contract (DRY: same parser as §5b)
+#   6. config.toml [hooks] soft/hard contract (DRY: same parser as the config audit)
 #   7. Bridge document §N.N reference drift audit (synced with bridge.md sections)
 #
 # Usage:  sh scripts/check-custom.sh
@@ -355,15 +354,10 @@ GATE_REQUIRED = {
     "bmad-dev-story", "bmad-dev-auto", "bmad-quick-dev",
     "bmad-code-review", "bmad-agent-dev",
     "bmad-create-story",   # ONAYLANDI check on AC experiments = gate verifier
-    "gds-dev-story", "gds-quick-dev", "gds-code-review",
-    "gds-create-story",    # gds create-story is likewise a verifier
-    "gds-agent-game-dev", "wds-agent-mimir-builder",
 }
 MOD_A_RECORD_ONLY = {
     "bmad-research-experiment", "bmad-check-implementation-readiness",
     "bmad-sprint-planning",
-    "gds-check-implementation-readiness",
-    "gds-sprint-planning",
 }
 MIN_RECORD = 1
 MIN_GATE = 3
@@ -421,7 +415,7 @@ PLUGIN = os.environ.get("PLUGIN_ROOT") or "."
 # before starting the work"), so a bare workflow-stage command there runs the
 # whole flow during activation — E-040: the team override shipped "Define the
 # hypothesis" / "Create the experiment design" / "Analyze the results" as
-# activation steps (and the same shape in bmb/index/loop/module/shard/wds).
+# activation steps (and the same shape in bmb/index/loop/module/shard).
 # A valid step carries at least one frame marker:
 #   - a structured check ("LABEL: ..."),
 #   - a temporal/compliance frame ("before ", "after ", "during ", "per "),
@@ -480,9 +474,6 @@ GATE_REQUIRED = {
     "bmad-dev-story", "bmad-dev-auto", "bmad-quick-dev",
     "bmad-code-review", "bmad-agent-dev",
     "bmad-create-story",   # APPROVED check on AC experiments = gate verifier
-    "gds-dev-story", "gds-quick-dev", "gds-code-review",
-    "gds-create-story",    # gds create-story is likewise a verifier
-    "gds-agent-game-dev", "wds-agent-mimir-builder",
 }
 # Surfaces that carry the gate as a reference but don't enforce it (principle
 # statement or for training). For those in this list the hard-gate keyword is
@@ -556,7 +547,6 @@ PLUGIN = os.environ.get("PLUGIN_ROOT") or "."
 KOPRU = {
     "bmad-dev-story", "bmad-dev-auto", "bmad-quick-dev",
     "bmad-code-review", "bmad-create-story",
-    "gds-dev-story", "gds-code-review", "gds-quick-dev",
 }
 
 problems = []
@@ -588,54 +578,6 @@ if [ $? -eq 0 ]; then
     echo "[OK]   verify+error pattern present in all bridge skills"
 else
     echo "[WARNING] verify pattern missing (see above)"
-    PROBLEMS=$((PROBLEMS + 1))
-fi
-
-echo "== 5) gds-* Mod A bridge reference (dev-skill-to-methodology-bridge) =="
-# Note: the hard-gate keyword audit is done in §3; here we only check whether
-# the bmm module (gds) gives an explicit reference to the bridge document —
-# DRY (no duplicate hard-gate report).
-"$PY" - <<'PY'
-import glob, os, sys, tomllib
-for _s in (sys.stdout, sys.stderr):
-    try: _s.reconfigure(encoding="utf-8")
-    except (AttributeError, ValueError): pass
-
-PLUGIN = os.environ.get("PLUGIN_ROOT") or "."
-GDS_MOD_A = {
-    "gds-dev-story", "gds-create-story",
-    "gds-code-review", "gds-quick-dev",
-}
-
-problems = []
-checked = 0
-for name in sorted(GDS_MOD_A):
-    path = os.path.join(PLUGIN, "custom", name + ".toml")
-    if not os.path.isfile(path):
-        continue
-    try:
-        data = tomllib.load(open(path, "rb"))
-    except Exception:
-        continue
-    checked += 1
-    blob_parts = []
-    for sec in ("workflow", "agent"):
-        s = data.get(sec, {})
-        blob_parts += s.get("activation_steps_append", []) or []
-        blob_parts += s.get("principles", []) or []
-    blob = "\n".join(blob_parts)
-    if "dev-skill-to-methodology-bridge" not in blob:
-        problems.append("%s: no bridge reference (gds Mod A bmm contract)" % name)
-
-print("  checked gds Mod A: %d" % checked)
-for p in problems:
-    print("  MISS: %s" % p)
-raise SystemExit(1 if problems else 0)
-PY
-if [ $? -eq 0 ]; then
-    echo "[OK]   gds Mod A bridge references present"
-else
-    echo "[WARNING] gds Mod A bridge reference missing (see above)"
     PROBLEMS=$((PROBLEMS + 1))
 fi
 
@@ -737,7 +679,7 @@ with open(BRIDGE, encoding="utf-8") as f:
 
 # Catch three patterns in each file: "§N.N", "section N.N", and "bolum/bölüm N.N"
 # (case insensitive). The second and third patterns catch misspellings that
-# forgot the § prefix (e.g. "bolum 1.1 ve 3.1 Faz 3" — seen in 7 gds-* test files).
+# forgot the § prefix (e.g. "bolum 1.1 ve 3.1 Faz 3").
 SECTION_RE = re.compile(
     r'(?:§([0-9]+(?:\.[0-9]+[a-z]?)?)'
     r'|(?:section|bol[uü]m)\s+([0-9]+(?:\.[0-9]+[a-z]?)?))',

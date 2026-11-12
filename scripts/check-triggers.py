@@ -3,7 +3,7 @@
 
 Two skills sharing an identical description or a bare natural-language
 trigger cannot be routed deterministically: the harness must guess the
-vertical (bmad vs gds). Slash triggers ("/x") and skill-name triggers
+module. Slash triggers ("/x") and skill-name triggers
 are explicit user choices and exempt; every other shared trigger string
 and every byte-identical description is a collision.
 

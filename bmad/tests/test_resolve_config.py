@@ -212,18 +212,18 @@ def test_legacy_yaml_and_plugin_toml_deep_merge(plugin, tmp_path):
 def test_legacy_yaml_fills_missing_module_section(plugin, tmp_path):
     project = _make_project(tmp_path)
     _write_yaml(
-        project / "bmad" / "gds" / "config.yaml",
+        project / "bmad" / "demo" / "config.yaml",
         """
-game_dev_experience: intermediate
+flavor: intermediate
 user_name: Yunus
 output_folder: "{project-root}/bmad-output"
 """,
     )
-    out = _run(plugin, project, "--key", "modules.gds", "--key", "core.user_name")
-    assert out["modules.gds"]["game_dev_experience"] == "intermediate"
+    out = _run(plugin, project, "--key", "modules.demo", "--key", "core.user_name")
+    assert out["modules.demo"]["flavor"] == "intermediate"
     # Core keys stamped by the legacy installer are routed to the CORE merge,
     # NOT kept in the module section — stale stamps must never shadow live core.
-    assert "user_name" not in out["modules.gds"]
+    assert "user_name" not in out["modules.demo"]
     assert out["core.user_name"] == "Yunus"
 
 
@@ -344,11 +344,11 @@ def test_module_flat_output_merges_core(plugin, tmp_path):
     project = _make_project(tmp_path)
     _write_toml(
         project / "bmad" / "config.toml",
-        '[modules.wds]\nproject_type = "digital_product"\n',
+        '[modules.alt]\nproduct_type = "digital_product"\n',
     )
-    out = _run(plugin, project, "--module", "wds")
-    flat = out["wds"]
-    assert flat["project_type"] == "digital_product"
+    out = _run(plugin, project, "--module", "alt")
+    flat = out["alt"]
+    assert flat["product_type"] == "digital_product"
     # core keys included (from plugin base)
     assert flat["output_folder"] == "{project-root}/docs"
     assert flat["project_name"] == "base-project"
@@ -396,10 +396,10 @@ def test_bridge_arrays_replace_not_append(plugin, tmp_path):
     # Installer YAML carries the FULL value of a key, not a delta: the legacy
     # bridge must REPLACE arrays, not append ("en" + ["tr"] must not become
     # ["en", "tr"] — the real repo duplicated every list that way).
-    _write_toml(plugin / "bmad" / "config.toml", '[modules.wds]\nproduct_languages = ["en"]\n')
-    _write_yaml(project / "bmad" / "wds" / "config.yaml", "product_languages:\n  - tr\n")
-    out = _run(plugin, project, "--module", "wds")
-    assert out["wds"]["product_languages"] == ["tr"]
+    _write_toml(plugin / "bmad" / "config.toml", '[modules.alt]\nproduct_languages = ["en"]\n')
+    _write_yaml(project / "bmad" / "alt" / "config.yaml", "product_languages:\n  - tr\n")
+    out = _run(plugin, project, "--module", "alt")
+    assert out["alt"]["product_languages"] == ["tr"]
 
 
 def test_same_file_layers_not_double_applied(tmp_path):
@@ -412,14 +412,14 @@ def test_same_file_layers_not_double_applied(tmp_path):
     root.mkdir()
     _write_toml(
         root / "bmad" / "config.toml",
-        '[modules.gds]\nprimary_platform = ["unity", "unreal", "godot", "other"]\n',
+        '[modules.demo]\nplatforms = ["unity", "unreal", "godot", "other"]\n',
     )
     dest = root / "bmad" / "scripts"
     dest.mkdir(parents=True)
     shutil.copy(_SCRIPT, dest / "resolve_config.py")
-    out = _run_argv(_fresh_resolver(dest / "resolve_config.py"), _in_process_argv(dest / "resolve_config.py", root, ("--module", "gds")))
+    out = _run_argv(_fresh_resolver(dest / "resolve_config.py"), _in_process_argv(dest / "resolve_config.py", root, ("--module", "demo")))
     assert out["returncode"] == 0, out["stderr"]
-    assert json.loads(out["stdout"])["gds"]["primary_platform"] == ["unity", "unreal", "godot", "other"]
+    assert json.loads(out["stdout"])["demo"]["platforms"] == ["unity", "unreal", "godot", "other"]
 
 
 def test_keyed_array_merge_by_code():

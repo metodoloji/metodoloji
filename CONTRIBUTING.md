@@ -1,6 +1,6 @@
 # Contributing to Metodoloji
 
-Thank you for your interest in contributing to **Metodoloji**! We welcome contributions across our 129 skills, hook engine, workflow kernel, and documentation.
+Thank you for your interest in contributing to **Metodoloji**! We welcome contributions across our 71 skills, hook engine, workflow kernel, and documentation.
 
 ---
 

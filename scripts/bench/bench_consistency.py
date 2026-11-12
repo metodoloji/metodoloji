@@ -357,8 +357,8 @@ def _check_help_menu_code_uniqueness() -> str | None:
     misrouted a real session). A skill legitimately owns several menu codes
     (bmad-agent-builder: BA + AA) — uniqueness is per (module, code), not per
     skill; `_meta` rows carry no code. It also pins that every non-`_meta`
-    `skill` names a directory that ships (E-042): the Web Design Studio rows
-    offered `bmad-wds-*` names for dirs named `wds-*`.
+    `skill` names a directory that ships (E-042): a catalog row that offers a
+    skill with no `skills/<name>/` directory dies as "no such skill".
     """
     path = ROOT / "bmad" / "_config" / "bmad-help.csv"
     try:
@@ -1613,8 +1613,7 @@ def _check_remedies_and_session_guidance_pinned() -> str | None:
         problems.append("bootstrap.sh's session-start context lost the stale-root warning (E-037)")
     # 3. Review evidence rule on every surface that ships the review flow.
     for rel in ("docs/bmad/development-methodology.md",
-                "skills/bmad-code-review/SKILL.md",
-                "skills/gds-code-review/SKILL.md"):
+                "skills/bmad-code-review/SKILL.md"):
         if "VERIFIED by reading that file" not in _read(rel):
             problems.append(f"{rel} lost the verified-citation rule (E-037)")
     # 4. The version-literal classifier rule and its falsifiers ship.
@@ -1978,15 +1977,14 @@ def _check_bridge_producer_verify_audit() -> str | None:
     """E-018: the producer-VERIFY audit must read every producer BRIDGE surface.
 
     GUIDE.md promises "Producer BRIDGEs carry a VERIFY step ... (automatic
-    anti-skip check; audit #2c)" and names 17 producers — three of which keep
-    their BRIDGE inside ``[agent].principles``. Before E-018 #2c read only
-    ``workflow.activation_steps_append`` for 13 of them: stripping the VERIFY
+    anti-skip check; audit #2c)" and names the producers — one of which keeps
+    its BRIDGE inside ``[agent].principles``. Before E-018 #2c read only
+    ``workflow.activation_steps_append`` for most of them: stripping the VERIFY
     marker from an agent-principles producer (``bmad-agent-dev``) left the
-    audit green, and ``wds-5-agentic-development`` was never read at all. This
-    check pins #2c's producer set *and* per-surface key to GUIDE's documented
-    set, then re-evaluates the verify-marker invariant on each producer TOML —
-    so a surface cannot silently drop out of the audit (the "guard is only as
-    wide as this tuple" class E-002/E-017 named).
+    audit green. This check pins #2c's producer set *and* per-surface key to
+    GUIDE's documented set, then re-evaluates the verify-marker invariant on
+    each producer TOML — so a surface cannot silently drop out of the audit
+    (the "guard is only as wide as this tuple" class E-002/E-017 named).
     """
     problems: list[str] = []
     guide = _read("GUIDE.md")
@@ -2009,7 +2007,7 @@ def _check_bridge_producer_verify_audit() -> str | None:
         missing = sorted(documented - set(audited))
         extra = sorted(set(audited) - documented)
         problems.append(f"§2c producer set != GUIDE.md (missing {missing}, extra {extra})")
-    agent_surfaces = {"bmad-agent-dev", "gds-agent-game-dev", "gds-agent-game-solo-dev"}
+    agent_surfaces = {"bmad-agent-dev"}
     for name, key in audited.items():
         want = "agent.principles" if name in agent_surfaces else "workflow.activation_steps_append"
         if key != want:
@@ -2137,15 +2135,13 @@ def _check_bridge_section_refs_resolve() -> str | None:
 def _check_bridge_feeder_audit_covers_every_feeder() -> str | None:
     """E-020: the QR-feeder audit must cover every feeder BRIDGE surface.
 
-    The 33 BRIDGE surfaces partition cleanly: 17 carry a VERIFY step (producers,
-    guarded by §2c — E-018) and 16 do not (feeders, whose BRIDGE says "does not
-    produce an independent methodology record"). ``check-plugin.sh`` §2 lists
-    the TOML feeders but named only 9 of the 16 — the seven gds feeders
-    (``gds-test-*``, ``gds-e2e-scaffold``, ``gds-performance-test``,
-    ``gds-playtest-plan``) were never checked for the bridge reference + QR
-    target. This derives the feeder set from the feeder phrase (cross-checked
-    against the absence of a VERIFY step so the two signals agree) and pins §2's
-    list to it, then re-checks the bridge-reference + QR-target invariant.
+    The BRIDGE surfaces partition cleanly: producers carry a VERIFY step
+    (guarded by §2c — E-018) and feeders do not (their BRIDGE says "does not
+    produce an independent methodology record"). ``check-plugin.sh`` §2 must
+    list every feeder. This derives the feeder set from the feeder phrase
+    (cross-checked against the absence of a VERIFY step so the two signals
+    agree) and pins §2's list to it, then re-checks the bridge-reference +
+    QR-target invariant.
     """
     problems: list[str] = []
     script = _read("scripts/check-plugin.sh")
@@ -2191,10 +2187,9 @@ def _check_bridge_record_target_audit_covers_every_producer() -> str | None:
 
     §2's ``BRIDGE_SKILLS`` dict demands the bridge reference *and* the record
     path (``docs/development/stories/``, ``docs/quality/QR``, ...) on each
-    entry, but it listed only 7 of the 17 producers — the gds, gds-agent and wds
-    producers' record path was never verified. This pins the dict's keys to
-    GUIDE.md's documented producer set and re-checks the bridge reference plus
-    the record target on every producer TOML.
+    entry. This pins the dict's keys to GUIDE.md's documented producer set and
+    re-checks the bridge reference plus the record target on every producer
+    TOML.
     """
     problems: list[str] = []
     guide = _read("GUIDE.md")

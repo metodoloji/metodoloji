@@ -622,7 +622,7 @@ PROJECT = os.environ.get("PROJECT_ROOT") or "."
 # customize.toml and are audited through their SKILL.md manifesto pointer instead
 # (the loop's else branch). "graft" was a stale name — no such skill was ever in
 # the tree (`graft/` is a guard-free DIRECTORY, not a skill).
-EXCLUDED = {"memory", "sync"}
+EXCLUDED = set()
 
 # Development wing surfaces (development-methodology.md §6 mapping + dev agents):
 DEV_WING = {
@@ -635,7 +635,7 @@ DEV_WING = {
     "bmad-testarch-test-review", "bmad-testarch-trace",
     "bmad-code-review", "bmad-review-adversarial-general",
     "bmad-review-edge-case-hunter", "bmad-qa-generate-e2e-tests",
-    "bmad-eval-runner", "gds-performance-test", "bmad-document-project",
+    "bmad-eval-runner", "bmad-document-project",
     "bmad-retrospective", "bmad-correct-course", "bmad-sprint-status",
     "bmad-agent-dev", "bmad-agent-architect", "bmad-agent-pm",
     "bmad-agent-ux-designer", "bmad-agent-tech-writer", "bmad-tea",
@@ -744,9 +744,7 @@ if not os.path.isfile(BRIDGE):
 # QR records may live under docs/quality/ (new) or docs/development/ (legacy).
 # EVERY producer named by GUIDE.md "Producer (N, creates/updates records)" must
 # appear here so its record path is checked — the bench check "producer record
-# targets audited (E-021)" pins the keys to that documented set. Before E-021
-# this dict held 7 of the 17: the gds, gds-agent and wds producers' record path
-# was never verified.
+# targets audited (E-021)" pins the keys to that documented set.
 BRIDGE_SKILLS = {
     "bmad-check-implementation-readiness": ("IR", "docs/development/", "create"),
     "bmad-sprint-planning": ("SP", "docs/development/", "create"),
@@ -756,15 +754,6 @@ BRIDGE_SKILLS = {
     "bmad-quick-dev": ("S", "docs/development/stories/", "update"),
     "bmad-dev-auto": ("S", "docs/development/stories/", "update"),
     "bmad-agent-dev": ("S", "docs/development/stories/", "update"),
-    "gds-check-implementation-readiness": ("IR", "docs/development/", "create"),
-    "gds-sprint-planning": ("SP", "docs/development/", "create"),
-    "gds-create-story": ("S", "docs/development/stories/", "create"),
-    "gds-code-review": ("QR", "docs/quality/QR", "create"),
-    "gds-dev-story": ("S", "docs/development/stories/", "update"),
-    "gds-quick-dev": ("S", "docs/development/stories/", "update"),
-    "gds-agent-game-dev": ("S", "docs/development/stories/", "update"),
-    "gds-agent-game-solo-dev": ("S", "docs/development/stories/", "update"),
-    "wds-5-agentic-development": ("S", "docs/development/stories/", "update"),
 }
 for skill, (rec_type, target, _) in BRIDGE_SKILLS.items():
     toml_path = os.path.join(PLUGIN, "custom", "%s.toml" % skill)
@@ -807,15 +796,12 @@ for skill in QR_FEEDERS_SKILLMD:
 # This list must equal the tree's FEEDER BRIDGE surfaces: every custom/*.toml that
 # cites the bridge but carries no VERIFY step (its BRIDGE says "does not produce
 # an independent methodology record"). The bench check "QR feeder audit covers
-# every feeder surface (E-020)" pins that equality. Before E-020 it named only 9
-# of the 16 — the seven gds feeders were never read here.
+# every feeder surface (E-020)" pins that equality.
 QR_FEEDERS_TOML = [
     "bmad-qa-generate-e2e-tests",
     "bmad-testarch-atdd", "bmad-testarch-automate", "bmad-testarch-ci",
     "bmad-testarch-framework", "bmad-testarch-nfr", "bmad-testarch-test-design",
     "bmad-testarch-test-review", "bmad-testarch-trace",
-    "gds-test-automate", "gds-test-design", "gds-test-framework", "gds-test-review",
-    "gds-e2e-scaffold", "gds-performance-test", "gds-playtest-plan",
 ]
 for skill in QR_FEEDERS_TOML:
     toml_path = os.path.join(PLUGIN, "custom", "%s.toml" % skill)
@@ -867,15 +853,10 @@ TOML_SKILLS = [
     "bmad-testarch-atdd", "bmad-testarch-automate", "bmad-testarch-ci",
     "bmad-testarch-framework", "bmad-testarch-nfr", "bmad-testarch-test-design",
     "bmad-testarch-test-review", "bmad-testarch-trace",
-    "gds-dev-story", "gds-quick-dev", "gds-code-review",
-    "gds-check-implementation-readiness", "gds-sprint-planning", "gds-create-story",
-    "gds-test-automate", "gds-test-design", "gds-test-framework",
-    "gds-test-review", "gds-e2e-scaffold", "gds-performance-test", "gds-playtest-plan",
-    "wds-5-agentic-development",
 ]
 # Agent-BRIDGE surfaces: BRIDGE lives in [agent].principles, not workflow steps.
 AGENT_TOML_SKILLS = [
-    "bmad-agent-dev", "gds-agent-game-dev", "gds-agent-game-solo-dev",
+    "bmad-agent-dev",
 ]
 missing = []
 checked = 0
@@ -928,9 +909,8 @@ RESOLVER = PLUGIN / "hooks" / "engine" / "resolve_customization.py"
 # creates/updates records)" — the bench check "producer VERIFY audit covers
 # every producer surface (E-018)" pins that equality, so a surface cannot drop
 # out of the audit. Before E-018 §2c read only workflow.activation_steps_append
-# for 13 of the 17 producers: the three agent-principles producers were never
-# read (probe: stripping VERIFY from bmad-agent-dev left §2c green) and
-# wds-5-agentic-development was not listed at all.
+# for 13 of the producers; the agent-principles producers were never read
+# (probe: stripping VERIFY from bmad-agent-dev left §2c green).
 PRODUCER_KEY = {
     "bmad-check-implementation-readiness": "workflow.activation_steps_append",
     "bmad-sprint-planning": "workflow.activation_steps_append",
@@ -940,15 +920,6 @@ PRODUCER_KEY = {
     "bmad-quick-dev": "workflow.activation_steps_append",
     "bmad-dev-auto": "workflow.activation_steps_append",
     "bmad-agent-dev": "agent.principles",
-    "gds-check-implementation-readiness": "workflow.activation_steps_append",
-    "gds-sprint-planning": "workflow.activation_steps_append",
-    "gds-create-story": "workflow.activation_steps_append",
-    "gds-code-review": "workflow.activation_steps_append",
-    "gds-dev-story": "workflow.activation_steps_append",
-    "gds-quick-dev": "workflow.activation_steps_append",
-    "gds-agent-game-dev": "agent.principles",
-    "gds-agent-game-solo-dev": "agent.principles",
-    "wds-5-agentic-development": "workflow.activation_steps_append",
 }
 missing = []
 checked = 0
@@ -1404,7 +1375,7 @@ fi
 
 echo "== 5c) custom/ bridge TOMLs static quality audit =="
 # check-custom.sh §0-§6: TOML parse, persistent_facts, depth, hard-gate
-# keywords, DOGRULAMA pattern, gds Mod A bridge reference, config
+# keywords, DOGRULAMA pattern, config
 # soft/hard contract. Independent script; same style, same [OK]/[WARNING]/[ERROR]
 # output. Root output kept internal; only exit code added to PROBLEMS.
 if [ -f "$SELF/check-custom.sh" ]; then
@@ -1759,9 +1730,7 @@ HEADER = ["module", "skill", "display-name", "menu-code", "description", "action
 # Cross-module collisions that predate this check (upstream module codes we do
 # not rename). A code that is NOT in here and is shared by two skills is a new
 # ambiguity: either rename one side or add it here with a reason.
-KNOWN_AMBIGUOUS = {"AT", "CC", "CE", "CR", "CS", "CU", "DP", "DR", "DS",
-                   "ER", "ES", "FI", "IR", "PRD", "SB", "SP", "SS", "ST",
-                   "TA", "TD", "TF", "TR", "VD"}
+KNOWN_AMBIGUOUS = {"TR"}
 # The record chain's prefixes (E/IR/SP/S/QR/PR) belong to RECORDS. A skill
 # whose stage produces that record may still wear the code (bmad-sprint-planning
 # → SP, bmad-check-implementation-readiness → IR); anything else wearing it is a
@@ -1837,10 +1806,9 @@ for code in RESERVED_PREFIXES:
                      "that record" % (code, code, named))
 
 # Every catalog `skill` value must name a skill that actually ships (E-042).
-# The Web Design Studio rows offered `bmad-wds-*` names while the dirs are
-# `wds-*`, so /bmad-help recommended skills that do not exist (an offer to run
-# `bmad-wds-project-brief` dies as "no such skill"). `_meta` rows are module
-# docs, not skills. The offer must resolve where it is taught.
+# A catalog row that offers a skill with no `skills/<name>/` directory dies as
+# "no such skill" when the user picks it. `_meta` rows are module docs, not
+# skills. The offer must resolve where it is taught.
 shipped = {p.parent.name for p in (PLUGIN / "skills").glob("*/SKILL.md")}
 for row in rows[1:]:
     if len(row) != len(HEADER):
@@ -1867,7 +1835,7 @@ fi
 
 echo "== 6f) Trigger/description collisions (routing determinism, F4.1) =="
 # scripts/check-triggers.py: identical descriptions or shared bare triggers
-# across skills make routing non-deterministic (bmad vs gds vertical).
+# across skills make routing non-deterministic (cross-module).
 # Presence, not a bare call: an unguarded `python3` on a missing sibling emits
 # an interpreter error that this stage then counts as a collision — a false
 # ERROR on an otherwise healthy tree (same stale-tool class as the §6b `-x`

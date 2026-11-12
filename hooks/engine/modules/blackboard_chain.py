@@ -32,10 +32,6 @@ _KEY_PREFIX_TO_SKILL = [
     ("research.market.", "bmad-market-research"),
     ("research.domain.", "bmad-domain-research"),
     ("research.tech.", "bmad-technical-research"),
-    ("cis.design.", "bmad-cis-design-thinking"),
-    ("cis.innovation.", "bmad-cis-innovation-strategy"),
-    ("cis.solving.", "bmad-cis-problem-solving"),
-    ("cis.story.", "bmad-cis-storytelling"),
     ("retro.", "bmad-retrospective"),
     ("change.", "bmad-correct-course"),
     # ALT DEV BRANCH prefixes (alternative implementations of the dev stage)
@@ -53,47 +49,6 @@ _KEY_PREFIX_TO_SKILL = [
     ("test.trace.", "bmad-testarch-trace"),
     ("test.e2e.", "bmad-qa-generate-e2e-tests"),
     ("teach.", "bmad-teach-me-testing"),
-    # GDS prefixes (game vertical — specific before generic)
-    ("gds.quickdev.", "gds-quick-dev"),
-    ("gds.agentdev.", "gds-agent-game-dev"),
-    ("gds.solodev.", "gds-agent-game-solo-dev"),
-    ("gds.research.", "gds-domain-research"),
-    ("gds.brainstorm.", "gds-brainstorm-game"),
-    ("gds.brief.", "gds-create-game-brief"),
-    ("gds.narrative.", "gds-create-narrative"),
-    ("gds.gdd.", "gds-gdd"),
-    ("gds.ux.", "gds-ux"),
-    ("gds.prd.", "gds-prd"),
-    ("gds.architecture.", "gds-game-architecture"),
-    ("gds.ir.", "gds-check-implementation-readiness"),
-    ("gds.sp.", "gds-sprint-planning"),
-    ("gds.story.", "gds-create-story"),
-    ("gds.dev.", "gds-dev-story"),
-    ("gds.review.", "gds-code-review"),
-    ("gds.test.design.", "gds-test-design"),
-    ("gds.test.framework.", "gds-test-framework"),
-    ("gds.test.automate.", "gds-test-automate"),
-    ("gds.test.review.", "gds-test-review"),
-    ("gds.test.e2e.", "gds-e2e-scaffold"),
-    ("gds.test.perf.", "gds-performance-test"),
-    ("gds.playtest.", "gds-playtest-plan"),
-    ("gds.retro.", "gds-retrospective"),
-    ("gds.change.", "gds-correct-course"),
-    ("gds.status.", "gds-sprint-status"),
-    ("gds.investigate.", "gds-investigate"),
-    ("gds.", "gds-generic"),
-    # WDS prefixes (web design vertical — numbered phases before generic)
-    ("wds.setup.", "wds-0-project-setup"),
-    ("wds.signoff.", "wds-0-alignment-signoff"),
-    ("wds.brief.", "wds-1-project-brief"),
-    ("wds.trigger.", "wds-2-trigger-mapping"),
-    ("wds.scenario.", "wds-3-scenarios"),
-    ("wds.ux.", "wds-4-ux-design"),
-    ("wds.dev.", "wds-5-agentic-development"),
-    ("wds.asset.", "wds-6-asset-generation"),
-    ("wds.designsystem.", "wds-7-design-system"),
-    ("wds.evolve.", "wds-8-product-evolution"),
-    ("wds.", "wds-generic"),
     ("prd.", "bmad-prd"),
     ("ux.", "bmad-ux"),
     ("architecture.", "bmad-architecture"),
@@ -266,7 +221,7 @@ def chain_health(project_root: str, *, now: float | None = None) -> dict:
             {(h["from"], h["to"]) for h in methodology_chain} |
             {(h["from"], h["to"]) for hops in sub_chains.values() for h in hops})
     # Chain-adjacent surfaces (help, infrastructure, the loop orchestrator's
-    # automation layer, the WDS backends) declare no hop, but a signal
+    # automation layer) declare no hop, but a signal
     # addressed to a KNOWN skill is still first-class diagnostic data — only
     # genuinely unknown receivers land in 'extra'. They report as a single
     # self-hop so their waiting count stays visible without inventing a relay.

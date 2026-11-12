@@ -52,7 +52,7 @@ transition. Either runner needs Python 3.11+ for `tomllib`.
   uv run resolve_config.py --project-root ... --key core
   uv run resolve_config.py --project-root ... --key agents
   uv run resolve_config.py --project-root ... --module tea
-  uv run resolve_config.py --project-root ... --module tea --module wds
+  uv run resolve_config.py --project-root ... --module tea --module bmb
 
 ``--project-root`` is resolved with ``Path.resolve()``, i.e. relative to the
 PROCESS's current working directory — a bare ``.`` works only when you invoke
@@ -520,7 +520,7 @@ def main():
     )
     parser.add_argument(
         "--module", "-m", action="append", default=[],
-        help="Module code (e.g. tea, wds) — output a flat core+module object (repeatable)",
+        help="Module code (e.g. tea, bmb) — output a flat core+module object (repeatable)",
     )
     parser.add_argument(
         "--key", "-k", action="append", default=[],

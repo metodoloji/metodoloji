@@ -11,8 +11,7 @@ loop. The ledger is append-only and lives at
   exists, add a `seen-again: <date> (<origin>)` line instead of a duplicate.
 - Canonical format, severity vocabulary and sweep annotations:
   `{metodoloji-root}/skills/bmad-loop-sweep/deferred-work-format.md`.
-- Writers: `bmad-code-review`, `bmad-quick-dev`, `bmad-dev-auto` (and the gds
-  equivalents). Triage/close: `bmad-loop-sweep` (bmad-loop) or the maintainer.
+- Writers: `bmad-code-review`, `bmad-quick-dev`, `bmad-dev-auto`. Triage/close: `bmad-loop-sweep` (bmad-loop) or the maintainer.
 - Nothing blocks by default: the orient digest counts open entries, the audit
   parses the format, and the commit gate names open entries as an advisory.
 

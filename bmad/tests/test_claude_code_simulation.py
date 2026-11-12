@@ -232,7 +232,7 @@ status: approved
 Placeholder hypothesis for testing.
 
 ## Code Scope
-bmad/gds/workflows/1-preproduction/research
+bmad/bmm/workflows/research
 
 ## Measurement Command
 echo "test measurement"
@@ -320,7 +320,7 @@ def _phase_1_cascade_and_cache(temp_root: str) -> dict:
     print("\n[Test 1.1] Guard detects forged token and posts cascade alert...")
     try:
         payload = ClaudeCodePayloadSimulator.write_file(
-            file_path="bmad/gds/workflows/1-preproduction/research/test.md",
+            file_path="bmad/bmm/workflows/research/test.md",
             content="# Test Content",
             cwd=temp_root,
         )
@@ -371,7 +371,7 @@ def _phase_1_cascade_and_cache(temp_root: str) -> dict:
     try:
         # Guard should cache verification results with version
         payload2 = ClaudeCodePayloadSimulator.edit_file(
-            file_path="bmad/gds/workflows/1-preproduction/research/test2.md",
+            file_path="bmad/bmm/workflows/research/test2.md",
             content="# Test Content 2",
             cwd=temp_root,
         )
@@ -450,7 +450,7 @@ def _phase_2_session_and_canvas(temp_root: str) -> dict:
     try:
         # Simulate a write with session context
         payload = ClaudeCodePayloadSimulator.write_file(
-            file_path="bmad/gds/workflows/1-preproduction/research/session-test.md",
+            file_path="bmad/bmm/workflows/research/session-test.md",
             content="# Session Test",
             cwd=temp_root,
         )
@@ -725,7 +725,7 @@ def _phase_4_taxonomy_and_diagnostics(temp_root: str) -> dict:
     try:
         # Guard should write diagnostic about decision
         payload = ClaudeCodePayloadSimulator.write_file(
-            file_path="bmad/gds/workflows/test-diagnostic.md",
+            file_path="bmad/bmm/workflows/test-diagnostic.md",
             content="# Diagnostic Test",
             cwd=temp_root,
         )
@@ -827,7 +827,7 @@ def _end_to_end_workflow(temp_root: str) -> dict:
     print(f"\n[Step 2] PreToolUse Guard for Edit tool...")
     try:
         guard_payload = ClaudeCodePayloadSimulator.edit_file(
-            file_path="bmad/gds/workflows/1-preproduction/research/e2e-test.md",
+            file_path="bmad/bmm/workflows/research/e2e-test.md",
             content="# E2E Test File\n\nThis tests the full workflow.",
             cwd=temp_root,
         )
@@ -853,7 +853,7 @@ def _end_to_end_workflow(temp_root: str) -> dict:
     # Step 3: Tool executes (simulated)
     print(f"\n[Step 3] Tool executes (write to file)...")
     try:
-        target_file = Path(temp_root) / "bmad" / "gds" / "workflows" / "1-preproduction" / "research" / "e2e-test.md"
+        target_file = Path(temp_root) / "bmad" / "bmm" / "workflows" / "research" / "e2e-test.md"
         target_file.parent.mkdir(parents=True, exist_ok=True)
         target_file.write_text("# E2E Test File\n\nThis tests the full workflow.")
         print(f"  ✓ File written: {target_file}")
