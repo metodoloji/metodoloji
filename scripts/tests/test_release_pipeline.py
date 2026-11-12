@@ -34,8 +34,6 @@ import re
 import shutil
 import subprocess
 
-import pytest
-
 PLUGIN = pathlib.Path(__file__).resolve().parents[2]
 WORKFLOW = PLUGIN / ".github" / "workflows" / "release-numbers.yml"
 STEP = "Verify the numbers and tag every commit this push carried"
@@ -365,6 +363,27 @@ def test_a_stale_tree_is_refused_naming_the_number_it_owns(tmp_path):
     assert _tag_target(work, "v0.1.3") == ""
 
 
+def test_a_commit_with_no_readable_version_is_refused_loudly(tmp_path):
+    """A missing number must NAME the commit, not die in a silent `set -e` exit.
+
+    The step reads the tree's number with `git show | grep | sed`. When the
+    manifest carries no version line, grep exits 1 and `set -e` + `pipefail`
+    killed the whole job with an empty log — a red X that says nothing. The
+    empty value would also have flowed into `.0`, a tag name nobody meant.
+    """
+    work, _ = _bootstrap(tmp_path, positions=3)
+    (work / ".plugin" / "plugin.json").write_text(
+        json.dumps({"name": "metodoloji"}), encoding="utf-8")
+    before = _git(work, "rev-parse", "HEAD")
+    _git(work, "add", "-A")
+    _git(work, "commit", "-qm", "drop the version line", "--no-verify")
+    _git(work, "push", "-q", "origin", "main")
+    message = _Job(work, before).run().failed()
+
+    assert "::error::" in message and "no readable version" in message, message
+    assert _tag_target(work, "v0.1.3") == ""
+
+
 def test_illegal_auto_number_is_refused_and_never_tagged(tmp_path):
     """`0.1.150` is not a number the rule can produce: refused, with the fix.
 
@@ -405,3 +424,40 @@ def test_step_body_is_extractable_and_template_free():
     assert not body.lstrip().startswith(("if:", "run:", "id:")), body[:80]
     assert "$ {{" not in _subst(body, "0" * 40)
     assert re.search(r"\S", body)
+
+
+def test_a_version_that_is_not_a_number_is_refused_not_tagged(tmp_path):
+    """`banana.0` is not a declaration — it was tagged as `vbanana.0`.
+
+    `--is-auto` exits 1 for a valid declared line AND for a string that is not
+    a version, so the else branch read any junk as a declared line: with
+    `banana.0` the derived expectation was `banana.0` itself, the comparison
+    passed, and the step published a tag no rule can produce. Shape is checked
+    before the line is classified.
+    """
+    work, _ = _bootstrap(tmp_path, positions=3)
+    (work / ".plugin" / "plugin.json").write_text(
+        json.dumps({"name": "metodoloji", "version": "banana.0"}), encoding="utf-8")
+    before = _git(work, "rev-parse", "HEAD")
+    _git(work, "add", "-A")
+    _git(work, "commit", "-qm", "declare the banana line [line banana.0]", "--no-verify")
+    _git(work, "push", "-q", "origin", "main")
+    message = _Job(work, before).run().failed()
+
+    assert "::error::" in message and "not a plain X.Y.Z" in message, message
+    assert _tag_target(work, "vbanana.0") == ""
+
+
+def test_step_resolves_its_interpreter_instead_of_assuming_python():
+    """`python` is absent on a python3-only host — and the failure was silent.
+
+    `if python … --is-auto` fails for lack of an interpreter, the else branch
+    reads the version as a declared line, and a valid block-boundary release is
+    refused as "never declared" (the 0.2.0 case). The step must resolve
+    python3 → python → py like the rest of the repo, and say so when none exists.
+    """
+    body = _step_body()
+    assert "python scripts/versioning.py" not in body, \
+        "a bare `python` makes a missing interpreter read as a declared line"
+    assert '"$PY" scripts/versioning.py' in body
+    assert "command -v python3" in body and "no python interpreter" in body

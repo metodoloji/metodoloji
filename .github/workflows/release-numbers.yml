@@ -49,6 +49,16 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           ROOT_COMMIT="$(git rev-list --max-parents=0 HEAD | tail -1)"
+          # Resolve the interpreter the way the rest of the repo does
+          # (python3 → python → py). A bare `python` that is missing makes the
+          # --is-auto probe fail, and the step then silently takes the
+          # declared-line branch — refusing a valid block-boundary release as
+          # "never declared". A missing interpreter must fail the step instead.
+          PY="$(command -v python3 || command -v python || command -v py || true)"
+          if [ -z "$PY" ]; then
+            echo "::error::no python interpreter on PATH — cannot derive the release number"
+            exit 1
+          fi
           BEFORE="${{ github.event.before }}"
           # A force-push leaves `before` outside the fetched history — ask the
           # server for it, so the range stays exactly the commits this push
@@ -77,11 +87,27 @@ jobs:
           # from a number someone typed), then we verify all of it before a
           # single pointer is published.
           for COMMIT in $(git rev-list --reverse "$RANGE"); do
-            TREE_VERSION="$(git show "$COMMIT:.plugin/plugin.json" \
-              | grep -m1 -o '"version": *"[^"]*"' | sed 's/.*"version": *"//;s/"//')"
-            if python scripts/versioning.py --is-auto "$TREE_VERSION" >/dev/null 2>&1; then
+            # `|| true`: `set -e` + `pipefail` killed the whole step inside this
+            # substitution when the manifest had no version line, so the job went
+            # red with NO output at all. A missing number is a refusal that must
+            # name its commit (E-126).
+            TREE_VERSION="$(git show "$COMMIT:.plugin/plugin.json" 2>/dev/null \
+              | grep -m1 -o '"version": *"[^"]*"' | sed 's/.*"version": *"//;s/"//' || true)"
+            if [ -z "$TREE_VERSION" ]; then
+              printf '%s %s %s %s\n' "$COMMIT" "-" "-" "noversion" >> "$PLAN"
+              continue
+            fi
+            # `--is-auto` exits 1 for a valid DECLARED line and for a string
+            # that is not a version at all, so the else branch alone read
+            # "banana" as a declared line and published vbanana.0. Shape is
+            # checked first: `--opening` parses and refuses anything not X.Y.Z.
+            if ! "$PY" scripts/versioning.py --opening "$TREE_VERSION" >/dev/null 2>&1; then
+              printf '%s %s %s %s\n' "$COMMIT" "$TREE_VERSION" "-" "unparseable" >> "$PLAN"
+              continue
+            fi
+            if "$PY" scripts/versioning.py --is-auto "$TREE_VERSION" >/dev/null 2>&1; then
               POSITION="$(git rev-list --count "$ROOT_COMMIT..$COMMIT")"
-              EXPECTED="$(python scripts/versioning.py --position "$POSITION")"
+              EXPECTED="$("$PY" scripts/versioning.py --position "$POSITION")"
               MARKER="ok"
             else
               BASE="${TREE_VERSION%.*}"
@@ -108,7 +134,13 @@ jobs:
           done
           FAIL=0
           while read -r COMMIT TREE_VERSION EXPECTED MARKER; do
-            if [ "$MARKER" = "missing" ]; then
+            if [ "$MARKER" = "noversion" ]; then
+              echo "::error::$COMMIT has no readable version in .plugin/plugin.json — a release commit must carry the number its position owns"
+              FAIL=1
+            elif [ "$MARKER" = "unparseable" ]; then
+              echo "::error::$COMMIT carries '$TREE_VERSION', which is not a plain X.Y.Z number — the pipeline will not tag a name it cannot derive"
+              FAIL=1
+            elif [ "$MARKER" = "missing" ]; then
               echo "::error::$COMMIT claims the line ${EXPECTED%.*}.0 but carries no '[line ${EXPECTED%.*}.0]' marker and that line was never declared — a major line opens only by an explicit human declaration"
               FAIL=1
             elif [ "$TREE_VERSION" != "$EXPECTED" ]; then

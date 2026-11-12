@@ -1,0 +1,5 @@
+{"check": "resolves_its_interpreter", "ok": false, "detail": "the step resolves python3 → python → py instead of assuming `python`"}
+{"check": "block_boundary_release_is_tagged", "ok": false, "detail": "position 100 is tagged v0.2.0, not refused as an undeclared line"}
+{"check": "missing_version_is_refused_loudly", "ok": false, "detail": "a tree with no version line fails with a named ::error::"}
+{"check": "unparseable_version_is_refused", "ok": false, "detail": "a version that is not X.Y.Z fails with a named ::error:: and no tag"}
+{"check": "normal_release_still_passes", "ok": true, "detail": "an ordinary positional release still verifies and tags"}

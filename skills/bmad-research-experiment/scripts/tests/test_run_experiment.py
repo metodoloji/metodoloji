@@ -6,6 +6,7 @@ the advisory-block / legacy-token verify paths.
 """
 
 import os
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -1057,14 +1058,23 @@ def _control_fixture(tmp_path):
     return project, record
 
 
+def _probe_cmd(*extra: str) -> str:
+    """The fixture bench, run by the interpreter running this test."""
+    return " ".join([shlex.quote(sys.executable), "scripts/bench/probe.py", *extra])
+
+
 def _run_control_gate(project, record, control):
     env = dict(os.environ, BMAD_GATE_KEY="test-secret")
     env.pop("CLAUDE_PROJECT_DIR", None)
     env.pop("OPENHANDS_PROJECT_DIR", None)
+    # The interpreter the test itself runs under, not a bare `python`: on a
+    # python3-only host (the repo's documented convention) the command never
+    # starts, and rule 7 — the gate's own anti-self-deception check — would
+    # silently never run there.
     return subprocess.run(
         [sys.executable, str(SCRIPTS_DIR / "run_experiment.py"),
          "--record", str(record),
-         "--run", "python scripts/bench/probe.py",
+         "--run", _probe_cmd(),
          "--control", control,
          "--no-blackboard"],
         cwd=str(project), capture_output=True, text=True, encoding="utf-8",
@@ -1074,7 +1084,7 @@ def _run_control_gate(project, record, control):
 def test_rule7_a_control_that_also_passes_refuses_the_record(tmp_path):
     """A bench that cannot separate working code from broken code mints nothing."""
     project, record = _control_fixture(tmp_path)
-    proc = _run_control_gate(project, record, "python scripts/bench/probe.py")
+    proc = _run_control_gate(project, record, _probe_cmd())
     assert proc.returncode == 3, proc.stdout + proc.stderr
     text = record.read_text(encoding="utf-8")
     assert "**Decision:**" not in text, "an unfalsifiable bench must not be decided"
@@ -1083,7 +1093,7 @@ def test_rule7_a_control_that_also_passes_refuses_the_record(tmp_path):
 
 def test_rule7_a_failing_control_approves_and_records_the_proof(tmp_path):
     project, record = _control_fixture(tmp_path)
-    proc = _run_control_gate(project, record, "python scripts/bench/probe.py --broken")
+    proc = _run_control_gate(project, record, _probe_cmd("--broken"))
     assert proc.returncode == 0, proc.stdout + proc.stderr
     text = record.read_text(encoding="utf-8")
     assert "**Decision:** APPROVED" in text
