@@ -214,7 +214,7 @@ finally:
 # §6e should catch the intra-module duplicate (the ambiguity class that made
 # "[SP]" mean two different skills).
 print(f"[6/{total_stages}] does §6e catch a duplicate menu code inside one module")
-catalog = PLUGIN / "bmad" / "_config" / "bmad-help.csv"
+catalog = PLUGIN / "skills" / "bmad-help" / "references" / "bmad-help.csv"
 cat_orig = catalog.read_bytes()
 cat_text = cat_orig.decode("utf-8")
 # Core/bmad-spec ships as SPEC; EP is Core/bmad-editorial-review-prose in the
