@@ -221,8 +221,14 @@ def _apply_event(board: dict, ev: dict) -> None:
         watcher = str(ev.get("watcher", ""))[:100]
         pattern = str(ev.get("pattern", ""))[:200]
         channel = str(ev.get("channel", "session"))[:_bb.MAX_CHANNEL_LEN]
+        # Identity is (watcher, pattern, channel) — not (watcher, pattern).
+        # Channel-blind dedupe meant a watcher could never receive the same
+        # pattern on a second channel: the subscribe returned ok and the watch
+        # never existed (DW-2 in the deferred ledger). A repeated triple is
+        # still deduped, so re-running a skill's activation stays idempotent.
         if watcher and pattern and not any(
                 s["watcher"] == watcher and s["pattern"] == pattern
+                and s.get("channel", "session") == channel
                 for s in board["subscriptions"]):
             board["subscriptions"].append(
                 {"watcher": watcher, "pattern": pattern, "channel": channel,
@@ -231,9 +237,13 @@ def _apply_event(board: dict, ev: dict) -> None:
                 board["subscriptions"].pop(0)
     elif kind == "unsubscribe":
         watcher, pattern = str(ev.get("watcher", "")), str(ev.get("pattern", ""))
+        # `channel` absent means "every channel for this pair" — the historical
+        # contract, kept so an existing caller still clears the whole watch.
+        channel = str(ev.get("channel", "")).strip()[:_bb.MAX_CHANNEL_LEN]
         board["subscriptions"] = [
             s for s in board["subscriptions"]
-            if not (s["watcher"] == watcher and s["pattern"] == pattern)]
+            if not (s["watcher"] == watcher and s["pattern"] == pattern
+                    and (not channel or s.get("channel", "session") == channel))]
     elif kind == "consume":
         chan = str(ev.get("channel", ""))
         # Fold the finished handshake into the board before dropping the

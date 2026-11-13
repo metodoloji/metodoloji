@@ -16,7 +16,8 @@ status: open
 origin: code review of S-001, 2026-11-03
 location: blackboard_fold.py:224-226
 reason: `blackboard_fold.py:224-226` Pre-existing engine behaviour; no current pair repeats.
-status: open
+status: done 2026-11-13
+resolution: E-141 — the watch's identity is (watcher, pattern, channel) in both the direct write and the fold, `subscribe` reports `created`, and `unsubscribe` gained `--channel` (omitting it still clears the pair).
 
 ### DW-3: Runbook radar parser accepts only `(session|stop)` channels
 

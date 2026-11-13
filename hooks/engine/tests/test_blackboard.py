@@ -1072,6 +1072,66 @@ def test_unsubscribe_stops_routing(root):
     bb.write_key(root, "prd.x", "v")
     assert bb.pending_alerts(root) == []
 
+def test_one_watcher_watches_one_pattern_on_several_channels(root):
+    """A watch's identity is (watcher, pattern, channel) — DW-2.
+
+    Channel-blind dedupe meant the second subscribe returned ok and the watch
+    never existed, so a skill could not route one pattern to both SessionStart
+    and Stop. The ack's `created` flag says which happened: a caller that
+    believes a watch is live should not have to infer it from a plane read.
+    """
+    first = bb.subscribe(root, "w", "prd.*", channel="session")
+    second = bb.subscribe(root, "w", "prd.*", channel="stop")
+    assert first["created"] is True
+    assert second["created"] is True
+    channels = sorted(s["channel"] for s in bb.read_board(root)["subscriptions"])
+    assert channels == ["session", "stop"]
+    # Both watches actually route.
+    bb.write_key(root, "prd.x", "v")
+    assert bb.pending_alerts(root, "session")
+    assert bb.pending_alerts(root, "stop")
+
+
+def test_repeating_the_same_triple_is_idempotent(root):
+    """Re-running a skill's activation must not grow the plane."""
+    assert bb.subscribe(root, "w", "prd.*", channel="stop")["created"] is True
+    again = bb.subscribe(root, "w", "prd.*", channel="stop")
+    assert again["created"] is False
+    assert len(bb.read_board(root)["subscriptions"]) == 1
+
+
+def test_unsubscribe_one_channel_leaves_the_others(root):
+    for ch in ("session", "stop", "release"):
+        bb.subscribe(root, "w", "prd.*", channel=ch)
+    removed = bb.unsubscribe(root, "w", "prd.*", channel="stop")
+    assert removed["removed"] == 1
+    left = sorted(s["channel"] for s in bb.read_board(root)["subscriptions"])
+    assert left == ["release", "session"]
+
+
+def test_unsubscribe_without_channel_clears_every_channel(root):
+    """The historical contract: no channel means the whole pair goes."""
+    for ch in ("session", "stop"):
+        bb.subscribe(root, "w", "prd.*", channel=ch)
+    removed = bb.unsubscribe(root, "w", "prd.*")
+    assert removed["removed"] == 2
+    assert bb.read_board(root)["subscriptions"] == []
+
+
+def test_subscription_channels_survive_an_event_log_replay(root):
+    """The board is rebuilt from the event log: a replay must agree exactly.
+
+    The fold applies the same rule the direct write does, so a divergence here
+    would make every snapshot rebuild silently drop a channel.
+    """
+    for ch in ("session", "stop", "release"):
+        bb.subscribe(root, "w", "prd.*", channel=ch)
+    bb.unsubscribe(root, "w", "prd.*", channel="stop")
+    before = bb.read_board(root)["subscriptions"]
+    bb.rebuild(root)
+    assert bb.read_board(root)["subscriptions"] == before
+    assert sorted(s["channel"] for s in before) == ["release", "session"]
+
 
 def test_consume_clears_only_target_channel(root):
     bb.subscribe(root, "w", "prd.*", channel="stop")
@@ -2759,4 +2819,29 @@ def test_subscription_cap_announces_the_eviction(root, capsys):
     # Re-subscribing an existing pair grows nothing: no eviction, no notice.
     bb.subscribe(root, "build-w1", "key-1.*")
     assert "bounds enforced" not in capsys.readouterr().err
+
+
+def test_a_second_channel_is_a_new_entry_and_can_evict(root, capsys):
+    """The cap counts entries, not watchers — a second channel costs a slot.
+
+    With (watcher, pattern, channel) as the identity, watching one pattern on
+    two channels is two entries. On a full plane the new entry evicts the
+    oldest and must say so: silence here would hide a dropped watch exactly the
+    way the pre-DW-2 dedupe did.
+    """
+    cap = bb.MAX_SUBSCRIPTIONS
+    for i in range(cap - 1):
+        bb.subscribe(root, f"cap-w{i}", f"key-{i}.*")
+    bb.subscribe(root, "cap-target", "target.*", channel="session")
+    capsys.readouterr()
+
+    ack = bb.subscribe(root, "cap-target", "target.*", channel="stop")
+    err = capsys.readouterr().err
+
+    assert ack["ok"] is True and ack["created"] is True
+    assert "bounds enforced" in err and "subscriptions" in err
+    channels = sorted(s["channel"] for s in bb.read_board(root)["subscriptions"]
+                      if s["watcher"] == "cap-target")
+    assert channels == ["session", "stop"]     # the new entry survived
+    assert "cap-w0" not in [s["watcher"] for s in bb.read_board(root)["subscriptions"]]
 

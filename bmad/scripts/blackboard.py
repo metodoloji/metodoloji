@@ -25,7 +25,7 @@ Usage:
     python3 blackboard.py unlink    --a A --b B [--relation R]
     python3 blackboard.py neighbors --node N [--relation R]
     python3 blackboard.py subscribe   --watcher W --pattern P [--channel C]
-    python3 blackboard.py unsubscribe --watcher W --pattern P
+    python3 blackboard.py unsubscribe --watcher W --pattern P [--channel C]
     python3 blackboard.py alerts   [--channel C]        (read-only peek)
     python3 blackboard.py consume  --channel C          (take and clear)
     python3 blackboard.py notify   --channel C --kind K --text X
@@ -374,7 +374,10 @@ def cmd_subscribe(args) -> int:
 
 
 def cmd_unsubscribe(args) -> int:
-    _emit(bb.unsubscribe(_root(args), args.watcher, args.pattern))
+    # `--channel` narrows the removal to one channel; omitting it clears every
+    # channel for the pair (the historical contract).
+    _emit(bb.unsubscribe(_root(args), args.watcher, args.pattern,
+                         channel=args.channel))
     return 0
 
 
@@ -650,6 +653,9 @@ def main(argv: list | None = None) -> int:
     us = sub.add_parser("unsubscribe", help="Remove a subscription")
     us.add_argument("--watcher", required=True)
     us.add_argument("--pattern", required=True)
+    us.add_argument("--channel", default=None,
+                    help="remove only this channel's watch (omit to clear "
+                         "every channel for the pair)")
     common(us)
     us.set_defaults(fn=cmd_unsubscribe)
 

@@ -1,0 +1,7 @@
+{"check": "one watcher holds one pattern on two channels", "ok": true, "detail": "channels=['session', 'stop']"}
+{"check": "both channels actually route", "ok": true, "detail": "session=1 stop=1"}
+{"check": "repeating the same triple is idempotent", "ok": true, "detail": "created=True->False count=1"}
+{"check": "unsubscribe narrows to one channel", "ok": true, "detail": "narrowed=True removed=1 left=['release', 'session']"}
+{"check": "unsubscribe without a channel still clears the pair", "ok": true, "detail": "removed=2 left=[]"}
+{"check": "an event-log replay agrees with the live board", "ok": true, "detail": "before=['session', 'release'] after=['session', 'release']"}
+{"check": "the CLI exposes --channel on unsubscribe", "ok": true, "detail": "unsubscribe --channel present"}

@@ -1543,7 +1543,14 @@ def subscribe(project_root: str, watcher: str, pattern: str, *,
               channel: str = "session") -> dict:
     """Watch keys/canvases by glob: matching mutations route an alert into
     `channel` ('session' → injected at session start, 'stop' → surfaced at
-    stop, or any custom channel addressable via consume_alerts)."""
+    stop, or any custom channel addressable via consume_alerts).
+
+    The watch's identity is (watcher, pattern, channel): one watcher may hold
+    the same pattern on several channels, and only an exact repeat is deduped
+    (so a skill re-running its activation does not grow the plane). `created`
+    in the ack says which happened — a caller that believes a watch is live
+    should not have to infer it from a plane read.
+    """
     event = {"event": "subscribe", "watcher": str(watcher).strip()[:100],
              "pattern": str(pattern).strip()[:200],
              "channel": str(channel).strip()[:MAX_CHANNEL_LEN] or "session", "ts": time.time()}
@@ -1551,11 +1558,12 @@ def subscribe(project_root: str, watcher: str, pattern: str, *,
         return {"ok": False, "error": "subscribe needs --watcher and --pattern"}
 
     def mut(board):
-        # E-113: the fold expires the oldest watch when a NEW pair enters a
+        # E-113: the fold expires the oldest watch when a NEW triple enters a
         # full plane, so the eviction is only visible by asking before the
         # apply — afterwards the plane is already back at the cap.
         known = any(s["watcher"] == event["watcher"]
                     and s["pattern"] == event["pattern"]
+                    and s.get("channel", "session") == event["channel"]
                     for s in board["subscriptions"])
         before = len(board["subscriptions"])
         _append_event(board_paths(project_root), event)
@@ -1563,13 +1571,19 @@ def subscribe(project_root: str, watcher: str, pattern: str, *,
         if not known and before >= MAX_SUBSCRIPTIONS:
             _bounds_notice("subscriptions", before + 1, MAX_SUBSCRIPTIONS)
         return board, {"ok": True, "watcher": event["watcher"],
-                       "pattern": event["pattern"], "channel": event["channel"]}
+                       "pattern": event["pattern"], "channel": event["channel"],
+                       "created": not known}
 
     return _mutate(project_root, mut)
 
-def unsubscribe(project_root: str, watcher: str, pattern: str) -> dict:
+def unsubscribe(project_root: str, watcher: str, pattern: str, *,
+                channel: str | None = None) -> dict:
+    """Remove a watch. With `channel`, remove only that channel's watch;
+    without it, remove every channel for the (watcher, pattern) pair."""
     event = {"event": "unsubscribe", "watcher": str(watcher).strip()[:100],
              "pattern": str(pattern).strip()[:200], "ts": time.time()}
+    if channel:
+        event["channel"] = str(channel).strip()[:MAX_CHANNEL_LEN]
 
     def mut(board):
         before = len(board["subscriptions"])
