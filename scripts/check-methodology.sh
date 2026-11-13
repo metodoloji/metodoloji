@@ -240,6 +240,22 @@ EXP_REJECTED=0
 # sets `- **Status:** completed` on approval and `- **Status:** REJECTED` on
 # rejection, and always writes `- **Decision:** APPROVED|REJECTED`. The legacy
 # `Status: APPROVED|PENDING` forms stay accepted for older records.
+#
+# The PENDING vocabulary is NOT restated here: `scripts/create-record.py` owns
+# the canonical status set (`--status-regex`), and this audit asks for it. Two
+# hand-kept copies only agreed by hand (E-047/E-048's class), and the drift bit
+# once already — a record opened with a draft word the classifier did not know
+# (E-110's `proposed`) made itself unclassifiable, so it failed the pytest
+# falsifier *while its own gate was measuring* (DW-9). Fallback: when no
+# interpreter is available the historical alternation is used, because a check
+# that cannot run is worse than one with a stale word list.
+EXP_PENDING_RE="planned|PENDING|BEKLİYOR|proposed|draft|in-progress|in progress|active"
+if [ -n "$PY" ] && [ -f "$METODOLOJI_ROOT/scripts/create-record.py" ]; then
+    _derived=$("$PY" "$METODOLOJI_ROOT/scripts/create-record.py" \
+               --status-regex experiment 2>/dev/null)
+    if [ -n "$_derived" ]; then EXP_PENDING_RE="$_derived"; fi
+fi
+
 for exp_file in "$PROJECT_ROOT"/docs/experiments/E-*.md; do
     [ -f "$exp_file" ] || continue
     EXP_COUNT=$((EXP_COUNT + 1))
@@ -251,7 +267,7 @@ for exp_file in "$PROJECT_ROOT"/docs/experiments/E-*.md; do
     elif grep -qE "(Decision|Status):[* ]*REJECTED|(Decision|Status):[* ]*REDDEDİLDİ" "$exp_file" 2>/dev/null; then
         EXP_REJECTED=$((EXP_REJECTED + 1))
         log_warn "$basename_exp is REJECTED"
-    elif grep -qE "(Status):[* ]*(planned|PENDING|BEKLİYOR)" "$exp_file" 2>/dev/null; then
+    elif grep -qE "(Status):[* ]*($EXP_PENDING_RE)\b" "$exp_file" 2>/dev/null; then
         EXP_PENDING=$((EXP_PENDING + 1))
         log_warn "$basename_exp is PENDING"
     else

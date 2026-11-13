@@ -19,6 +19,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -54,9 +55,32 @@ def _section(start: str, end: str) -> str:
     return text[i:j]
 
 
+def _pending_vocabulary() -> str:
+    """The audit's PENDING alternation, as the owner emits it (DW-9).
+
+    `check-methodology.sh` no longer restates the pending status words: it asks
+    `scripts/create-record.py --status-regex experiment`, because the schema in
+    that CLI is the canonical vocabulary. A shell variable carries the result,
+    so reading the script source alone would see `$EXP_PENDING_RE` and not the
+    words — the tests ask the same owner the audit asks.
+    """
+    out = subprocess.run(
+        [sys.executable, str(PLUGIN / "scripts" / "create-record.py"),
+         "--status-regex", "experiment"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        timeout=60, stdin=subprocess.DEVNULL)
+    assert out.returncode == 0, out.stderr
+    return out.stdout.strip()
+
+
 def _patterns(section: str) -> list[str]:
-    """grep patterns in source order (partial-match grep; -qE/-q alike)."""
-    return re.findall(r'grep -qE? "([^"]+)"', section)
+    """grep patterns in source order (partial-match grep; -qE/-q alike).
+
+    A pattern that interpolates a shell variable is resolved from its owner, so
+    the tests exercise the words the audit will actually use.
+    """
+    patterns = re.findall(r'grep -qE? "([^"]+)"', section)
+    return [p.replace("$EXP_PENDING_RE", _pending_vocabulary()) for p in patterns]
 
 
 def _branch(patterns: list[str], text: str):
@@ -762,3 +786,63 @@ def test_full_run_passes_with_no_issues(full_scan):
 def test_full_run_is_not_a_partial_run(full_scan):
     _, out = full_scan
     assert "PARTIAL RUN" not in out, out[-2000:]
+
+
+# --- DW-9: a draft word may not make a record unmeasurable -------------------
+# CHECK 4 used to carry its own hand-typed alternation (`planned|PENDING|
+# BEKLİYOR`), a second copy of the vocabulary `create-record.py` owns. E-110's
+# record opened with `proposed`, a word neither copy knew: the record classified
+# as "status unknown", which failed `test_check4_classifies_every_shipped_record`
+# — and the gate runs pytest as its falsifier, so the record rejected itself
+# while it was being measured. A record that cannot be measured cannot be fixed.
+
+def test_check4_pending_vocabulary_is_the_owner_s():
+    """One vocabulary, not two: the audit asks the schema owner (DW-9)."""
+    script = SCRIPT.read_text(encoding="utf-8")
+    section = _section("CHECK 4: Experiment Records", "CHECK 5: Quality Records")
+    assert "$EXP_PENDING_RE" in section, (
+        "CHECK 4 restates the pending words instead of asking create-record.py")
+    assert '--status-regex' in section
+    # And the fallback (no interpreter) is a superset of the derived words, so a
+    # check that cannot derive still classifies every draft synonym.
+    fallback = re.search(r'^EXP_PENDING_RE="([^"]+)"', section, re.M)
+    assert fallback, "CHECK 4 has no fallback vocabulary"
+    derived = set(_pending_vocabulary().split("|"))
+    missing = sorted(w for w in derived if w not in fallback.group(1).split("|"))
+    # `NOT-READY` is the IR schema's word and never appears in an E record.
+    missing = [w for w in missing if w != "NOT-READY"]
+    assert not missing, f"fallback vocabulary is missing {missing}"
+
+
+def test_every_schema_status_classifies():
+    """Whatever the owner calls a status must classify — that is the contract."""
+    spec = _pending_vocabulary().split("|")
+    for word in ("planned", "proposed", "draft", "PENDING", "BEKLİYOR",
+                 "in-progress"):
+        line = f"- **Status:** {word}"
+        branch = _branch(CHECK4, line)
+        assert branch is not None, f"{word!r} falls through to 'status unknown'"
+    # A terminal word must NOT be read as pending: `completed` is what the gate
+    # writes on approval, and REJECTED has its own branch. `Status: completed`
+    # WITHOUT a Decision line is deliberately unclassifiable — the honest answer
+    # is "cannot tell", and calling it pending would invent open work.
+    assert _branch(CHECK4, "- **Status:** REJECTED") == 1
+    assert _branch(CHECK4, "- **Status:** completed") != 2
+    assert _branch(CHECK4, "- **Status:** completed") is None
+    assert spec, "the owner emitted no vocabulary"
+
+
+def test_unknown_stays_reachable_and_diagnostic():
+    """The fix must not turn the classifier into 'everything is pending'.
+
+    A typo still has to be visible: silently classifying it as pending would
+    hide a record whose status is not a status at all.
+    """
+    for junk in ("- **Status:** compleeted", "- **Status:** ???", "- **Status:**"):
+        assert _branch(CHECK4, junk) is None, junk
+
+
+def test_a_proposed_record_classifies_before_its_gate_runs():
+    """The E-110 shape: a draft word must not block the record's own measurement."""
+    assert _branch(CHECK4, "- **Status:** proposed") == 2
+    assert _branch(CHECK4, "- **Status:** draft") == 2

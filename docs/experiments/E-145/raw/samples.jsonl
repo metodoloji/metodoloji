@@ -1,0 +1,5 @@
+{"check": "the audit asks the vocabulary owner", "ok": true, "detail": "CHECK 4 derives the vocabulary from create-record.py"}
+{"check": "every draft word classifies as pending", "ok": true, "detail": "shipped: every draft word classifies as pending"}
+{"check": "a genuine non-status stays unknown", "ok": true, "detail": "shipped: a genuine non-status stays unknown"}
+{"check": "a proposed record reads as PENDING end to end", "ok": true, "detail": "⚠️  WARN: E-001.md is PENDING"}
+{"check": "the no-interpreter fallback is a superset", "ok": true, "detail": "fallback covers 8 words"}

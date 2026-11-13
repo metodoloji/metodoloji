@@ -74,7 +74,8 @@ status: open
 origin: consistency repair, 2026-11-03
 location: n/a
 reason: a record opened with that word fails `test_check4_classifies_every_shipped_record` during its own gate measurement, so the record makes the suite red and rejects itself (E-110/E-112 evidence). The canonical pending form is `planned`; either teach CHECK4 the word or normalize the status at write time.
-status: open
+status: done 2026-11-13
+resolution: E-145 — CHECK4 no longer restates the pending vocabulary: it asks scripts/create-record.py --status-regex experiment, so the schema owns the words (planned plus the draft aliases proposed/draft/PENDING/BEKLİYOR/in-progress/active). A non-canonical draft word now classifies as pending instead of unknown, so a record can no longer reject itself during its own gate measurement; a genuine non-status (typo, empty) still reads unknown, which keeps the diagnostic.
 
 ## Deferred from: change-radar hardening (2026-11-13)
 

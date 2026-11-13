@@ -88,6 +88,50 @@ _SCHEMAS = {
     },
 }
 
+# --- the status vocabulary every surface reads -------------------------------
+# `_SCHEMAS[...]["statuses"]` is the CANONICAL set: a writer is told to use one
+# of these, and `validate_text` refuses anything else. `check-methodology.sh`
+# CHECK 4 used to carry its own hand-typed alternation (`planned|PENDING|
+# BEKLİYOR`), so the two were two copies that only agreed by hand — the same
+# shape E-047/E-048 closed for the version manifests. The audit now asks this
+# file (`--status-regex`) instead of restating it.
+#
+# `_DRAFT_ALIASES` are the draft words that are NOT canonical but still mean
+# "work in progress". They exist because a non-canonical draft word used to make
+# a record unclassifiable, and an unclassifiable record fails the pytest
+# falsifier *while it is being measured* — so the record rejected itself and
+# could not be re-run once decided (E-110, DW-9). A draft synonym is pending
+# work, not an error; the error class stays reserved for a word that is neither
+# a draft nor a decision (a typo, or a missing status).
+_DRAFT_ALIASES = ("PENDING", "BEKLİYOR", "proposed", "draft", "in-progress",
+                  "in progress", "active")
+
+# Words that are a DECISION, never a draft. Kept out of the pending pattern so
+# `Status: completed` on a gate-written record is not read as pending.
+_TERMINAL_STATUSES = frozenset({"completed", "REJECTED", "READY", "DEPLOYED",
+                                "ROLLED-BACK", "CANCELLED", "BLOCKED"})
+
+
+def status_regex(kind: str) -> str:
+    """POSIX-ERE alternation of every PENDING status word for `kind`.
+
+    Derived, never restated: the schema's non-terminal statuses plus the draft
+    aliases. A terminal status is excluded so the audit's approved/rejected
+    branches keep first refusal (the shell applies them in order).
+    """
+    spec = _SCHEMAS[kind]
+    words: list[str] = []
+    for word in tuple(spec["statuses"]) + _DRAFT_ALIASES:
+        if word.lower() in {w.lower() for w in _TERMINAL_STATUSES}:
+            continue
+        if word not in words:
+            words.append(word)
+    # Longest first so `in progress` is not shadowed by a prefix, and escape
+    # nothing: the vocabulary is [A-Za-z -] only, safe in an ERE.
+    words.sort(key=len, reverse=True)
+    return "|".join(words)
+
+
 _PLACEHOLDER_RE = re.compile(r"^\s*(?:<.*>|\[.*\]|—\s*\(.*\)|TBD|PLACEHOLDER)\s*$",
                              re.IGNORECASE)
 _CONTRACT_CLAIM_RE = re.compile(r"(?:==|>=)\s*1(?:\.0+)?\s*[\"']?\s*$")
@@ -254,6 +298,9 @@ def _check(path: pathlib.Path) -> int:
 def main() -> int:
     ap = argparse.ArgumentParser(description="Schema-validated methodology record CLI")
     ap.add_argument("--check", metavar="PATH", help="validate an attested record")
+    ap.add_argument("--status-regex", metavar="KIND", choices=sorted(_SCHEMAS),
+                    help="print the pending-status ERE for KIND (the audit's "
+                         "single source for that vocabulary)")
     ap.add_argument("--kind", choices=sorted(_SCHEMAS), default="experiment")
     ap.add_argument("--id", default="", help="record id (default: next free)")
     ap.add_argument("--title", default="", help="record title")
@@ -267,6 +314,9 @@ def main() -> int:
     ap.add_argument("--force", action="store_true", help="overwrite an existing file")
     args = ap.parse_args()
 
+    if args.status_regex:
+        print(status_regex(args.status_regex))
+        return 0
     if args.check:
         return _check(pathlib.Path(args.check))
 
