@@ -68,8 +68,6 @@ EXPECTED_POSTS = {
     "bmad-loop-setup": [],
     "bmad-loop-sweep": [],
     "bmad-loop-resolve": [],
-    "bmad-bmb-setup": [],
-    "bmad-module-builder": [],
     "bmad-workflow-builder": [],
     "bmad-customize": [],
     "bmad-checkpoint-preview": [],
@@ -155,8 +153,6 @@ PEEK_EXEMPT = {
     # or a built skill (it inherits the methodology; the installer does not
     # relay), customization authoring, the loop orchestrator's automation
     "bmad-loop-setup": "tool",
-    "bmad-bmb-setup": "tool",
-    "bmad-module-builder": "tool",
     "bmad-workflow-builder": "tool",
     "bmad-customize": "tool",
     # bmad-loop-sweep runs INSIDE the orchestrator's session (automation-only,

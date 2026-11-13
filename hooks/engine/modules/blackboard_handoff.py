@@ -404,6 +404,6 @@ SUB_CHAINS: dict[str, list[tuple[str, str]]] = {
 CHAIN_ADJACENT = {
     "bmad-help",           # routes the user; never produces
     "bmad-loop-setup", "bmad-loop-sweep", "bmad-loop-resolve",
-    "bmad-bmb-setup", "bmad-module-builder", "bmad-workflow-builder",
+    "bmad-workflow-builder",
     "bmad-customize", "bmad-checkpoint-preview", "bmad-eval-runner",
 }

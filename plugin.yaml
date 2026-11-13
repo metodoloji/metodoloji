@@ -1,9 +1,9 @@
 # Hermes Agent manifest. The Claude Code, OpenHands and OpenCode manifests live
 # in .claude-plugin/, .plugin/ and .opencode-plugin/; all four ship the same
-# engine, the same 53 skills and the same version number.
+# engine, the same 51 skills and the same version number.
 name: metodoloji
-version: 0.2.57
-description: "Methodology plugin compatible with BMad Method: record chain (E→IR→SP→S→QR→PR), mechanical experiment/commit/deploy gates, declared workflows and 53 skills / 48 bridge TOMLs. Hermes port adds in-process pre_tool_call enforcement, 5 tools, 6 slash commands and the full skill catalog."
+version: 0.2.58
+description: "Methodology plugin compatible with BMad Method: record chain (E→IR→SP→S→QR→PR), mechanical experiment/commit/deploy gates, declared workflows and 51 skills / 45 bridge TOMLs. Hermes port adds in-process pre_tool_call enforcement, 5 tools, 6 slash commands and the full skill catalog."
 author: yunusgungor
 license: MIT
 homepage: https://github.com/metodoloji/metodoloji

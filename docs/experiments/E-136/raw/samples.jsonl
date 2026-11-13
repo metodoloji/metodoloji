@@ -1,0 +1,8 @@
+{"check": "module-builder skill dir removed", "ok": true, "detail": "none"}
+{"check": "module-builder TOML removed", "ok": true, "detail": "none"}
+{"check": "no catalog row names it", "ok": true, "detail": "none"}
+{"check": "handoff lint carries no entry", "ok": true, "detail": "none"}
+{"check": "chain-adjacent registry carries no entry", "ok": true, "detail": "none"}
+{"check": "pytest path list carries no entry", "ok": true, "detail": "none"}
+{"check": "runbooks carry no reference", "ok": true, "detail": "none"}
+{"check": "shipped manifests declare the surviving count", "ok": true, "detail": "52 skills declared"}

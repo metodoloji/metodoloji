@@ -75,7 +75,7 @@ def find_skill_dirs(base_path: str) -> list:
     directory containing a SKILL.md. These are considered skill directories.
 
     Returns:
-        List of skill directory names (e.g. ['bmad-module-builder', 'bmad-bmb-setup'])
+        List of skill directory names (e.g. ['bmad-workflow-builder', 'bmad-eval-runner'])
     """
     skills = []
     root = Path(base_path)

@@ -179,7 +179,7 @@ print(f"[OK]   negative test 3/{total_stages}: 'bolum 99.99' injected → §7 MI
 # ---- Test 4: §2b activation compliance frame ----
 # Inject a bare workflow-stage command into a custom TOML's
 # activation_steps_append — §2b must flag it (the defect E-040 fixed).
-bmb = PLUGIN / "custom" / "bmad-bmb-setup.toml"
+bmb = PLUGIN / "custom" / "bmad-workflow-builder.toml"
 orig_bmb = bmb.read_text(encoding="utf-8")
 
 def has_bare_activation_error(text: str) -> bool:
@@ -190,14 +190,14 @@ def has_bare_activation_error(text: str) -> bool:
             capture_output=True, text=True, encoding="utf-8", timeout=30)
         out = r.stdout
         for line in out.splitlines():
-            if "bmad-bmb-setup" in line and "bare workflow step" in line:
+            if "bmad-workflow-builder" in line and "bare workflow step" in line:
                 return True
         return False
     finally:
         bmb.write_text(orig_bmb, encoding="utf-8")
 
 if has_bare_activation_error(orig_bmb):
-    print("[ERROR] bare-activation error visible even in intact bmb TOML — test setup broken")
+    print("[ERROR] bare-activation error visible even in the intact TOML — test setup broken")
     sys.exit(1)
 
 injected_bmb = orig_bmb.replace(
@@ -209,7 +209,7 @@ if injected_bmb == orig_bmb:
 if not has_bare_activation_error(injected_bmb):
     print("[ERROR] negative test 4 failed: §2b logic did not catch a bare activation step")
     sys.exit(1)
-print(f"[OK]   negative test 4/{total_stages}: bare workflow step injected → §2b MISS caught → bmb TOML restored")
+print(f"[OK]   negative test 4/{total_stages}: bare workflow step injected → §2b MISS caught → TOML restored")
 print(f"[OK]   all {total_stages} negtest stages successful")
 sys.exit(0)
 PY
