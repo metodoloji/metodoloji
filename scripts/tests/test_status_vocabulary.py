@@ -108,3 +108,43 @@ def test_the_cli_default_status_is_accepted_by_its_own_checker(tmp_path):
         assert check.returncode == 0, (
             f"{kind}: the CLI wrote a record its own checker refuses — "
             f"{check.stdout}{check.stderr}")
+
+def test_no_shipped_surface_offers_a_status_the_owner_refuses():
+    """Every `Status: a|b|c` a skill writes must come from the owner.
+
+    Four skills taught words the schema refuses: IR `INCOMPLETE`, PR
+    `PENDING`, QR `pass|fail|partial`. A writer following the instruction
+    produced a record `create-record.py --check` rejects, so the drift was
+    live rather than cosmetic. Templates were pinned above; this pins the
+    instruction surfaces that write the same records.
+    """
+    owners = {
+        "ir": set(_schema_statuses("ir")),
+        "sp": set(_schema_statuses("sp")),
+        "pr": set(_schema_statuses("pr")),
+        "qr": set(_template_words("_template_QR.md")),
+    }
+    # The record kind each skill's BRIDGE step writes.
+    writes = {"bmad-check-implementation-readiness": "ir",
+              "bmad-sprint-planning": "sp",
+              "bmad-production-readiness": "pr",
+              "bmad-dev-story": "pr",
+              "bmad-quick-dev": "pr",
+              "bmad-code-review": "qr"}
+    offenders = []
+    for skill, kind in writes.items():
+        path = PLUGIN / "skills" / skill / "customize.toml"
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8")
+        for line in text.splitlines():
+            m = re.search(r"Status:\s*([A-Za-z][\w|-]*\|[\w|-]+)", line)
+            if not m:
+                continue
+            words = {w.strip() for w in m.group(1).split("|")}
+            unknown = words - owners[kind]
+            if unknown:
+                offenders.append(f"{skill} ({kind}): {sorted(unknown)}")
+    assert offenders == [], (
+        "these surfaces offer a status their record owner refuses: "
+        f"{offenders}")
