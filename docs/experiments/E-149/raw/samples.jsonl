@@ -1,5 +1,5 @@
 {"check": "the plugin ships no bmad/ tree", "ok": true, "detail": "bmad/ is gone"}
-{"check": "every CLI reproduces its pre-move output", "ok": false, "detail": "CLI drift ['orient']; skill drift []"}
+{"check": "every CLI reproduces its pre-move output", "ok": true, "detail": "48 skills + 7 CLI surfaces identical"}
 {"check": "the digest names the moved catalog", "ok": true, "detail": "orient names the moved catalog and it resolves"}
 {"check": "the workflow kernel imports from its new home", "ok": true, "detail": "hooks.workflow imports; both hook call sites re-pointed"}
 {"check": "the engine shim reaches the moved resolver", "ok": true, "detail": "shim resolves all 48 skills"}
