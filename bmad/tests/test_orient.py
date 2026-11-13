@@ -54,7 +54,16 @@ def test_catalog_output_locations_match_the_skill_defaults():
 def test_catalog_digest_reports_real_ambiguity():
     digest = orient.catalog_digest()
     assert digest["available"] is True
-    assert digest["skill_count"] > 40 and len(digest["modules"]) > 2
+    # Counts are derived from the catalog itself, not from a magic floor: the
+    # tree keeps losing modules, and a hard-coded "> 40" only records how big
+    # the catalog happened to be when it was written.
+    import csv
+    with open(PLUGIN / "bmad" / "_config" / "bmad-help.csv",
+              newline="", encoding="utf-8") as fh:
+        rows = list(csv.DictReader(fh))
+    live = [r for r in rows if r["skill"] and r["skill"] != "_meta"]
+    assert digest["skill_count"] == len(live)
+    assert len(digest["modules"]) == len({r["module"] for r in rows})
     ambiguous = digest["ambiguous_menu_codes"]
     # SP must not list the spec skill: bmad-spec collided with
     # bmad-sprint-planning, and SP is this methodology's own Sprint-Plan record

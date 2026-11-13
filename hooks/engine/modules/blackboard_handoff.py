@@ -397,13 +397,12 @@ SUB_CHAINS: dict[str, list[tuple[str, str]]] = {
 }
 
 # Skills that appear in no hop but are known chain-adjacent surfaces (the help
-# router, the infrastructure tools, the loop orchestrator's automation layer).
+# router and the infrastructure tools).
 # They post and relay nothing, so the hop relays cannot carry them — but they
 # must NOT surface as off-chain 'extra' noise when a signal is (mis)addressed
 # to them, and the lint still checks them.
 CHAIN_ADJACENT = {
     "bmad-help",           # routes the user; never produces
-    "bmad-loop-setup", "bmad-loop-sweep", "bmad-loop-resolve",
     "bmad-workflow-builder",
     "bmad-customize", "bmad-checkpoint-preview", "bmad-eval-runner",
 }

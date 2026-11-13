@@ -239,15 +239,15 @@ def test_legacy_core_fills_missing_core_section(plugin, tmp_path):
 
 def test_core_only_legacy_file_still_registers_module(plugin, tmp_path):
     project = _make_project(tmp_path)
-    # bmad-loop-style legacy file: ONLY core stamps, no module-specific keys.
+    # legacy module file: ONLY core stamps, no module-specific keys.
     # The module must still resolve (flat = core keys), not error.
     _write_yaml(
-        project / "bmad" / "bmad-loop" / "config.yaml",
+        project / "bmad" / "legacy" / "config.yaml",
         'user_name: Yunus\noutput_folder: "{project-root}/bmad-output"\n',
     )
-    out = _run(plugin, project, "--module", "bmad-loop")
-    assert out["bmad-loop"]["user_name"] == "Yunus"
-    assert out["bmad-loop"]["output_folder"] == "{project-root}/bmad-output"
+    out = _run(plugin, project, "--module", "legacy")
+    assert out["legacy"]["user_name"] == "Yunus"
+    assert out["legacy"]["output_folder"] == "{project-root}/bmad-output"
 
 
 def test_legacy_core_yaml_authority_over_module_stamps(plugin, tmp_path):

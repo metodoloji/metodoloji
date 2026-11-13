@@ -34,9 +34,11 @@ def deferred_work_warning(root: str) -> str:
         parts.append(f"{open_count} open")
     if legacy_items:
         parts.append(f"{legacy_items} legacy/unparsed")
-    remedy = ("run bmad-loop-sweep --migrate"
+    remedy = ("normalize them to the documented format "
+              "({metodoloji-root}/skills/bmad-code-review/references/"
+              "deferred-work-format.md)"
               if legacy_items else
-              "triage with bmad-loop-sweep or close them in a later story")
+              "triage them by hand or close them in a later story")
     return (f"DEFERRED WORK: {', '.join(parts)} in "
             f"{info.get('path') or 'the ledger'} — documented, not blocking; "
             f"{remedy}")

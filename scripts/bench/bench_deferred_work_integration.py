@@ -2,7 +2,7 @@
 
 docs/experiments/E-108.md (H-108: deferred_work_integration_accuracy >= 0.90).
 
-26 checks over the six surfaces a project can reach without bmad-loop: the
+26 checks over the six surfaces a project can reach without a loop skill: the
 skeleton install, the shared digest inventory, `check-methodology.sh`, the
 commit advisory, the development manifesto, and the template/format pair.
 
@@ -372,7 +372,7 @@ def _doc_checks(broken: bool) -> list[tuple[str, bool, str]]:
         template_exists = template.is_file()
         tpl = (template.read_text(encoding="utf-8", errors="replace")
                if template_exists else "")
-    canonical = ROOT / "skills" / "bmad-loop-sweep" / "deferred-work-format.md"
+    canonical = ROOT / "skills" / "bmad-code-review" / "references" / "deferred-work-format.md"
     return [
         ("manifesto_names_ledger", "deferred-work.md" in doc, "deferred-work.md"),
         ("manifesto_states_entry_contract",
@@ -380,9 +380,9 @@ def _doc_checks(broken: bool) -> list[tuple[str, bool, str]]:
         ("manifesto_names_writers",
          all(s in doc for s in ("bmad-code-review", "bmad-quick-dev", "bmad-dev-auto")),
          "three writers"),
-        ("manifesto_names_triager_and_format",
-         "bmad-loop-sweep" in doc and "deferred-work-format.md" in doc,
-         "loop-sweep + format"),
+        ("manifesto_names_format",
+         "deferred-work-format.md" in doc,
+         "format reference"),
         ("template_points_at_canonical_format",
          template_exists and "deferred-work-format.md" in tpl,
          "template present" if template_exists else "no template"),

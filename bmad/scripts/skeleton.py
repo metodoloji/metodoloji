@@ -68,7 +68,7 @@ TEMPLATE_PAIRS = (
     ("_template_STRUCT.md", "docs/development/structural/_template_STRUCT.md"),
     ("README.md", "docs/development/README.md"),
     ("tech-debt.md", "docs/development/tech-debt.md"),
-    # The deferred-work ledger is a core debt surface, not a bmad-loop asset:
+    # The deferred-work ledger is a core debt surface, not a skill asset:
     # review/quick-dev/dev-auto append to it in every project, so init has to
     # install it or the writers create an orphan nothing else reads (E-108).
     ("deferred-work.md", "docs/development/native/deferred-work.md"),

@@ -65,9 +65,6 @@ EXPECTED_POSTS = {
     # GOVERNANCE SUB-CHAIN (the hops that close the methodology loop)
     "bmad-retrospective": ["bmad-research-experiment"],
     "bmad-correct-course": ["bmad-sprint-planning"],
-    "bmad-loop-setup": [],
-    "bmad-loop-sweep": [],
-    "bmad-loop-resolve": [],
     "bmad-workflow-builder": [],
     "bmad-customize": [],
     "bmad-checkpoint-preview": [],
@@ -151,16 +148,10 @@ PEEK_EXEMPT = {
     "bmad-correct-course": "entry point",
     # Infrastructure: installers/builders whose product is an installed module
     # or a built skill (it inherits the methodology; the installer does not
-    # relay), customization authoring, the loop orchestrator's automation
-    "bmad-loop-setup": "tool",
+    # relay) and customization authoring
     "bmad-workflow-builder": "tool",
     "bmad-customize": "tool",
-    # bmad-loop-sweep runs INSIDE the orchestrator's session (automation-only,
-    # never human-invoked) and returns a machine-readable partition — findings
-    # to the caller, no hop, no board I/O: the orchestrator owns that state.
-    "bmad-loop-sweep": "inline",
     # Human-invoked on intent, each owns its interactive session:
-    "bmad-loop-resolve": "entry point",
     "bmad-checkpoint-preview": "entry point",
     # Registered, not rewired: the eval runner's contributor contract lives in
     # its own SKILL.md (board read at activation, one close-out contribute,

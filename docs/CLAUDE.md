@@ -6,7 +6,7 @@ Claude Code plugin for methodology enforcement, compatible with BMad Method.
 
 - **Record chain**: E → IR → SP → S → QR → PR (experiment → implementation readiness → sprint planning → story → quality review → production readiness)
 - **Mechanical gates**: guard (write/edit blocking, config-gated), quality (`git commit` chain check, config-gated), deploy (deploy-command chain check, config-gated), audit (post-write trail), stop (session-end report, never blocks)
-- **51 skills** with **45 customization TOMLs** + `config.toml` (7 active BRIDGEs linking native outputs to methodology records). `bmad-customize`/`bmad-help` are tool/meta skills with no bridge TOML by design: they ship no customize.toml and are audited through their SKILL.md manifesto pointer (see §2 / §6b pairing).
+- **48 skills** with **42 customization TOMLs** + `config.toml` (7 active BRIDGEs linking native outputs to methodology records). `bmad-customize`/`bmad-help` are tool/meta skills with no bridge TOML by design: they ship no customize.toml and are audited through their SKILL.md manifesto pointer (see §2 / §6b pairing).
 
 ## Hooks
 

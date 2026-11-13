@@ -608,7 +608,7 @@ If you have a local edit in `hooks.json`, regenerate it with `{metodoloji-root}/
 
 Skills know "how to do a step", hooks know "which file was touched"; the layer that knows the **order** is the workflow kernel: an **intent** becomes a declared process and the kernel runs it as a deterministic state machine. The model writes the spec and does the stage's work; **the model does not pick the next stage — the kernel computes it.**
 
-**Why a separate kernel:** the blackboard is a *context network* (key/list/canvas/link/alert) — it has no notion of stage, precondition or transition. `bmad-loop` is an external package that manages dev/review sessions. The process engine stands on its own without inheriting either's semantics.
+**Why a separate kernel:** the blackboard is a *context network* (key/list/canvas/link/alert) — it has no notion of stage, precondition or transition. A session orchestrator is an external concern. The process engine stands on its own without inheriting either's semantics.
 
 **How it works:**
 
@@ -1181,9 +1181,9 @@ python3 {metodoloji-root}/bmad/scripts/blackboard.py hot --clear
 - **Contributor (`bmad-advanced-elicitation`, `bmad-party-mode`, `bmad-eval-runner`)** — an in-line technique booster: called *inside* another skill's session, it reads the caller's board context and leaves exactly one `contribute` trace; all other writes are forbidden (focus, run list and closure belong to the caller).
 - **Reporter (`bmad-sprint-status`)** — reports project state, so it cannot report from files alone: it reads the board and surfaces a pending baton as live work the plan does not yet know about.
 - **Help router (`bmad-help`)** — suggests the next skill; it also reads pending batons (read-only) and puts them ahead of the catalog — a pending signal is live work the map does not yet show.
-- **In-line (`bmad-review-*`, `bmad-editorial-review-*`, `bmad-loop-sweep`)** — returns findings to the caller, posts no hop; reviewers do **not** read the caller's board context — the information asymmetry is by design. `bmad-loop-sweep` runs only inside a bmad-loop session and returns machine-readable triage to the orchestrator.
-- **Human-decision entry points (`bmad-checkpoint-preview`, `bmad-loop-resolve`)** — called at the user's request and managing a human decision; they open against the board (read-only) before deciding — a decision taken without chain context is a decision taken from a vacuum.
-- **Tool (`bmad-document-project`, `bmad-generate-project-context`, `bmad-index-docs`, `bmad-shard-doc`, the builders: `bmad-loop-setup`, `bmad-workflow-builder`, `bmad-customize`)** — produces an output with no chain record (a project document, an installed module, a progress file): neither hop nor board contract. The output of the four document/context skills (`project-context.md` etc.) is *read* by many stages — but not as a baton: as a `persistent_facts` file at activation. The registry models that dependency without inventing a signal nobody will consume.
+- **In-line (`bmad-review-*`, `bmad-editorial-review-*`)** — returns findings to the caller, posts no hop; reviewers do **not** read the caller's board context — the information asymmetry is by design.
+- **Human-decision entry points (`bmad-checkpoint-preview`)** — called at the user's request and managing a human decision; they open against the board (read-only) before deciding — a decision taken without chain context is a decision taken from a vacuum.
+- **Tool (`bmad-document-project`, `bmad-generate-project-context`, `bmad-index-docs`, `bmad-shard-doc`, the builder: `bmad-workflow-builder`, `bmad-customize`)** — produces an output with no chain record (a project document, an installed module, a progress file): neither hop nor board contract. The output of the four document/context skills (`project-context.md` etc.) is *read* by many stages — but not as a baton: as a `persistent_facts` file at activation. The registry models that dependency without inventing a signal nobody will consume.
 - **Deprecated shims** (`bmad-create-prd`, `bmad-validate-prd` → `bmad-prd`; `bmad-create-architecture` → `bmad-architecture`) carry no chain logic of their own; `check-handoff.py` verifies the shim is DEPRECATED and points at a skill that **is** a chain member.
 
 **Two structural invariants of the lint (above the rationale labels):** (1) *A hop receiver cannot say "nobody hands off to me"* — a receiver labelled `entry point`/`feeder`/`origin` never looks at its channel, so a declared baton waits until it goes stale; also every receiver must be a registered member (the lint never checks an unregistered receiver). (2) *A run-key namespace written by more than one stage must be signed* — because `story.` is written by both sides, the dev closure carries `--sender bmad-dev-story`; without the signature the prefix attribution credits create-story and the terminal hop looks like an undeclared pair. Terminal receivers are declared explicitly too (`CHAIN_TERMINAL`).
@@ -1444,8 +1444,8 @@ metodoloji/
 │   ├── engine/modules/                  # guard (guard+quality+deploy), audit, stop, plan, mirror, state, config, archive, bash_targets, blackboard, utils
 │   ├── engine/resolve_customization.py  # thin re-export (real: bmad/scripts/resolve_customization.py)
 │   └── scripts/bootstrap.sh, hook-entry.sh, run-hook.sh
-├── skills/                              # 51 skills (native bodies)
-├── custom/                              # 45 TOMLs (7 BRIDGE active) + config.toml (soft/hard)
+├── skills/                              # 48 skills (native bodies)
+├── custom/                              # 42 TOMLs (7 BRIDGE active) + config.toml (soft/hard)
 ├── bmad/                                # module data (bmm,tea,core,bmb,loop,_config) + scripts/ (blackboard, workflow, orient, resolve_config, resolve_customization, skeleton)
 ├── templates/                           # _template_E/IR/SP/QR/PR/S/PM/BD/C/STRUCT + README/tech-debt/scratch-README/external-context-README/external-context
 ├── commands/                            # /metodoloji:init, gate-setup, verify, audit (.md)

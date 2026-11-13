@@ -607,7 +607,7 @@ python -m pytest -q && sh {metodoloji-root}/scripts/check-plugin.sh
 
 Skill'ler "bir adımı nasıl yapacağını", hook'lar "hangi dosyaya dokunulduğunu" bilir; **sırayı** bilen katman workflow çekirdeğidir: bir **niyet**, beyan edilen bir sürece dönüşür ve çekirdek onu deterministik bir durum makinesi olarak çalıştırır. Model spec'i yazar ve aşamanın işini yapar; **sıradaki aşamayı model seçmez, çekirdek hesaplar.**
 
-**Neden ayrı bir çekirdek:** blackboard bir *bağlam ağı*dır (key/list/canvas/link/alert) — aşama, önkoşul ve geçiş kavramı yoktur. `bmad-loop` ise dev/review oturumlarını yöneten harici bir pakettir. Süreç motoru bunların semantiğini miras almadan kendi başına durur.
+**Neden ayrı bir çekirdek:** blackboard bir *bağlam ağı*dır (key/list/canvas/link/alert) — aşama, önkoşul ve geçiş kavramı yoktur. oturum orkestrasyonu ise harici bir meseledir. Süreç motoru bunların semantiğini miras almadan kendi başına durur.
 
 **Nasıl çalışır:**
 
@@ -1181,9 +1181,9 @@ python3 {metodoloji-root}/bmad/scripts/blackboard.py hot --clear
 - **Katkıcı (`bmad-advanced-elicitation`, `bmad-party-mode`, `bmad-eval-runner`)** — satır-içi teknik yükseltici: başka bir skill'in oturumu *içinde* çağrılır, çağıranın tahta bağlamını okur ve tam olarak bir `contribute` izi bırakır; diğer tüm yazımlar yasak (focus, run list ve kapanış çağıranın malı).
 - **Raporlayıcı (`bmad-sprint-status`)** — proje durumunu raporlar, dolayısıyla yalnızca dosyadan rapor edemez: tahtayı okur ve bekleyen bir batonu, planın henüz bilmediği canlı iş olarak öne çıkarır.
 - **Yardım yönlendiricisi (`bmad-help`)** — sıradaki skill'i önerir; bekleyen batonları da okur (salt-okunur) ve onları kataloğun önüne geçirir — bekleyen sinyal, haritanın henüz göstermediği canlı iştir.
-- **Satır-içi (`bmad-review-*`, `bmad-editorial-review-*`, `bmad-loop-sweep`)** — bulgularını çağırana döndürür, hop atmaz; gözden geçiriciler çağıranın tahta bağlamını **okumaz** — bilgi asimetrisi tasarım gereğidir. `bmad-loop-sweep` yalnızca bmad-loop oturumu içinde çalışır, makine-okunur triajı orkestratöre döndürür.
-- **İnsan kararı giriş noktaları (`bmad-checkpoint-preview`, `bmad-loop-resolve`)** — kullanıcı isteğiyle çağrılır ve bir insan kararını yönetir; karar vermeden önce tahtaya açılır (salt-okunur) — zincir bağlamı olmadan verilen karar boşluktan verilmiş karardır.
-- **Araç (`bmad-document-project`, `bmad-generate-project-context`, `bmad-index-docs`, `bmad-shard-doc`, kurucular: `bmad-loop-setup`, `bmad-workflow-builder`, `bmad-customize`)** — zincir kaydı olmayan bir çıktı üretir (proje dokümanı, kurulu modül, ilerleme dosyası): ne hop ne tahta sözleşmesi. Dört doküman/bağlam skill'inin çıktısı (`project-context.md` vb.) birçok aşama tarafından *okunur* — ama baton olarak değil, aktivasyonda `persistent_facts` dosyası olarak: kayıt defteri bu bağımlılığı kimsenin tüketmeyeceği bir sinyal icat etmeden modeller.
+- **Satır-içi (`bmad-review-*`, `bmad-editorial-review-*`)** — bulgularını çağırana döndürür, hop atmaz; gözden geçiriciler çağıranın tahta bağlamını **okumaz** — bilgi asimetrisi tasarım gereğidir.
+- **İnsan kararı giriş noktaları (`bmad-checkpoint-preview`)** — kullanıcı isteğiyle çağrılır ve bir insan kararını yönetir; karar vermeden önce tahtaya açılır (salt-okunur) — zincir bağlamı olmadan verilen karar boşluktan verilmiş karardır.
+- **Araç (`bmad-document-project`, `bmad-generate-project-context`, `bmad-index-docs`, `bmad-shard-doc`, kurucu: `bmad-workflow-builder`, `bmad-customize`)** — zincir kaydı olmayan bir çıktı üretir (proje dokümanı, kurulu modül, ilerleme dosyası): ne hop ne tahta sözleşmesi. Dört doküman/bağlam skill'inin çıktısı (`project-context.md` vb.) birçok aşama tarafından *okunur* — ama baton olarak değil, aktivasyonda `persistent_facts` dosyası olarak: kayıt defteri bu bağımlılığı kimsenin tüketmeyeceği bir sinyal icat etmeden modeller.
 - **Deprecated shim'ler** (`bmad-create-prd`, `bmad-validate-prd` → `bmad-prd`; `bmad-create-architecture` → `bmad-architecture`) kendi zincir mantığını taşımaz; `check-handoff.py` shim'in DEPRECATED olduğunu ve **zincir üyesi** bir skill'e yönlendirdiğini doğrular.
 
 **Lint'in iki yapısal değişmezi (gerekçe etiketlerinin üstünde):** (1) *Bir hop alıcısı "bana kimse devretmiyor" diyemez* — `entry point`/`feeder`/`origin` etiketli bir alıcı kanalına hiç bakmaz, dolayısıyla bildirilen baton bayatlayana kadar bekler; ayrıca her alıcı kayıtlı bir üye olmalıdır (kayıtsız alıcıyı lint hiç denetlemez). (2) *Birden fazla aşamanın yazdığı run-key namespace'i imzalanmalıdır* — `story.` iki tarafından yazıldığı için dev kapanışı `--sender bmad-dev-story` taşır; imza olmadan önek atıfı create-story'yi krediler ve terminal hop bildirilmemiş bir çift gibi görünür. Terminal alıcılar da açıkça bildirilir (`CHAIN_TERMINAL`).
@@ -1444,8 +1444,8 @@ metodoloji/
 │   ├── engine/modules/                  # guard (guard+quality+deploy), audit, stop, plan, mirror, state, config, archive, bash_targets, blackboard, utils
 │   ├── engine/resolve_customization.py  # ince re-export (gerçek: bmad/scripts/resolve_customization.py)
 │   └── scripts/bootstrap.sh, hook-entry.sh, run-hook.sh
-├── skills/                              # 51 skill (native gövde)
-├── custom/                              # 45 TOML (7 BRIDGE aktif) + config.toml (soft/hard)
+├── skills/                              # 48 skill (native gövde)
+├── custom/                              # 42 TOML (7 BRIDGE aktif) + config.toml (soft/hard)
 ├── bmad/                                # modül verisi (bmm,tea,core,bmb,loop,_config) + scripts/ (blackboard, workflow, orient, resolve_config, resolve_customization, skeleton)
 ├── templates/                           # _template_E/IR/SP/QR/PR/S/PM/BD/C/STRUCT + README/tech-debt/scratch-README/external-context-README/external-context
 ├── commands/                            # /metodoloji:init, gate-setup, verify, audit (.md)

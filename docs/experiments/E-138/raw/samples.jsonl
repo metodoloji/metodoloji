@@ -1,0 +1,11 @@
+{"check": "loop skill dirs removed", "ok": true, "detail": "none"}
+{"check": "loop TOMLs removed", "ok": true, "detail": "none"}
+{"check": "loop module data removed", "ok": true, "detail": "none"}
+{"check": "no catalog row names the module", "ok": true, "detail": "none"}
+{"check": "handoff lint carries no entry", "ok": true, "detail": "none"}
+{"check": "chain-adjacent registry carries no entry", "ok": true, "detail": "none"}
+{"check": "runbooks carry no reference", "ok": true, "detail": "none"}
+{"check": "the deferred-work format survives at its new home", "ok": true, "detail": "skills/bmad-code-review/references/deferred-work-format.md (69 lines)"}
+{"check": "the format has exactly one owner", "ok": true, "detail": "single owner"}
+{"check": "every pointer agrees on the new home", "ok": true, "detail": "5 pointers agree"}
+{"check": "shipped manifests declare the surviving count", "ok": true, "detail": "48 skills declared"}

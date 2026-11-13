@@ -708,7 +708,7 @@ echo "CHECK 9: Deferred-Work Ledger"
 echo "═══════════════════════════════════════════════════"
 
 # The ledger is a core debt surface (E-108): review / quick-dev / dev-auto
-# append to it in every project, and bmad-loop-sweep triages it. ONE parser
+# append to it in every project, and the maintainer triages it. ONE parser
 # answers here — the engine's `state.deferred_work_inventory` — because a
 # second copy is how the digest and the audit started disagreeing (E-108
 # review: `Status: open` and `### DW-1 :` were read differently by the awk).
@@ -751,7 +751,7 @@ EOF
             log_warn "deferred-work: could not read the ledger — $DW_REL" ;;
         *)
             if [ "${DW_LEGACY:-0}" = "1" ] || [ "${DW_LEGACY_ITEMS:-0}" -gt 0 ]; then
-                log_warn "deferred-work: legacy freeform content (${DW_LEGACY_ITEMS:-0} item(s)) — run bmad-loop-sweep --migrate ($DW_REL)"
+                log_warn "deferred-work: legacy freeform content (${DW_LEGACY_ITEMS:-0} item(s)) — normalize to skills/bmad-code-review/references/deferred-work-format.md ($DW_REL)"
             elif [ "${DW_BAD:-0}" -gt 0 ]; then
                 log_warn "deferred-work: ${DW_OPEN:-0} open / ${DW_TOTAL:-0} total — ${DW_BAD} malformed entries (missing or unrecognized status) ($DW_REL)"
             else

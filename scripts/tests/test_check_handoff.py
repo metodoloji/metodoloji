@@ -496,7 +496,7 @@ def test_entry_point_reasons_that_review_humans_must_ground(tmp_path, capsys, mo
     a board read — a verdict made without chain context is a vacuum verdict."""
     mod = _load_lint()
     routes = (mod.BOARD_GROUNDED_MARKER,) + tuple(mod.BOARD_GROUNDED_LEGACY)
-    for skill in ("bmad-checkpoint-preview", "bmad-loop-resolve"):
+    for skill in ("bmad-checkpoint-preview",):
         assert mod.PEEK_EXEMPT.get(skill) == "entry point", skill
         text = (mod.SKILLS / skill / "SKILL.md").read_text(encoding="utf-8")
         # Not run openers (they review, they don't start runs), so either route

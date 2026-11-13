@@ -1793,7 +1793,7 @@ def test_chain_adjacent_is_known_but_relay_free():
     tool that produced a chain hop would be a wiring bug (installers build
     modules, not methodology records). Every name must be a real skill."""
     assert "bmad-help" in bb.CHAIN_ADJACENT
-    assert "bmad-loop-sweep" in bb.CHAIN_ADJACENT
+    assert "bmad-workflow-builder" in bb.CHAIN_ADJACENT
     assert not (bb.CHAIN_ADJACENT & set(bb.sub_chain_skills()))  # disjoint from relays
     for skill in bb.CHAIN_ADJACENT:
         assert (Path(bb.__file__).parents[3] / "skills" / skill

@@ -37,8 +37,6 @@ _CATALOGS = (
     "bmad/_config/skill-manifest.csv",
     "bmad/_config/bmad-help.csv",
     "bmad/bmb/module-help.csv",
-    "bmad/bmad-loop/module-help.csv",
-    "skills/bmad-loop-setup/assets/module-help.csv",
 )
 
 # Files whose prose names the shipped tool surface.
