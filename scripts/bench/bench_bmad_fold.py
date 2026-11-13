@@ -131,6 +131,17 @@ def _json(script: pathlib.Path, *args: str, cwd: pathlib.Path | None = None):
     except json.JSONDecodeError as exc:
         return {"__error__": f"not JSON: {exc}", "__raw__": out["stdout"][:400]}
 
+def _scrub_release_state(node):
+    """Drop `plugin_version` at any depth — release state, never CLI behaviour."""
+    if isinstance(node, dict):
+        node.pop("plugin_version", None)
+        for value in node.values():
+            _scrub_release_state(value)
+    elif isinstance(node, list):
+        for value in node:
+            _scrub_release_state(value)
+
+
 def _normalize(digest, proj: pathlib.Path | None = None):
     """Drop the fields that legitimately differ run to run.
 
@@ -142,9 +153,12 @@ def _normalize(digest, proj: pathlib.Path | None = None):
     if not isinstance(digest, dict):
         return digest
     d = json.loads(json.dumps(digest))
+    # Release state, not CLI behaviour: the pre-commit hook bumps the version on
+    # every commit, so a field carrying it can never match a baseline captured
+    # one commit earlier. Scrub it at any depth (orient nests it under skeleton).
+    _scrub_release_state(d)
     d.pop("today", None)
     d.pop("gate_key", None)
-    d.pop("plugin_version", None)
     if proj is not None:
         # The probe project is a fresh tempdir per run; only its PLACEHOLDER
         # matters, never its name.
@@ -246,6 +260,7 @@ def _case_no_bmad_tree() -> tuple[bool, str]:
 def _case_clis_unchanged() -> tuple[bool, str]:
     """Every CLI reproduces its pre-move output."""
     want = json.loads(BASELINE.read_text(encoding="utf-8"))
+    _scrub_release_state(want)
     got = _capture()
     drift = [k for k in ("orient", "resolve_config_full", "resolve_config_keys",
                          "skeleton_status", "blackboard_doctor", "workflow_list",
@@ -292,6 +307,7 @@ def _case_kernel_imports() -> tuple[bool, str]:
 def _case_shim_resolves() -> tuple[bool, str]:
     """The engine-side shim reaches the moved canonical resolver, for every skill."""
     want = json.loads(BASELINE.read_text(encoding="utf-8"))
+    _scrub_release_state(want)
     shim = ROOT / "hooks" / "engine" / "resolve_customization.py"
     proj = _project()
     drift = []
