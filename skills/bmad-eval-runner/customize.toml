@@ -1,12 +1,14 @@
-# Eval Runner - Team overrides
-# Evaluation runner: test and measurement (Mod A: code audit)
+# DO NOT EDIT -- overwritten on every update.
+#
+# Customization surface for bmad-eval-runner.
 
 [workflow]
 persistent_facts = [
   "file:{project-root}/**/project-context.md",
   "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+  "file:{metodoloji-root}/docs/bmad/development-methodology.md",
 ]
 activation_steps_append = [
   "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
-  "Feed results into the linked QR record's Skill Eval block per the SKILL.md header bridge; open no separate methodology record."
+  "Feed results into the linked QR record's Skill Eval block per the SKILL.md header bridge; open no separate methodology record.",
 ]

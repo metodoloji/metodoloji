@@ -81,6 +81,6 @@ Post the heartbeat and chain signal so downstream PRD creation opens knowing the
 
 This is the terminal stage. If the user wants to revise, loop back to the relevant stage. Otherwise, the workflow is done.
 
-Run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --key workflow.on_complete` — use your harness-native shell tool with the command as given (no extra wrapper params)
+Run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --project-root {project-root} --key workflow.on_complete` — use your harness-native shell tool with the command as given (no extra wrapper params)
 
 If the resolved `workflow.on_complete` is non-empty, follow it as the final terminal instruction before exiting.

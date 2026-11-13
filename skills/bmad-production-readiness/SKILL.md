@@ -25,13 +25,13 @@ Run: `python3 {metodoloji-root}/bmad/scripts/orient.py --project-root {project-r
 
 ### Step 2: Resolve the Workflow Block
 
-Run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --key workflow` — use your harness-native shell tool with the command as given (no extra wrapper params)
+Run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --project-root {project-root} --key workflow` — use your harness-native shell tool with the command as given (no extra wrapper params)
 
 **If the script fails**, resolve the `workflow` block yourself by reading these three files in base → team → user order and applying the same structural merge rules as the resolver:
 
 1. `{skill-root}/customize.toml` — defaults
-2. `{metodoloji-root}/custom/{skill-name}.toml` — team overrides
-3. `{metodoloji-root}/custom/{skill-name}.user.toml` — personal overrides
+2. `{project-root}/custom/{skill-name}.toml` — team overrides
+3. `{project-root}/custom/{skill-name}.user.toml` — personal overrides
 
 Any missing file is skipped. Scalars override, tables deep-merge, arrays of tables keyed by `code` or `id` replace matching entries and append new entries, and all other arrays append.
 
@@ -554,7 +554,7 @@ On WAITING, announce the deploy block: `python3 {metodoloji-root}/bmad/scripts/b
 
 <action>Close the board run: bind the readiness run key (`python3 {metodoloji-root}/bmad/scripts/blackboard.py mirror --key PR-{id} --value "<READY|WAITING>: v{version} — record: {deployment_location}/PR-{id}.md" --project-root {project-root}` — the engine mirrors `methodology.last_pr` from it automatically). Trace the relay on the graph: `python3 {metodoloji-root}/bmad/scripts/blackboard.py link --a QR-{id} --b PR-{id} --relation validates --project-root {project-root}` (the QR id is the one the consumed baton named; readers trace the full S→QR→PR chain via `neighbors`), mirror completion onto the intent bridge (`write --key status --value complete --type state --project-root {project-root}`), and run the close-out check (`python3 {metodoloji-root}/bmad/scripts/blackboard.py doctor --json --project-root {project-root}` — waiting hand-off signals are the designed post-close state, not a failure: name them from `signal_warnings`, chain verdict `SIGNAL`; on `NEEDS ATTENTION`, surface the health warnings and resolve or disclose them before exiting).</action>
 
-<action>Run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --key workflow.on_complete` — use your harness-native shell tool with the command as given (no extra wrapper params) — if the resolved value is non-empty, follow it as the final terminal instruction before exiting.</action>
+<action>Run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --project-root {project-root} --key workflow.on_complete` — use your harness-native shell tool with the command as given (no extra wrapper params) — if the resolved value is non-empty, follow it as the final terminal instruction before exiting.</action>
 </step>
 
 </workflow>

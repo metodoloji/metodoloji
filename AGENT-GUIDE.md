@@ -122,7 +122,7 @@ progress, mode: which gates are soft/hard), then wait for my goal.
 
 - Empty/new project: add `Project type: greenfield. Put code_guard, quality_gate and deploy_guard in hard mode after setup.`
 - Existing codebase: add `Project type: brownfield. Start with code_guard = "soft" only; tighten it after the first VERIFIED scope.`
-- Working on the plugin itself: add `Project type: self-hosting (metodoloji repo). hooks/, scripts/, skills/, custom/ are free here; regenerate hooks.json with scripts/sync-hooks-json.py --write instead of editing it.`
+- Working on the plugin itself: add `Project type: self-hosting (metodoloji repo). hooks/, scripts/, skills/ are free here; regenerate hooks.json with scripts/sync-hooks-json.py --write instead of editing it.`
 - Windows + WSL: add `I use both PowerShell and WSL homes. If tokens come back FORGED on the other side, tell me to re-sync the key — do not regenerate it twice.`
 
 ---
@@ -176,7 +176,7 @@ mode (which trees are free, how hooks.json must be regenerated), then run the
 full check suite so I know the baseline before I change anything.
 ```
 
-**Expected reply:** self-modification zone explained (`hooks/`, `scripts/`, `skills/`, `custom/` free *here*), `hooks.json` regeneration rule (`scripts/sync-hooks-json.py --write`), baseline of `pytest` + `check-plugin.sh`.
+**Expected reply:** self-modification zone explained (`hooks/`, `scripts/`, `skills/` free *here*), `hooks.json` regeneration rule (`scripts/sync-hooks-json.py --write`), baseline of `pytest` + `check-plugin.sh`.
 
 ### 3.4 Team / multiple machines
 
@@ -501,7 +501,7 @@ Check .env hygiene: .env must not be tracked, .env.example must exist, and
 |---|---|---|---|---|---|---|---|
 | **Empty (greenfield)** | #3.1 | #4.1 or #4.2 | #4.4 | #4.7 | #4.9 (from row 8 mode) | #4.14 | #5.1 |
 | **Existing repo (brownfield)** | #3.2 | #4.2 (code_guard soft → tighten after first VERIFIED) | #4.4 | #4.7 | #4.9 | #4.14 | #5.1 |
-| **Plugin repo (self-host)** | #3.3 | #4.2 (note: `hooks/`, `scripts/`, `skills/`, `custom/` are free here) | #4.4 | #4.7 | #4.9 | #4.14 (committed plugin layer) | #5.1 + #5.6 |
+| **Plugin repo (self-host)** | #3.3 | #4.2 (note: `hooks/`, `scripts/`, `skills/` are free here) | #4.4 | #4.7 | #4.9 | #4.14 (committed plugin layer) | #5.1 + #5.6 |
 | **Team / multi-machine** | #3.4 | #4.2 + #4.10 | #4.4 | #4.7 | #4.9 | #4.14 (team vs `*.user.toml`) | #5.1 + #5.3 |
 | **Spike (no chain)** | #3.5 | #5 (work in `scratch/`, promote later) | #4.4 | — | — | — | #5.1 |
 | **In-flight work** | — | #4.2 / #4.6 | #4.4 | #4.7 / #4.8 | #4.9 | #4.14 / #4.15 | #5.3 / #5.4 |

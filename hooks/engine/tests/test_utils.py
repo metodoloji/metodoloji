@@ -250,7 +250,7 @@ def test_plugin_trees_free_when_project_is_methodology_root(monkeypatch, tmp_pat
     assert is_free("scripts/tool.py")
     assert is_free("hooks/engine/main.py")
     assert is_free("skills/bmad-dev-story/SKILL.md")
-    assert is_free("custom/bmad-dev-story.toml")
+    assert is_free("skills/bmad-dev-story/customize.toml")
 
 
 def test_plugin_trees_protected_when_no_project_env(monkeypatch, tmp_path):

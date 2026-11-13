@@ -38,6 +38,7 @@ description/prompt.
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -56,23 +57,12 @@ _MISSING = object()
 _KEYED_MERGE_FIELDS = ("code", "id")
 
 
-_ROOT_MARKERS = (".plugin", "_bmad", "bmad", "custom", ".git")
-
-
-def find_project_root(start: Path):
-    current = start.resolve()
-    while True:
-        if any((current / m).exists() for m in _ROOT_MARKERS):
-            return current
-        parent = current.parent
-        if parent == current:
-            return None
-        current = parent
-
-
 def find_custom_dir(project_root: Path) -> Path | None:
-    """Team/personal override directory — plugin layout (custom/) takes priority,
-    claude layout (_bmad/custom) is backward-compatible."""
+    """The TARGET PROJECT's override directory (never the plugin's — E-147).
+
+    `custom/` is the plugin-era name and still wins when a project has one;
+    `_bmad/custom` is the Claude-layout name.
+    """
     for cand in (project_root / "custom", project_root / "_bmad" / "custom"):
         if cand.is_dir():
             return cand
@@ -232,6 +222,11 @@ def main():
         "--key", "-k", action="append", default=[],
         help="Dotted field path to resolve (repeatable). Omit for full dump.",
     )
+    parser.add_argument(
+        "--project-root", default=None,
+        help="Target project whose custom/ overrides apply. Defaults to "
+             "$METODOLOJI_PROJECT_ROOT, then the current directory.",
+    )
     args = parser.parse_args()
 
     skill_dir = Path(args.skill).resolve()
@@ -254,11 +249,15 @@ def main():
             "file:{metodoloji-root}/docs/bmad/development-methodology.md",
         ]}}
 
-    # Prefer the project that contains this skill. Only fall back to cwd if
-    # the skill isn't inside a recognizable project tree (unusual but possible
-    # for standalone skills invoked directly). Using cwd first is unsafe when
-    # an ancestor of cwd happens to have a stray _bmad/ from another project.
-    project_root = find_project_root(skill_dir) or find_project_root(Path.cwd())
+    # The skill lives inside the plugin, so deriving the project from the
+    # skill's path always found the PLUGIN root — the project's overrides were
+    # never read. Ask for the project explicitly instead (E-147).
+    if args.project_root:
+        project_root = Path(args.project_root).resolve()
+    elif os.environ.get("METODOLOJI_PROJECT_ROOT"):
+        project_root = Path(os.environ["METODOLOJI_PROJECT_ROOT"]).resolve()
+    else:
+        project_root = Path.cwd().resolve()
 
     team = {}
     user = {}

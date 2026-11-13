@@ -279,6 +279,6 @@ The project context file serves as the critical "rules of the road" that agents 
 
 ## On Complete
 
-Run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --key workflow.on_complete` — use your harness-native shell tool with the command as given (no extra wrapper params)
+Run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --project-root {project-root} --key workflow.on_complete` — use your harness-native shell tool with the command as given (no extra wrapper params)
 
 If the resolved `workflow.on_complete` is non-empty, follow it as the final terminal instruction before exiting.

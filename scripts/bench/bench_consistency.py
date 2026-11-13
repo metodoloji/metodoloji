@@ -171,7 +171,7 @@ def _read(rel: str) -> str:
 
 def _actual_counts() -> tuple[int, int]:
     skills = sum(1 for p in (ROOT / "skills").iterdir() if p.is_dir())
-    tomls = sum(1 for p in (ROOT / "custom").glob("*.toml") if p.stem != "config")
+    tomls = sum(1 for p in (ROOT / "skills").glob("*/customize.toml"))
     return skills, tomls
 
 
@@ -1772,7 +1772,7 @@ def _check_techdebt_audit_covers_the_tree() -> str | None:
     problems = []
     if '"$PLUGIN_ROOT/scratch/" "$PLUGIN_ROOT/custom/"' in text:
         problems.append("§5 still scans only scratch/ + custom/")
-    for root in ("hooks", "scripts", "bmad", "skills", "custom", "scratch"):
+    for root in ("hooks", "scripts", "bmad", "skills", "scratch"):
         if f"$PLUGIN_ROOT/{root}" not in text:
             problems.append(f"§5 does not scan {root}/")
     if "not in the inventory" not in text:
@@ -2011,9 +2011,9 @@ def _check_bridge_producer_verify_audit() -> str | None:
         want = "agent.principles" if name in agent_surfaces else "workflow.activation_steps_append"
         if key != want:
             problems.append(f"§2c reads {name} from {key}, want {want}")
-        path = ROOT / "custom" / f"{name}.toml"
+        path = ROOT / "skills" / name / "customize.toml"
         if not path.is_file():
-            problems.append(f"producer TOML missing: custom/{name}.toml")
+            problems.append(f"producer TOML missing: skills/{name}/customize.toml")
             continue
         data = tomllib.loads(path.read_text(encoding="utf-8"))
         sec, field = key.split(".", 1)
@@ -2066,9 +2066,9 @@ def _check_bridge_verify_pattern_parity() -> str | None:
             problems.append(f"§4 KOPRU not covered by §2c producers: {outside}")
     # Re-evaluate both halves on each producer's own BRIDGE TOML.
     for name, key in audited.items():
-        path = ROOT / "custom" / f"{name}.toml"
+        path = ROOT / "skills" / name / "customize.toml"
         if not path.is_file():
-            problems.append(f"producer TOML missing: custom/{name}.toml")
+            problems.append(f"producer TOML missing: skills/{name}/customize.toml")
             continue
         data = tomllib.loads(path.read_text(encoding="utf-8"))
         sec, field = key.split(".", 1)
@@ -2112,8 +2112,7 @@ def _check_bridge_section_refs_resolve() -> str | None:
         r"(?:§([0-9]+(?:\.[0-9]+[a-z]?)?)"
         r"|(?:section|bol[uü]m)\s+([0-9]+(?:\.[0-9]+[a-z]?)?))",
         re.IGNORECASE)
-    surfaces: list[pathlib.Path] = [
-        p for p in (ROOT / "custom").glob("*.toml") if p.name != "config.toml"]
+    surfaces: list[pathlib.Path] = sorted((ROOT / "skills").glob("*/customize.toml"))
     surfaces += sorted((ROOT / "skills").glob("*/SKILL.md"))
     surfaces += sorted((ROOT / "commands").glob("*.md"))
     for path in sorted(surfaces):
@@ -2151,9 +2150,7 @@ def _check_bridge_feeder_audit_covers_every_feeder() -> str | None:
     feeder_phrase = "does not produce an independent methodology record"
     verify_markers = ("DOGRULAMA", "VERIFICATION", "VERIFY")
     tree_feeders: set[str] = set()
-    for path in sorted((ROOT / "custom").glob("*.toml")):
-        if path.name == "config.toml":
-            continue
+    for path in sorted((ROOT / "skills").glob("*/customize.toml")):
         text = path.read_text(encoding="utf-8", errors="replace")
         if "dev-skill-to-methodology-bridge" not in text:
             continue
@@ -2163,15 +2160,15 @@ def _check_bridge_feeder_audit_covers_every_feeder() -> str | None:
             problems.append(f"{path.name}: feeder/producer signals disagree "
                             f"(feeder phrase={is_feeder}, verify={has_verify})")
         if is_feeder:
-            tree_feeders.add(path.stem)
+            tree_feeders.add(path.parent.name)
     if audited != tree_feeders:
         missing = sorted(tree_feeders - audited)
         extra = sorted(audited - tree_feeders)
         problems.append(f"§2 QR_FEEDERS_TOML != tree feeders (missing {missing}, extra {extra})")
     for name in sorted(audited):
-        path = ROOT / "custom" / f"{name}.toml"
+        path = ROOT / "skills" / name / "customize.toml"
         if not path.is_file():
-            problems.append(f"feeder TOML missing: custom/{name}.toml")
+            problems.append(f"feeder TOML missing: skills/{name}/customize.toml")
             continue
         text = path.read_text(encoding="utf-8", errors="replace")
         if "dev-skill-to-methodology-bridge" not in text:
@@ -2209,9 +2206,9 @@ def _check_bridge_record_target_audit_covers_every_producer() -> str | None:
         extra = sorted(set(audited) - documented)
         problems.append(f"§2 BRIDGE_SKILLS != GUIDE producers (missing {missing}, extra {extra})")
     for name, target in audited.items():
-        path = ROOT / "custom" / f"{name}.toml"
+        path = ROOT / "skills" / name / "customize.toml"
         if not path.is_file():
-            problems.append(f"producer TOML missing: custom/{name}.toml")
+            problems.append(f"producer TOML missing: skills/{name}/customize.toml")
             continue
         text = path.read_text(encoding="utf-8", errors="replace")
         if "dev-skill-to-methodology-bridge" not in text:
@@ -2292,26 +2289,21 @@ def _check_bridge_runtime_visibility_audit_covers_every_surface() -> str | None:
     if both:
         problems.append(f"§2b classifies {both} as both workflow and agent surfaces")
     tree: set[str] = set()
-    for path in sorted((ROOT / "custom").glob("*.toml")):
-        if path.name == "config.toml":
-            continue
+    for path in sorted((ROOT / "skills").glob("*/customize.toml")):
         text = path.read_text(encoding="utf-8", errors="replace")
         if "dev-skill-to-methodology-bridge" in text:
-            tree.add(path.stem)
+            tree.add(path.parent.name)
     if covered != tree:
         missing = sorted(tree - covered)
         extra = sorted(covered - tree)
         problems.append("§2b TOML_SKILLS+AGENT_TOML_SKILLS != bridge-citing "
-                        f"custom/*.toml (missing {missing}, extra {extra})")
+                        f"skills/*/customize.toml (missing {missing}, extra {extra})")
     for name in sorted(covered):
         root_toml = ROOT / "skills" / name / "customize.toml"
         if not root_toml.is_file():
             problems.append(f"{name}: no root customize.toml — team BRIDGE "
                             "override can never merge")
-        tname = ROOT / "custom" / f"{name}.toml"
-        if not tname.is_file():
-            problems.append(f"{name}: no custom/{name}.toml bridge override")
-            continue
+        tname = root_toml
         if "dev-skill-to-methodology-bridge" not in tname.read_text(
                 encoding="utf-8", errors="replace"):
             problems.append(f"{name}: custom/{name}.toml has no bridge reference")
@@ -3378,10 +3370,10 @@ def _shipped_relay_edges() -> dict:
         edges = _EDGE_RE.findall(blob)
         if edges:
             out[md.parent.name] = edges
-    for toml in sorted((ROOT / "custom").glob("*.toml")):
+    for toml in sorted((ROOT / "skills").glob("*/customize.toml")):
         edges = _EDGE_RE.findall(toml.read_text(encoding="utf-8", errors="replace"))
         if edges:
-            out.setdefault(toml.stem, []).extend(edges)
+            out.setdefault(toml.parent.name, []).extend(edges)
     return out
 
 

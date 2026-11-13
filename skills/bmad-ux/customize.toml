@@ -2,20 +2,25 @@
 #
 # Workflow customization surface for bmad-ux.
 # Overrides:
-#   {metodoloji-root}/custom/bmad-ux.toml         (team)
-#   {metodoloji-root}/custom/bmad-ux.user.toml    (personal)
+#   {project-root}/custom/bmad-ux.toml         (team)
+#   {project-root}/custom/bmad-ux.user.toml    (personal)
 # Merge rules: scalars override, arrays append.
 
 [workflow]
 
 # Steps to run before/after standard activation. Append-only.
 activation_steps_prepend = []
-activation_steps_append = []
+activation_steps_append = [
+  "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
+  "Before finishing the work, verify that the record is complete: English field labels, decision rationale, uncertainty acknowledgment. A documentary decision is not permission to write code.",
+]
 
 # Persistent facts loaded at activation and kept in mind for the run.
 # Entries: literal sentence, `skill:NAME`, or `file:PATH` (glob ok).
 persistent_facts = [
   "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+  "file:{metodoloji-root}/docs/bmad/development-methodology.md",
 ]
 
 # Runs at workflow completion. String or array of instructions.

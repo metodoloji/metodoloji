@@ -35,13 +35,13 @@ Run: `python3 {metodoloji-root}/bmad/scripts/orient.py --project-root {project-r
 
 ### Step 2: Resolve the Workflow Block
 
-Run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --key workflow` — use your harness-native shell tool with the command as given (no extra wrapper params)
+Run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --project-root {project-root} --key workflow` — use your harness-native shell tool with the command as given (no extra wrapper params)
 
 **If the script fails**, resolve the `workflow` block yourself by reading these three files in base → team → user order and applying the same structural merge rules as the resolver:
 
 1. `{skill-root}/customize.toml` — defaults
-2. `{metodoloji-root}/custom/{skill-name}.toml` — team overrides
-3. `{metodoloji-root}/custom/{skill-name}.user.toml` — personal overrides
+2. `{project-root}/custom/{skill-name}.toml` — team overrides
+3. `{project-root}/custom/{skill-name}.user.toml` — personal overrides
 
 Any missing file is skipped. Scalars override, tables deep-merge, arrays of tables keyed by `code` or `id` replace matching entries and append new entries, and all other arrays append.
 
@@ -418,7 +418,7 @@ Before loading the first step file, check the chain for signals addressed to you
 
     **The developer now has everything needed for flawless implementation!**
   </output>
-  <action>Run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --key workflow.on_complete` — use your harness-native shell tool with the command as given (no extra wrapper params) — if the resolved value is non-empty, follow it as the final terminal instruction before exiting.</action>
+  <action>Run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --project-root {project-root} --key workflow.on_complete` — use your harness-native shell tool with the command as given (no extra wrapper params) — if the resolved value is non-empty, follow it as the final terminal instruction before exiting.</action>
 </step>
 
 </workflow>

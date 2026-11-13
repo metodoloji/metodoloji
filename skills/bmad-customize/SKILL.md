@@ -12,7 +12,7 @@ Meta yuzey: urettigi yuzeyler arastirma metodolojisini miras alir
 
 # BMad Customize
 
-Translate the user's intent into a correctly-placed TOML override file under `{metodoloji-root}/custom/` for a customizable agent or workflow skill. Discover, route, author, write, verify.
+Translate the user's intent into a correctly-placed TOML override file under `{project-root}/custom/` for a customizable agent or workflow skill. Discover, route, author, write, verify. The plugin ships no override layer: overrides are the target project's, so they survive a plugin update.
 
 Scope v1: per-skill `[agent]` overrides (`<agent-skill>.toml` / `.user.toml`) and per-skill `[workflow]` overrides (`bmad-<workflow>.toml` / `.user.toml`). Central config (`{metodoloji-root}/config.toml`) is out of scope — point users at the [How to Customize BMad guide](https://docs.bmad-method.org/how-to/customize-bmad/).
 
@@ -21,7 +21,7 @@ When the target's `customize.toml` doesn't expose what the user wants, say so pl
 ## Preflight
 
 - No `{metodoloji-root}/bmad/` → BMad isn't installed. Say so, stop.
-- `{metodoloji-root}/hooks/engine/resolve_customization.py` missing → continue, but Step 6 verify falls back to manual merge.
+- `{metodoloji-root}/bmad/scripts/resolve_customization.py` missing → continue, but Step 6 verify falls back to manual merge.
 - Both present → proceed.
 
 ## Activation
@@ -77,11 +77,11 @@ Merge semantics:
 
 Overrides are sparse: only the fields being changed. Never copy the whole `customize.toml`.
 
-**Template swap** (`*_template` scalar): offer to copy the default template to `{metodoloji-root}/custom/{skill-name}-{purpose}-template.md`, point the override at the new path, offer to help edit it.
+**Template swap** (`*_template` scalar): offer to copy the default template to `{project-root}/custom/{skill-name}-{purpose}-template.md`, point the override at the new path, offer to help edit it.
 
 ## Step 5: Team or user placement
 
-Under `{metodoloji-root}/custom/`:
+Under `{project-root}/custom/`:
 - `{skill-name}.toml` — team, committed. Policies, org conventions, compliance.
 - `{skill-name}.user.toml` — user, gitignored. Personal tone, private facts, shortcuts.
 
@@ -91,13 +91,13 @@ Default by character (policy → team, personal → user), confirm before writin
 
 1. Show the full TOML. If the file exists, show a diff. Never silently overwrite.
 2. Wait for explicit yes.
-3. Write. Create `{metodoloji-root}/custom/` if needed.
+3. Write. Create `{project-root}/custom/` if needed.
 4. Verify:
    ```
-   python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill <install-path> --key <agent-or-workflow>` — use your harness-native shell tool with the command as given (no extra wrapper params)``
+   python3 {metodoloji-root}/bmad/scripts/resolve_customization.py --skill <install-path> --project-root {project-root} --key <agent-or-workflow>` — use your harness-native shell tool with the command as given (no extra wrapper params)``
    Show the merged output, point out the changed fields.
 
-   **Resolver missing or fails:** read whichever layers exist — `<install-path>/customize.toml` (base), `{metodoloji-root}/custom/{skill-name}.toml` (team), `{metodoloji-root}/custom/{skill-name}.user.toml` (user) — apply base → team → user with the same merge rules (scalars override, tables deep-merge, `code`/`id`-keyed arrays merge by key, all other arrays append), describe how the changed fields resolve.
+   **Resolver missing or fails:** read whichever layers exist — `<install-path>/customize.toml` (base), `{project-root}/custom/{skill-name}.toml` (team), `{project-root}/custom/{skill-name}.user.toml` (user) — apply base → team → user with the same merge rules (scalars override, tables deep-merge, `code`/`id`-keyed arrays merge by key, all other arrays append), describe how the changed fields resolve.
 
    **Verify shows override didn't land** (field unchanged, merge conflict, file not picked up): re-enter Step 4 with the verify output as context. Usually wrong field name, wrong merge mode (scalar vs array), or wrong scope.
 5. Summarize what changed, where the file lives, how to iterate. Remind the user to commit team overrides.

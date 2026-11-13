@@ -1180,7 +1180,7 @@ def _out_of_root_note(rel: str, target: str = "") -> str:
     if metho and (abs_n == metho or abs_n.startswith(metho + "/")):
         return (f" Note: '{rel}' is inside the installed metodoloji plugin tree, "
                 f"outside this project — consuming projects keep plugin source "
-                f"(hooks/, scripts/, skills/, custom/) behind the gate by design. "
+                f"(hooks/, scripts/, skills/) behind the gate by design. "
                 f"The supported change path is the metodoloji repository itself, "
                 f"where those trees are a self-modification free zone; a record "
                 f"in this project can only cover this path via an absolute Code "

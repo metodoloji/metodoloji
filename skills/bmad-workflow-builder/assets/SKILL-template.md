@@ -50,7 +50,7 @@ Write it once; do not restate it lower down.}
 2. Resume check. Look for existing working state in the run folder. If one is found, read it once to rebuild state and continue; otherwise initialize it per the skill's working-state strategy.
 
 <!-- Keep step 3 only if the author accepted customize.toml. -->
-3. Resolve the `workflow` block: run `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --key workflow` — use your harness-native shell tool with the command as given (no extra wrapper params). If the script fails, merge these three files yourself in base → team → user order — `{skill-root}/customize.toml`, `{metodoloji-root}/custom/{skill-name}.toml`, `{metodoloji-root}/custom/{skill-name}.user.toml` — where scalars override, tables deep-merge, arrays of tables keyed by `code`/`id` replace matching entries and append new ones, and all other arrays append. Reference resolved values as `{workflow.<name>}` everywhere below; never hardcode a path beside a declared scalar.
+3. Resolve the `workflow` block: run `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --project-root {project-root} --key workflow` — use your harness-native shell tool with the command as given (no extra wrapper params). If the script fails, merge these three files yourself in base → team → user order — `{skill-root}/customize.toml`, `{project-root}/custom/{skill-name}.toml`, `{project-root}/custom/{skill-name}.user.toml` — where scalars override, tables deep-merge, arrays of tables keyed by `code`/`id` replace matching entries and append new ones, and all other arrays append. Reference resolved values as `{workflow.<name>}` everywhere below; never hardcode a path beside a declared scalar.
 
 ## {Body}
 

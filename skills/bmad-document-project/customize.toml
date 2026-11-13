@@ -18,7 +18,9 @@ activation_steps_prepend = []
 # Overrides append. Use for context-heavy setup that should happen
 # once the user has been acknowledged.
 
-activation_steps_append = []
+activation_steps_append = [
+  "Remember the project's scientific methodology: read {metodoloji-root}/docs/bmad/research-methodology.md if present. Every documented claim must be bound to its experiment record, measurement, and decision. Never report an unmeasured claim as measured fact.",
+]
 
 # Persistent facts the workflow keeps in mind for the whole run
 # (standards, compliance constraints, stylistic guardrails).
@@ -32,6 +34,8 @@ activation_steps_append = []
 
 persistent_facts = [
   "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+  "file:{metodoloji-root}/docs/bmad/development-methodology.md",
 ]
 
 # Scalar: executed when the workflow reaches its terminal stage, after

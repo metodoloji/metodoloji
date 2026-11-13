@@ -551,7 +551,7 @@ def test_bridge_verify_pattern_parity_with_the_custom_audit():
 def test_bridge_section_refs_resolve_on_every_citing_surface():
     """Every live surface citing the bridge must point at a real section (E-019).
 
-    §7 used to audit only ``custom/*.toml``; the two review ``SKILL.md`` files
+    §7 used to audit only the bridge TOMLs; the two review ``SKILL.md`` files
     cited a non-existent ``§1.1`` and went unnoticed. This calls the bench's
     check, which evaluates the invariant across custom overrides,
     ``skills/*/SKILL.md`` and ``commands/*.md``.
@@ -566,7 +566,7 @@ def test_bridge_drift_audit_scans_skill_md_surfaces():
     text = (PLUGIN / "scripts" / "check-custom.sh").read_text(
         encoding="utf-8", errors="replace")
     assert 'os.path.join(PLUGIN, "skills", "*", "SKILL.md")' in text, (
-        "check-custom.sh §7 narrowed back to custom/ — SKILL.md refs go unaudited"
+        "check-custom.sh §7 narrowed back to customize.toml — SKILL.md refs go unaudited"
     )
 
 
@@ -745,7 +745,7 @@ def test_bridge_runtime_visibility_audit_covers_every_surface():
     hardcoded ``TOML_SKILLS``/``AGENT_TOML_SKILLS`` pair. E-024 called
     ``QR_FEEDERS_SKILLMD`` the last unpinned bridge-audit list; the tree
     falsifies that — this pair is another. This calls the bench's check, which
-    derives the bridge-citing ``custom/*.toml`` set and pins §2b's coverage to it.
+    derives the bridge-citing ``skills/*/customize.toml`` set and pins §2b's coverage to it.
     """
     bench = _load_bench()
     problem = bench._check_bridge_runtime_visibility_audit_covers_every_surface()
@@ -753,7 +753,7 @@ def test_bridge_runtime_visibility_audit_covers_every_surface():
 
 
 def test_bridge_runtime_visibility_audit_lists_every_bridge_override():
-    """§2b's coverage must equal the tree's bridge-citing custom/*.toml (E-027)."""
+    """§2b's coverage must equal the tree's bridge-citing customize.toml set (E-027)."""
     text = (PLUGIN / "scripts" / "check-plugin.sh").read_text(
         encoding="utf-8", errors="replace")
     def _listed(name):
@@ -762,14 +762,13 @@ def test_bridge_runtime_visibility_audit_lists_every_bridge_override():
         return set(re.findall(r'"([^"]+)"', blk.group(1)))
     covered = _listed("TOML_SKILLS") | _listed("AGENT_TOML_SKILLS")
     tree = {
-        p.stem
-        for p in (PLUGIN / "custom").glob("*.toml")
-        if p.name != "config.toml"
-        and "dev-skill-to-methodology-bridge" in p.read_text(
+        p.parent.name
+        for p in (PLUGIN / "skills").glob("*/customize.toml")
+        if "dev-skill-to-methodology-bridge" in p.read_text(
             encoding="utf-8", errors="replace")
     }
     assert covered == tree, (
-        f"§2b coverage {sorted(covered)} != bridge-citing custom/*.toml {sorted(tree)}"
+        f"§2b coverage {sorted(covered)} != bridge-citing customize.toml {sorted(tree)}"
     )
 
 
@@ -817,7 +816,7 @@ def test_shipped_gate_invocations_resolve_where_they_ship():
              "METODOLOJI_SYNCED")
     globs = ("GUIDE.md", "KILAVUZ.md", "docs/CLAUDE.md", "docs/bmad/*.md",
              "docs/experiments/_template.md", "commands/*.md",
-             "custom/*.toml", "templates/*.md", "skills/*/SKILL.md",
+             "skills/*/customize.toml", "templates/*.md", "skills/*/SKILL.md",
              "skills/bmad-research-experiment/plan.md",
              "skills/bmad-research-experiment/experiment-log.md",
              "skills/bmad-research-experiment/scripts/run_experiment.py",
@@ -897,14 +896,12 @@ def test_activation_steps_append_carries_the_methodology_contract():
     frame, or a named contract token.
     """
     violations = []
-    for path in sorted((PLUGIN / "custom").glob("*.toml")):
-        if path.name == "config.toml":
-            continue
+    for path in sorted((PLUGIN / "skills").glob("*/customize.toml")):
         data = tomllib.loads(path.read_text(encoding="utf-8"))
         for step in (data.get("workflow", {})
                      .get("activation_steps_append", []) or []):
             if not any(m in step.lower() for m in _ACTIVATION_MARKERS):
-                violations.append(f"{path.name}: {step!r}")
+                violations.append(f"{path.parent.name}: {step!r}")
     assert not violations, (
         "bare workflow steps in activation_steps_append (E-040): "
         + "; ".join(violations)
@@ -1134,10 +1131,10 @@ def test_relay_graph_edges_match_the_declared_table():
         edges = edge_re.findall(blob)
         if edges:
             shipped[md.parent.name] = edges
-    for toml in sorted((PLUGIN / "custom").glob("*.toml")):
+    for toml in sorted((PLUGIN / "skills").glob("*/customize.toml")):
         edges = edge_re.findall(toml.read_text(encoding="utf-8", errors="replace"))
         if edges:
-            shipped.setdefault(toml.stem, []).extend(edges)
+            shipped.setdefault(toml.parent.name, []).extend(edges)
     assert shipped, "no relay graph edge ships — the graph vanished"
     spec = importlib.util.spec_from_file_location(
         "check_handoff_edges", PLUGIN / "scripts" / "check-handoff.py")

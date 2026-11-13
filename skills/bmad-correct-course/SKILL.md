@@ -25,13 +25,13 @@ Run: `python3 {metodoloji-root}/bmad/scripts/orient.py --project-root {project-r
 
 ### Step 2: Resolve the Workflow Block
 
-Run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --key workflow` — use your harness-native shell tool with the command as given (no extra wrapper params)
+Run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --project-root {project-root} --key workflow` — use your harness-native shell tool with the command as given (no extra wrapper params)
 
 **If the script fails**, resolve the `workflow` block yourself by reading these three files in base → team → user order and applying the same structural merge rules as the resolver:
 
 1. `{skill-root}/customize.toml` — defaults
-2. `{metodoloji-root}/custom/{skill-name}.toml` — team overrides
-3. `{metodoloji-root}/custom/{skill-name}.user.toml` — personal overrides
+2. `{project-root}/custom/{skill-name}.toml` — team overrides
+3. `{project-root}/custom/{skill-name}.user.toml` — personal overrides
 
 Any missing file is skipped. Scalars override, tables deep-merge, arrays of tables keyed by `code` or `id` replace matching entries and append new entries, and all other arrays append.
 
@@ -301,7 +301,7 @@ Activation is complete. If `activation_steps_prepend` or `activation_steps_appen
 <action>Report workflow completion to user with personalized message: "Correct Course workflow complete, {user_name}!"</action>
 <action>Remind user of success criteria and next steps for Developer agent</action>
 <action>Post the baton so the planning surface opens knowing the plan moved under it (one call): `python3 {metodoloji-root}/bmad/scripts/blackboard.py mirror --key change.{date} --value "Sprint change proposal: {{scope_classification}} scope — {default_output_file}" --to bmad-sprint-planning --note "Course correction ({{scope_classification}} scope) — {default_output_file}; <one-line what sprint planning must re-cut>" --project-root {project-root}`. Sprint planning owns the backlog, so even a Major replan re-enters the chain there. Repeating the same mirror never duplicates the waiting signal; it waits in `handoff.bmad-sprint-planning` until a sprint-planning run consumes it. A proposal still awaiting approval posts nothing — the baton goes out when the user approves it.</action>
-<action>Run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --key workflow.on_complete` — use your harness-native shell tool with the command as given (no extra wrapper params) — if the resolved value is non-empty, follow it as the final terminal instruction before exiting.</action>
+<action>Run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --project-root {project-root} --key workflow.on_complete` — use your harness-native shell tool with the command as given (no extra wrapper params) — if the resolved value is non-empty, follow it as the final terminal instruction before exiting.</action>
 </step>
 
 </workflow>

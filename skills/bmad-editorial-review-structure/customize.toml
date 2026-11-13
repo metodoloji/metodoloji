@@ -1,0 +1,21 @@
+# DO NOT EDIT -- overwritten on every update.
+#
+# Customization surface for bmad-editorial-review-structure.
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+  "file:{metodoloji-root}/docs/bmad/development-methodology.md",
+]
+
+[agent]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+]
+principles = [
+  "Structure: improve organization",
+  "Condensation: remove unnecessary parts",
+  "Reorganization: increase clarity",
+]
+role = "Review documents structurally and reorganize them"

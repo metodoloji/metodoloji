@@ -446,7 +446,7 @@ Complete authoritative research document on {{research_topic}} that:
 Post the research heartbeat and hand off to the product brief / PRD pipeline (one call):
 `python3 {metodoloji-root}/bmad/scripts/blackboard.py mirror --key research.domain.<research_topic_slug> --value "Domain research complete — see docs/research/" --to bmad-product-brief --note "Domain research complete for {{research_topic}} — feed into product brief or PRD" --project-root {project-root}`
 
-Run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --key workflow.on_complete` — use your harness-native shell tool with the command as given (no extra wrapper params)
+Run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --project-root {project-root} --key workflow.on_complete` — use your harness-native shell tool with the command as given (no extra wrapper params)
 
 If the resolved `workflow.on_complete` is non-empty, follow it as the final terminal instruction before exiting.
 

@@ -784,7 +784,7 @@ def _project_is_methodology_root() -> bool:
        gate with no first move.
 
     In both shapes only the plugin source trees (hooks/, scripts/, skills/,
-    custom/, ...) are released. Product code (`src/`, `lib/`, ...) stays behind
+    ...) are released. Product code (`src/`, `lib/`, ...) stays behind
     the experiment gate, and the release is still checked through the symlink
     resolver.
     """

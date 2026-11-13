@@ -1,5 +1,13 @@
-# Adversarial Review - Team overrides
-# Adversarial review: critical evaluation (Mod A: code audit)
+# DO NOT EDIT -- overwritten on every update.
+#
+# Customization surface for bmad-review-adversarial-general.
+
+[workflow]
+persistent_facts = [
+  "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+  "file:{metodoloji-root}/docs/bmad/development-methodology.md",
+]
 
 [agent]
 persistent_facts = [

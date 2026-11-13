@@ -3,8 +3,8 @@
 # Workflow customization surface for bmad-party-mode.
 #
 # Override files (not edited here):
-#   {metodoloji-root}/custom/bmad-party-mode.toml         (team)
-#   {metodoloji-root}/custom/bmad-party-mode.user.toml    (personal)
+#   {project-root}/custom/bmad-party-mode.toml         (team)
+#   {project-root}/custom/bmad-party-mode.user.toml    (personal)
 
 [workflow]
 
@@ -17,7 +17,10 @@
 activation_steps_prepend = []
 
 # Steps to run after greet but before the room comes alive.
-activation_steps_append = []
+activation_steps_append = [
+  "Meta surface: the agents/capabilities you invoke are bound to the methodology; you do not produce records yourself; the conversation and steering must not produce a surface outside the methodology scope.",
+  "If a participant needs to write code, Mod A mechanical approval is required; a documentary conversation decision is not permission to write code.",
+]
 
 # Persistent facts the orchestrator keeps in mind for the whole session
 # (house rules, running gags, topics to avoid). Each entry is a literal
@@ -25,6 +28,7 @@ activation_steps_append = []
 # contents load as facts. Default picks up project-context.md if one exists.
 persistent_facts = [
   "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
 ]
 
 # Which party loads when the user just says "party mode" with no override.

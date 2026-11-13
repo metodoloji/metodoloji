@@ -9,7 +9,7 @@ lives in, derived from __file__), finds every sibling directory containing a
 `customize.toml`, classifies each as agent and/or workflow based on its
 top-level blocks, reads the skill's SKILL.md frontmatter description for a
 one-liner, and checks whether override files already exist in
-`{metodoloji-root}/custom/`.
+`{project-root}/custom/`.
 
 Skills in BMad are loaded either from a project-local location (e.g. the
 project's `{metodoloji-root}/skills/` or `.cursor/skills/`) or from a user-global
@@ -98,6 +98,7 @@ def scan_skills(
     errors: list[str] = []
     scanned_roots: list[str] = []
     seen_names: set[str] = set()
+    # Overrides belong to the TARGET PROJECT, never to the plugin (E-147).
     custom_dir = project_root / "custom"
 
     for root in skills_roots:
@@ -170,7 +171,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         description=(
             "List customizable BMad skills installed alongside this one, "
             "grouped by surface (agent vs workflow), with override status "
-            "looked up against {metodoloji-root}/custom/."
+            "looked up against {project-root}/custom/."
         )
     )
     parser.add_argument(

@@ -1,5 +1,5 @@
 #!/bin/sh
-# check-custom.sh — static quality audit of custom/ bridge TOMLs.
+# check-custom.sh — static quality audit of the skill customize.toml bridge TOMLs.
 #
 #   0. TOML parse + table presence
 #   1. Persistent-facts trio  (research / development / project-context)
@@ -36,7 +36,7 @@ if [ "${1:-}" = "--negtest" ]; then
     # bmad-dev-story.toml, verify §3 logic produces a MISS, then restore the file.
     # Negative test 2: §7 bridge drift — temporarily remove the "### §2.3" heading
     # from bridge.md, verify §7 logic produces a MISS because of the §2.3
-    # references in custom/ files, then restore the bridge.
+    # references in the skill customize.toml files, then restore the bridge.
     SELF=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
     PLUGIN_ROOT=$(CDPATH= cd -- "$SELF/.." && pwd)
     PY=
@@ -52,7 +52,7 @@ import os, re, subprocess, sys
 from pathlib import Path
 
 PLUGIN = Path(os.environ["PLUGIN_ROOT"])
-toml = PLUGIN / "custom" / "bmad-dev-story.toml"
+toml = PLUGIN / "skills" / "bmad-dev-story" / "customize.toml"
 bridge = PLUGIN / "docs" / "bmad" / "dev-skill-to-methodology-bridge.md"
 # Accept both the legacy Turkish markers and the new English markers.
 KEYWORDS = ("APPROVED", "REJECTED", "FORGED", "VERIFIED", "ONAYLANDI", "REDDEDİLDİ")
@@ -79,7 +79,7 @@ def has_dev_story_gate_error(text: str) -> bool:
         toml.write_text(orig_toml, encoding="utf-8")
 
 if has_dev_story_gate_error(orig_toml):
-    print("[ERROR] hard-gate error visible even in intact custom TOML — test setup broken")
+    print("[ERROR] hard-gate error visible even in the intact customize.toml — test setup broken")
     sys.exit(1)
 
 broken_toml = "\n".join(
@@ -147,7 +147,7 @@ print(f"[OK]   negative test 2/{total_stages}: bridge §2.3 removed → §7 MISS
 # ---- Test 3: §7 bolum N.N pattern ----
 # Inject "bolum 99.99" into a bridge-citing TOML — a section not in the
 # bridge; §7's "bolum" pattern must also catch it.
-test_toml = PLUGIN / "custom" / "bmad-dev-story.toml"
+test_toml = PLUGIN / "skills" / "bmad-dev-story" / "customize.toml"
 orig_test_toml = test_toml.read_text(encoding="utf-8")
 
 def has_bolum_drift_error(text: str) -> bool:
@@ -179,7 +179,7 @@ print(f"[OK]   negative test 3/{total_stages}: 'bolum 99.99' injected → §7 MI
 # ---- Test 4: §2b activation compliance frame ----
 # Inject a bare workflow-stage command into a custom TOML's
 # activation_steps_append — §2b must flag it (the defect E-040 fixed).
-bmb = PLUGIN / "custom" / "bmad-workflow-builder.toml"
+bmb = PLUGIN / "skills" / "bmad-workflow-builder" / "customize.toml"
 orig_bmb = bmb.read_text(encoding="utf-8")
 
 def has_bare_activation_error(text: str) -> bool:
@@ -242,10 +242,8 @@ for _s in (sys.stdout, sys.stderr):
 PLUGIN = os.environ.get("PLUGIN_ROOT") or "."
 problems = []
 checked = 0
-for path in sorted(glob.glob(os.path.join(PLUGIN, "custom", "*.toml"))):
-    name = os.path.basename(path)
-    if name == "config.toml":
-        continue  # audited separately in §6
+for path in sorted(glob.glob(os.path.join(PLUGIN, "skills", "*", "customize.toml"))):
+    name = os.path.basename(os.path.dirname(path))
     checked += 1
     try:
         data = tomllib.load(open(path, "rb"))
@@ -293,10 +291,8 @@ DEV_WING = {
 
 problems = []
 checked = 0
-for path in sorted(glob.glob(os.path.join(PLUGIN, "custom", "*.toml"))):
-    name = os.path.basename(path)[:-5]  # strip .toml
-    if name == "config":
-        continue
+for path in sorted(glob.glob(os.path.join(PLUGIN, "skills", "*", "customize.toml"))):
+    name = os.path.basename(os.path.dirname(path))
     try:
         data = tomllib.load(open(path, "rb"))
     except Exception:
@@ -358,8 +354,8 @@ MIN_GATE = 3
 
 problems = []
 checked = 0
-for path in sorted(glob.glob(os.path.join(PLUGIN, "custom", "*.toml"))):
-    name = os.path.basename(path)[:-5]
+for path in sorted(glob.glob(os.path.join(PLUGIN, "skills", "*", "customize.toml"))):
+    name = os.path.basename(os.path.dirname(path))
     if name == "config":
         continue
     try:
@@ -370,8 +366,11 @@ for path in sorted(glob.glob(os.path.join(PLUGIN, "custom", "*.toml"))):
     asa = data.get("workflow", {}).get("activation_steps_append", []) or []
     n = len(asa)
     if n == 0:
-        # [agent]-only files may be empty (no activation_steps_append, that's fine).
-        if "agent" in data and "workflow" not in data:
+        # Agent surfaces carry no activation steps (that's fine). Since E-147 the
+        # surface is the skill's customize.toml, which also holds the resolver's
+        # default [workflow].persistent_facts, so "no [workflow] table" is no
+        # longer the test — an empty workflow step list on an [agent] file is.
+        if "agent" in data:
             continue
         problems.append("%s: empty activation_steps_append (workflow file)" % name)
         continue
@@ -423,8 +422,8 @@ MARKERS = (":", "before ", "after ", "during ", "per ", "bridge",
 
 problems = []
 checked = 0
-for path in sorted(glob.glob(os.path.join(PLUGIN, "custom", "*.toml"))):
-    name = os.path.basename(path)[:-5]
+for path in sorted(glob.glob(os.path.join(PLUGIN, "skills", "*", "customize.toml"))):
+    name = os.path.basename(os.path.dirname(path))
     if name == "config":
         continue
     try:
@@ -475,6 +474,9 @@ GATE_REQUIRED = {
 GATE_REFERENCE_OK = {
     "bmad-quality-record",        # QR consumer: reads experiment/story gate status
     "bmad-production-readiness",  # PR consumer: reads QR gate status before certifying
+    # Mod A record producer (§2 MOD_A_RECORD_ONLY): its default step RESTATES the
+    # decision (APPROVED / REJECTED) to the user; it does not enforce the gate.
+    "bmad-research-experiment",
 }
 # May appear in both activation_steps_append and principles.
 # Accept both the legacy Turkish markers and the new English markers.
@@ -482,8 +484,8 @@ KEYWORDS = ("APPROVED", "REJECTED", "FORGED", "VERIFIED", "ONAYLANDI", "REDDEDİ
 
 problems = []
 checked = 0
-for path in sorted(glob.glob(os.path.join(PLUGIN, "custom", "*.toml"))):
-    name = os.path.basename(path)[:-5]
+for path in sorted(glob.glob(os.path.join(PLUGIN, "skills", "*", "customize.toml"))):
+    name = os.path.basename(os.path.dirname(path))
     if name == "config":
         continue
     try:
@@ -539,7 +541,7 @@ KOPRU = {
 problems = []
 checked = 0
 for name in sorted(KOPRU):
-    path = os.path.join(PLUGIN, "custom", name + ".toml")
+    path = os.path.join(PLUGIN, "skills", name, "customize.toml")
     if not os.path.isfile(path):
         continue
     try:
@@ -618,8 +620,8 @@ echo "== 6b) custom/ ↔ skills/ pairing (orphan TOMLs, missing SKILL.md) =="
 import glob, os, sys
 PLUGIN = os.environ.get("PLUGIN_ROOT") or "."
 problems = []
-for path in sorted(glob.glob(os.path.join(PLUGIN, "custom", "*.toml"))):
-    name = os.path.basename(path)[:-5]
+for path in sorted(glob.glob(os.path.join(PLUGIN, "skills", "*", "customize.toml"))):
+    name = os.path.basename(os.path.dirname(path))
     if name == "config":
         continue
     skill_md = os.path.join(PLUGIN, "skills", name, "SKILL.md")
@@ -684,7 +686,7 @@ def _bridge_label(path):
         return os.path.basename(path)[:-5]
     return rel
 
-SURFACES = (sorted(glob.glob(os.path.join(PLUGIN, "custom", "*.toml")))
+SURFACES = (sorted(glob.glob(os.path.join(PLUGIN, "skills", "*", "customize.toml")))
             + sorted(glob.glob(os.path.join(PLUGIN, "skills", "*", "SKILL.md")))
             + sorted(glob.glob(os.path.join(PLUGIN, "commands", "*.md"))))
 problems = []

@@ -12,7 +12,7 @@
 #   4. Documentary (B/C/D) record completeness  (run_experiment.py --validate)
 #   5. Engine drift audit               (plugin engine == repo canonical, if repo reachable)
 #   5b. Hard gate enforcement mode (soft/hard — config.toml [hooks])
-#   5c. custom/ bridge TOMLs static quality audit (scripts/check-custom.sh)
+#   5c. skill customize.toml static quality audit (scripts/check-custom.sh)
 #   6. Development records format check  (run_experiment.py --validate)
 #   6c. Template copy identity (templates/ ↔ docs/_template copies)
 #   6d. Init marker integrity (skeleton installed ⇔ .metodoloji/initialized)
@@ -55,7 +55,7 @@ done
 
 if [ "${1:-}" = "--negtest" ]; then
     # Negative test (repo convention: break → catch MISS → restore).
-    # Temporarily removes the BRIDGE line from custom/bmad-dev-story.toml,
+    # Temporarily removes the BRIDGE line from skills/bmad-dev-story/customize.toml,
     # verifies §2b logic produces a MISS, then restores the file.
     SELF=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
     PLUGIN_ROOT=$(CDPATH= cd -- "$SELF/.." && pwd)
@@ -99,9 +99,9 @@ try:
 finally:
     gitignore.write_bytes(orig_gitignore_bytes)  # byte-exact: no CRLF/LF churn
 
-# Stage 2/9: BRIDGE removed from custom/bmad-dev-story.toml → §2b should catch a MISS
-print(f"[2/{total_stages}] does §2b emit a MISS when BRIDGE is removed from custom/bmad-dev-story.toml")
-toml = PLUGIN / "custom" / "bmad-dev-story.toml"
+# Stage 2/9: BRIDGE removed from skills/bmad-dev-story/customize.toml → §2b should catch a MISS
+print(f"[2/{total_stages}] does §2b emit a MISS when BRIDGE is removed from skills/bmad-dev-story/customize.toml")
+toml = PLUGIN / "skills" / "bmad-dev-story" / "customize.toml"
 resolver = PLUGIN / "hooks" / "engine" / "resolve_customization.py"
 skill = PLUGIN / "skills" / "bmad-dev-story"
 orig_bytes = toml.read_bytes()
@@ -126,12 +126,12 @@ def bridge_visible(text: str) -> bool:
 try:
     broken = "\n".join(l for l in orig.splitlines() if "BRIDGE" not in l)
     if not bridge_visible(orig):
-        print("  [ERROR] BRIDGE not visible even in intact custom TOML — test setup broken")
+        print("  [ERROR] BRIDGE not visible even in the intact customize.toml — test setup broken")
         sys.exit(1)
     if bridge_visible(broken):
         print("  [ERROR] §2b MISS expected, BRIDGE still visible after removal")
         sys.exit(1)
-    print("  [OK] §2b MISS caught, custom TOML restored")
+    print("  [OK] §2b MISS caught, customize.toml restored")
 finally:
     toml.write_bytes(orig_bytes)
 
@@ -646,6 +646,9 @@ for d in skills:
     checked += 1
 
     root = os.path.join(d, "customize.toml")
+    # E-147: the plugin ships no override layer. A project may still override
+    # through {project-root}/docs/config.toml (central) or its own custom dir,
+    # which is the resolver's business, not the shipped tree's.
     team = os.path.join(PLUGIN, "custom", "%s.toml" % name)
     user = os.path.join(PLUGIN, "custom", "%s.user.toml" % name)
 
@@ -704,8 +707,7 @@ for d in skills:
             missing.append("%s (no SKILL.md development manifesto pointer)" % name)
 
 # Menu skill targets must exist (broken capability link class).
-for cp in sorted(set(glob.glob(os.path.join(PLUGIN, "skills", "*", "customize.toml")))
-                 | set(glob.glob(os.path.join(PLUGIN, "custom", "*.toml")))):
+for cp in sorted(glob.glob(os.path.join(PLUGIN, "skills", "*", "customize.toml"))):
     if os.path.basename(cp) == "config.toml":
         continue
     try:
@@ -744,7 +746,7 @@ BRIDGE_SKILLS = {
     "bmad-dev-auto": ("S", "docs/development/stories/", "update"),
 }
 for skill, (rec_type, target, _) in BRIDGE_SKILLS.items():
-    toml_path = os.path.join(PLUGIN, "custom", "%s.toml" % skill)
+    toml_path = os.path.join(PLUGIN, "skills", skill, "customize.toml")
     if not os.path.isfile(toml_path):
         missing.append("%s (no bridge skill override)" % skill)
         continue
@@ -780,14 +782,14 @@ for skill in QR_FEEDERS_SKILLMD:
     if "docs/quality/QR" not in txt and "docs/development/QR" not in txt:
         missing.append("%s (no QR feed target in SKILL.md)" % skill)
 
-# Phase-3 QR feeders — ones working via custom/{skill}.toml activation_steps_append.
-# This list must equal the tree's FEEDER BRIDGE surfaces: every custom/*.toml that
+# Phase-3 QR feeders — ones working via skills/{skill}/customize.toml activation_steps_append.
+# This list must equal the tree's FEEDER BRIDGE surfaces: every skills/*/customize.toml that
 # cites the bridge but carries no VERIFY step (its BRIDGE says "does not produce
 # an independent methodology record"). The bench check "QR feeder audit covers
 # every feeder surface (E-020)" pins that equality.
 QR_FEEDERS_TOML = []
 for skill in QR_FEEDERS_TOML:
-    toml_path = os.path.join(PLUGIN, "custom", "%s.toml" % skill)
+    toml_path = os.path.join(PLUGIN, "skills", skill, "customize.toml")
     if not os.path.isfile(toml_path):
         missing.append("%s (no bridge skill override)" % skill)
         continue
@@ -815,10 +817,10 @@ else
 fi
 
 echo "== 2b) Bridge instructions visible at runtime? (resolve_customization merge) =="
-# The BRIDGE step in custom/{skill}.toml must merge with the skill-root customize.toml
+# The BRIDGE step lives in the skill-root customize.toml itself (E-147)
 # via resolve_customization.py deep_merge (append). Append semantics are persistent.
 # TOML_SKILLS + AGENT_TOML_SKILLS must equal the tree's BRIDGE-bearing overrides:
-# every custom/*.toml that cites dev-skill-to-methodology-bridge. The bench check
+# every skills/*/customize.toml that cites dev-skill-to-methodology-bridge. The bench check
 # "bridge runtime-visibility audit covers every bridge surface (E-027)" pins that
 # equality, so a new bridge-citing override cannot drop out of this probe silently
 # (the E-018/E-020/E-021/E-024 class). E-024 named QR_FEEDERS_SKILLMD the "last"
@@ -1083,7 +1085,7 @@ except (OSError, subprocess.TimeoutExpired):
 
 # Free-surface doctrine: the guard's own is_free — single source, so the
 # audit and the hook can never disagree again (the audit used to call
-# hooks//scripts//skills//custom/ free in EVERY project; the guard only
+# hooks//scripts//skills/ free in EVERY project; the guard only
 # frees them in the methodology repo itself). Pin the project-root env to
 # this script's PROJECT_ROOT contract so dogfood detection resolves right
 # even when invoked from elsewhere.
@@ -1116,7 +1118,7 @@ except Exception:
 # root, so the plugin never ran the coverage check on its own edits. That is
 # exactly the surface whose monotonic approval union F-05 measured. Dogfood is
 # not exempt any more: the engine's own free-zone rule already releases the
-# plugin source trees here (hooks/, scripts/, skills/, custom/ — self-
+# plugin source trees here (hooks/, scripts/, skills/ — self-
 # modification), so tracking a manifest still costs nothing, while a genuinely
 # GATED path (bmad/scripts/**, any consumer repo) is now caught in-tree too.
 try:
@@ -1404,16 +1406,16 @@ else
     PROBLEMS=$((PROBLEMS + 1))
 fi
 
-echo "== 5c) custom/ bridge TOMLs static quality audit =="
+echo "== 5c) skill customize.toml static quality audit =="
 # check-custom.sh §0-§6: TOML parse, persistent_facts, depth, hard-gate
 # keywords, DOGRULAMA pattern, config
 # soft/hard contract. Independent script; same style, same [OK]/[WARNING]/[ERROR]
 # output. Root output kept internal; only exit code added to PROBLEMS.
 if [ -f "$SELF/check-custom.sh" ]; then
     if sh "$SELF/check-custom.sh" >/tmp/meth-custom.$$.log 2>&1; then
-        echo "[OK]   custom/ static quality audit passed"
+        echo "[OK]   skill customize.toml static quality audit passed"
     else
-        echo "[WARNING] custom/ static quality violation:"
+        echo "[WARNING] skill customize.toml static quality violation:"
         sed 's/^/       /' /tmp/meth-custom.$$.log
         PROBLEMS=$((PROBLEMS + 1))
     fi

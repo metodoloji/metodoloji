@@ -114,7 +114,8 @@ def load_party_workflow(project_root: Path, party_skill: Path):
     """Merged [workflow] table for bmad-party-mode (base + user overrides)."""
     root = Path(__file__).resolve().parent.parent.parent.parent  # plugin root
     resolver = root / "hooks" / "engine" / "resolve_customization.py"
-    data = _run_json([sys.executable, str(resolver), "--skill", str(party_skill), "--key", "workflow"])
+    data = _run_json([sys.executable, str(resolver), "--skill", str(party_skill),
+                      "--project-root", str(project_root), "--key", "workflow"])
     if data is not None and isinstance(data.get("workflow"), dict):
         return data["workflow"]
     # Fallback: base customize.toml directly, no override merge.
@@ -127,10 +128,10 @@ def load_party_overrides(project_root: Path, custom_dir: Path | None = None):
 
     Reads only the user's override TOMLs (team then personal, personal wins on
     scalars). No base roster exists in this path, so a shallow merge is enough.
-    Defaults to the plugin's custom/ directory; tests may inject a temp dir.
+    Defaults to the TARGET PROJECT's custom/ directory (E-147: the plugin
+    ships no override layer); tests may inject a temp dir.
     """
-    root = Path(__file__).resolve().parent.parent.parent.parent  # plugin root
-    custom = custom_dir or (root / "custom")
+    custom = custom_dir or (project_root / "custom")
     team = _load_toml(custom / f"{PARTY_SKILL}.toml").get("workflow", {})
     user = _load_toml(custom / f"{PARTY_SKILL}.user.toml").get("workflow", {})
     team = team if isinstance(team, dict) else {}

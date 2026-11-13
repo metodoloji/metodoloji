@@ -120,7 +120,7 @@ progress, mode: which gates are soft/hard), then wait for my goal.
 
 - Boş/yeni proje: `Project type: greenfield. Put code_guard, quality_gate and deploy_guard in hard mode after setup.`
 - Mevcut kod tabanı: `Project type: brownfield. Start with code_guard = "soft" only; tighten it after the first VERIFIED scope.`
-- Eklentinin kendisi: `Project type: self-hosting (metodoloji repo). hooks/, scripts/, skills/, custom/ are free here; regenerate hooks.json with scripts/sync-hooks-json.py --write instead of editing it.`
+- Eklentinin kendisi: `Project type: self-hosting (metodoloji repo). hooks/, scripts/, skills/ are free here; regenerate hooks.json with scripts/sync-hooks-json.py --write instead of editing it.`
 - Windows + WSL: `I use both PowerShell and WSL homes. If tokens come back FORGED on the other side, tell me to re-sync the key — do not regenerate it twice.`
 
 ---
@@ -174,7 +174,7 @@ mode (which trees are free, how hooks.json must be regenerated), then run the
 full check suite so I know the baseline before I change anything.
 ```
 
-**Beklenen yanıt:** self-modification zonu anlatımı (`hooks/`, `scripts/`, `skills/`, `custom/` *burada* serbest), `hooks.json` yeniden üretme kuralı (`scripts/sync-hooks-json.py --write`), `pytest` + `check-plugin.sh` başlangıç değeri.
+**Beklenen yanıt:** self-modification zonu anlatımı (`hooks/`, `scripts/`, `skills/` *burada* serbest), `hooks.json` yeniden üretme kuralı (`scripts/sync-hooks-json.py --write`), `pytest` + `check-plugin.sh` başlangıç değeri.
 
 ### 3.4 Ekip / çok makine
 
@@ -497,7 +497,7 @@ Check .env hygiene: .env must not be tracked, .env.example must exist, and
 |---|---|---|---|---|---|---|---|
 | **Boş (greenfield)** | #3.1 | #4.1 veya #4.2 | #4.4 | #4.7 | #4.9 (8. mod satırından) | #4.14 | #5.1 |
 | **Mevcut repo (brownfield)** | #3.2 | #4.2 (code_guard soft → ilk VERIFIED'tan sonra sıkılaştır) | #4.4 | #4.7 | #4.9 | #4.14 | #5.1 |
-| **Plugin deposu (self-host)** | #3.3 | #4.2 (not: `hooks/`, `scripts/`, `skills/`, `custom/` burada serbest) | #4.4 | #4.7 | #4.9 | #4.14 (commitli plugin katmanı) | #5.1 + #5.6 |
+| **Plugin deposu (self-host)** | #3.3 | #4.2 (not: `hooks/`, `scripts/`, `skills/` burada serbest) | #4.4 | #4.7 | #4.9 | #4.14 (commitli plugin katmanı) | #5.1 + #5.6 |
 | **Ekip / çok makine** | #3.4 | #4.2 + #4.10 | #4.4 | #4.7 | #4.9 | #4.14 (takım vs `*.user.toml`) | #5.1 + #5.3 |
 | **Spike (zincir yok)** | #3.5 | `scratch/` içinde çalış, sonra terfi et | #4.4 | — | — | — | #5.1 |
 | **Devam eden iş** | — | #4.2 / #4.6 | #4.4 | #4.7 / #4.8 | #4.9 | #4.14 / #4.15 | #5.3 / #5.4 |

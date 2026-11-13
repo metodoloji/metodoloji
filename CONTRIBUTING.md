@@ -47,7 +47,7 @@ and only verifies/publishes version tags.
 
 ### Adding or Updating Skills
 - Skills live under `skills/<skill-name>/` with a valid `SKILL.md`.
-- Customization and BRIDGE instructions live under `custom/<skill-name>.toml`.
+- Customization and BRIDGE instructions live in `skills/<skill-name>/customize.toml`.
 - If a skill produces or feeds into methodology records (IR/SP/S/QR/PR), define the appropriate `BRIDGE` and `VERIFY` steps.
 
 ### Hook Engine Modifications

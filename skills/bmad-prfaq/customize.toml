@@ -18,7 +18,10 @@ activation_steps_prepend = []
 # Overrides append. Use for context-heavy setup that should happen
 # once the user has been acknowledged.
 
-activation_steps_append = []
+activation_steps_append = [
+  "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
+  "Before finishing the work, verify that the record is complete: English field labels, decision rationale, uncertainty acknowledgment. A documentary decision is not permission to write code.",
+]
 
 # Persistent facts the workflow keeps in mind for the whole run
 # (standards, compliance constraints, stylistic guardrails).
@@ -32,6 +35,7 @@ activation_steps_append = []
 
 persistent_facts = [
   "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
 ]
 
 # Scalar: executed when the workflow reaches its terminal stage (Stage 5: The Verdict),

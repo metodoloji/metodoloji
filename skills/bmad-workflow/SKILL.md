@@ -65,9 +65,9 @@ record inventory, the board's live focus and waiting hand-offs. Read it once; ne
 
 ### Step 2: Resolve the Workflow Block
 
-Run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --key workflow`.
+Run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --project-root {project-root} --key workflow`.
 **If the script fails**, merge the three files yourself in base → team → user order
-(`{skill-root}/customize.toml`, `{metodoloji-root}/custom/bmad-workflow.toml`,
+(`{skill-root}/customize.toml`, `{project-root}/custom/bmad-workflow.toml`,
 `.../bmad-workflow.user.toml`): scalars override, tables deep-merge, `code`/`id` arrays
 replace-then-append, other arrays append. Missing files are skipped.
 

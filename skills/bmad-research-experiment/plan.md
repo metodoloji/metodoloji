@@ -63,7 +63,7 @@ Comparison of the measured value against the hypothesis threshold:
 
 ## Verification (bmad-customize Step 6)
 
-- `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --key workflow` — use your harness-native shell tool with the command as given (no extra wrapper params)
+- `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --project-root {project-root} --key workflow` — use your harness-native shell tool with the command as given (no extra wrapper params)
 - Gate script: `python3 {skill-root}/scripts/run_experiment.py` is tested with its own `__main__` verification
   (PASS and FAIL paths, assert-based).
 

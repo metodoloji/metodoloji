@@ -22,8 +22,8 @@ Every emitted customize.toml opens with a header that names the file as generate
 # DO NOT EDIT -- overwritten on every update.
 #
 # Workflow customization surface for {skill-name}.
-# Team overrides:     {metodoloji-root}/custom/{skill-name}.toml
-# Personal overrides: {metodoloji-root}/custom/{skill-name}.user.toml
+# Team overrides:     {project-root}/custom/{skill-name}.toml
+# Personal overrides: {project-root}/custom/{skill-name}.user.toml
 ```
 
 The customize.toml in the skill is the base. The user never edits it, because an update overwrites it. Edits go in the two override files, which the resolver merges over the base at activation. The header carries an inline note of the merge rules so a reader knows how an override will land without leaving the file.
@@ -93,8 +93,8 @@ A complete customize.toml for an artifact-producing skill with a finalize stage:
 # DO NOT EDIT -- overwritten on every update.
 #
 # Workflow customization surface for bmad-product-brief.
-# Team overrides:     {metodoloji-root}/custom/bmad-product-brief.toml
-# Personal overrides: {metodoloji-root}/custom/bmad-product-brief.user.toml
+# Team overrides:     {project-root}/custom/bmad-product-brief.toml
+# Personal overrides: {project-root}/custom/bmad-product-brief.user.toml
 
 [workflow]
 

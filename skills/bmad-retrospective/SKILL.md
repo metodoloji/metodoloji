@@ -41,13 +41,13 @@ Run: `python3 {metodoloji-root}/bmad/scripts/orient.py --project-root {project-r
 
 ### Step 2: Resolve the Workflow Block
 
-Run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --key workflow` — use your harness-native shell tool with the command as given (no extra wrapper params)
+Run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --project-root {project-root} --key workflow` — use your harness-native shell tool with the command as given (no extra wrapper params)
 
 **If the script fails**, resolve the `workflow` block yourself by reading these three files in base → team → user order and applying the same structural merge rules as the resolver:
 
 1. `{skill-root}/customize.toml` — defaults
-2. `{metodoloji-root}/custom/{skill-name}.toml` — team overrides
-3. `{metodoloji-root}/custom/{skill-name}.user.toml` — personal overrides
+2. `{project-root}/custom/{skill-name}.toml` — team overrides
+3. `{project-root}/custom/{skill-name}.user.toml` — personal overrides
 
 Any missing file is skipped. Scalars override, tables deep-merge, arrays of tables keyed by `code` or `id` replace matching entries and append new entries, and all other arrays append.
 
@@ -1507,7 +1507,7 @@ Charlie (Senior Dev): "Time to knock out that prep work."
 
 </output>
 <action>If the retrospective produced lessons that imply a new falsifiable claim, close the loop — turn them into the next hypothesis (one call): `python3 {metodoloji-root}/bmad/scripts/blackboard.py mirror --key retro.{{epic_number}} --value "Retrospective complete — {{total_action_count}} action items" --to bmad-research-experiment --note "Epic {{epic_number}} retrospective — <the lesson that needs an experiment>; open an experiment record before building on it" --project-root {project-root}`. This is the hop that closes E→IR→SP→S→QR→PR back onto E, so the next experiment run opens already knowing what the retro learned. Repeating the same mirror never duplicates the waiting signal; it waits in `handoff.bmad-research-experiment` until a research-experiment run consumes it. A retrospective with no testable lesson leaves the hop silent — say so plainly instead of padding the note.</action>
-<action>Run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --key workflow.on_complete` — use your harness-native shell tool with the command as given (no extra wrapper params) — if the resolved value is non-empty, follow it as the final terminal instruction before exiting.</action>
+<action>Run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --project-root {project-root} --key workflow.on_complete` — use your harness-native shell tool with the command as given (no extra wrapper params) — if the resolved value is non-empty, follow it as the final terminal instruction before exiting.</action>
 </step>
 
 </workflow>

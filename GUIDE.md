@@ -60,7 +60,7 @@ These are not preferences; they are the system's operating conditions. Violating
 1. **The only path to code is a VERIFIED experiment.** Without `APPROVED` + a real `GATE-OK-...` token on `docs/experiments/E-NNN.md`, do not write code. "It's a small change" is not an exception.
 2. **The gate runs the measurement; you do not declare it.** You do not write the number, the metric or the decision — the gate derives them from the output it ran itself.
 3. **You never touch gate-written fields.** `Decision`, `Gate Evidence`, `Next Step`, `Raw Results`, `Uncertainty`, `Metric`, `Measurement Command`, `Status` lines. Editing by hand breaks the token → FORGED.
-4. **What the file *is* decides its root.** Records/artifacts → `{project-root}`; templates/config/scripts → `{metodoloji-root}`. The single exception is `bmad-customize` (writes into the plugin's `custom/`).
+4. **What the file *is* decides its root.** Records/artifacts → `{project-root}`; templates/config/scripts → `{metodoloji-root}`. The single exception is `bmad-customize` (writes into the target project's `custom/`).
 5. **You never touch the gate key.** `~/.bmad/gate-key` lives outside the repo; you never print, copy, `cat`, share or overwrite it. Key problems are `/metodoloji:gate-setup`'s job, not the shell's.
 6. **The free zone is not a security hole.** Secret scanning runs **before** the free-zone check; even `scratch/` denies `gate-key`/`.bmad`/`gate_token` patterns.
 7. **Benches live in a protected directory** (`scripts/bench/`). The gate will not run a measurement from any free surface: `scratch/`, `tmp/`, `temp/`, `graft/`, `openhands/`, `_bmad/`, `.metodoloji/`, root-level `explore_*`.
@@ -80,7 +80,7 @@ These are not preferences; they are the system's operating conditions. Violating
    - **An experiment is stochastic; a contract is closed.** A deterministic unit/regression suite over an enumerated set is `Record Kind: contract`: it must name the population in `Census`, claim 100%, and pass every case. Do not dress a test suite as a sampling experiment.
 3. **Guards (hooks):** On every file-write / commit / deploy attempt the engine asks: "is there a covering VERIFIED experiment? is the chain complete?" If not, `DENY` (hard) or warning (soft).
 4. **Output always goes to the project root:** Methodology *output* (story, experiment, planning/test artifacts — all under `docs/`) is never written inside the plugin. Plugin *source* (template, TOML, script) is read from the plugin root.
-5. **Single exception:** `bmad-customize` writes user overrides under the plugin's `custom/`. Decision rule: *a file goes where it belongs* (record/artifact → `{project-root}`, template/config/script → `{metodoloji-root}`).
+5. **Single exception:** `bmad-customize` writes user overrides under the target project's `custom/`. Decision rule: *a file goes where it belongs* (record/artifact → `{project-root}`, template/config/script → `{metodoloji-root}`).
 6. **The key is machine-local, trust is your ring:** `~/.bmad/gate-key` never enters the repo, is never shared. Signing uses a single key: the one on your machine. Verification looks at the ring: your own key + peer machine keys you imported under `~/.bmad/gate-keys/` via `--import-key` — a record signed on one of your own machines verifies on all of them. A record from a key outside the ring yields `FORGED` — this is design, not attack.
 
 ```
@@ -384,7 +384,7 @@ deploy_guard = "hard"
 
 **Trigger:** you are changing code inside the `metodoloji` repo (engine, skill, template).
 
-The conditional self-modification zone is active: when the protected project root is the plugin's own repo, `hooks/`, `scripts/`, `skills/`, `custom/` are free. In an ordinary project those trees require an experiment.
+The conditional self-modification zone is active: when the protected project root is the plugin's own repo, `hooks/`, `scripts/`, `skills/` are free. In an ordinary project those trees require an experiment.
 
 **Extra rules:** do not hand-edit `hooks.json` — generate it with `{metodoloji-root}/scripts/sync-hooks-json.py --write` (`{metodoloji-root}/scripts/check-plugin.sh` #1b demands byte-identical). After a change run `python -m pytest -q` plus the static checks. Document behaviour changes with an E record (bench + E — the improvement loop in #18).
 
@@ -583,8 +583,9 @@ Carry the PRD → UX → architecture → spec → epics → story → dev relay
 
 ### P24 — Discipline the team with TOML
 
-- Team rule (committed): `custom/{skill}.toml` — e.g. review rigour, risk threshold.
-- Personal (gitignored): `custom/{skill}.user.toml` — e.g. language preference.
+- Skill defaults (plugin): `skills/{skill}/customize.toml` — e.g. review rigour, risk threshold.
+- Team rule (committed, project): `{project-root}/custom/{skill}.toml`.
+- Personal (gitignored, project): `{project-root}/custom/{skill}.user.toml`.
 - No deletion: fork or noop-override instead of removing. After a change, verify the BRIDGE is visible at runtime with `resolve_customization.py -k ...` (that is what #2b looks at).
 - Project level: `{project-root}/docs/config.toml` (team) + `.user.toml` (personal) — configuration without touching the plugin.
 
@@ -1000,7 +1001,7 @@ The order guard asks before a write: **scan for secrets → deny if dirty → is
 
 > **Symlink rule (E-036):** a lexical free surface keeps the free verdict only when the **filesystem-resolved** path is free too. `scratch/link -> ../src` does not release `src/` through the link — the guard re-checks the resolved spelling on the release direction and fails closed when resolution fails or escapes the project root; the gate resolves the bench target the same way, so `scripts/link -> scratch` cannot host a measurement either. Resolution runs only where a free verdict would be granted (two `realpath` calls per released write), never on the gated path.
 
-**Conditional self-modification:** `hooks/`, `scripts/`, `skills/`, `custom/`, `bmad/tests/` (plugin source trees) are free **only when the protected project root is the plugin's own repo** (working on the plugin itself). In an ordinary target project these trees are **protected** — editing plugin source requires an approved experiment too. The `bmad/tests/` exemption is for circularity: the gate's own tests cannot be gated behind the gate's permission.
+**Conditional self-modification:** `hooks/`, `scripts/`, `skills/`, `bmad/tests/` (plugin source trees) are free **only when the protected project root is the plugin's own repo** (working on the plugin itself). In an ordinary target project these trees are **protected** — editing plugin source requires an approved experiment too. The `bmad/tests/` exemption is for circularity: the gate's own tests cannot be gated behind the gate's permission.
 
 ### 10.2 Protected area (requires approval)
 
@@ -1062,7 +1063,7 @@ Families:
 → resolve_customization.py → effective runtime config
 ```
 
-`{custom}` prefers the project root's `custom/`, otherwise it falls back to the Claude layout `_bmad/custom/`. With the plugin installed, the team layer is the plugin's own `custom/{name}.toml` (user + team in the same directory; merge order defaults → team → user).
+`{custom}` is the TARGET PROJECT's override directory: `{project-root}/custom/`, else the Claude layout `{project-root}/_bmad/custom/`. The plugin ships no override layer (E-147), so merge order is skill `customize.toml` → project team → project user. Pass `--project-root` so the resolver looks in the right tree.
 
 Merge rules: for scalars the override wins; tables deep-merge (recursively); for arrays, if all elements carry the same `code`/`id` they merge by key, otherwise they append. **There is NO deletion mechanism** — to remove an item, fork the skill or override it with the same `code`/`id` and a noop description.
 
@@ -1116,7 +1117,7 @@ Returns the shared `core` plus that module's keys (the old module config.yaml sh
 
 ### 13.3 Manifesto wiring
 
-Every surface must reference these documents: `research-methodology.md` (all surfaces), `project-context.md` (all surfaces), `development-methodology.md` (the development wing). The bridge document: `{metodoloji-root}/docs/bmad/dev-skill-to-methodology-bridge.md` (#-numbered — `{metodoloji-root}/scripts/check-custom.sh` #7 verifies that `custom/` references stay in sync with it).
+Every surface must reference these documents: `research-methodology.md` (all surfaces), `project-context.md` (all surfaces), `development-methodology.md` (the development wing). The bridge document: `{metodoloji-root}/docs/bmad/dev-skill-to-methodology-bridge.md` (#-numbered — `{metodoloji-root}/scripts/check-custom.sh` #7 verifies that bridge references stay in sync with it).
 
 ---
 
@@ -1279,7 +1280,7 @@ sh scripts/check-techdebt.sh      # debt drift/ID/P0/orphan (also runs as #6b)
 python scripts/check-triggers.py  # trigger/description collision (also runs as #6f)
 ```
 
-**# map:** #0 gate key · #0b base config project-name leak · #1 engine selfcheck (combined `pre` + individual modes) · #1b hooks.json byte-identical · #2 manifesto wiring · #2b bridge runtime visibility (16 workflow + 1 agent-principles) · #2c bridge VERIFY (7 skills) · #3 approved inventory (VERIFIED/ADVISORY-BLOCK + CROSS-MACHINE warning) · #3b code-scope coverage · #4 documentary records · #5 engine integrity (py\_compile) · #5b hard-gate validity · #5c custom/ static · #6 development format · #6a `.env` · #6b tech-debt · #6c template copy identity · #6d init marker integrity · #6d2 command→script reference integrity · #6d3 plugin version consistency (`.plugin/plugin.json` ↔ `.plugin/marketplace.json` ↔ `.claude-plugin/plugin.json` ↔ `.claude-plugin/marketplace.json` ↔ `.opencode-plugin/plugin.json` ↔ `opencode-plugin/package.json` ↔ `plugin.yaml` ↔ `pyproject.toml`) · #6e help catalog integrity · #6f trigger/description collision · #6g no namespaced-tool priming tokens · #6h freshness contract (witness producer ↔ verdict consumers, derived from the tree).
+**# map:** #0 gate key · #0b base config project-name leak · #1 engine selfcheck (combined `pre` + individual modes) · #1b hooks.json byte-identical · #2 manifesto wiring · #2b bridge runtime visibility (16 workflow + 1 agent-principles) · #2c bridge VERIFY (7 skills) · #3 approved inventory (VERIFIED/ADVISORY-BLOCK + CROSS-MACHINE warning) · #3b code-scope coverage · #4 documentary records · #5 engine integrity (py\_compile) · #5b hard-gate validity · #5c customize.toml static · #6 development format · #6a `.env` · #6b tech-debt · #6c template copy identity · #6d init marker integrity · #6d2 command→script reference integrity · #6d3 plugin version consistency (`.plugin/plugin.json` ↔ `.plugin/marketplace.json` ↔ `.claude-plugin/plugin.json` ↔ `.claude-plugin/marketplace.json` ↔ `.opencode-plugin/plugin.json` ↔ `opencode-plugin/package.json` ↔ `plugin.yaml` ↔ `pyproject.toml`) · #6e help catalog integrity · #6f trigger/description collision · #6g no namespaced-tool priming tokens · #6h freshness contract (witness producer ↔ verdict consumers, derived from the tree).
 
 **Single-record verification + inventory:**
 
@@ -1440,8 +1441,8 @@ metodoloji/
 │   ├── engine/modules/                  # guard (guard+quality+deploy), audit, stop, plan, mirror, state, config, archive, bash_targets, blackboard, utils
 │   ├── engine/resolve_customization.py  # thin re-export (real: bmad/scripts/resolve_customization.py)
 │   └── scripts/bootstrap.sh, hook-entry.sh, run-hook.sh
-├── skills/                              # 48 skills (native bodies)
-├── custom/                              # 42 TOMLs (7 BRIDGE active) + config.toml (soft/hard)
+├── skills/                              # 48 skills (native bodies) + 42 customize.toml (7 active BRIDGEs)
+├── config.toml                          # the plugin config (gate policy, soft/hard)
 ├── bmad/                                # module data (bmm,tea,core,bmb,loop,_config) + scripts/ (blackboard, workflow, orient, resolve_config, resolve_customization, skeleton)
 ├── templates/                           # _template_E/IR/SP/QR/PR/S/PM/BD/C/STRUCT + README/tech-debt/scratch-README/external-context-README/external-context
 ├── commands/                            # /metodoloji:init, gate-setup, verify, audit (.md)

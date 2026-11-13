@@ -6,17 +6,17 @@ triggers: ["bmad-create-architecture", "/bmad-create-architecture", "create-arch
 
 # DEPRECATED — forwards to bmad-architecture (create intent)
 
-This skill was consolidated into `bmad-architecture`. It is retained as a thin compatibility shim so existing invocations by name and `bmad/custom/bmad-create-architecture.toml` override files keep working. New work should invoke `bmad-architecture` directly — it detects create / update / validate intent from the conversation.
+This skill was consolidated into `bmad-architecture`. It is retained as a thin compatibility shim so existing invocations by name and override files under the project's `custom/` directory keep working. New work should invoke `bmad-architecture` directly — it detects create / update / validate intent from the conversation.
 
 ## On Activation
 
-1. Resolve customization: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --key workflow` — use your harness-native shell tool with the command as given (no extra wrapper params). This picks up any `{metodoloji-root}/custom/bmad-create-architecture.toml` and `bmad-create-architecture.user.toml` overrides for the legacy fields (`activation_steps_prepend`, `activation_steps_append`, `persistent_facts`, `on_complete`).
+1. Resolve customization: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --project-root {project-root} --key workflow` — use your harness-native shell tool with the command as given (no extra wrapper params). This picks up any `bmad-create-architecture.toml` and `bmad-create-architecture.user.toml` overrides in the project's `custom/` directory for the legacy fields (`activation_steps_prepend`, `activation_steps_append`, `persistent_facts`, `on_complete`).
 
 2. Run one targeted config read — `python3 {metodoloji-root}/bmad/scripts/resolve_config.py --project-root {project-root} --key core.user_name --key core.communication_language` — and resolve `{user_name}` and `{communication_language}` from it (never a module dump).
 
 3. Emit a deprecation notice to the user in `{communication_language}`:
 
-   > Notice: `bmad-create-architecture` is deprecated and will be removed in a future release. It now forwards to `bmad-architecture` with create intent. To silence this notice and access the full new customization surface (`spine_template`, `spine_output_path`, `run_folder_pattern`, `doc_standards`, `external_sources`, `external_handoffs`, `finalize_reviewers`), migrate `bmad/custom/bmad-create-architecture.toml` to `bmad/custom/bmad-architecture.toml` and invoke `bmad-architecture` directly next time. Customization fields that were in this version still remain in the new version and will be respected if present in `bmad/custom/bmad-architecture.toml`, but the new version also supports additional fields that you can take advantage of by migrating.
+   > Notice: `bmad-create-architecture` is deprecated and will be removed in a future release. It now forwards to `bmad-architecture` with create intent. To silence this notice and access the full new customization surface (`spine_template`, `spine_output_path`, `run_folder_pattern`, `doc_standards`, `external_sources`, `external_handoffs`, `finalize_reviewers`), migrate `custom/bmad-create-architecture.toml` to `custom/bmad-architecture.toml` and invoke `bmad-architecture` directly next time. Customization fields that were in this version still remain in the new version and will be respected if present in `custom/bmad-architecture.toml`, but the new version also supports additional fields that you can take advantage of by migrating.
 
 4. Invoke `bmad-architecture` with the following context. Pass these as the activating context so `bmad-architecture` honors them instead of resolving its own customization from scratch:
 

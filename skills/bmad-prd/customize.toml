@@ -3,8 +3,8 @@
 # Workflow customization surface for bmad-prd.
 #
 # Override files (not edited here):
-#   {metodoloji-root}/custom/bmad-prd.toml         (team)
-#   {metodoloji-root}/custom/bmad-prd.user.toml    (personal)
+#   {project-root}/custom/bmad-prd.toml         (team)
+#   {project-root}/custom/bmad-prd.user.toml    (personal)
 
 [workflow]
 
@@ -17,7 +17,9 @@ activation_steps_prepend = []
 
 # Steps to run after greet but before the workflow begins.
 # Use for context-heavy setup that should happen once the user has been acknowledged.
-activation_steps_append = []
+activation_steps_append = [
+  "Remember the project's scientific methodology: read {metodoloji-root}/docs/bmad/research-methodology.md if present. Every requirement about the problem domain is a theory, and its expected outcome is a falsifiable hypothesis to be validated by experiment — not an asserted fact.",
+]
 
 # Persistent facts the workflow keeps in mind for the whole run
 # (standards, compliance constraints, stylistic guardrails).
@@ -31,12 +33,14 @@ activation_steps_append = []
 #   "Investor PRDs must include a market sizing section."                    # generic agent instruction
 persistent_facts = [
   "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+  "file:{metodoloji-root}/docs/bmad/development-methodology.md",
 ]
 
 # Executed when the workflow completes (after the user has been told the
 # PRD is ready). Accepts either a string scalar (single instruction)
 # or an array of instructions executed in order. Empty for none.
-on_complete = ""
+on_complete = "Before finalizing the PRD, check: are any claims stated as measured facts without an experiment record? If so, mark them as hypotheses awaiting experiment. Ensure every requirement's expected outcome can later be validated by a bmad-research-experiment record."
 
 # Default PRD structure. Treated as a starting point — the LLM adapts it
 # to the product, project type, and domain. Override the path in team/user TOML

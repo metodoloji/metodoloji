@@ -27,7 +27,7 @@ To HALT with a final status and optional blocking condition:
    Blocking condition: <blocking condition, if any>
    ```
 3. **Only when the final status is `done`**, bind the run to the chain and signal the formal review gate (one call): `python3 {metodoloji-root}/bmad/scripts/blackboard.py mirror --key devauto.<slug> --value "dev-auto done — {spec_file}" --to bmad-code-review --note "dev-auto complete — {spec_file}; run the formal review and fold findings into docs/development/QR" --project-root {project-root}` — `<slug>` is the kebab-case slug step 01 derived (use the spec file's basename when it is unknown). Repeating the same mirror never duplicates the waiting signal; it waits in `handoff.bmad-code-review` until a review run consumes it. For any other status (`blocked`) nothing is reviewable: post no baton and let the run end silently.
-4. Run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --key workflow.on_complete` — use your harness-native shell tool with the command as given (no extra wrapper params)
+4. Run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --project-root {project-root} --key workflow.on_complete` — use your harness-native shell tool with the command as given (no extra wrapper params)
 5. If the resolved `workflow.on_complete` is non-empty, follow it as the final instruction before exiting.
 6. Stop the workflow.
 
@@ -63,13 +63,13 @@ Run: `python3 {metodoloji-root}/bmad/scripts/orient.py --project-root {project-r
 
 ### Step 2: Resolve the Workflow Block
 
-Run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --key workflow` — use your harness-native shell tool with the command as given (no extra wrapper params)
+Run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --project-root {project-root} --key workflow` — use your harness-native shell tool with the command as given (no extra wrapper params)
 
 **If the script fails**, resolve the `workflow` block yourself by reading these three files in base → team → user order and applying the same structural merge rules as the resolver:
 
 1. `{skill-root}/customize.toml` — defaults
-2. `{metodoloji-root}/custom/{skill-name}.toml` — team overrides
-3. `{metodoloji-root}/custom/{skill-name}.user.toml` — personal overrides
+2. `{project-root}/custom/{skill-name}.toml` — team overrides
+3. `{project-root}/custom/{skill-name}.user.toml` — personal overrides
 
 Any missing file is skipped. Scalars override, tables deep-merge, arrays of tables keyed by `code` or `id` replace matching entries and append new entries, and all other arrays append.
 

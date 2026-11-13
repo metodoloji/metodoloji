@@ -1,8 +1,8 @@
 # DO NOT EDIT -- overwritten on every update.
 #
 # Default customization values for bmad-quick-dev.
-# Override in bmad/custom/bmad-quick-dev.toml or
-# bmad/custom/bmad-quick-dev.user.toml.
+# Override in {project-root}/custom/bmad-quick-dev.toml or
+# {project-root}/custom/bmad-quick-dev.user.toml.
 #
 # Merge rules:
 # - Strings replace the default.
@@ -13,11 +13,19 @@
 
 # Extra instructions to run before config is loaded and before the user is greeted.
 
-activation_steps_prepend = []
+activation_steps_prepend = [
+  "Confirm the methodology manifesto is loaded: read {metodoloji-root}/docs/bmad/research-methodology.md if present. If it is missing, stop and tell the user this workflow requires it.",
+]
 
 # Extra instructions to run after the greeting and before step 01.
 
-activation_steps_append = []
+activation_steps_append = [
+  "Before implementing any feature, resolve its experiment links from the work item's metadata (story AC metadata / frontmatter `experiment_refs`) — never invent an id. For each referenced experiment run `python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --verify --record {project-root}/docs/experiments/<id>.md` and require VERIFIED. FORGED or REJECTED means no code — stop and request a valid approved experiment record. Work with no approved experiment (a [HYPOTHESIS]) has NO code-writing permission: leave it as a note and never implement it (bridge §3.5). When nothing in the work item has an approved experiment, implement nothing, report the missing approval, and stop.",
+  "TASK↔AC DYNAMIC VALIDATION: Check whether each Technical Task has a reference (AC: AC-XXX). If a reference is missing, inform the user before implementation and have it corrected.",
+  "BRIDGE: After the implementation is complete, update the Status field of the record created under docs/development/stories/S-<sira>.md according to rule §2.4 of {metodoloji-root}/docs/bmad/dev-skill-to-methodology-bridge.md from 'in-progress' → 'review', and fill in the Dev Agent Record sections. Even with quick code, you must preserve the methodology record chain (S → QR → PR) — no leaving things off the record. If you change the native story file, sync the methodology record too. VERIFICATION: After updating the story record, run 'ls -la docs/development/stories/S-<sira>.md' in the terminal. If the file is missing, raise an ERROR and recreate the record.",
+  "BRIDGE (QR): After DoD verification is complete, create the docs/quality/QR-<sira>.md record (bridge §2.5): status/evidence/date for each DoD item, update the Quality Record section in the story. VERIFICATION: run 'ls -la docs/quality/QR-<sira>.md'; if missing, raise an ERROR.",
+  "BRIDGE (PR): Before deploy, create the production readiness record docs/development/PR-<sira>.md (bridge §2.6): copy the {metodoloji-root}/templates/_template_PR.md template, fill it with English labels (Date, Status: preparing|READY|PENDING, Release type, Version, Release scope: QR-id list, Staging Test, Rollback Plan, Monitoring, Feature Flags, Runbook, Incident Response, Decision: READY|PENDING + rationale, Next step: production deploy|complete the gaps). Decision from allowed values, Date required (check-methodology §6). The record chain QR → PR is completed, satisfying the deploy guard's Gate 4 enforcement. VERIFICATION: run 'ls -la docs/development/PR-<sira>.md'; if missing, raise an ERROR.",
+]
 
 # Facts kept in context for the whole run.
 # Entries are literal text or file references prefixed with "file:".
@@ -25,6 +33,8 @@ activation_steps_append = []
 
 persistent_facts = [
   "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+  "file:{metodoloji-root}/docs/bmad/development-methodology.md",
 ]
 
 # Instruction run after Quick Dev completes.

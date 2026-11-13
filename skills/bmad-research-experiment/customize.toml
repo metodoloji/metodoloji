@@ -9,6 +9,8 @@ activation_steps_prepend = []
 activation_steps_append = [
   "Confirm the methodology manifesto is loaded: read {metodoloji-root}/docs/bmad/research-methodology.md if present. If it is missing, stop and tell the user the skill requires the manifesto; offer to create it.",
   "At Stage 6 (Result), after the record is written and the decision is made, confirm to the user that the experiment record exists under docs/experiments/, restate the decision (APPROVED / REJECTED) with the measured value, and state the next step: approved → Code phase; rejected → Return to Theory (new experiment).",
+  "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
+  "Before finishing the work, verify that the record is complete: English field labels, decision rationale, uncertainty acknowledgment. A documentary decision is not permission to write code.",
 ]
 
 # Persistent facts the workflow keeps in mind for the whole run.

@@ -18,7 +18,10 @@ activation_steps_prepend = []
 # Overrides append. Use for context-heavy setup that should happen
 # once the user has been acknowledged.
 
-activation_steps_append = []
+activation_steps_append = [
+  "Before starting the research, state which of these the report will produce: (a) a theory/framework the report builds on, (b) falsifiable hypotheses (H-id) that future experiments will test, or (c) measured results with the experiment record. Label every claim accordingly.",
+  "Before declaring the research complete, check: did any claim get presented as measured fact without an experiment record or citation? If yes, relabel it as a hypothesis and note it needs an experiment. Save the research report under docs/research/ and add a pointer to the methodology manifesto.",
+]
 
 # Persistent facts the workflow keeps in mind for the whole run
 # (standards, compliance constraints, stylistic guardrails).
@@ -32,6 +35,7 @@ activation_steps_append = []
 
 persistent_facts = [
   "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
 ]
 
 # Scalar: executed when the workflow reaches its terminal stage (Step 6: Research Synthesis),

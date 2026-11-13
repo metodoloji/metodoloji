@@ -44,7 +44,7 @@ When invoked from another prompt or process:
 
 ### Step 0: Activation (runs once, before Step 1)
 
-1. Resolve customization: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --key workflow` — on failure, read `{skill-root}/customize.toml` directly and use defaults. Hold each `{workflow.persistent_facts}` entry as session context and run each `{workflow.activation_steps_append}` entry.
+1. Resolve customization: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --project-root {project-root} --key workflow` — on failure, read `{skill-root}/customize.toml` directly and use defaults. Hold each `{workflow.persistent_facts}` entry as session context and run each `{workflow.activation_steps_append}` entry.
 2. Resolve config with one targeted call — `--key` is repeatable; a module dump is never the substitute: `python3 {metodoloji-root}/bmad/scripts/resolve_config.py --project-root {project-root} --key core.user_name --key core.communication_language`; resolve `{user_name}`, `{communication_language}`. Missing → neutral defaults; never block. This grounds the `communication_language` in CRITICAL LLM INSTRUCTIONS.
 3. Inherit the blackboard: `python3 {metodoloji-root}/bmad/scripts/blackboard.py read --context --project-root {project-root}` — this shows the invoking skill's live focus (hot key preview, scope/status bridge, tags, last contributions, chain alerts) so method selection and critique ground in the run. Fail-open: missing/corrupt board → proceed from caller inputs alone. Note the hot key — it names this session in the close-out trace. (`read --context` is a compact summary: it does NOT carry the `purpose` value or run-list contents — peek those separately.) Then peek the session subject: `python3 {metodoloji-root}/bmad/scripts/blackboard.py read --key purpose --project-root {project-root}` (the one-line subject; absent → `value: null`). For the invoking run's open threads, resolve the run-list key from the hot key (`<hot-key>.pending`, falling back to the `.open` / `.parked` / `.branches` / `.failing` vocabulary the caller uses) and peek it: `python3 {metodoloji-root}/bmad/scripts/blackboard.py read --key <run-list-key> --project-root {project-root}` (missing key → `value: null` — proceed without threads). This skill never touches focus, bridge keys, run lists, canvases, links, subscriptions, or hand-offs (`write`, `list-add`, `list-remove`, `list-clear`, `handoff`, `canvas`, `link`, `unlink`, `subscribe`, `unsubscribe`, `consume`, `notify`, `tag`, `untag`, `hot` are forbidden here) — those stay owned by the invoking skill, which folds the returned enhancements into its own close-out. The single permitted write is the close-out `contribute` in Case x.
 4. Detect headless: caller sets `headless: true`, invocation comes from another skill or a non-interactive runner (no TTY, no user message stream), or the first message pre-supplies content and asks for enhanced content back. When in doubt, you are interactive. If headless, skip all prompts and HALTs in Step 2: pick the single best-fit method from Smart Selection, apply it once to the current content, record the close-out contribution (same format as Case x), return the enhanced content to the caller, and end.
@@ -161,7 +161,7 @@ x. Proceed / No Further Actions
 ## Customization
 
 Load this skill's effective configuration before acting (three-layer merge:
-skill `customize.toml` ← team `custom/<skill>.toml` ← personal
-`custom/<skill>.user.toml`):
+skill `customize.toml` ← team `{project-root}/custom/<skill>.toml` ← personal
+`{project-root}/custom/<skill>.user.toml`):
 
-Run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --key workflow`
+Run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --project-root {project-root} --key workflow`

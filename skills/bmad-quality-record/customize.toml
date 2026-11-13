@@ -5,7 +5,9 @@
 
 [workflow]
 # Pre-activation steps (run before main workflow)
-activation_steps_prepend = []
+activation_steps_prepend = [
+  "Confirm the methodology manifesto is loaded: read {metodoloji-root}/docs/bmad/research-methodology.md if present. If it is missing, stop and tell the user this workflow requires it.",
+]
 
 # Persistent facts (loaded at start, carried through workflow)
 persistent_facts = [
@@ -14,10 +16,15 @@ persistent_facts = [
   "QR must verify all DoD (definition of done) from the story",
   "QR requires code review approval before APPROVED decision",
   "Mechanical checks (tests, security, linter) are mandatory",
+  "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+  "file:{metodoloji-root}/docs/bmad/development-methodology.md",
 ]
 
 # Post-activation steps (run after main workflow)
-activation_steps_append = []
+activation_steps_append = [
+  "For each AC under verification, check its Experiment (E-XXX) reference in the story. ACs with Experiment=— or a PENDING/REJECTED experiment are [HYPOTHESIS] items: record them as unverified in the QR rather than PASS/FAIL, and direct the user to bmad-research-experiment to close the gap.",
+]
 
 # Post-completion action (optional terminal command)
 on_complete = ""

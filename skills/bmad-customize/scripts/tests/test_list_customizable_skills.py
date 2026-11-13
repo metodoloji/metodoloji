@@ -9,7 +9,7 @@ Exercises the scanner against a synthesized install tree:
 - a workflow-only customize.toml
 - a customize.toml that exposes both surfaces
 - a skill directory with no customize.toml (ignored)
-- a pre-existing team override in bmad/custom/
+- a pre-existing team override in {project-root}/custom/
 - malformed TOML (surfaces as an error without aborting)
 - multiple skills roots (e.g. project-local + user-global mix)
 

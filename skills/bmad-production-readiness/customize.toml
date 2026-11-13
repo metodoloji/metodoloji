@@ -5,7 +5,9 @@
 
 [workflow]
 # Pre-activation steps (run before main workflow)
-activation_steps_prepend = []
+activation_steps_prepend = [
+  "Confirm the methodology manifesto is loaded: read {metodoloji-root}/docs/bmad/research-methodology.md if present. If it is missing, stop and tell the user this workflow requires it.",
+]
 
 # Persistent facts (loaded at start, carried through workflow)
 persistent_facts = [
@@ -15,10 +17,15 @@ persistent_facts = [
   "PR requires rollback plan and preferably rollback testing",
   "PR requires monitoring, alerting, and runbook before production deploy",
   "Deployment cannot proceed without PR READY status",
+  "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+  "file:{metodoloji-root}/docs/bmad/development-methodology.md",
 ]
 
 # Post-activation steps (run after main workflow)
-activation_steps_append = []
+activation_steps_append = [
+  "Link every PR item to its quality record (QR-XXX) under docs/quality-records/ whose status is APPROVED. Quality claims without an approved, measured QR are marked as unverified — do not certify them as production-ready.",
+]
 
 # Post-completion action (optional terminal command)
 on_complete = ""

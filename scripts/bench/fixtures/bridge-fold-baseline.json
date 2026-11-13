@@ -1,0 +1,1001 @@
+{
+ "skills": {
+  "bmad-advanced-elicitation": {
+   "workflow": {
+    "activation_steps_append": [
+     "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
+     "Critique mode: re-evaluate the current output in depth, question the underlying assumptions, and evaluate from opposing perspectives (red team). Enhancements return to the invoking skill; you do not produce methodology records yourself.",
+     "Before finishing the work, verify that the record is complete: English field labels, decision rationale, uncertainty acknowledgment. A documentary decision is not permission to write code."
+    ],
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+     "file:{metodoloji-root}/docs/bmad/development-methodology.md"
+    ]
+   }
+  },
+  "bmad-architecture": {
+   "workflow": {
+    "activation_steps_append": [
+     "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
+     "Before finishing the work, verify that the record is complete: English field labels, decision rationale, uncertainty acknowledgment. A documentary decision is not permission to write code."
+    ],
+    "activation_steps_prepend": [],
+    "doc_standards": [
+     "skill:bmad-editorial-review-structure",
+     "skill:bmad-editorial-review-prose"
+    ],
+    "external_handoffs": [],
+    "external_sources": [],
+    "finalize_reviewers": [
+     "Verify every committed decision was web-researched or reality-checked rather than asserted from training data: current library/framework versions, that each named technology still exists and fits, and — greenfield — the live defaults of any starter it leans on. Flag anything that could be out of date and wasn't confirmed against the web, the existing project, or the current starter.",
+     "Attack the spine as an adversary: construct two units one level down that each obey every AD to the letter yet still build incompatibly — clashing shared-data shapes, two owners of one entity, conflicting state-mutation paths. Every pair you find is a hole to close with a new or tightened AD."
+    ],
+    "on_complete": "",
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md"
+    ],
+    "run_folder_pattern": "architecture-{project_name}-{date}",
+    "spine_output_path": "{project-root}/docs/design/architecture",
+    "spine_template": "assets/spine-template.md"
+   }
+  },
+  "bmad-brainstorming": {
+   "workflow": {
+    "activation_steps_append": [
+     "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
+     "Before finishing the work, verify that the record is complete: English field labels, decision rationale, uncertainty acknowledgment. A documentary decision is not permission to write code."
+    ],
+    "activation_steps_prepend": [],
+    "additional_techniques": [],
+    "brain_methods": "{skill-root}/assets/brain-methods.csv",
+    "external_handoffs": [],
+    "favorite_techniques": [],
+    "on_complete": "",
+    "output_dir": "{output_folder}/brainstorming",
+    "output_folder_name": "brainstorm-{topic_slug}-{date}",
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md"
+    ]
+   }
+  },
+  "bmad-check-implementation-readiness": {
+   "workflow": {
+    "activation_steps_append": [
+     "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
+     "Before finishing the work, verify that the record is complete: English field labels, decision rationale, uncertainty acknowledgment. A documentary decision is not permission to write code.",
+     "BRIDGE: After producing the native implementation-readiness report (docs/planning/implementation-readiness-report-*.md), create the methodology record docs/development/IR-<sira>.md according to rule §2.5a in {metodoloji-root}/docs/bmad/dev-skill-to-methodology-bridge.md. Copy the {metodoloji-root}/templates/_template_IR.md template, fill the fields from the native report with English labels (Date, Status: preparing|READY|INCOMPLETE, Research inputs, Design documents, Success criteria, Technical dependencies, Risk assessment, Gaps, Decision: READY|INCOMPLETE + rationale, Next step: proceed to sprint planning|return to research). Add the reference 'Methodology record: docs/development/IR-<sira>.md' to the native report. The Decision field must be READY or INCOMPLETE and the Date field must be present (scripts/check-methodology.sh §6 checks this). This does not break the BMAD native flow; it adds the methodology record alongside it and establishes the record chain (E → IR → SP). VERIFY: After creating the record, run 'ls -la docs/development/IR-<sira>.md' in the terminal. If the file is missing, error and recreate the record."
+    ],
+    "activation_steps_prepend": [],
+    "on_complete": "",
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+     "file:{metodoloji-root}/docs/bmad/development-methodology.md"
+    ]
+   }
+  },
+  "bmad-checkpoint-preview": {
+   "workflow": {
+    "activation_steps_append": [
+     "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
+     "Before finishing the work, verify that the record is complete: English field labels, decision rationale, uncertainty acknowledgment. A documentary decision is not permission to write code."
+    ],
+    "activation_steps_prepend": [],
+    "on_complete": "",
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md"
+    ]
+   }
+  },
+  "bmad-code-review": {
+   "workflow": {
+    "activation_steps_append": [
+     "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
+     "Before finishing the work, verify that the record is complete: English field labels, decision rationale, uncertainty acknowledgment. A documentary decision is not permission to write code; code always requires an APPROVED experiment (never REJECTED or PENDING).",
+     "BRIDGE: After the native code review is complete, create the methodology record docs/quality/QR-<sira>.md according to rule §2.5 in {metodoloji-root}/docs/bmad/dev-skill-to-methodology-bridge.md. Copy the {metodoloji-root}/templates/_template_QR.md template, fill the fields from the review findings with English labels (Date, Status: pass|fail|partial, Story S-id reference, PR/MR, Mechanical checks: test coverage/test result/lint/security scan/performance, Code review: reviewers + comments + approval, Documentation, If technical debt was added, also add it to tech-debt.md, Decision: pass|fail|partial + rationale, Next step: merge|revise|plan deploy). Add the reference 'Methodology record: docs/quality/QR-<sira>.md' to the native review output. The Decision field must be from the allowed values and the Date field must be present (scripts/check-methodology.sh §6 checks this). This does not break the BMED native flow; it adds the methodology record alongside it and establishes the record chain (S → QR → PR). Gate 3 hard-enforce (Phase 2) will require this record before merge. VERIFY: After creating the record, run 'ls -la docs/quality/QR-<sira>.md' in the terminal. If the file is missing, error and recreate the record."
+    ],
+    "activation_steps_prepend": [],
+    "on_complete": "",
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+     "file:{metodoloji-root}/docs/bmad/development-methodology.md"
+    ]
+   }
+  },
+  "bmad-correct-course": {
+   "workflow": {
+    "activation_steps_append": [
+     "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
+     "Before finishing the work, verify that the record is complete: English field labels, decision rationale, uncertainty acknowledgment. A documentary decision is not permission to write code."
+    ],
+    "activation_steps_prepend": [],
+    "on_complete": "",
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+     "file:{metodoloji-root}/docs/bmad/development-methodology.md"
+    ]
+   }
+  },
+  "bmad-create-architecture": {
+   "workflow": {
+    "activation_steps_append": [
+     "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
+     "Before finishing the work, verify that the record is complete: English field labels, decision rationale, uncertainty acknowledgment. A documentary decision is not permission to write code."
+    ],
+    "activation_steps_prepend": [],
+    "on_complete": "",
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+     "file:{metodoloji-root}/docs/bmad/development-methodology.md"
+    ]
+   }
+  },
+  "bmad-create-epics-and-stories": {
+   "workflow": {
+    "activation_steps_append": [
+     "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
+     "Before finishing the work, verify that the record is complete: English field labels, decision rationale, uncertainty acknowledgment. A documentary decision is not permission to write code."
+    ],
+    "activation_steps_prepend": [],
+    "on_complete": "",
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+     "file:{metodoloji-root}/docs/bmad/development-methodology.md"
+    ]
+   }
+  },
+  "bmad-create-prd": {
+   "workflow": {
+    "activation_steps_append": [
+     "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
+     "Before finishing the work, verify that the record is complete: English field labels, decision rationale, uncertainty acknowledgment. A documentary decision is not permission to write code."
+    ],
+    "activation_steps_prepend": [],
+    "on_complete": "",
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md"
+    ]
+   }
+  },
+  "bmad-create-story": {
+   "workflow": {
+    "activation_steps_append": [
+     "Link every story to its experiment record under docs/experiments/ whose status is APPROVED. If a story's acceptance criteria imply a falsifiable claim without a measured, approved experiment, mark that criterion as a hypothesis awaiting experiment — do not assert it as fact.",
+     "AC METADATA REQUIREMENT: Fill in the following fields for each Acceptance Criterion: [AC-XXX] identifier, Experiment (E-XXX or —), Type (agent-verifiable|user-evaluable|hybrid), Measured (true|false), Verify (validation method). Missing metadata = the story cannot be validated. In ACs where Experiment=—, the [HYPOTHESIS] label is required.",
+     "TASK↔AC MATCHING: Each Technical Task must reference (AC: AC-XXX). A task without an AC reference = a validation warning. The guard hook verifies this matching.",
+     "DoD STRUCTURAL CHECK: Each Definition of Done item must have a [DoD-XXX] identifier and a Verify field. Items related to an AC require an AC: AC-XXX reference.",
+     "BRIDGE: After producing the native story file ({implementation_artifacts}/<story-key>.md), create the methodology record docs/development/stories/S-<sira>.md according to rule §2.3 of {metodoloji-root}/docs/bmad/dev-skill-to-methodology-bridge.md. Copy the template from {metodoloji-root}/templates/_template_S.md, fill the fields from the native story with English labels (Date, Status: backlog|sprint|in-progress|review|done|blocked, Story title, Epic, Sprint reference, User Story: in 'As a [role], I want [action], so that [value]' format, Acceptance criteria, Technical Tasks: each task referenced (AC: AC-XXX), Definition of Done: each item [DoD-XXX] + Verify, Dependencies: S-ids this story depends on / that depend on it, API and infrastructure dependencies, Research inputs: E/R/D/C-id references, File list, Experiment Refs). Add the reference 'Methodology record: docs/development/stories/S-<sira>.md' to the native story file. Check the experiment link for each AC: is experiment_refs defined in the frontmatter? Is the status APPROVED? Mark ACs that are PENDING or REJECTED as [HYPOTHESIS] in the story file. This does not break the BMAD native flow; it adds the methodology record alongside it and establishes the record chain (SP → S → implementation). VERIFY: After creating the record, run 'ls -la docs/development/stories/S-<sira>.md' in the terminal. If the file is missing, error and recreate the record."
+    ],
+    "activation_steps_prepend": [
+     "Confirm the methodology manifesto is loaded: read {metodoloji-root}/docs/bmad/research-methodology.md if present. If it is missing, stop and tell the user this workflow requires it."
+    ],
+    "on_complete": "",
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+     "file:{metodoloji-root}/docs/bmad/development-methodology.md"
+    ]
+   }
+  },
+  "bmad-customize": {
+   "workflow": {
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+     "file:{metodoloji-root}/docs/bmad/development-methodology.md"
+    ]
+   }
+  },
+  "bmad-dev-auto": {
+   "workflow": {
+    "activation_steps_append": [
+     "Before implementing any feature, resolve its experiment links from the work item's metadata (story AC metadata / frontmatter `experiment_refs`) — never invent an id. For each referenced experiment run `python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --verify --record {project-root}/docs/experiments/<id>.md` and require VERIFIED. FORGED or REJECTED means no code — stop and request a valid approved experiment record. Work with no approved experiment (a [HYPOTHESIS]) has NO code-writing permission: leave it as a note and never implement it (bridge §3.5). When nothing in the work item has an approved experiment, implement nothing, report the missing approval, and stop.",
+     "TASK↔AC DYNAMIC VALIDATION: Check whether each Technical Task has a reference (AC: AC-XXX). If a reference is missing, inform the user before implementation and have it corrected.",
+     "BRIDGE: After the autonomous implementation is complete, update the Status field of the record created under docs/development/stories/S-<sira>.md according to rule §2.4 of {metodoloji-root}/docs/bmad/dev-skill-to-methodology-bridge.md from 'in-progress' → 'review', and fill in the Dev Agent Record (Debug Log, Completion Notes, File List, Change Log) sections. Autonomous mode does not skip the record chain (S → QR); the next bmad-code-review step depends on this record. If you change the native story file, sync the methodology record too. VERIFICATION: After updating the story record, run 'ls -la docs/development/stories/S-<sira>.md' in the terminal. If the file is missing, raise an ERROR and recreate the record."
+    ],
+    "activation_steps_prepend": [
+     "Confirm the methodology manifesto is loaded: read {metodoloji-root}/docs/bmad/research-methodology.md if present. If it is missing, stop and tell the user this workflow requires it."
+    ],
+    "on_complete": "",
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+     "file:{metodoloji-root}/docs/bmad/development-methodology.md"
+    ]
+   }
+  },
+  "bmad-dev-story": {
+   "workflow": {
+    "activation_steps_append": [
+     "Before implementing any story, resolve its experiment links from the story's AC metadata and frontmatter `experiment_refs` — never invent an id. For each referenced experiment run `python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --verify --record {project-root}/docs/experiments/<id>.md` and require VERIFIED. FORGED or REJECTED means no code — stop and request a valid approved experiment record. An AC with no approved experiment carries the [HYPOTHESIS] tag and has NO code-writing permission: leave it as a note, never implement it (bridge §3.5). When EVERY AC is a [HYPOTHESIS] the story has no approved scope — implement nothing, report the missing approval, and stop.",
+     "AC DYNAMIC VALIDATION: When loading the story file, check each Acceptance Criterion's metadata fields: (1) is the experiment field filled? (2) is the Type field defined? (3) does the Measured field exist? (4) does the Verify field exist? (5) is the [HYPOTHESIS] label present? Exclude ACs marked as Hypothesis from implementation — do not write code for these ACs, only leave them as notes. Implement only after every non-hypothesis AC is covered by a VERIFIED experiment.",
+     "TASK↔AC DYNAMIC VALIDATION: Check whether each Technical Task has a reference (AC: AC-XXX). If a reference is missing, inform the user before implementation and have it corrected.",
+     "DoD DYNAMIC VALIDATION: Check whether each Definition of Done item has a [DoD-XXX] identifier and a Verify field. If a field is missing, inform the user before implementation.",
+     "BRIDGE: After the implementation is complete, update the Status field of the record created under docs/development/stories/S-<sira>.md according to rule §2.4 of {metodoloji-root}/docs/bmad/dev-skill-to-methodology-bridge.md from 'in-progress' → 'review', and fill in the Dev Agent Record (Debug Log, Completion Notes, File List, Change Log) sections. Add the applied experiment results to the Experiment Refs field. This record is the link to the QR record of bmad-code-review, the next step (record chain: S → QR). If you change the native story file, sync the methodology record to reflect the same update.",
+     "BRIDGE #3 (QR): After implementation and DoD verification are complete, create the QR record according to rule §2.5 of {metodoloji-root}/docs/bmad/dev-skill-to-methodology-bridge.md: create docs/quality/QR-<sira>.md, fill in status/evidence/date for each DoD item, and update the Quality Record section in the story file. Record chain: S → QR → PR. VERIFICATION: After creating the QR record, run 'ls -la docs/quality/QR-<sira>.md' in the terminal. If the file is missing, error and recreate the record.",
+     "BRIDGE #4 (PR): Before deploy, create the production readiness record — create docs/development/PR-<sira>.md according to the rule in {metodoloji-root}/docs/bmad/dev-skill-to-methodology-bridge.md. Copy the {metodoloji-root}/templates/_template_PR.md template and fill it with English labels: Date, Status: preparing|READY|PENDING, Release type: Major|Minor|Patch|Hotfix, Version (vX.Y.Z), Release scope: QR-id list, Staging Test (deployment, smoke, integration), Rollback Plan (method, triggers, steps, DB rollback), Monitoring and Alerting (metrics, alerts, logging), Feature Flags (flag plan, kill switch), Runbook (deploy steps, troubleshooting), Incident Response (communication, severity, post-mortem), Decision: READY|PENDING + rationale, Next step: production deploy|complete the gaps. The Decision field must be from the allowed values and the Date field must be present (scripts/check-methodology.sh §6 checks this). This completes the record chain (QR → PR) and satisfies the deploy guard's Gate 4 enforcement. VERIFY: After creating the record, run 'ls -la docs/development/PR-<sira>.md' in the terminal. If the file is missing, error and recreate the record."
+    ],
+    "activation_steps_prepend": [
+     "Confirm the methodology manifesto is loaded: read {metodoloji-root}/docs/bmad/research-methodology.md if present. If it is missing, stop and tell the user this workflow requires it."
+    ],
+    "on_complete": "",
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+     "file:{metodoloji-root}/docs/bmad/development-methodology.md"
+    ]
+   }
+  },
+  "bmad-document-project": {
+   "workflow": {
+    "activation_steps_append": [
+     "Remember the project's scientific methodology: read {metodoloji-root}/docs/bmad/research-methodology.md if present. Every documented claim must be bound to its experiment record, measurement, and decision. Never report an unmeasured claim as measured fact."
+    ],
+    "activation_steps_prepend": [],
+    "on_complete": "",
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+     "file:{metodoloji-root}/docs/bmad/development-methodology.md"
+    ]
+   }
+  },
+  "bmad-domain-research": {
+   "workflow": {
+    "activation_steps_append": [
+     "Before starting the research, state which of these the report will produce: (a) a theory/framework the report builds on, (b) falsifiable hypotheses (H-id) that future experiments will test, or (c) measured results with the experiment record. Label every claim accordingly.",
+     "Before declaring the research complete, check: did any claim get presented as measured fact without an experiment record or citation? If yes, relabel it as a hypothesis and note it needs an experiment. Save the research report under docs/research/ and add a pointer to the methodology manifesto."
+    ],
+    "activation_steps_prepend": [],
+    "on_complete": "",
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md"
+    ]
+   }
+  },
+  "bmad-editorial-review-prose": {
+   "agent": {
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md"
+    ],
+    "principles": [
+     "Clarity: detect communication issues",
+     "Simplicity: remove unnecessary complexity",
+     "Consistency: ensure language and tone alignment"
+    ],
+    "role": "Review and improve texts from a communication quality perspective"
+   },
+   "workflow": {
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+     "file:{metodoloji-root}/docs/bmad/development-methodology.md"
+    ]
+   }
+  },
+  "bmad-editorial-review-structure": {
+   "agent": {
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md"
+    ],
+    "principles": [
+     "Structure: improve organization",
+     "Condensation: remove unnecessary parts",
+     "Reorganization: increase clarity"
+    ],
+    "role": "Review documents structurally and reorganize them"
+   },
+   "workflow": {
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+     "file:{metodoloji-root}/docs/bmad/development-methodology.md"
+    ]
+   }
+  },
+  "bmad-eval-runner": {
+   "workflow": {
+    "activation_steps_append": [
+     "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
+     "Feed results into the linked QR record's Skill Eval block per the SKILL.md header bridge; open no separate methodology record."
+    ],
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+     "file:{metodoloji-root}/docs/bmad/development-methodology.md"
+    ]
+   }
+  },
+  "bmad-forge-idea": {
+   "workflow": {
+    "activation_steps_append": [
+     "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
+     "Before finishing the work, verify that the record is complete: English field labels, decision rationale, uncertainty acknowledgment. A documentary decision is not permission to write code.",
+     "PROACTIVE TRIGGERING: If the user shares a half-formed idea (I have an idea, I'm thinking of something like this, I have an idea), do not wait for a forge command — engage immediately. Do not only ask questions; first present your reading of the idea: what is promising, what is broken, what it implies. Propose a concrete hypothesis so the user can accept/reject/revise it.",
+     "EXPLICIT DECISION: As soon as a branch implies a choice the user has not yet made, name that choice explicitly and ask for their decision: 'let's clarify this decision: X or Y?'. Do not let ambiguous terms pass — if user/buyer/payer are not the same entity, distinguish them. Every resolved branch must end in a concrete decision the user can build on.",
+     "ONE QUESTION AT A TIME: Do not ask five questions at once. Ask one question in dependency order, pause when a branch is resolved, and give the user the chance to voice their remaining concern."
+    ],
+    "activation_steps_prepend": [],
+    "forge_output_path": "{output_folder}/forge",
+    "on_complete": [],
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md"
+    ],
+    "run_folder_pattern": "{slug}"
+   }
+  },
+  "bmad-generate-project-context": {
+   "workflow": {
+    "activation_steps_append": [
+     "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
+     "Before finishing the work, verify that the record is complete: English field labels, decision rationale, uncertainty acknowledgment. A documentary decision is not permission to write code."
+    ],
+    "activation_steps_prepend": [],
+    "on_complete": "",
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md"
+    ]
+   }
+  },
+  "bmad-help": {
+   "workflow": {
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+     "file:{metodoloji-root}/docs/bmad/development-methodology.md"
+    ]
+   }
+  },
+  "bmad-index-docs": {
+   "workflow": {
+    "activation_steps_append": [
+     "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
+     "Before finishing the work, verify that the record is complete: English field labels, decision rationale, uncertainty acknowledgment. A documentary decision is not permission to write code."
+    ],
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+     "file:{metodoloji-root}/docs/bmad/development-methodology.md"
+    ]
+   }
+  },
+  "bmad-market-research": {
+   "workflow": {
+    "activation_steps_append": [
+     "Before starting the research, state which of these the report will produce: (a) a theory/framework the report builds on, (b) falsifiable hypotheses (H-id) that future experiments will test, or (c) measured results with the experiment record. Label every claim accordingly.",
+     "Before declaring the research complete, check: did any claim get presented as measured fact without an experiment record or citation? If yes, relabel it as a hypothesis and note it needs an experiment. Save the research report under docs/research/ and add a pointer to the methodology manifesto."
+    ],
+    "activation_steps_prepend": [],
+    "on_complete": "",
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md"
+    ]
+   }
+  },
+  "bmad-party-mode": {
+   "workflow": {
+    "activation_steps_append": [
+     "Meta surface: the agents/capabilities you invoke are bound to the methodology; you do not produce records yourself; the conversation and steering must not produce a surface outside the methodology scope.",
+     "If a participant needs to write code, Mod A mechanical approval is required; a documentary conversation decision is not permission to write code."
+    ],
+    "activation_steps_prepend": [],
+    "default_party": "",
+    "memory_dir": "{output_folder}/party-mode/memories",
+    "on_complete": "",
+    "output_dir": "{output_folder}/party-mode",
+    "party_groups": [
+     {
+      "id": "code-review-crew",
+      "members": [
+       "sec-hawk",
+       "adversary",
+       "edge-hunter",
+       "craftsman",
+       "shipper"
+      ],
+      "memory": false,
+      "name": "Code Review Crew",
+      "scene": "Adversarial code review. Each reviewer attacks from their own lens and they argue with each other about what actually matters — security versus shipping, elegance versus pragmatism. No rubber-stamping, no praise sandwiches: surface the real problems before they ship. Point at the line, name the failure mode, and defend it when someone pushes back. Best run with `--mode subagent` so each lens reviews independently before they clash."
+     },
+     {
+      "id": "anti-consensus-club",
+      "members": [
+       "option-generator",
+       "claim-checker",
+       "loop-stopper",
+       "consensus-challenger"
+      ],
+      "memory": false,
+      "name": "Anti-Consensus Club",
+      "scene": "At session start, before substantive discussion, check the current mode. If this party is not running in `subagent` mode and the platform supports `subagent`, strongly recommend restarting or switching with `--mode subagent`, because separate context windows make it less likely that one shared context will make every voice agree too quickly. Do not nag after that once the user chooses to continue. This room supports the human's judgment; it does not replace it. Do not vote, declare consensus, or speak as if the room has authority. Wildcard suggests more options. Level checks evidence and confidence. Killjoy stops repeated or unsupported discussion. Splinter challenges easy agreement. If the room agrees too quickly, name the hidden assumption. If the room starts repeating itself, stop and ask the human which unresolved question matters."
+     }
+    ],
+    "party_members": [
+     {
+      "capabilities": "Reads the code and traces data flow from untrusted input to sink before judging.",
+      "code": "sec-hawk",
+      "icon": "🔒",
+      "name": "Vex",
+      "persona": "Threat-models everything. Hunts injection, broken authz, leaked secrets, SSRF, supply-chain risk. Assumes every input is hostile and every dependency compromised until proven otherwise. Names the exploit path concretely — 'here's how I'd own this box' — never hand-waves 'might be insecure.'",
+      "title": "Security Engineer"
+     },
+     {
+      "code": "adversary",
+      "icon": "😤",
+      "name": "Grumbal",
+      "persona": "Assumes the code is broken and his job is to prove it. Grumpy, blunt, zero praise sandwiches. Starts from 'this will page someone at 3am' and works backward to the line that does it. Allergic to optimism and 'should be fine.'",
+      "title": "The Adversary"
+     },
+     {
+      "code": "edge-hunter",
+      "icon": "🌶️",
+      "name": "Boundary",
+      "persona": "Walks every branch and boundary. Empty input, null, the off-by-one, the huge payload, the concurrent call, the unicode name, the timezone, the retry storm. Method-driven, not mean: 'what happens when this is called twice at once?'",
+      "title": "Edge-Case Hunter"
+     },
+     {
+      "code": "craftsman",
+      "icon": "🎯",
+      "name": "Yui",
+      "persona": "Cares about simplicity, naming, and reuse. Allergic to cleverness and duplication. 'You reimplemented something that already exists,' 'this name lies about what it does,' 'three nested abstractions where one would do.' Wants the boring, obvious, maintainable version.",
+      "title": "The Craftsman"
+     },
+     {
+      "code": "shipper",
+      "icon": "🚢",
+      "name": "Dana",
+      "persona": "Counters the perfectionists so the room isn't a pile-on. 'Does this actually matter to a user? Ship the 80%, file the rest.' Pushes back on gold-plating and theoretical risks, forces everyone to rank what's real versus what's a nit.",
+      "title": "The Pragmatist"
+     },
+     {
+      "code": "option-generator",
+      "icon": "🃏",
+      "name": "Wildcard",
+      "persona": "Wildcard looks for options the room has not considered. He suggests alternative ways to state the problem, different assumptions, and simple examples. He must explain why each option matters in plain language, and he should drop ideas quickly when they do not help.",
+      "title": "Option Generator"
+     },
+     {
+      "code": "claim-checker",
+      "icon": "📏",
+      "name": "Level",
+      "persona": "Level checks whether claims are supported. She asks what evidence exists, what evidence is missing, what would change the answer, and how confident the room should be. She keeps uncertainty explicit and avoids pretending that a weakly supported claim is settled.",
+      "title": "Claim Checker"
+     },
+     {
+      "code": "loop-stopper",
+      "icon": "🛑",
+      "name": "Killjoy",
+      "persona": "Killjoy stops the discussion when it stops producing value. He calls out repetition, fake disagreement, overcomplication, and unsupported speculation. When the room repeats itself, he asks which unresolved question actually matters to the human.",
+      "title": "Loop Stopper"
+     },
+     {
+      "code": "consensus-challenger",
+      "icon": "🪵",
+      "name": "Splinter",
+      "persona": "Splinter challenges easy agreement. He looks for hidden assumptions, ignored tradeoffs, weak objections, and options the room dismissed too quickly. He does not argue for the sake of arguing; once the risk is clear, he hands the decision back to the human.",
+      "title": "Consensus Challenger"
+     }
+    ],
+    "party_memory": true,
+    "party_mode": "session",
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md"
+    ]
+   }
+  },
+  "bmad-prd": {
+   "workflow": {
+    "activation_steps_append": [
+     "Remember the project's scientific methodology: read {metodoloji-root}/docs/bmad/research-methodology.md if present. Every requirement about the problem domain is a theory, and its expected outcome is a falsifiable hypothesis to be validated by experiment — not an asserted fact."
+    ],
+    "activation_steps_prepend": [],
+    "doc_standards": [
+     "skill:bmad-editorial-review-structure",
+     "skill:bmad-editorial-review-prose"
+    ],
+    "external_handoffs": [],
+    "external_sources": [],
+    "finalize_reviewers": [],
+    "on_complete": "Before finalizing the PRD, check: are any claims stated as measured facts without an experiment record? If so, mark them as hypotheses awaiting experiment. Ensure every requirement's expected outcome can later be validated by a bmad-research-experiment record.",
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+     "file:{metodoloji-root}/docs/bmad/development-methodology.md"
+    ],
+    "prd_output_path": "{project-root}/docs/design/prds",
+    "prd_template": "assets/prd-template.md",
+    "run_folder_pattern": "prd-{project_name}-{date}",
+    "validation_checklist_template": "assets/prd-validation-checklist.md",
+    "validation_report_template": "assets/validation-report-template.html"
+   }
+  },
+  "bmad-prfaq": {
+   "workflow": {
+    "activation_steps_append": [
+     "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
+     "Before finishing the work, verify that the record is complete: English field labels, decision rationale, uncertainty acknowledgment. A documentary decision is not permission to write code."
+    ],
+    "activation_steps_prepend": [],
+    "on_complete": "",
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md"
+    ]
+   }
+  },
+  "bmad-product-brief": {
+   "workflow": {
+    "activation_steps_append": [
+     "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
+     "Before finishing the work, verify that the record is complete: English field labels, decision rationale, uncertainty acknowledgment. A documentary decision is not permission to write code."
+    ],
+    "activation_steps_prepend": [],
+    "brief_output_path": "{planning_artifacts}/briefs",
+    "brief_template": "assets/brief-template.md",
+    "doc_standards": [
+     "skill:bmad-editorial-review-structure",
+     "skill:bmad-editorial-review-prose"
+    ],
+    "external_handoffs": [],
+    "external_sources": [],
+    "on_complete": "",
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md"
+    ],
+    "run_folder_pattern": "brief-{project_name}-{date}"
+   }
+  },
+  "bmad-production-readiness": {
+   "deploy": {
+    "canary_rollout_default_percent": 10,
+    "critical_alert_sla_minutes": 5,
+    "default_deploy_method": "CI/CD pipeline",
+    "default_metric_retention_days": 30,
+    "major_alert_sla_hours": 4,
+    "minor_alert_sla_days": 1,
+    "rollback_strategies": [
+     "blue-green",
+     "rolling",
+     "instant",
+     "canary"
+    ],
+    "supports_feature_flags": true
+   },
+   "gates": {
+    "allowed_statuses": [
+     "preparing",
+     "READY",
+     "WAITING",
+     "deployed"
+    ],
+    "change_approval_required": true,
+    "monitoring_required": true,
+    "rollback_plan_required": true,
+    "runbook_required": true,
+    "staging_test_required": true
+   },
+   "template": {
+    "pr_id_format": "PR-{number:03d}",
+    "pr_next_id_query": "{deployment_location}/PR-*.md"
+   },
+   "workflow": {
+    "activation_steps_append": [
+     "Link every PR item to its quality record (QR-XXX) under docs/quality-records/ whose status is APPROVED. Quality claims without an approved, measured QR are marked as unverified — do not certify them as production-ready."
+    ],
+    "activation_steps_prepend": [
+     "Confirm the methodology manifesto is loaded: read {metodoloji-root}/docs/bmad/research-methodology.md if present. If it is missing, stop and tell the user this workflow requires it."
+    ],
+    "on_complete": "",
+    "persistent_facts": [
+     "PR records are Gate 4 of the methodology chain E→IR→SP→S→QR→PR",
+     "PR must verify all approved QRs are in release scope",
+     "PR requires staging deployment and smoke tests",
+     "PR requires rollback plan and preferably rollback testing",
+     "PR requires monitoring, alerting, and runbook before production deploy",
+     "Deployment cannot proceed without PR READY status",
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+     "file:{metodoloji-root}/docs/bmad/development-methodology.md"
+    ]
+   }
+  },
+  "bmad-quality-record": {
+   "gates": {
+    "ac_verification_required": true,
+    "allowed_statuses": [
+     "in-review",
+     "APPROVED",
+     "REJECTED",
+     "REVISED"
+    ],
+    "code_review_required": true,
+    "documentation_required": true,
+    "dod_verification_required": true,
+    "test_coverage_threshold": 80
+   },
+   "template": {
+    "qr_id_format": "QR-{number:03d}",
+    "qr_next_id_query": "{quality_location}/QR-*.md"
+   },
+   "workflow": {
+    "activation_steps_append": [
+     "For each AC under verification, check its Experiment (E-XXX) reference in the story. ACs with Experiment=— or a PENDING/REJECTED experiment are [HYPOTHESIS] items: record them as unverified in the QR rather than PASS/FAIL, and direct the user to bmad-research-experiment to close the gap."
+    ],
+    "activation_steps_prepend": [
+     "Confirm the methodology manifesto is loaded: read {metodoloji-root}/docs/bmad/research-methodology.md if present. If it is missing, stop and tell the user this workflow requires it."
+    ],
+    "on_complete": "",
+    "persistent_facts": [
+     "QR records are Gate 3 of the methodology chain E→IR→SP→S→QR→PR",
+     "QR must verify all AC (acceptance criteria) from the story",
+     "QR must verify all DoD (definition of done) from the story",
+     "QR requires code review approval before APPROVED decision",
+     "Mechanical checks (tests, security, linter) are mandatory",
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+     "file:{metodoloji-root}/docs/bmad/development-methodology.md"
+    ]
+   }
+  },
+  "bmad-quick-dev": {
+   "workflow": {
+    "activation_steps_append": [
+     "Before implementing any feature, resolve its experiment links from the work item's metadata (story AC metadata / frontmatter `experiment_refs`) — never invent an id. For each referenced experiment run `python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --verify --record {project-root}/docs/experiments/<id>.md` and require VERIFIED. FORGED or REJECTED means no code — stop and request a valid approved experiment record. Work with no approved experiment (a [HYPOTHESIS]) has NO code-writing permission: leave it as a note and never implement it (bridge §3.5). When nothing in the work item has an approved experiment, implement nothing, report the missing approval, and stop.",
+     "TASK↔AC DYNAMIC VALIDATION: Check whether each Technical Task has a reference (AC: AC-XXX). If a reference is missing, inform the user before implementation and have it corrected.",
+     "BRIDGE: After the implementation is complete, update the Status field of the record created under docs/development/stories/S-<sira>.md according to rule §2.4 of {metodoloji-root}/docs/bmad/dev-skill-to-methodology-bridge.md from 'in-progress' → 'review', and fill in the Dev Agent Record sections. Even with quick code, you must preserve the methodology record chain (S → QR → PR) — no leaving things off the record. If you change the native story file, sync the methodology record too. VERIFICATION: After updating the story record, run 'ls -la docs/development/stories/S-<sira>.md' in the terminal. If the file is missing, raise an ERROR and recreate the record.",
+     "BRIDGE (QR): After DoD verification is complete, create the docs/quality/QR-<sira>.md record (bridge §2.5): status/evidence/date for each DoD item, update the Quality Record section in the story. VERIFICATION: run 'ls -la docs/quality/QR-<sira>.md'; if missing, raise an ERROR.",
+     "BRIDGE (PR): Before deploy, create the production readiness record docs/development/PR-<sira>.md (bridge §2.6): copy the {metodoloji-root}/templates/_template_PR.md template, fill it with English labels (Date, Status: preparing|READY|PENDING, Release type, Version, Release scope: QR-id list, Staging Test, Rollback Plan, Monitoring, Feature Flags, Runbook, Incident Response, Decision: READY|PENDING + rationale, Next step: production deploy|complete the gaps). Decision from allowed values, Date required (check-methodology §6). The record chain QR → PR is completed, satisfying the deploy guard's Gate 4 enforcement. VERIFICATION: run 'ls -la docs/development/PR-<sira>.md'; if missing, raise an ERROR."
+    ],
+    "activation_steps_prepend": [
+     "Confirm the methodology manifesto is loaded: read {metodoloji-root}/docs/bmad/research-methodology.md if present. If it is missing, stop and tell the user this workflow requires it."
+    ],
+    "on_complete": "",
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+     "file:{metodoloji-root}/docs/bmad/development-methodology.md"
+    ]
+   }
+  },
+  "bmad-research-experiment": {
+   "workflow": {
+    "activation_steps_append": [
+     "Confirm the methodology manifesto is loaded: read {metodoloji-root}/docs/bmad/research-methodology.md if present. If it is missing, stop and tell the user the skill requires the manifesto; offer to create it.",
+     "At Stage 6 (Result), after the record is written and the decision is made, confirm to the user that the experiment record exists under docs/experiments/, restate the decision (APPROVED / REJECTED) with the measured value, and state the next step: approved → Code phase; rejected → Return to Theory (new experiment).",
+     "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
+     "Before finishing the work, verify that the record is complete: English field labels, decision rationale, uncertainty acknowledgment. A documentary decision is not permission to write code."
+    ],
+    "activation_steps_prepend": [],
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+     "file:{metodoloji-root}/docs/bmad/development-methodology.md"
+    ]
+   }
+  },
+  "bmad-retrospective": {
+   "workflow": {
+    "activation_steps_append": [
+     "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
+     "Before finishing the work, verify that the record is complete: English field labels, decision rationale, uncertainty acknowledgment. A documentary decision is not permission to write code."
+    ],
+    "activation_steps_prepend": [],
+    "on_complete": "",
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+     "file:{metodoloji-root}/docs/bmad/development-methodology.md"
+    ]
+   }
+  },
+  "bmad-review-adversarial-general": {
+   "agent": {
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md"
+    ],
+    "principles": [
+     "Critical eye: find weak points",
+     "Risk analysis: identify potential issues",
+     "Improvement suggestions: offer solution paths"
+    ],
+    "role": "Review code and design from an adversarial perspective"
+   },
+   "workflow": {
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+     "file:{metodoloji-root}/docs/bmad/development-methodology.md"
+    ]
+   }
+  },
+  "bmad-review-edge-case-hunter": {
+   "agent": {
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md"
+    ],
+    "principles": [
+     "Search for edge cases: find unexpected scenarios",
+     "Test boundary conditions",
+     "Define error scenarios"
+    ],
+    "role": "Find the system's edge cases and boundary conditions"
+   },
+   "workflow": {
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+     "file:{metodoloji-root}/docs/bmad/development-methodology.md"
+    ]
+   }
+  },
+  "bmad-shard-doc": {
+   "workflow": {
+    "activation_steps_append": [
+     "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
+     "Before finishing the work, verify that the record is complete: English field labels, decision rationale, uncertainty acknowledgment. A documentary decision is not permission to write code."
+    ],
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+     "file:{metodoloji-root}/docs/bmad/development-methodology.md"
+    ]
+   }
+  },
+  "bmad-spec": {
+   "workflow": {
+    "activation_steps_append": [
+     "Maintain the theory→hypothesis→measurement distinction: every design claim is labeled as (a) theory, (b) falsifiable hypothesis (H-id), or (c) measured result with its experiment record. Do not present unmeasured claims as measured fact."
+    ],
+    "activation_steps_prepend": [
+     "Confirm the methodology manifesto is loaded: read {metodoloji-root}/docs/bmad/research-methodology.md if present. If it is missing, stop and tell the user this workflow requires it."
+    ],
+    "on_complete": "",
+    "persistent_facts": [
+     "file:{project-root}/project-context.md",
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md"
+    ],
+    "run_folder_pattern": "spec-{slug}",
+    "spec_filename": "SPEC.md",
+    "spec_output_path": "{output_folder}/specs",
+    "spec_template": "assets/spec-template.md"
+   }
+  },
+  "bmad-sprint-planning": {
+   "workflow": {
+    "activation_steps_append": [
+     "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
+     "Before finishing the work, verify that the record is complete: English field labels, decision rationale, uncertainty acknowledgment. A documentary decision is not permission to write code.",
+     "BRIDGE: After producing the native sprint-status.yaml output (docs/development/native/sprint-status.yaml), create the methodology record docs/development/SP-<sira>.md according to rule §2.5b in {metodoloji-root}/docs/bmad/dev-skill-to-methodology-bridge.md. Copy the {metodoloji-root}/templates/_template_SP.md template, fill the fields from the YAML with English labels (Date, Status: planned|in progress|completed|cancelled, Sprint goal: one sentence, Stories S-id list + priority + story points, Capacity: estimated points / team velocity, Blockers: known blockers + resolution plan, Dependencies: external team/system dependencies, Technical debt). Add the '# Methodology record: docs/development/SP-<sira>.md' comment reference to the native YAML as ONE LINE PER SPRINT RECORD, oldest first — add this sprint's line and keep the earlier ones (a single pointer stops naming sprint 1 the moment sprint 2 is planned). The Status field must be from the allowed values and the Date field must be present (scripts/check-methodology.sh §6 checks this). VERIFY: run 'grep -c \"# Methodology record:\" docs/development/native/sprint-status.yaml' — it must equal the number of docs/development/SP-*.md records, because CHECK 6 fails on a dangling, repeated or incomplete pointer list. This does not break the BMED native flow; it adds the methodology record alongside it and establishes the record chain (IR → SP → S). VERIFY: After creating the record, run 'ls -la docs/development/SP-<sira>.md' in the terminal. If the file is missing, error and recreate the record.",
+     "BRIDGE (tech-debt cap): In the SP record, the 'Technical debt' section cannot be left empty. Read the '### Critical Priority (P0)' table in docs/development/tech-debt.md (with python3 -c or by opening the file); every TD-XXX ID in the table must be referenced in the 'Technical debt' section in the format 'TD-NNN: <short description> - outside this sprint's scope', even if it is not being addressed this sprint. If the P0 table is empty, write 'Technical debt: (no P0, the tech-debt rule does not apply this sprint)'. This makes the 'technical debt cannot be hidden' rule mechanical. VERIFICATION: After creating the SP record, run the 'grep -E \"TD-[0-9]+|no P0\" docs/development/SP-<sira>.md' command. If it returns 0 lines, error and recreate the record (the 'no P0' note is required even if there are no P0s in the inventory)."
+    ],
+    "activation_steps_prepend": [],
+    "on_complete": "",
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+     "file:{metodoloji-root}/docs/bmad/development-methodology.md"
+    ]
+   }
+  },
+  "bmad-sprint-status": {
+   "workflow": {
+    "activation_steps_append": [
+     "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
+     "Before finishing the work, verify that the record is complete: English field labels, decision rationale, uncertainty acknowledgment. A documentary decision is not permission to write code."
+    ],
+    "activation_steps_prepend": [],
+    "on_complete": "",
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+     "file:{metodoloji-root}/docs/bmad/development-methodology.md"
+    ]
+   }
+  },
+  "bmad-technical-research": {
+   "workflow": {
+    "activation_steps_append": [
+     "Before starting the research, state which of these the report will produce: (a) a theory/framework the report builds on, (b) falsifiable hypotheses (H-id) that future experiments will test, or (c) measured results with the experiment record. Label every claim accordingly.",
+     "Before declaring the research complete, check: did any claim get presented as measured fact without an experiment record or citation? If yes, relabel it as a hypothesis and note it needs an experiment. Save the research report under docs/research/ and add a pointer to the methodology manifesto."
+    ],
+    "activation_steps_prepend": [],
+    "on_complete": "",
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md"
+    ]
+   }
+  },
+  "bmad-ux": {
+   "workflow": {
+    "activation_steps_append": [
+     "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
+     "Before finishing the work, verify that the record is complete: English field labels, decision rationale, uncertainty acknowledgment. A documentary decision is not permission to write code."
+    ],
+    "activation_steps_prepend": [],
+    "creative_tools": [
+     "file:assets/color-themes.md",
+     "file:assets/design-directions.md",
+     "file:assets/excalidraw-wireframe.md",
+     "file:assets/key-screens.md"
+    ],
+    "design_handoffs": [
+     "Google Stitch (https://stitch.withgoogle.com) — emits DESIGN.md + per-screen HTML. Paste assembled prompt; save outputs to {doc_workspace}."
+    ],
+    "design_md_examples": [
+     "assets/design-example-mobile.md",
+     "assets/design-example-shadcn.md",
+     "assets/design-example-editorial.md"
+    ],
+    "doc_standards": [
+     "skill:bmad-editorial-review-structure",
+     "skill:bmad-editorial-review-prose"
+    ],
+    "experience_md_examples": [
+     "assets/experience-example-mobile.md",
+     "assets/experience-example-shadcn.md"
+    ],
+    "external_handoffs": [],
+    "external_sources": [],
+    "finalize_reviewers": [],
+    "on_complete": "",
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+     "file:{metodoloji-root}/docs/bmad/development-methodology.md"
+    ],
+    "run_folder_pattern": "ux-{project_name}-{date}",
+    "ux_output_path": "{project-root}/docs/design/ux-designs",
+    "validation_report_template": "assets/validation-report-template.html"
+   }
+  },
+  "bmad-validate-prd": {
+   "workflow": {
+    "activation_steps_append": [
+     "During validation, flag any requirement presented as measured fact without an experiment record: it must be marked as a hypothesis awaiting experiment. Validation should confirm the PRD's expected outcomes can later be validated by a bmad-research-experiment record."
+    ],
+    "activation_steps_prepend": [
+     "Confirm the methodology manifesto is loaded: read {metodoloji-root}/docs/bmad/research-methodology.md if present. If it is missing, stop and tell the user this workflow requires it."
+    ],
+    "on_complete": "",
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md"
+    ]
+   }
+  },
+  "bmad-workflow": {
+   "workflow": {
+    "activation_steps_append": [
+     "The kernel is the scheduler: after every stage, ask it for the next one instead of deciding yourself. A refusal from `workflow.py complete` is the expected outcome of a missing step — produce the missing evidence, do not force past it.",
+     "Before the run closes, tell the user which run was driven, which stages were completed in order, and what the computed next stage is (or that the run finished).",
+     "Load the intent first: a workflow is authored from what the user is trying to achieve, and the spec is the written form of that intent. If the intent is unclear, ask for it before authoring stages — an unclear process is worse than no process.",
+     "When a stage's result is a measurable improvement claim, the methodology's experiment gate still owns it: the workflow stage may require the E record as its evidence, but it never replaces the gate."
+    ],
+    "activation_steps_prepend": [],
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+     "file:{metodoloji-root}/docs/bmad/development-methodology.md"
+    ]
+   }
+  },
+  "bmad-workflow-builder": {
+   "workflow": {
+    "activation_steps_append": [
+     "Generated workflow skills must inherit the project's methodology: include the manifesto as a persistent fact, and for any generated workflow that writes code, include the gate ({metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --verify) before implementation."
+    ],
+    "activation_steps_prepend": [
+     "Confirm the methodology manifesto is loaded: read {metodoloji-root}/docs/bmad/research-methodology.md if present. If it is missing, stop and tell the user this workflow requires it."
+    ],
+    "build_standards": [],
+    "evals_required": "",
+    "on_complete": "",
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md"
+    ],
+    "skill_md_token_budget": 3000,
+    "skill_md_token_desired": 2000
+   }
+  },
+  "metodoloji-audit": {
+   "workflow": {
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+     "file:{metodoloji-root}/docs/bmad/development-methodology.md"
+    ]
+   }
+  },
+  "metodoloji-gate-setup": {
+   "workflow": {
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+     "file:{metodoloji-root}/docs/bmad/development-methodology.md"
+    ]
+   }
+  },
+  "metodoloji-init": {
+   "workflow": {
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+     "file:{metodoloji-root}/docs/bmad/development-methodology.md"
+    ]
+   }
+  },
+  "metodoloji-verify": {
+   "workflow": {
+    "persistent_facts": [
+     "file:{project-root}/**/project-context.md",
+     "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+     "file:{metodoloji-root}/docs/bmad/development-methodology.md"
+    ]
+   }
+  }
+ },
+ "team_skills": [
+  "bmad-advanced-elicitation",
+  "bmad-architecture",
+  "bmad-brainstorming",
+  "bmad-check-implementation-readiness",
+  "bmad-checkpoint-preview",
+  "bmad-code-review",
+  "bmad-correct-course",
+  "bmad-create-architecture",
+  "bmad-create-epics-and-stories",
+  "bmad-create-prd",
+  "bmad-create-story",
+  "bmad-dev-auto",
+  "bmad-dev-story",
+  "bmad-document-project",
+  "bmad-domain-research",
+  "bmad-editorial-review-prose",
+  "bmad-editorial-review-structure",
+  "bmad-eval-runner",
+  "bmad-forge-idea",
+  "bmad-generate-project-context",
+  "bmad-index-docs",
+  "bmad-market-research",
+  "bmad-party-mode",
+  "bmad-prd",
+  "bmad-prfaq",
+  "bmad-product-brief",
+  "bmad-production-readiness",
+  "bmad-quality-record",
+  "bmad-quick-dev",
+  "bmad-research-experiment",
+  "bmad-retrospective",
+  "bmad-review-adversarial-general",
+  "bmad-review-edge-case-hunter",
+  "bmad-shard-doc",
+  "bmad-spec",
+  "bmad-sprint-planning",
+  "bmad-sprint-status",
+  "bmad-technical-research",
+  "bmad-ux",
+  "bmad-validate-prd",
+  "bmad-workflow",
+  "bmad-workflow-builder"
+ ]
+}

@@ -6,17 +6,17 @@ triggers: ["bmad-validate-prd", "/bmad-validate-prd", "validate-prd"]
 
 # DEPRECATED — forwards to bmad-prd (validate intent)
 
-This skill was consolidated into `bmad-prd`. It is retained as a thin compatibility shim so existing invocations by name and `bmad/custom/bmad-validate-prd.toml` override files keep working. New work should invoke `bmad-prd` directly — it detects create / update / validate intent from the conversation.
+This skill was consolidated into `bmad-prd`. It is retained as a thin compatibility shim so existing invocations by name and override files under the project's `custom/` directory keep working. New work should invoke `bmad-prd` directly — it detects create / update / validate intent from the conversation.
 
 ## On Activation
 
-1. Resolve customization: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --key workflow` — use your harness-native shell tool with the command as given (no extra wrapper params). This picks up any `{metodoloji-root}/custom/bmad-validate-prd.toml` and `bmad-validate-prd.user.toml` overrides for the legacy fields (`activation_steps_prepend`, `activation_steps_append`, `persistent_facts`, `on_complete`).
+1. Resolve customization: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --project-root {project-root} --key workflow` — use your harness-native shell tool with the command as given (no extra wrapper params). This picks up any `bmad-validate-prd.toml` and `bmad-validate-prd.user.toml` overrides in the project's `custom/` directory for the legacy fields (`activation_steps_prepend`, `activation_steps_append`, `persistent_facts`, `on_complete`).
 
 2. Run one targeted config read — `python3 {metodoloji-root}/bmad/scripts/resolve_config.py --project-root {project-root} --key core.user_name --key core.communication_language` — and resolve `{user_name}` and `{communication_language}` from it (never a module dump).
 
 3. Emit a deprecation notice to the user in `{communication_language}`:
 
-   > Notice: `bmad-validate-prd` is deprecated and will be removed in a future release. It now forwards to `bmad-prd` with validate intent. To silence this notice and access the full new customization surface (`prd_template`, `validation_checklist`, `doc_standards`, `external_sources`, `external_handoffs`, `output_dir`, `output_folder_name`), migrate `bmad/custom/bmad-validate-prd.toml` to `bmad/custom/bmad-prd.toml` and invoke `bmad-prd` directly next time. Customization fields that were in this version still remain in the new version and will be respected if present in `bmad/custom/bmad-prd.toml`, but the new version also supports additional fields that you can take advantage of by migrating.
+   > Notice: `bmad-validate-prd` is deprecated and will be removed in a future release. It now forwards to `bmad-prd` with validate intent. To silence this notice and access the full new customization surface (`prd_template`, `validation_checklist`, `doc_standards`, `external_sources`, `external_handoffs`, `output_dir`, `output_folder_name`), migrate `custom/bmad-validate-prd.toml` to `custom/bmad-prd.toml` and invoke `bmad-prd` directly next time. Customization fields that were in this version still remain in the new version and will be respected if present in `custom/bmad-prd.toml`, but the new version also supports additional fields that you can take advantage of by migrating.
 
 4. Invoke `bmad-prd` with the following context. Pass these as the activating context so `bmad-prd` honors them instead of resolving its own customization from scratch:
 

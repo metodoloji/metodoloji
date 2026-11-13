@@ -60,7 +60,7 @@ Bunlar tercih değil, sistemin çalışma koşulu. İhlali ya mekanik olarak red
 1. **Koda giden tek yol bir VERIFIED deneydir.** `docs/experiments/E-NNN.md` kaydın `APPROVED` + gerçek `GATE-OK-...` token'ı yoksa kod yazma. "Küçük bir değişiklik" istisna değildir.
 2. **Ölçümü gate koşar, sen beyan etmezsin.** Sayıyı, metriği, kararı sen yazmazsın; gate kendi koştuğu çıktıdan türetir.
 3. **Gate-yazımlı alanlara dokunmazsın.** `Decision`, `Gate Evidence`, `Next Step`, `Raw Results`, `Uncertainty`, `Metric`, `Measurement Command`, `Status` satırları. Elle düzeltme = token bozulur = FORGED.
-4. **Çıktının kökünü "ne olduğu" belirler.** Kayıt/artefakt → `{project-root}`; template/config/script → `{metodoloji-root}`. Tek istisna `bmad-customize` (plugin `custom/`'ına yazar).
+4. **Çıktının kökünü "ne olduğu" belirler.** Kayıt/artefakt → `{project-root}`; template/config/script → `{metodoloji-root}`. Tek istisna `bmad-customize` (hedef projenin `custom/`'ına yazar).
 5. **Gate key'e dokunmazsın.** `~/.bmad/gate-key` repo dışıdır; içeriğini basmaz, kopyalamaz, `cat`'lemez, paylaşmaz, üzerine yazmazsın. Anahtar sorunu `/metodoloji:gate-setup` işidir, shell işi değil.
 6. **Free zone güvenlik deliği değildir.** Sekret taraması free-zone kontrolünden **önce** koşar; `scratch/` bile `gate-key`/`.bmad`/`gate_token` kalıplarında DENY yer.
 7. **Bench korumalı dizinde durur** (`scripts/bench/`). `scratch/`, `tmp/`, `temp/`, `graft/`, `openhands/`, `_bmad/`, `.metodoloji/` ve kök `explore_*` free yüzeylerinden gate ölçüm koşmaz.
@@ -80,7 +80,7 @@ Bunlar tercih değil, sistemin çalışma koşulu. İhlali ya mekanik olarak red
    - **Deney olasılıksaldır; sözleşme kapalıdır.** Numaralandırılmış bir küme üzerinde deterministik unit/regresyon testi `Record Kind: contract`'tır: `Census`'ta popülasyonu adlandırmalı, %100 iddia etmeli ve her vakayı geçmelidir. Test suite'ini örnekleme deneyi gibi giydirme.
 3. **Bekçiler (hook'lar):** Her dosya yazma / commit / deploy girişiminde motor sorar: "kapsayan VERIFIED deney var mı? zincir tamam mı?" Yoksa `DENY` (hard) veya uyarı (soft).
 4. **Çıktı hep proje köküne:** Metodoloji *çıktısı* (story, deney, planlama/test artefaktları — hepsi `docs/` altında) asla plugin içine yazılmaz. Plugin *kaynağı* (template, TOML, script) plugin kökünden okunur.
-5. **İstisna tek:** `bmad-customize` kullanıcı override'larını plugin'in `custom/` altına yazar. Karar kuralı: *dosya neyse oraya gider* (kayıt/artefakt → `{project-root}`, template/config/script → `{metodoloji-root}`).
+5. **İstisna tek:** `bmad-customize` kullanıcı override'larını hedef projenin `custom/` altına yazar. Karar kuralı: *dosya neyse oraya gider* (kayıt/artefakt → `{project-root}`, template/config/script → `{metodoloji-root}`).
 6. **Anahtar makine-yereldir, güven halka senin:** `~/.bmad/gate-key` asla repo'ya girmez, paylaşılmaz. İmza tek anahtarla: senin makinendeki. Doğrulama halkaya bakar: kendi anahtarın + `--import-key` ile `~/.bmad/gate-keys/` altına aktardığın eş makine anahtarları — kendi makinelerinden birinde imzalanmış kayıt hepsinde doğrulanır. Halka dışı bir anahtarın kaydı `FORGED` verir — bu tasarım, saldırı değil.
 
 ```
@@ -383,7 +383,7 @@ deploy_guard = "hard"
 
 **Tetikleyici:** `metodoloji` reposunun içinde kod değiştiriyorsun (motor, skill, template).
 
-Koşullu self-modifikasyon zonu devrede: korunan proje kökü pluginin kendi reposuysa `hooks/`, `scripts/`, `skills/`, `custom/` serbesttir. Başka projede bu ağaçlara dokunmak deney ister.
+Koşullu self-modifikasyon zonu devrede: korunan proje kökü pluginin kendi reposuysa `hooks/`, `scripts/`, `skills/` serbesttir. Başka projede bu ağaçlara dokunmak deney ister.
 
 **Ek kurallar:** `hooks.json`'u elle editleme — `{metodoloji-root}/scripts/sync-hooks-json.py --write` ile üret (`{metodoloji-root}/scripts/check-plugin.sh` #1b byte-identical ister). Değişiklikten sonra `python -m pytest -q` + statik check'leri koş. Davranış değişikliğini E kaydıyla belgele (bench + E — #18'deki improvement loop).
 
@@ -582,8 +582,9 @@ PRD → UX → mimari → spec → epics → story → dev rölesini handoff kan
 
 ### P24 — TOML ile takımı terbiye etme
 
-- Takım kuralı (commitli): `custom/{skill}.toml` — örn. review titizliği, risk eşiği.
-- Kişisel (gitignored): `custom/{skill}.user.toml` — örn. dil tercihi.
+- Skill varsayılanı (plugin): `skills/{skill}/customize.toml` — örn. review titizliği, risk eşiği.
+- Takım kuralı (commitli, proje): `{project-root}/custom/{skill}.toml`.
+- Kişisel (gitignored, proje): `{project-root}/custom/{skill}.user.toml` — örn. dil tercihi.
 - Silme yok: kaldırmak yerine fork veya noop override. Değişiklikten sonra `resolve_customization.py -k ...` ile BRIDGE'in runtime'da göründüğünü doğrula (#2b'nin baktığı şey bu).
 - Proje-seviyesi: `{project-root}/docs/config.toml` (takım) + `.user.toml` (kişisel) — plugine dokunmadan konfigürasyon.
 
@@ -999,7 +1000,7 @@ Bir yazımdan önce guard'ın sorduğu sıra: **Secret tara → kirliyse DENY �
 
 > **Symlink kuralı (E-036):** sözdizimsel free yüzey, **dosya sisteminin** çözdüğü hâli de free ise serbestlik verdictini korur. `scratch/link -> ../src`, `src/`'yi link üzerinden serbest bırakmaz — guard serbest bırakma yönünde çözülmüş yolu yeniden denetler ve çözümleme başarısız olursa ya da proje kökünden çıkarsa fail-closed davranır; gate bench hedefini aynı şekilde çözer, dolayısıyla `scripts/link -> scratch` de ölçüm sunamaz. Çözümleme yalnızca free verdict verilecek yerde çalışır (serbest bırakılan yazımda iki `realpath` çağrısı), korumalı yolda asla.
 
-**Koşullu self-modifikasyon:** `hooks/`, `scripts/`, `skills/`, `custom/`, `bmad/tests/` (plugin kaynak ağaçları) **sadece korunan proje kökü pluginin kendi reposuysa** serbesttir (plugin kendisi üzerinde çalışırken). Sıradan hedef projede bu ağaçlar **korumalıdır** — plugin kaynağına edit de onaylı deney ister. `bmad/tests/` muafiyeti döngüsellik içindir: gate'in kendi testleri gate iznine bağlanamaz.
+**Koşullu self-modifikasyon:** `hooks/`, `scripts/`, `skills/`, `bmad/tests/` (plugin kaynak ağaçları) **sadece korunan proje kökü pluginin kendi reposuysa** serbesttir (plugin kendisi üzerinde çalışırken). Sıradan hedef projede bu ağaçlar **korumalıdır** — plugin kaynağına edit de onaylı deney ister. `bmad/tests/` muafiyeti döngüsellik içindir: gate'in kendi testleri gate iznine bağlanamaz.
 
 ### 10.2 Korumalı alan (onaylı)
 
@@ -1062,7 +1063,7 @@ Aileler:
 → resolve_customization.py → efektif runtime config
 ```
 
-`{custom}` önce proje kökündeki `custom/`'u tercih eder, yoksa Claude düzeni `_bmad/custom/`'a düşer. Plugin kuruluysa takım katmanı pluginin kendi `custom/{name}.toml`'udur (user + team aynı dizinde; merge sırası defaults → team → user).
+`{custom}` HEDEF PROJENİN override dizinidir: önce `{project-root}/custom/`, yoksa Claude düzeni `{project-root}/_bmad/custom/`. Plugin hiçbir override katmanı taşımaz (E-147), yani merge sırası skill `customize.toml` → proje takım → proje kişisel. Doğru ağaca bakması için `--project-root` geç.
 
 Merge kuralları: skalerde kazanan override; tablolarda deep merge (özyineli); dizilerde elemanların hepsi aynı `code`/`id` taşıyorsa key'e göre merge, yoksa append. **Silme mekanizması YOK** — öğeyi kaldırmak için skill'i forkla veya aynı `code`/`id` ile noop açıklamayla override et.
 
@@ -1279,7 +1280,7 @@ sh scripts/check-techdebt.sh      # borç drift/ID/P0/orphan (#6b olarak da koş
 python scripts/check-triggers.py  # trigger/description çakışması (#6f olarak da koşar)
 ```
 
-**# haritası:** #0 gate key · #0b base config proje-adı sızıntısı · #1 motor selfcheck (birleşik `pre` + tekil modlar) · #1b hooks.json byte-identical · #2 manifesto wiring · #2b bridge runtime görünürlüğü (16 workflow + 1 agent-principles) · #2c bridge VERIFY (7 skill) · #3 approved envanter (VERIFIED/ADVISORY-BLOCK + CROSS-MACHINE uyarısı) · #3b code-scope coverage · #4 dokümantatif kayıtlar · #5 motor bütünlüğü (py\_compile) · #5b hard-gate geçerliliği · #5c custom/ statik · #6 development format · #6a `.env` · #6b tech-debt · #6c template kopya kimliği · #6d init marker bütünlüğü · #6d2 command→script referans bütünlüğü · #6d3 plugin sürüm tutarlılığı (`.plugin/plugin.json` ↔ `.plugin/marketplace.json` ↔ `.claude-plugin/plugin.json` ↔ `.claude-plugin/marketplace.json` ↔ `.opencode-plugin/plugin.json` ↔ `opencode-plugin/package.json` ↔ `plugin.yaml` ↔ `pyproject.toml`) · #6e help catalog bütünlüğü · #6f trigger/description çakışması · #6g namespaced-tool priming token yok · #6h tazelik sözleşmesi (witness üreticisi ↔ verdict tüketicileri, ağaçtan türetilir).
+**# haritası:** #0 gate key · #0b base config proje-adı sızıntısı · #1 motor selfcheck (birleşik `pre` + tekil modlar) · #1b hooks.json byte-identical · #2 manifesto wiring · #2b bridge runtime görünürlüğü (16 workflow + 1 agent-principles) · #2c bridge VERIFY (7 skill) · #3 approved envanter (VERIFIED/ADVISORY-BLOCK + CROSS-MACHINE uyarısı) · #3b code-scope coverage · #4 dokümantatif kayıtlar · #5 motor bütünlüğü (py\_compile) · #5b hard-gate geçerliliği · #5c bridge TOML statik · #6 development format · #6a `.env` · #6b tech-debt · #6c template kopya kimliği · #6d init marker bütünlüğü · #6d2 command→script referans bütünlüğü · #6d3 plugin sürüm tutarlılığı (`.plugin/plugin.json` ↔ `.plugin/marketplace.json` ↔ `.claude-plugin/plugin.json` ↔ `.claude-plugin/marketplace.json` ↔ `.opencode-plugin/plugin.json` ↔ `opencode-plugin/package.json` ↔ `plugin.yaml` ↔ `pyproject.toml`) · #6e help catalog bütünlüğü · #6f trigger/description çakışması · #6g namespaced-tool priming token yok · #6h tazelik sözleşmesi (witness üreticisi ↔ verdict tüketicileri, ağaçtan türetilir).
 
 **Tek kayıt doğrulama + envanter:**
 
@@ -1440,8 +1441,7 @@ metodoloji/
 │   ├── engine/modules/                  # guard (guard+quality+deploy), audit, stop, plan, mirror, state, config, archive, bash_targets, blackboard, utils
 │   ├── engine/resolve_customization.py  # ince re-export (gerçek: bmad/scripts/resolve_customization.py)
 │   └── scripts/bootstrap.sh, hook-entry.sh, run-hook.sh
-├── skills/                              # 48 skill (native gövde)
-├── custom/                              # 42 TOML (7 BRIDGE aktif) + config.toml (soft/hard)
+├── skills/                              # 48 skill (native gövde) + 42 customize.toml (7 BRIDGE aktif)
 ├── bmad/                                # modül verisi (bmm,tea,core,bmb,loop,_config) + scripts/ (blackboard, workflow, orient, resolve_config, resolve_customization, skeleton)
 ├── templates/                           # _template_E/IR/SP/QR/PR/S/PM/BD/C/STRUCT + README/tech-debt/scratch-README/external-context-README/external-context
 ├── commands/                            # /metodoloji:init, gate-setup, verify, audit (.md)

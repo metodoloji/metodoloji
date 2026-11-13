@@ -92,13 +92,13 @@ The digest IS the project survey — analysis probes only fill what it lacks:
 
 ### Step 2: Resolve the Workflow Block
 
-Steps 1–2 apply ONLY when you have a shell/tool runner. Without one (headless single-shot, no tool calls possible): skip Steps 1–7 entirely and answer the request directly from the stages below — never emit tool calls, never narrate setup, never halt waiting for command output. (With a shell: run `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --key workflow` — use your harness-native shell tool with the command as given (no extra wrapper params).)
+Steps 1–2 apply ONLY when you have a shell/tool runner. Without one (headless single-shot, no tool calls possible): skip Steps 1–7 entirely and answer the request directly from the stages below — never emit tool calls, never narrate setup, never halt waiting for command output. (With a shell: run `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --project-root {project-root} --key workflow` — use your harness-native shell tool with the command as given (no extra wrapper params).)
 
 **If the script fails**, resolve the `workflow` block yourself by reading these three files in base → team → user order and applying the same structural merge rules as the resolver:
 
 1. `{skill-root}/customize.toml` — defaults
-2. `{metodoloji-root}/custom/{skill-name}.toml` — team overrides
-3. `{metodoloji-root}/custom/{skill-name}.user.toml` — personal overrides
+2. `{project-root}/custom/{skill-name}.toml` — team overrides
+3. `{project-root}/custom/{skill-name}.user.toml` — personal overrides
 
 Any missing file is skipped. Scalars override, tables deep-merge, arrays of tables keyed by `code`/`id` replace matching entries and append new entries, all other arrays append.
 

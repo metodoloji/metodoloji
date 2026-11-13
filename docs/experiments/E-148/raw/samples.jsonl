@@ -1,0 +1,4 @@
+{"check": "the plugin ships no custom/ tree", "ok": true, "detail": "custom/ is gone"}
+{"check": "every skill resolves to its pre-fold output", "ok": true, "detail": "48 skills identical"}
+{"check": "every skill carries its former team content", "ok": true, "detail": "42 folded skills present"}
+{"check": "a project override reaches the resolver", "ok": true, "detail": "project override merged"}

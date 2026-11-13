@@ -104,8 +104,11 @@ def test_type_mismatch_override_wins():
 
 def _layer_tree(tmp_path: Path, base_toml: str, team_toml: str | None,
                 user_toml: str | None) -> Path:
+    # The skill lives in the PLUGIN, the overrides in the PROJECT — the two are
+    # separate trees, which is the real layout since E-147.
     proj = tmp_path / "proj"
-    skill = proj / "skills" / "demo-skill"
+    skill = tmp_path / "plugin" / "skills" / "demo-skill"
+    proj.mkdir(parents=True, exist_ok=True)
     _write(skill / "customize.toml", base_toml)
     if team_toml is not None:
         _write(proj / "custom" / "demo-skill.toml", team_toml)
@@ -115,7 +118,8 @@ def _layer_tree(tmp_path: Path, base_toml: str, team_toml: str | None,
 
 
 def _resolve(skill: Path, *keys: str) -> dict:
-    cmd = [sys.executable, str(_SCRIPT), "--skill", str(skill)]
+    cmd = [sys.executable, str(_SCRIPT), "--skill", str(skill),
+           "--project-root", str(skill.parents[2] / "proj")]
     for k in keys:
         cmd += ["--key", k]
     # stdin=DEVNULL: under pytest capture on Windows the inherited std
@@ -150,7 +154,8 @@ def test_missing_customize_toml_falls_back_to_stub(tmp_path):
 
 def test_broken_team_toml_warns_and_keeps_base(tmp_path):
     skill = _layer_tree(tmp_path, '[workflow]\nname = "base"\n', '[[[\n', None)
-    cmd = [sys.executable, str(_SCRIPT), "--skill", str(skill), "--key", "workflow"]
+    cmd = [sys.executable, str(_SCRIPT), "--skill", str(skill),
+           "--project-root", str(tmp_path / "proj"), "--key", "workflow"]
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=30,
                        stdin=subprocess.DEVNULL)
     assert r.returncode == 0
@@ -187,7 +192,8 @@ def test_binary_team_toml_warns_and_keeps_base(tmp_path):
     team = tmp_path / "proj" / "custom" / "demo-skill.toml"
     team.parent.mkdir(parents=True, exist_ok=True)
     team.write_bytes(b"\xff\xfe\x00 binary")
-    cmd = [sys.executable, str(_SCRIPT), "--skill", str(skill), "--key", "workflow"]
+    cmd = [sys.executable, str(_SCRIPT), "--skill", str(skill),
+           "--project-root", str(tmp_path / "proj"), "--key", "workflow"]
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=30,
                        stdin=subprocess.DEVNULL)
     assert r.returncode == 0

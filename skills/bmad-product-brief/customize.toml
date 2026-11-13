@@ -3,8 +3,8 @@
 # Workflow customization surface for bmad-product-brief.
 #
 # Override files (not edited here):
-#   {metodoloji-root}/custom/bmad-product-brief.toml         (team)
-#   {metodoloji-root}/custom/bmad-product-brief.user.toml    (personal)
+#   {project-root}/custom/bmad-product-brief.toml         (team)
+#   {project-root}/custom/bmad-product-brief.user.toml    (personal)
 
 [workflow]
 
@@ -17,7 +17,10 @@ activation_steps_prepend = []
 
 # Steps to run after greet but before the workflow begins.
 # Use for context-heavy setup that should happen once the user has been acknowledged.
-activation_steps_append = []
+activation_steps_append = [
+  "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/bmad/research-methodology.md): the evidence type and record format of the output to be produced.",
+  "Before finishing the work, verify that the record is complete: English field labels, decision rationale, uncertainty acknowledgment. A documentary decision is not permission to write code.",
+]
 
 # Persistent facts the workflow keeps in mind for the whole run
 # (standards, compliance constraints, stylistic guardrails).
@@ -31,6 +34,7 @@ activation_steps_append = []
 #   "Elvis has left the building"                                             # generic agent instruction
 persistent_facts = [
   "file:{project-root}/**/project-context.md",
+  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
 ]
 
 # Executed when the workflow completes (after the user has been told the

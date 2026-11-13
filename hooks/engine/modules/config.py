@@ -475,7 +475,7 @@ FREE_PREFIXES = (
 # dogfood run of check-plugin §3b measured them as "edited files outside every
 # approved scope": the check had never run inside this repo (F-05), so the
 # omission was invisible. With the check live, the free zone has to name them.
-PLUGIN_FREE_PREFIXES = ("hooks/", "scripts/", "skills/", "custom/", "bmad/tests/",
+PLUGIN_FREE_PREFIXES = ("hooks/", "scripts/", "skills/", "bmad/tests/",
                         "opencode-plugin/", ".githooks/", ".github/", "assets/")
 
 # Root-level plugin SOURCE FILES with no tree of their own — the same class as

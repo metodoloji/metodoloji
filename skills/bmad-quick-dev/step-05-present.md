@@ -79,6 +79,6 @@ This branch bypasses the story relay, so bind it to the chain explicitly — one
 
 `<spec-slug>` is `{spec_file}`'s basename with the leading `spec-` and the `.md` suffix removed (e.g. `spec-3-2-digest-delivery.md` → `3-2-digest-delivery`). Repeating the same mirror never duplicates the waiting signal; it waits in `handoff.bmad-code-review` until a review run consumes it — that consumption completes the handshake.
 
-Run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --key workflow.on_complete` — use your harness-native shell tool with the command as given (no extra wrapper params)
+Run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --project-root {project-root} --key workflow.on_complete` — use your harness-native shell tool with the command as given (no extra wrapper params)
 
 If the resolved `workflow.on_complete` is non-empty, follow it as the final terminal instruction before exiting.
