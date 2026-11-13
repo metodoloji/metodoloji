@@ -21,7 +21,7 @@ triggers: ["bmad-sprint-status", "/bmad-sprint-status", "sprint-status", "check 
 
 ### Step 1: Run the Orientation Digest
 
-Run: `python3 {metodoloji-root}/bmad/scripts/orient.py --project-root {project-root}` — one read-only call, before anything else, and it IS this reporter's chain grounding (Step 6b): both roots, the config it needs (`{user_name}`, `{communication_language}`, `{document_output_language}`, `{project_name}`, `{date}` as `today`), the resolved output paths, the record inventory, the board's live focus (with a `STALE` flag when a hot run still claims `complete`) and every waiting hand-off with the skill it waits for, and skeleton/gate state. Read it once; never re-run it "for clean output" — it is small by construction. On failure, fall through to the config step's neutral defaults.
+Run: `python3 {metodoloji-root}/hooks/scripts/orient.py --project-root {project-root}` — one read-only call, before anything else, and it IS this reporter's chain grounding (Step 6b): both roots, the config it needs (`{user_name}`, `{communication_language}`, `{document_output_language}`, `{project_name}`, `{date}` as `today`), the resolved output paths, the record inventory, the board's live focus (with a `STALE` flag when a hot run still claims `complete`) and every waiting hand-off with the skill it waits for, and skeleton/gate state. Read it once; never re-run it "for clean output" — it is small by construction. On failure, fall through to the config step's neutral defaults.
 
 ### Step 2: Resolve the Workflow Block
 
@@ -45,7 +45,7 @@ Treat every entry in `{workflow.persistent_facts}` as foundational context you c
 
 ### Step 5: Load Config
 
-**Config comes from the digest** (Step 1). Only a key it genuinely lacks needs a targeted read: `python3 {metodoloji-root}/bmad/scripts/resolve_config.py --project-root {project-root} --key <dotted.path>` — the targeted shape survives the transport; **never the full merged dump**. Resolve:
+**Config comes from the digest** (Step 1). Only a key it genuinely lacks needs a targeted read: `python3 {metodoloji-root}/hooks/scripts/resolve_config.py --project-root {project-root} --key <dotted.path>` — the targeted shape survives the transport; **never the full merged dump**. Resolve:
 
 - `project_name`, `user_name`
 - `communication_language`, `document_output_language`
@@ -62,7 +62,7 @@ Greet `{user_name}`, speaking in `{communication_language}`.
 
 This skill reports the project's state, so it must not report from the file alone: the plan (sprint-status.yaml) and the live board disagree often enough that trusting either by itself is misleading. The digest in Step 1 already read the board for you — the relay position, the hot key, every waiting baton with its owner, the record inventory — so report from that and do **not** re-read. If the digest could not run, fall back to the single baton listing below and say plainly that the board was unavailable — do not substitute a second board read:
 
-- `python3 {metodoloji-root}/bmad/scripts/blackboard.py handoffs --project-root {project-root}` — the batons actually waiting and who owns each one. Report from `sprint-status.yaml` (Step 2 reads it anyway) and flag the board as unreadable if the digest failed — the summary file and the live board disagree often enough that neither alone is the whole picture.
+- `python3 {metodoloji-root}/hooks/scripts/blackboard.py handoffs --project-root {project-root}` — the batons actually waiting and who owns each one. Report from `sprint-status.yaml` (Step 2 reads it anyway) and flag the board as unreadable if the digest failed — the summary file and the live board disagree often enough that neither alone is the whole picture.
 
 Carry both into Step 3 (next-action selection) and Step 4 (summary); the workflow's Step 3 cross-check says what to do when they disagree. This is a read-only peek — never consume a channel and never post a hop: this surface reports and recommends, it does not advance the relay.
 

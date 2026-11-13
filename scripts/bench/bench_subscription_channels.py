@@ -174,7 +174,7 @@ def _case_cli_exposes_channel_on_unsubscribe() -> tuple[bool, str]:
             stdin=subprocess.DEVNULL)
         text = out.stdout if out.returncode == 0 else ""
     else:
-        text = (ROOT / "bmad" / "scripts" / "blackboard.py").read_text(encoding="utf-8")
+        text = (ROOT / "hooks" / "scripts" / "blackboard.py").read_text(encoding="utf-8")
     hit = 'us.add_argument("--channel"' in text
     return (hit, "unsubscribe --channel present" if hit
             else "unsubscribe has no --channel (cannot narrow the removal)")

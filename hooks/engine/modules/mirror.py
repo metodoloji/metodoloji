@@ -168,13 +168,13 @@ def pending_note(project_root: str | None, to: str = "", *, limit: int = 3) -> s
             # as live). Retire it, or consume it once the claim is re-checked.
             tail = (" — STALE means the code has already moved past the claim: it "
                     "is no longer valid work; verify with "
-                    f"`{_plugin_cmd('bmad/scripts/blackboard.py', 'handoffs', '--skill', '<skill>')}`, "
+                    f"`{_plugin_cmd('hooks/scripts/blackboard.py', 'handoffs', '--skill', '<skill>')}`, "
                     "then retire it "
-                    f"(`{_plugin_cmd('bmad/scripts/blackboard.py', 'handoff-retire', '--retire', '<key>', '--reason', '<why>')}`) "
+                    f"(`{_plugin_cmd('hooks/scripts/blackboard.py', 'handoff-retire', '--retire', '<key>', '--reason', '<why>')}`) "
                     "or consume the channel once it is re-posted")
         else:
             tail = (" — peek "
-                    f"`{_plugin_cmd('bmad/scripts/blackboard.py', 'handoffs', '--skill', '<skill>')}`, "
+                    f"`{_plugin_cmd('hooks/scripts/blackboard.py', 'handoffs', '--skill', '<skill>')}`, "
                     "consume the channel, then proceed")
         if to:
             note = (f"PROACTIVE relay: a hand-off addressed to you ({to}) is still "

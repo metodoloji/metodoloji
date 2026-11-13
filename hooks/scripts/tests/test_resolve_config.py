@@ -1,6 +1,6 @@
-"""Tests for bmad/scripts/resolve_config.py.
+"""Tests for hooks/scripts/resolve_config.py.
 
-Run standalone: python3 -m pytest bmad/tests/test_resolve_config.py -q
+Run standalone: python3 -m pytest hooks/scripts/tests/test_resolve_config.py -q
 Also registered under scripts/tests in pyproject.toml via this sibling path.
 """
 
@@ -13,8 +13,8 @@ from pathlib import Path
 import pytest
 
 _SCRIPT = (
-    Path(__file__).resolve().parent.parent.parent
-    / "bmad" / "scripts" / "resolve_config.py"
+    Path(__file__).resolve().parents[3]
+    / "hooks" / "scripts" / "resolve_config.py"
 )
 _spec = importlib.util.spec_from_file_location("resolve_config", _SCRIPT)
 rc = importlib.util.module_from_spec(_spec)
@@ -53,7 +53,7 @@ test_stack_type = "auto"
 """,
     )
     # The resolver locates the plugin layers relative to its own path — copy it in.
-    dest = root / "bmad" / "scripts"
+    dest = root / "hooks" / "scripts"
     dest.mkdir(parents=True, exist_ok=True)
     shutil.copy(_SCRIPT, dest / "resolve_config.py")
     return root
@@ -82,7 +82,7 @@ def _run(plugin_root: Path, project_root: Path, *extra: str) -> dict:
     tests. subprocess is deliberately avoided: repeated capture_output pipes
     exhaust inheritable handles on Windows (DuplicateHandle → WinError 6).
     """
-    script = plugin_root / "bmad" / "scripts" / "resolve_config.py"
+    script = plugin_root / "hooks" / "scripts" / "resolve_config.py"
     assert script.is_file(), f"fixture copy missing: {script}"
     out = _run_argv(_fresh_resolver(script), _in_process_argv(script, project_root, extra))
     assert out["returncode"] == 0, out["stderr"]
@@ -316,7 +316,7 @@ def test_module_output_project_override_applies(plugin, tmp_path):
 
 def test_module_unknown_module_errors(plugin, tmp_path):
     project = _make_project(tmp_path)
-    script = plugin / "bmad" / "scripts" / "resolve_config.py"
+    script = plugin / "hooks" / "scripts" / "resolve_config.py"
     out = _run_argv(_fresh_resolver(script), _in_process_argv(script, project, ("--module", "nope")))
     assert out["returncode"] == 1
     assert "unknown module" in out["stderr"]
@@ -364,7 +364,7 @@ def test_same_file_layers_not_double_applied(tmp_path):
         root / "config.toml",
         '[modules.demo]\nplatforms = ["unity", "unreal", "godot", "other"]\n',
     )
-    dest = root / "bmad" / "scripts"
+    dest = root / "hooks" / "scripts"
     dest.mkdir(parents=True)
     shutil.copy(_SCRIPT, dest / "resolve_config.py")
     out = _run_argv(_fresh_resolver(dest / "resolve_config.py"), _in_process_argv(dest / "resolve_config.py", root, ("--module", "demo")))

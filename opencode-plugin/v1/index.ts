@@ -137,7 +137,7 @@ export default async function metodolojiOpenCodeV1(ctx: Ctx) {
           "Run the methodology blackboard health check (doctor --json) for the current project.",
         args: {},
         async execute() {
-          const result = runPluginScript("bmad/scripts/blackboard.py", [
+          const result = runPluginScript("hooks/scripts/blackboard.py", [
             "doctor",
             "--json",
             "--project-root",

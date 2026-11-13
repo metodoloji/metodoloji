@@ -348,7 +348,7 @@ def _check_manifest_counts() -> str | None:
 def _check_help_menu_code_uniqueness() -> str | None:
     """One menu code per module-skill action, and no code reused inside one module.
 
-    The digest derives routing from `bmad/_config/bmad-help.csv`, and a session
+    The digest derives routing from `skills/bmad-help/references/bmad-help.csv`, and a session
     self-checked into §6e exactly this way. `csv.reader` with the 13-column
     contract is the strict shape guard (mirroring orient.py's parser, which
     skips ragged rows, `_meta` rows and empty codes); the module-scoped
@@ -360,7 +360,7 @@ def _check_help_menu_code_uniqueness() -> str | None:
     `skill` names a directory that ships (E-042): a catalog row that offers a
     skill with no `skills/<name>/` directory dies as "no such skill".
     """
-    path = ROOT / "bmad" / "_config" / "bmad-help.csv"
+    path = ROOT / "skills" / "bmad-help" / "references" / "bmad-help.csv"
     try:
         with open(path, newline="", encoding="utf-8") as fh:
             rows = list(csv.reader(fh))
@@ -501,7 +501,7 @@ def _check_canvas_feed_wired() -> str | None:
     engine = _read("hooks/engine/modules/blackboard.py")
     if "def canvas_touch(" not in engine:
         problems.append("engine has no canvas_touch()")
-    cli = _read("bmad/scripts/blackboard.py")
+    cli = _read("hooks/scripts/blackboard.py")
     if "add_parser(\"touch\"" not in cli and "'\"touch\"'" not in cli:
         problems.append("CLI registers no canvas touch subcommand")
     if "bb.canvas_touch(" not in cli:
@@ -543,7 +543,7 @@ def _check_module_no_duplicate_defs(rel: str):
 
 def _check_e2e_asserts() -> str | None:
     """The e2e workflow test must be able to fail (assertions, no result-dict return)."""
-    src = _read("bmad/tests/test_e2e_claude_code.py")
+    src = _read("hooks/engine/tests/test_e2e_claude_code.py")
     problems = []
     if "assert " not in src:
         problems.append("no assertions at all")
@@ -707,7 +707,7 @@ def _check_workflow_corrupt_honesty() -> str | None:
     import tempfile  # noqa: PLC0415
 
     sys.path.insert(0, str(ROOT))
-    from bmad.workflow import engine, store  # noqa: PLC0415
+    from hooks.workflow import engine, store  # noqa: PLC0415
 
     try:
         with tempfile.TemporaryDirectory() as td:
@@ -720,7 +720,7 @@ def _check_workflow_corrupt_honesty() -> str | None:
             if out.get("ok") or "corrupt" not in str(out.get("error", "")):
                 return f"status swallows the corrupt run: {out.get('error')!r}"
             spec = _json.loads(
-                (ROOT / "bmad" / "workflow" / "builtin" / "seo-visibility.json")
+                (ROOT / "hooks" / "workflow" / "builtin" / "seo-visibility.json")
                 .read_text(encoding="utf-8"))
             for force in (False, True):
                 created = engine.create(td, spec, slug="my run", force=force)
@@ -735,7 +735,7 @@ def _check_workflow_corrupt_honesty() -> str | None:
 
 def _check_workflow_corrupt_tests_covered() -> str | None:
     """The E-008 seam stays covered: sanitizer agreement + create gate."""
-    src = _read("bmad/tests/test_workflow.py")
+    src = _read("hooks/workflow/tests/test_workflow.py")
     missing = [name for name in (
         "test_state_is_corrupt_agrees_with_storage_path_for_sanitized_slug",
         "test_every_read_on_corrupt_special_slug_names_the_file",
@@ -760,7 +760,7 @@ def _check_file_decode_honesty() -> str | None:
 
     binary = b"\xff\xfe\x00 binary \x80 junk"
     sys.path.insert(0, str(ROOT))
-    from bmad.workflow import engine, store  # noqa: PLC0415
+    from hooks.workflow import engine, store  # noqa: PLC0415
 
     def _load(rel, name):
         spec = _importlib_util.spec_from_file_location(name, ROOT / rel)
@@ -782,8 +782,8 @@ def _check_file_decode_honesty() -> str | None:
             if out.get("ok") or "corrupt" not in str(out.get("error", "")):
                 return f"status swallows a binary state: {out.get('error')!r}"
             # config loaders: warn/exit-policy, never raise
-            rc_cfg = _load("bmad/scripts/resolve_config.py", "_bench_resolve_config")
-            rc_cus = _load("bmad/scripts/resolve_customization.py",
+            rc_cfg = _load("hooks/scripts/resolve_config.py", "_bench_resolve_config")
+            rc_cus = _load("hooks/scripts/resolve_customization.py",
                            "_bench_resolve_customization")
             sink = _io.StringIO()
             with _contextlib.redirect_stderr(sink):
@@ -795,7 +795,7 @@ def _check_file_decode_honesty() -> str | None:
                 if rc_cfg.load_legacy_yaml(pathlib.Path(td) / "c.yaml") != {}:
                     return "load_legacy_yaml parsed a binary layer"
             # skeleton: binary marker -> unreadable problem, not missing
-            sk = _load("bmad/scripts/skeleton.py", "_bench_skeleton")
+            sk = _load("hooks/scripts/skeleton.py", "_bench_skeleton")
             marker = pathlib.Path(td) / ".metodoloji" / "initialized"
             marker.parent.mkdir(parents=True, exist_ok=True)
             marker.write_bytes(binary)
@@ -817,21 +817,21 @@ def _check_file_decode_tests_covered() -> str | None:
     """The E-009 seam stays tested across all five surfaces."""
     missing = []
     groups = {
-        "bmad/tests/test_workflow.py": (
+        "hooks/workflow/tests/test_workflow.py": (
             "test_read_state_binary_file_is_corrupt_not_crash",
             "test_status_on_binary_state_names_the_file",
             "test_cli_list_marks_binary_state_corrupt",
             "test_load_spec_binary_file_falls_back_to_empty",
             "test_read_events_binary_log_returns_empty",
         ),
-        "bmad/tests/test_resolve_config.py": (
+        "hooks/scripts/tests/test_resolve_config.py": (
             "test_load_toml_binary_layer_warns_not_crash",
             "test_load_legacy_yaml_binary_layer_warns_not_crash",
         ),
-        "bmad/tests/test_resolve_customization.py": (
+        "hooks/scripts/tests/test_resolve_customization.py": (
             "test_binary_team_toml_warns_and_keeps_base",
         ),
-        "bmad/tests/test_skeleton.py": (
+        "hooks/scripts/tests/test_skeleton.py": (
             "test_binary_marker_is_unreadable_not_missing",
             "test_cli_status_binary_marker_reports_unreadable_not_crash",
         ),
@@ -1665,16 +1665,16 @@ def _plugin_script_basenames() -> frozenset[str]:
     """Every script the plugin ships for a consuming session (E-039, derived).
 
     EVERY `scripts/` tree — the top-level tooling (create-qr-record,
-    sync-story-qr, sync-hooks-json, the check-*.sh gates), the bmad/ CLIs
+    sync-story-qr, sync-hooks-json, the check-*.sh gates), the hooks/ CLIs
     (blackboard, workflow, orient, skeleton, …), the skill-side CLIs and the
     hook dispatch scripts. Derived from the filesystem, so a newly shipped
     script joins the rule the day it lands. Deriving from only
-    `bmad/scripts/*.py` + `skills/*/scripts/*.py` was itself the E-037
+    `hooks/scripts/*.py` + `skills/*/scripts/*.py` was itself the E-037
     narrow-surface class one level up: the top-level `scripts/` tree the
     guard's own remedies name, and every `.sh` gate, escaped the scan.
     """
     names: set[str] = set()
-    for pat in ("scripts/*", "bmad/scripts/*", "skills/*/scripts/*",
+    for pat in ("scripts/*", "hooks/scripts/*", "skills/*/scripts/*",
                 "hooks/scripts/*"):
         for path in ROOT.glob(pat):
             if path.is_file() and path.suffix in (".py", ".sh"):
@@ -1721,8 +1721,8 @@ def _check_gate_mentions_resolve_where_shipped() -> str | None:
     --amend-plan …` — a path that exists only inside the plugin checkout —
     and was denied 19 times on one target. E-037 rooted the EMITTED strings;
     E-038 rooted the gate script's written half; E-039 widened the same rule
-    to EVERY script the plugin ships (bmad/ CLIs + skill CLIs, derived from
-    the filesystem): 80 further dead invocations (`python3 bmad/scripts/
+    to EVERY script the plugin ships (hooks/ CLIs + skill CLIs, derived from
+    the filesystem): 80 further dead invocations (`python3 hooks/scripts/
     blackboard.py …`, `blackboard.py --help`) lived in GUIDE/KILAVUZ alone.
     The surfaces are the ones a consuming project reads (slash commands,
     workflow tomls, skill files, GUIDE/KILAVUZ, the manifesto, the gate's
@@ -1757,7 +1757,7 @@ def _check_techdebt_audit_covers_the_tree() -> str | None:
 
     §5 claimed to catch orphan `TODO: [TD-XXX]` comments but scanned only
     scratch/ and custom/, while the debt standard puts the marker in the code
-    (hooks/, scripts/, bmad/, skills/) — a hidden debt marker, which the
+    (hooks/, scripts/, skills/) — a hidden debt marker, which the
     manifesto forbids. §6 adds the reference half: every bare `TD-NNN` token
     must equal an inventory id — an id written without its zero padding is a
     reference to debt the inventory does not contain. The probe runs the real
@@ -1772,7 +1772,7 @@ def _check_techdebt_audit_covers_the_tree() -> str | None:
     problems = []
     if '"$PLUGIN_ROOT/scratch/" "$PLUGIN_ROOT/custom/"' in text:
         problems.append("§5 still scans only scratch/ + custom/")
-    for root in ("hooks", "scripts", "bmad", "skills", "scratch"):
+    for root in ("hooks", "scripts", "skills", "scratch"):
         if f"$PLUGIN_ROOT/{root}" not in text:
             problems.append(f"§5 does not scan {root}/")
     if "not in the inventory" not in text:
@@ -2545,7 +2545,7 @@ def _check_injected_remedies_are_runnable() -> str | None:
     from modules import audit as audit_mod  # noqa: PLC0415
     from modules import blackboard as bb  # noqa: PLC0415
 
-    bb_script = str(ROOT / "bmad" / "scripts" / "blackboard.py")
+    bb_script = str(ROOT / "hooks" / "scripts" / "blackboard.py")
     with tempfile.TemporaryDirectory() as td:
         (pathlib.Path(td) / "docs/development/stories").mkdir(parents=True)
         bb.post_handoff(td, "bmad-quality-record", "e033-bench", "waiting")
@@ -2917,7 +2917,7 @@ def _run_hooks_json_sync() -> str | None:
 # own test suite. None of them was measured, and all three had drifted (the
 # manifest listed 125 skills; the OpenCode port's 22-test suite had no runner
 # outside a manual `npm test`).
-_SKILL_MANIFEST = "bmad/_config/skill-manifest.csv"
+_SKILL_MANIFEST = "skills/skill-manifest.csv"
 _SKILL_MANIFEST_COLUMNS = ("canonicalId", "name", "description", "module", "path")
 
 
@@ -2964,7 +2964,7 @@ def _manifest_problems(rows: list[dict[str, str]], skill_dirs: set[str],
 def _check_skill_manifest_completeness() -> str | None:
     """E-074: the shipped skill inventory must describe the shipped tree.
 
-    `bmad/_config/skill-manifest.csv` is the machine-readable catalogue a BMAD
+    `skills/skill-manifest.csv` is the machine-readable catalogue a BMAD
     installer reads. It still said 125 skills after the tree reached 129, and no
     check compared it with `skills/` — the same hand-maintained inventory class
     as the README counts.
@@ -3445,7 +3445,7 @@ def _check_relay_graph_edges_match_declared() -> str | None:
 # Windows, raised before the child exists — the child never runs). The repo had
 # patched this site by site as it noticed it; this check makes it an invariant
 # of every shipped python tree, so the next spawn helper cannot reintroduce it.
-SPAWN_ROOTS = ("hooks", "scripts", "bmad", "skills")
+SPAWN_ROOTS = ("hooks", "scripts", "skills")
 SPAWN_FUNCS = frozenset({"run", "Popen", "call", "check_call", "check_output"})
 
 
@@ -3609,7 +3609,7 @@ def _shell_tokens(command: str) -> list[str]:
 def _check_skeleton_contract_declarations_agree() -> str | None:
     """E-047: every shipped restatement of the skeleton contract must agree.
 
-    The init contract is declared in four places and only `bmad/scripts/
+    The init contract is declared in four places and only `hooks/scripts/
     skeleton.py` is canonical: the init runbook lists the directories and the
     template table a reader trusts (and promised the runbook and the script
     "can never drift"), the session-start hint probes a literal copy of
@@ -3623,7 +3623,7 @@ def _check_skeleton_contract_declarations_agree() -> str | None:
     """
     import importlib.util as _importlib_util  # noqa: PLC0415
 
-    script = ROOT / "bmad" / "scripts" / "skeleton.py"
+    script = ROOT / "hooks" / "scripts" / "skeleton.py"
     spec = _importlib_util.spec_from_file_location("_bench_skeleton_contract", script)
     sk = _importlib_util.module_from_spec(spec)
     spec.loader.exec_module(sk)
@@ -3637,13 +3637,13 @@ def _check_skeleton_contract_declarations_agree() -> str | None:
                         "the rule would be dead code")
     for name in ("test_declarations_agree_on_the_shipped_tree",
                  "test_declaration_drift_is_named_per_site"):
-        if name not in _read("bmad/tests/test_skeleton.py"):
-            problems.append(f"bmad/tests/test_skeleton.py: no {name} — "
+        if name not in _read("hooks/scripts/tests/test_skeleton.py"):
+            problems.append(f"hooks/scripts/tests/test_skeleton.py: no {name} — "
                             "the rule is not falsifiable")
 
     def _cli(root: pathlib.Path, *args: str) -> subprocess.CompletedProcess:
         return subprocess.run(
-            [sys.executable, str(root / "bmad" / "scripts" / "skeleton.py"), *args],
+            [sys.executable, str(root / "hooks" / "scripts" / "skeleton.py"), *args],
             cwd=str(root), capture_output=True, text=True, encoding="utf-8",
             errors="replace", timeout=120, stdin=subprocess.DEVNULL)
 
@@ -3657,7 +3657,7 @@ def _check_skeleton_contract_declarations_agree() -> str | None:
                         f"module declares {list(sk.SKELETON_PROBES)}")
     # §6d must READ that list, and the read must survive the shell: a token with
     # a trailing CR never matches `[ -f ]`, so only the last probe would count.
-    m = re.search(r'"\$PY" "\$PLUGIN_ROOT/bmad/scripts/skeleton\.py" --probe-paths[^)\n]*',
+    m = re.search(r'"\$PY" "\$PLUGIN_ROOT/hooks/scripts/skeleton\.py" --probe-paths[^)\n]*',
                   _read("scripts/check-plugin.sh"))
     if not m:
         problems.append("§6d no longer asks skeleton.py for the probe set")
@@ -3698,7 +3698,7 @@ def _check_skeleton_contract_declarations_agree() -> str | None:
                                 "could not be injected")
                 continue
             fixture = base / f"probe{len(list(base.iterdir()))}"
-            for rel in ("bmad/scripts/skeleton.py",) + sk.DECLARATION_SITES:
+            for rel in ("hooks/scripts/skeleton.py",) + sk.DECLARATION_SITES:
                 dest = fixture / rel
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 dest.write_bytes((ROOT / rel).read_bytes())
@@ -4044,7 +4044,7 @@ def _bench_skeleton(root: pathlib.Path):
     import importlib.util as _importlib_util  # noqa: PLC0415
 
     spec = _importlib_util.spec_from_file_location(
-        "_bench_template_inventory", root / "bmad" / "scripts" / "skeleton.py")
+        "_bench_template_inventory", root / "hooks" / "scripts" / "skeleton.py")
     module = _importlib_util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -5546,7 +5546,7 @@ def _broken_mutations() -> tuple[tuple[str, str, object], ...]:
          _drop_ac_test_bullet()),
         (".github/workflows/release-numbers.yml", "a CI step that writes a commit",
          _append_ci_commit()),
-        ("bmad/_config/skill-manifest.csv", "a skill missing from the inventory",
+        ("skills/skill-manifest.csv", "a skill missing from the inventory",
          _drop_last_manifest_row()),
         ("__init__.py", "a hook registered but undeclared in the manifest",
          _replace_once('    ctx.register_hook("pre_verify", on_pre_verify)\n', "")),

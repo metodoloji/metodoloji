@@ -367,10 +367,10 @@ def test_long_flags_not_mistaken_for_eval():
     # on an ordinary board write and DENIED it as a code write of the quoted
     # blackboard.py script itself.
     assert extract_bash_targets(
-        'python "bmad/scripts/blackboard.py" write '
+        'python "hooks/scripts/blackboard.py" write '
         '--key prd.x.pending --value complete') == []
     assert extract_bash_targets(
-        'python "bmad/scripts/blackboard.py" write '
+        'python "hooks/scripts/blackboard.py" write '
         '--type kv --value Q6 "docs/design/prds/prd.md"') == []
     assert extract_bash_targets('python tool.py --scope docs/x.md --value v') == []
     assert extract_bash_targets('python tool.py --clear state.json "src/gen.py"') == []

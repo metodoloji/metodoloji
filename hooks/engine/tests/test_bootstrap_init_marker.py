@@ -89,7 +89,7 @@ def test_bootstrap_without_marker_advertises_one_time_init(tmp_path):
     # …and the hint is executable: only Claude Code exposes the slash command,
     # so the real OpenHands session read this line for the whole planning chain
     # and never ran init. The script path must ride along.
-    assert "bmad/scripts/skeleton.py\" --install" in ctx
+    assert "hooks/scripts/skeleton.py\" --install" in ctx
     assert "already installed" not in ctx
     # The old always-on hint is gone for good.
     assert "Record templates: /metodoloji:init" not in ctx
@@ -183,7 +183,7 @@ def test_bootstrap_skeleton_without_marker_names_the_drift(tmp_path):
     # …and the truth names both the problem and the repair.
     assert "marker is MISSING" in ctx
     assert "broken init" in ctx
-    assert 'bmad/scripts/skeleton.py" --install' in ctx
+    assert 'hooks/scripts/skeleton.py" --install' in ctx
     assert "idempotent" in ctx
     # A repair hint must never run init itself: bootstrap still writes nothing.
     assert not (project / ".metodoloji" / "initialized").exists()

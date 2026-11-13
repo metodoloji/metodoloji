@@ -8,7 +8,7 @@ kernel then runs it mechanically. If the intent changes, the spec changes — vi
 
 - Authored spec: any path you choose (a project path such as `docs/workflows/<name>.json` is
   a good home — it is reviewable and versioned with the project).
-- Built-in reference specs ship with the plugin: `{metodoloji-root}/bmad/workflow/builtin/`.
+- Built-in reference specs ship with the plugin: `{metodoloji-root}/hooks/workflow/builtin/`.
   `seo-visibility.json` is the worked example (an SEO visibility + speed process) — read it
   before authoring your first spec.
 - On `create`, the kernel copies the spec to `{project-root}/.metodoloji/workflow/specs/`, so

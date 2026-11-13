@@ -8,13 +8,13 @@ run ends.
 
 ```sh
 # 1. Where are we? (current stage, its evidence, where the kernel will go next)
-python3 {metodoloji-root}/bmad/scripts/workflow.py next --project-root {project-root}
+python3 {metodoloji-root}/hooks/scripts/workflow.py next --project-root {project-root}
 
 # 2. Do the stage's work. Its `goal`/`actions` come from `next`; its evidence target is
 #    the artifact the spec names. Write the tokens the spec requires.
 
 # 3. Ask the kernel to accept the stage and compute the next one.
-python3 {metodoloji-root}/bmad/scripts/workflow.py complete --slug <slug> \
+python3 {metodoloji-root}/hooks/scripts/workflow.py complete --slug <slug> \
   --stage <stage-id> [--note "…"] --project-root {project-root}
 ```
 
@@ -112,7 +112,7 @@ A conditional edge reads a flag. For a verify stage that loops back when somethi
 
 ```sh
 # a fix failed its test → the kernel will route back to the apply stage
-python3 {metodoloji-root}/bmad/scripts/workflow.py flag --slug <slug> --key regressed \
+python3 {metodoloji-root}/hooks/scripts/workflow.py flag --slug <slug> --key regressed \
   --value true --project-root {project-root}
 ```
 

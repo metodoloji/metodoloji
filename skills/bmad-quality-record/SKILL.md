@@ -21,7 +21,7 @@ triggers: ["bmad-quality-record", "/bmad-quality-record", "quality-record", "cre
 
 ### Step 1: Run the Orientation Digest
 
-Run: `python3 {metodoloji-root}/bmad/scripts/orient.py --project-root {project-root}` — one read-only call, before anything else. It carries both roots, the core config this run reads (`{user_name}`, `{communication_language}`, `{document_output_language}`, `{project_name}`, `{date}` as `today`), every resolved output path (incl. `{test_artifacts}`), the record inventory, the board's live focus (with a `STALE` flag when a hot run still claims `complete`) and **waiting hand-offs addressed to you** (the digest names the sender and the peek command), and skeleton/gate state. Read it once; never re-run it "for clean output" — it is small by construction. On failure, fall through to the config step's neutral defaults.
+Run: `python3 {metodoloji-root}/hooks/scripts/orient.py --project-root {project-root}` — one read-only call, before anything else. It carries both roots, the core config this run reads (`{user_name}`, `{communication_language}`, `{document_output_language}`, `{project_name}`, `{date}` as `today`), every resolved output path (incl. `{test_artifacts}`), the record inventory, the board's live focus (with a `STALE` flag when a hot run still claims `complete`) and **waiting hand-offs addressed to you** (the digest names the sender and the peek command), and skeleton/gate state. Read it once; never re-run it "for clean output" — it is small by construction. On failure, fall through to the config step's neutral defaults.
 
 ### Step 2: Resolve the Workflow Block
 
@@ -45,7 +45,7 @@ Treat every entry in `{workflow.persistent_facts}` as foundational context you c
 
 ### Step 5: Load Config
 
-**Config comes from the digest** (Step 1). Only a key it genuinely lacks needs a targeted read: `python3 {metodoloji-root}/bmad/scripts/resolve_config.py --project-root {project-root} --key <dotted.path>` — the targeted shape survives the transport; **never the full merged dump**. Resolve:
+**Config comes from the digest** (Step 1). Only a key it genuinely lacks needs a targeted read: `python3 {metodoloji-root}/hooks/scripts/resolve_config.py --project-root {project-root} --key <dotted.path>` — the targeted shape survives the transport; **never the full merged dump**. Resolve:
 
 - `project_name`, `user_name`
 - `communication_language`, `document_output_language`
@@ -67,7 +67,7 @@ Execute each entry in `{workflow.activation_steps_append}` in order.
 
 ### Step 8: Chain Handshake
 
-Check for signals addressed to you before the workflow begins: `python3 {metodoloji-root}/bmad/scripts/blackboard.py handoffs --skill bmad-quality-record --project-root {project-root}` — the canonical sender is a `bmad-create-story` run whose note names the story key queued for a QR record. Read the named story first (step 1 requires it in review or done status — an earlier signal means the record is still pending implementation), then complete the handshake: `python3 {metodoloji-root}/bmad/scripts/blackboard.py consume --channel handoff.bmad-quality-record --project-root {project-root}` (consume only after the named story file is located — an unconsumed signal keeps the hand-off waiting, which is correct when the user routes elsewhere). Watch the story queue for mid-run changes: `python3 {metodoloji-root}/bmad/scripts/blackboard.py subscribe --watcher bmad-quality-record --pattern "story.*" --channel stop --project-root {project-root}` (a story landing in review/done while this run is open surfaces at Stop; clear with `consume --channel stop`).
+Check for signals addressed to you before the workflow begins: `python3 {metodoloji-root}/hooks/scripts/blackboard.py handoffs --skill bmad-quality-record --project-root {project-root}` — the canonical sender is a `bmad-create-story` run whose note names the story key queued for a QR record. Read the named story first (step 1 requires it in review or done status — an earlier signal means the record is still pending implementation), then complete the handshake: `python3 {metodoloji-root}/hooks/scripts/blackboard.py consume --channel handoff.bmad-quality-record --project-root {project-root}` (consume only after the named story file is located — an unconsumed signal keeps the hand-off waiting, which is correct when the user routes elsewhere). Watch the story queue for mid-run changes: `python3 {metodoloji-root}/hooks/scripts/blackboard.py subscribe --watcher bmad-quality-record --pattern "story.*" --channel stop --project-root {project-root}` (a story landing in review/done while this run is open surfaces at Stop; clear with `consume --channel stop`).
 
 Activation is complete. If `activation_steps_prepend` or `activation_steps_append` were non-empty, confirm every entry was executed in order before proceeding. Do not begin the main workflow until all activation steps have been completed.
 
@@ -323,15 +323,15 @@ Activation is complete. If `activation_steps_prepend` or `activation_steps_appen
   - [ ] Update story status to "blocked" or revert to "in-progress"
   - [ ] Add comment explaining rejection
   - [ ] Note next steps in story
-  - [ ] Announce the block on the stop channel: `python3 {metodoloji-root}/bmad/scripts/blackboard.py notify --channel stop --kind warn --text "QR-{id} REJECTED for S-XXX — story blocked, see {quality_location}/QR-{id}.md" --project-root {project-root}` (it surfaces at Stop until consumed; clear with `consume --channel stop` once unblocked)
+  - [ ] Announce the block on the stop channel: `python3 {metodoloji-root}/hooks/scripts/blackboard.py notify --channel stop --kind warn --text "QR-{id} REJECTED for S-XXX — story blocked, see {quality_location}/QR-{id}.md" --project-root {project-root}` (it surfaces at Stop until consumed; clear with `consume --channel stop` once unblocked)
 
 <action>Post handoff notification (one call — heartbeat + signal):</action>
 
 ```
-python3 {metodoloji-root}/bmad/scripts/blackboard.py mirror --key QR-{id} --value "APPROVED for S-XXX — record: {quality_location}/QR-{id}.md" --to bmad-production-readiness --note "QR-{id} approved for S-XXX. Ready for production readiness check." --project-root {project-root}
+python3 {metodoloji-root}/hooks/scripts/blackboard.py mirror --key QR-{id} --value "APPROVED for S-XXX — record: {quality_location}/QR-{id}.md" --to bmad-production-readiness --note "QR-{id} approved for S-XXX. Ready for production readiness check." --project-root {project-root}
 ```
 
-(The `mirror --key QR-{id}` run key is the relay heartbeat: the engine mirrors `methodology.last_qr` from it automatically — the injected context then shows how far the E→IR→SP→S→QR→PR chain progressed. Re-running the same mirror never duplicates the waiting signal. Trace the relay on the graph: `python3 {metodoloji-root}/bmad/scripts/blackboard.py link --a story.<story-key> --b QR-{id} --relation validates --project-root {project-root}` — the story key is the one the consumed QR-queued baton named; downstream reads it via `neighbors --node QR-{id}`.)
+(The `mirror --key QR-{id}` run key is the relay heartbeat: the engine mirrors `methodology.last_qr` from it automatically — the injected context then shows how far the E→IR→SP→S→QR→PR chain progressed. Re-running the same mirror never duplicates the waiting signal. Trace the relay on the graph: `python3 {metodoloji-root}/hooks/scripts/blackboard.py link --a story.<story-key> --b QR-{id} --relation validates --project-root {project-root}` — the story key is the one the consumed QR-queued baton named; downstream reads it via `neighbors --node QR-{id}`.)
 
 (Or if rejected, still bind the run key with the REJECTED value, but skip the handoff and note in story why)
 </step>

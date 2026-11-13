@@ -211,7 +211,7 @@ def pending_handoff_channels(project_root: str) -> dict:
     layer), so a waiting signal addressed to any known skill
     surfaces instead of being silently dropped. Off-relay channels stay out of
     the session-start nudge — the skill-side CLI lists every channel: run the
-    plugin's ``bmad/scripts/blackboard.py handoffs`` (without `--skill`) from
+    plugin's ``hooks/scripts/blackboard.py handoffs`` (without `--skill`) from
     the plugin root.
 
     Counts the SAME scan `pending_handoff_freshness` breaks down by verdict, so

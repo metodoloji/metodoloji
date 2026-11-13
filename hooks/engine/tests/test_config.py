@@ -26,7 +26,7 @@ def test_methodology_root_is_repo_root():
     # or by a local clone (e.g. "metodoloji") — pin the structural identity instead
     # of the directory's literal name.
     assert (_METHODOLOGY_ROOT / "hooks" / "engine").is_dir()
-    assert (_METHODOLOGY_ROOT / "bmad").is_dir()
+    assert (_METHODOLOGY_ROOT / "hooks" / "workflow").is_dir()
     assert (_METHODOLOGY_ROOT / "config.toml").is_file()
 
 
@@ -68,9 +68,9 @@ def test_plugin_trees_not_in_plain_free_prefixes():
     for tree in ("hooks/", "scripts/", "skills/"):
         assert tree not in FREE_PREFIXES, f"{tree} must be a conditional plugin-free prefix"
         assert tree in PLUGIN_FREE_PREFIXES
-    for tooling in ("bmad/tests/",):
-        assert tooling in PLUGIN_FREE_PREFIXES, \
-            f"{tooling} is test tooling — free in self-modification only"
+    # E-149: bmad/ retired, so no gated plugin tree remains. hooks/ carries
+    # the moved kernel and the gate's own tests.
+    assert "hooks/" in PLUGIN_FREE_PREFIXES
 
 
 def test_agent_zones_are_free_prefixes():

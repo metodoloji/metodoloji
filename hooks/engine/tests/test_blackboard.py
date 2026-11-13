@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from modules import blackboard as bb  # noqa: E402
 
-CLI = Path(__file__).resolve().parent.parent.parent.parent / "bmad" / "scripts" / "blackboard.py"
+CLI = Path(__file__).resolve().parent.parent.parent.parent / "hooks" / "scripts" / "blackboard.py"
 
 
 @pytest.fixture()
@@ -2276,7 +2276,7 @@ def test_replace_handoff_keeps_original_ts(root):
 def test_replace_handoff_cli_roundtrip(tmp_path):
     import json as _json
     cli = (Path(__file__).resolve().parent.parent.parent.parent
-           / "bmad" / "scripts" / "blackboard.py")
+           / "hooks" / "scripts" / "blackboard.py")
     _run_cli(str(tmp_path), "handoff", "--to", "bmad-ux",
              "--from-key", "prd.acme", "--note", "drafting typo")
     r = _run_cli(str(tmp_path), "handoff-replace", "--to", "bmad-ux",

@@ -953,7 +953,7 @@ def plugin_script_cmd(script: str, *args: str) -> str:
     """A runnable command for one of the PLUGIN's own scripts (E-029/E-033).
 
     The engine prints remedies into a TARGET project, which does not ship the
-    plugin's ``scripts/``, ``bmad/scripts/`` or ``skills/`` trees — so a
+    plugin's ``scripts/``, ``hooks/scripts/`` or ``skills/`` trees — so a
     cwd-relative script path or a bare subcommand cannot be run where it is
     printed (the observed session ran the bare handoffs subcommand and got
     "command not found: handoffs"). Anchor every printed command at the

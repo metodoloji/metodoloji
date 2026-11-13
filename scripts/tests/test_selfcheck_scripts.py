@@ -807,7 +807,7 @@ def test_shipped_gate_invocations_resolve_where_they_ship():
     a script with zero files in this tree's whole history. E-039 widened the
     rule from the gate script to EVERY shipped plugin script (derived from
     the filesystem): GUIDE/KILAVUZ alone carried 80 dead ``python3
-    bmad/scripts/blackboard.py …`` invocations. Every shipped invocation must
+    hooks/scripts/blackboard.py …`` invocations. Every shipped invocation must
     carry a resolving root ({metodoloji-root}, {skill-root}, $SYNCED) on its
     own line. The scan is independent of the bench so a drifted bench cannot
     bury the closure; the bench is then pinned to keep its own check.
@@ -826,7 +826,7 @@ def test_shipped_gate_invocations_resolve_where_they_ship():
     # cannot drop out of the rule the way it did under the old two-glob
     # derivation (E-037's narrow-surface class one level up).
     names = set()
-    for pat in ("scripts/*", "bmad/scripts/*", "skills/*/scripts/*",
+    for pat in ("scripts/*", "hooks/scripts/*", "skills/*/scripts/*",
                 "hooks/scripts/*"):
         for p in PLUGIN.glob(pat):
             if p.is_file() and p.suffix in (".py", ".sh"):
@@ -917,7 +917,7 @@ def test_help_catalog_skills_resolve_to_shipped_dirs():
     """
     shipped = {p.parent.name for p in (PLUGIN / "skills").glob("*/SKILL.md")}
     unresolved = []
-    for rel in ("bmad/_config/bmad-help.csv",):
+    for rel in ("skills/bmad-help/references/bmad-help.csv",):
         with open(PLUGIN / rel, newline="", encoding="utf-8") as fh:
             rows = list(csv.reader(fh))
         header, data = rows[0], rows[1:]
@@ -1225,7 +1225,7 @@ def _rewrite(path: Path, mutate) -> None:
 
 def _inventory_fixture(tmp_path: Path) -> Path:
     """A miniature tree carrying every file the E-050 checks read."""
-    for rel in ("bmad/scripts/skeleton.py", "README.md", "GUIDE.md", "KILAVUZ.md",
+    for rel in ("hooks/scripts/skeleton.py", "README.md", "GUIDE.md", "KILAVUZ.md",
                 "scripts/check-methodology.sh"):
         dest = tmp_path / rel
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -1272,7 +1272,7 @@ def test_init_copied_docs_only_promise_paths_init_creates(tmp_path):
 
     # falsifier 3: the tree draws a directory init does not create
     root = _inventory_fixture(tmp_path / "dirs")
-    _rewrite(root / "bmad" / "scripts" / "skeleton.py",
+    _rewrite(root / "hooks" / "scripts" / "skeleton.py",
              lambda t: t.replace('    "docs/development/incidents",\n', ""))
     problems = bench._installed_doc_path_problems(root)
     assert any("incidents" in p for p in problems), problems
@@ -1315,7 +1315,7 @@ def test_postmortem_template_ships_with_its_install_destination():
     the family cannot be half-shipped again.
     """
     spec = importlib.util.spec_from_file_location(
-        "skeleton_pm_pin", PLUGIN / "bmad" / "scripts" / "skeleton.py")
+        "skeleton_pm_pin", PLUGIN / "hooks" / "scripts" / "skeleton.py")
     sk = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(sk)
     assert ("_template_PM.md", "docs/development/incidents/_template_PM.md") \
@@ -1485,7 +1485,7 @@ def test_skill_manifest_matches_the_tree():
 def test_skill_manifest_drift_is_named():
     """Every way the manifest can lie is named, not just the count."""
     bench = _load_bench()
-    rows = bench._manifest_rows(bench._read("bmad/_config/skill-manifest.csv"))
+    rows = bench._manifest_rows(bench._read("skills/skill-manifest.csv"))
     dirs = {p.name for p in (bench.ROOT / "skills").iterdir() if p.is_dir()}
     exists = lambda rel: (bench.ROOT / rel).is_file()
 
@@ -1521,7 +1521,7 @@ def test_skill_manifest_schema_is_exact(monkeypatch):
     real_read = bench._read
     monkeypatch.setattr(bench, "_read", lambda rel: (
         real_read(rel).replace('"canonicalId","name"', '"canonical_id","name"', 1)
-        if rel == "bmad/_config/skill-manifest.csv" else real_read(rel)))
+        if rel == "skills/skill-manifest.csv" else real_read(rel)))
     problem = bench._check_skill_manifest_completeness()
     assert problem and "columns are" in problem, problem
 

@@ -61,13 +61,13 @@ mkdir -p "$WS/.metodoloji/logs"
 # Skeleton probes (skeleton.py SKELETON_PROBES — keep the two in step; this
 # copy stays in the hot path on purpose, because the agreement is MEASURED, not
 # requested: check-plugin.sh §6d runs
-# `python3 "$SYNCED/bmad/scripts/skeleton.py" --audit-declarations` on every
+# `python3 "$SYNCED/hooks/scripts/skeleton.py" --audit-declarations` on every
 # audit, and that fails when this loop and the installer stop probing the same
 # paths — E-047): any ONE present proves the skeleton was installed. A skeleton WITHOUT the marker is a
 # broken init, not a missing one: the mailjs OpenHands session (2026-09-23) had
 # every template in place but no marker, so every session read "Record skeleton
 # not installed" and re-advertised a FULL init although only the one-byte marker
-# was missing. $SYNCED/bmad/scripts/skeleton.py --install is exactly that repair (idempotent: copies
+# was missing. $SYNCED/hooks/scripts/skeleton.py --install is exactly that repair (idempotent: copies
 # nothing new, writes the marker) — the hint must name the drift as drift.
 SKELETON_PRESENT=0
 for _f in docs/experiments/_template.md docs/development/_template_IR.md docs/development/stories/_template_S.md; do
@@ -76,10 +76,10 @@ done
 if [ -f "$WS/.metodoloji/initialized" ]; then
     INIT_HINT="Record skeleton already installed (init is one-time) — do NOT re-run /metodoloji:init."
 elif [ "$SKELETON_PRESENT" -eq 1 ]; then
-    INIT_HINT="Record skeleton present but .metodoloji/initialized marker is MISSING (broken init) — repair once: python3 \"$SYNCED/bmad/scripts/skeleton.py\" --install (idempotent: copies nothing new, only writes the marker)."
+    INIT_HINT="Record skeleton present but .metodoloji/initialized marker is MISSING (broken init) — repair once: python3 \"$SYNCED/hooks/scripts/skeleton.py\" --install (idempotent: copies nothing new, only writes the marker)."
 else
     mkdir -p "$WS/docs/experiments"
-    INIT_HINT="Record skeleton not installed — run /metodoloji:init once (no slash commands in this harness? run: python3 \"$SYNCED/bmad/scripts/skeleton.py\" --install)."
+    INIT_HINT="Record skeleton not installed — run /metodoloji:init once (no slash commands in this harness? run: python3 \"$SYNCED/hooks/scripts/skeleton.py\" --install)."
 fi
 
 # {metodoloji-root} is named in the context so no skill has to hunt for it —

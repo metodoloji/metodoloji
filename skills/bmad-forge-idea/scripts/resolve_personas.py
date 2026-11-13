@@ -79,7 +79,7 @@ def load_agents(project_root: Path):
     of tables (depending on how the layers merged); normalize both to a dict.
     """
     root = Path(__file__).resolve().parent.parent.parent.parent  # plugin root (under scripts/)
-    script = root / "bmad" / "scripts" / "resolve_config.py"
+    script = root / "hooks" / "scripts" / "resolve_config.py"
     data = _run_json([sys.executable, str(script), "--project-root", str(project_root), "--key", "agents"])
     if data is None:
         return {}, False

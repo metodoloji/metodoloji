@@ -67,19 +67,19 @@ def _case_custom_tomls() -> tuple[bool, str]:
 
 
 def _case_module_dirs() -> tuple[bool, str]:
-    hits = sorted(m for m in _VERTICAL_MODULES if _exists(ROOT / "bmad" / m))
-    return (not hits, f"surviving module dirs: {hits}" if hits else "none")
+    hit = _exists(ROOT / "bmad")
+    return (not hit, "the bmad/ tree survives" if hit else "none")
 
 
 def _case_manifest_rows() -> tuple[bool, str]:
-    rows = list(csv.DictReader((ROOT / "bmad" / "_config" / "skill-manifest.csv")
+    rows = list(csv.DictReader((ROOT / "skills" / "skill-manifest.csv")
                                .open(encoding="utf-8")))
     hits = sorted(r["canonicalId"] for r in rows if r["module"] in _VERTICAL_MODULES)
     return (not hits, f"surviving manifest rows: {hits}" if hits else "none")
 
 
 def _case_help_rows() -> tuple[bool, str]:
-    path = ROOT / "bmad" / "_config" / "bmad-help.csv"
+    path = ROOT / "skills" / "bmad-help" / "references" / "bmad-help.csv"
     rows = list(csv.reader(path.open(encoding="utf-8")))
     header, data = rows[0], rows[1:]
     mod_idx = header.index("module")

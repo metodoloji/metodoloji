@@ -9,15 +9,15 @@ from pathlib import Path
 
 import pytest
 
-_ROOT = Path(__file__).resolve().parents[2]
+_ROOT = Path(__file__).resolve().parents[3]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from bmad.workflow import (advisory, engine, evidence as evidence_mod,  # noqa: E402
+from hooks.workflow import (advisory, engine, evidence as evidence_mod,  # noqa: E402
                            spec as spec_mod, store as store_mod)
-from bmad.scripts import workflow as wf_cli  # noqa: E402
+from hooks.scripts import workflow as wf_cli  # noqa: E402
 
-BUILTIN = _ROOT / "bmad" / "workflow" / "builtin" / "seo-visibility.json"
+BUILTIN = _ROOT / "hooks" / "workflow" / "builtin" / "seo-visibility.json"
 
 
 def _spec() -> dict:
@@ -386,7 +386,7 @@ def test_advisory_survives_a_corrupt_state_file(tmp_path):
 
 
 def test_builtin_methodology_chain_spec_is_valid():
-    chain_path = _ROOT / "bmad" / "workflow" / "builtin" / "methodology-chain.json"
+    chain_path = _ROOT / "hooks" / "workflow" / "builtin" / "methodology-chain.json"
     data = spec_mod.load(chain_path)
     assert data["id"] == "methodology-chain"
     assert data["start"] == "experiment"
@@ -1754,7 +1754,7 @@ def test_an_in_root_spec_file_is_still_read(tmp_path):
 
 
 def test_containment_is_one_implementation_shared_by_both_planes():
-    from bmad.workflow import paths as paths_mod
+    from hooks.workflow import paths as paths_mod
     assert evidence_mod.root_of is paths_mod.root_of
     assert paths_mod.outside(paths_mod.root_of(str(_ROOT)), str(_ROOT / "README.md")) is False
     assert paths_mod.outside(paths_mod.root_of(str(_ROOT / "bmad")), str(_ROOT)) is True

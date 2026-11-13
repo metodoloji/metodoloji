@@ -43,7 +43,7 @@ def _load(name: str, path: pathlib.Path):
     return module
 
 
-skeleton = _load("bench_deferred_skeleton", ROOT / "bmad" / "scripts" / "skeleton.py")
+skeleton = _load("bench_deferred_skeleton", ROOT / "hooks" / "scripts" / "skeleton.py")
 
 LEDGER_REL = "docs/development/native/deferred-work.md"
 
@@ -127,7 +127,7 @@ def _git_show(rel: str) -> str | None:
 def _prefix_tree(tmp: pathlib.Path) -> pathlib.Path:
     """Materialise the pre-fix plugin surface the skeleton checks run against."""
     dest = tmp / "prefix"
-    for rel in ("bmad/scripts/skeleton.py", "commands/init.md"):
+    for rel in ("hooks/scripts/skeleton.py", "commands/init.md"):
         text = _git_show(rel)
         if text is None:
             raise RuntimeError(f"cannot read {PREFIX_REV}:{rel}")
@@ -144,7 +144,7 @@ def _prefix_tree(tmp: pathlib.Path) -> pathlib.Path:
 
 def _prefix_skeleton(tmp: pathlib.Path):
     return _load("bench_prefix_skeleton",
-                 _prefix_tree(tmp) / "bmad" / "scripts" / "skeleton.py")
+                 _prefix_tree(tmp) / "hooks" / "scripts" / "skeleton.py")
 
 
 def _has_prefix_symbol(rel: str, symbol: str) -> bool:

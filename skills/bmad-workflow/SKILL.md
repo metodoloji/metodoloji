@@ -27,7 +27,7 @@ When the kernel refuses, you report the refusal; you never route around it.
   `~/.claude/plugins/marketplaces/metodoloji` or versioned cache
   `~/.claude/plugins/cache/metodoloji/metodoloji/*` (newest first, Claude Code) or
   `~/.openhands/plugins/installed/metodoloji` (OpenHands). Never `find`/`ls` for it.
-- `{kernel}` = `python3 {metodoloji-root}/bmad/scripts/workflow.py` — the only entry point
+- `{kernel}` = `python3 {metodoloji-root}/hooks/scripts/workflow.py` — the only entry point
   to workflow state. Never hand-edit `.metodoloji/workflow/*.json`.
 - `{user_name}`, `{communication_language}` come from the project config; use
   `{communication_language}` for every user-facing message.
@@ -58,7 +58,7 @@ Use each tool's own bare name and never import another harness's schema.
 
 ### Step 1: Orientation Digest
 
-Run: `python3 {metodoloji-root}/bmad/scripts/orient.py --project-root {project-root}` — one
+Run: `python3 {metodoloji-root}/hooks/scripts/orient.py --project-root {project-root}` — one
 read-only call, before anything else. It carries both roots, config, resolved output paths,
 record inventory, the board's live focus and waiting hand-offs. Read it once; never re-run it
 "for clean output". On failure, fall through to the config step's neutral defaults.

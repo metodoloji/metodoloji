@@ -1,4 +1,4 @@
-# Catalog interpretation (`bmad/_config/bmad-help.csv`)
+# Catalog interpretation (`skills/bmad-help/references/bmad-help.csv`)
 
 Reference for `bmad-help`. Read this only when routing needs the catalog's
 semantics — the activation body stays short on purpose (activation content is

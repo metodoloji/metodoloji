@@ -77,7 +77,7 @@ Workflow complete.
 
 This branch bypasses the story relay, so bind it to the chain explicitly — one call that stamps the run key and signals the formal review gate:
 
-`python3 {metodoloji-root}/bmad/scripts/blackboard.py mirror --key quickdev.<spec-slug> --value "quick-dev one-shot done — {spec_file}" --to bmad-code-review --note "quick-dev complete — {spec_file}; run the formal review and fold findings into docs/development/QR" --project-root {project-root}`
+`python3 {metodoloji-root}/hooks/scripts/blackboard.py mirror --key quickdev.<spec-slug> --value "quick-dev one-shot done — {spec_file}" --to bmad-code-review --note "quick-dev complete — {spec_file}; run the formal review and fold findings into docs/development/QR" --project-root {project-root}`
 
 `<spec-slug>` is `{spec_file}`'s basename with the leading `spec-` and the `.md` suffix removed (e.g. `spec-gh-47-fix-auth.md` → `gh-47-fix-auth`). Repeating the same mirror never duplicates the waiting signal; it waits in `handoff.bmad-code-review` until a review run consumes it — that consumption completes the handshake.
 

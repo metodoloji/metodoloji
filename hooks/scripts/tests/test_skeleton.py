@@ -1,4 +1,4 @@
-"""Tests for bmad/scripts/skeleton.py — the executable half of one-time init.
+"""Tests for hooks/scripts/skeleton.py — the executable half of one-time init.
 
 A real session (2026-09-21, /root/mailjs) ran the whole planning chain with the
 record skeleton absent: every SessionStart could only *suggest*
@@ -21,8 +21,8 @@ from pathlib import Path
 
 import pytest
 
-PLUGIN = Path(__file__).resolve().parents[2]
-SCRIPT = PLUGIN / "bmad" / "scripts" / "skeleton.py"
+PLUGIN = Path(__file__).resolve().parents[3]
+SCRIPT = PLUGIN / "hooks" / "scripts" / "skeleton.py"
 
 _spec = importlib.util.spec_from_file_location("skeleton", SCRIPT)
 sk = importlib.util.module_from_spec(_spec)
@@ -213,7 +213,7 @@ def test_cli_status_binary_marker_reports_unreadable_not_crash(tmp_path):
 
 def _declaration_fixture(tmp_path: Path) -> Path:
     """A copy of the plugin's skeleton contract, so the rule can be driven."""
-    for rel in ("bmad/scripts/skeleton.py",) + sk.DECLARATION_SITES:
+    for rel in ("hooks/scripts/skeleton.py",) + sk.DECLARATION_SITES:
         dest = tmp_path / rel
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_bytes((PLUGIN / rel).read_bytes())
@@ -260,7 +260,7 @@ def test_declaration_drift_is_named_per_site(tmp_path):
         assert problems, f"the rule accepts {label} in {site}"
         assert any(site in p for p in problems), (label, problems)
         r = subprocess.run(
-            [sys.executable, str(root / "bmad" / "scripts" / "skeleton.py"),
+            [sys.executable, str(root / "hooks" / "scripts" / "skeleton.py"),
              "--audit-declarations"],
             capture_output=True, text=True, encoding="utf-8", cwd=str(root),
             stdin=subprocess.DEVNULL)

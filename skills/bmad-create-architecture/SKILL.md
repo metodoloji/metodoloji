@@ -12,7 +12,7 @@ This skill was consolidated into `bmad-architecture`. It is retained as a thin c
 
 1. Resolve customization: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --project-root {project-root} --key workflow` — use your harness-native shell tool with the command as given (no extra wrapper params). This picks up any `bmad-create-architecture.toml` and `bmad-create-architecture.user.toml` overrides in the project's `custom/` directory for the legacy fields (`activation_steps_prepend`, `activation_steps_append`, `persistent_facts`, `on_complete`).
 
-2. Run one targeted config read — `python3 {metodoloji-root}/bmad/scripts/resolve_config.py --project-root {project-root} --key core.user_name --key core.communication_language` — and resolve `{user_name}` and `{communication_language}` from it (never a module dump).
+2. Run one targeted config read — `python3 {metodoloji-root}/hooks/scripts/resolve_config.py --project-root {project-root} --key core.user_name --key core.communication_language` — and resolve `{user_name}` and `{communication_language}` from it (never a module dump).
 
 3. Emit a deprecation notice to the user in `{communication_language}`:
 

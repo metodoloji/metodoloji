@@ -34,9 +34,8 @@ SKILL = "bmad-module-builder"
 # Catalog CSVs that carry a row per skill (or per menu action). Missing files
 # are skipped: a removal may have deleted the catalog with the skill.
 _CATALOGS = (
-    "bmad/_config/skill-manifest.csv",
-    "bmad/_config/bmad-help.csv",
-    "bmad/bmb/module-help.csv",
+    "skills/skill-manifest.csv",
+    "skills/bmad-help/references/bmad-help.csv",
 )
 
 # Files whose prose names the shipped tool surface.

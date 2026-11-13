@@ -28,7 +28,7 @@ and known gaps are listed in [runtime security coverage](runtime-security-covera
 | Write scope | `hooks/engine/modules/guard.py`, `scope_gate.py`, `story_records.py` | Record verification, path/content scope, story metadata |
 | Commit/deploy | `quality_gate.py`, `deploy_gate.py`, `record_chain_gate.py` | Chain and release readiness checks |
 | Blackboard | `blackboard.py` plus `blackboard_*` modules | Cross-session state, handoffs, canvas, diagnostics, and archive operations |
-| Workflow kernel | `bmad/workflow/engine.py`, `spec.py`, `evidence.py`, `store.py` | Declared stage order, evidence checks, durable run state |
+| Workflow kernel | `hooks/workflow/engine.py`, `spec.py`, `evidence.py`, `store.py` | Declared stage order, evidence checks, durable run state |
 | Runtime bridges | `opencode-plugin/`, `hermes_adapter.py`, root `__init__.py` | Host API mapping and engine invocation |
 
 The large guard and blackboard modules are stable compatibility surfaces with

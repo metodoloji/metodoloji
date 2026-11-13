@@ -8,8 +8,8 @@ SessionStart could only *suggest* the slash command and nothing could execute
 it. This script is the executable half of that contract, so the hint bootstrap
 prints is a copy-pasteable command everywhere:
 
-    python3 {metodoloji-root}/bmad/scripts/skeleton.py --status
-    python3 {metodoloji-root}/bmad/scripts/skeleton.py --install
+    python3 {metodoloji-root}/hooks/scripts/skeleton.py --status
+    python3 {metodoloji-root}/hooks/scripts/skeleton.py --install
 
 Install is idempotent and never overwrites an existing file (pass --force to
 replace copies deliberately). Completion is recorded by
@@ -428,7 +428,7 @@ def _print_status(state: dict) -> None:
         print(f"  [ERROR] {problem}")
     if not state["installed"]:
         print("  → install once: python3 "
-              f"{state['plugin_root']}/bmad/scripts/skeleton.py --install")
+              f"{state['plugin_root']}/hooks/scripts/skeleton.py --install")
 
 
 def main() -> int:

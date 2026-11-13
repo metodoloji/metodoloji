@@ -476,7 +476,7 @@ def test_session_start_announces_the_active_workflow(tmp_path, monkeypatch):
     position comes from the state file, and the state file must not change.
     """
     from modules.audit import session_start
-    from bmad.workflow import engine as wf_engine
+    from hooks.workflow import engine as wf_engine
 
     root = tmp_path
     monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(root))
@@ -792,5 +792,5 @@ def test_session_start_handoff_nudge_names_a_runnable_command(tmp_path, monkeypa
     assert "hand-off waiting" in ctx
     assert "`handoffs" not in ctx, f"bare subcommand leaked into the context: {ctx}"
     root = Path(__file__).resolve().parents[3]
-    assert str(root / "bmad" / "scripts" / "blackboard.py") + " handoffs" in ctx
+    assert str(root / "hooks" / "scripts" / "blackboard.py") + " handoffs" in ctx
     assert "--skill bmad-quality-record" in ctx

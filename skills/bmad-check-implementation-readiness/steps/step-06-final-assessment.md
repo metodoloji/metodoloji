@@ -125,7 +125,7 @@ assessment to bind — it must record a **provisional, input-driven** verdict an
 stop:
 
 ```bash
-python3 {metodoloji-root}/bmad/scripts/blackboard.py mirror --key IR-{date} --value "readiness: INPUTS MISSING (provisional) — report: {outputFile}" --project-root {project-root}
+python3 {metodoloji-root}/hooks/scripts/blackboard.py mirror --key IR-{date} --value "readiness: INPUTS MISSING (provisional) — report: {outputFile}" --project-root {project-root}
 ```
 
 Then report to the user which input was missing and which run produces it, and
@@ -142,14 +142,14 @@ When `stepsCompleted` does cover 1–5, bind the assessment run key and mirror
 completion onto the intent bridge:
 
 ```bash
-python3 {metodoloji-root}/bmad/scripts/blackboard.py mirror --key IR-{date} --value "readiness: <READY|NEEDS WORK|NOT READY> — report: {outputFile}" --project-root {project-root}
-python3 {metodoloji-root}/bmad/scripts/blackboard.py write --key status --value complete --type state --project-root {project-root}
-python3 {metodoloji-root}/bmad/scripts/blackboard.py hot --clear --project-root {project-root}
+python3 {metodoloji-root}/hooks/scripts/blackboard.py mirror --key IR-{date} --value "readiness: <READY|NEEDS WORK|NOT READY> — report: {outputFile}" --project-root {project-root}
+python3 {metodoloji-root}/hooks/scripts/blackboard.py write --key status --value complete --type state --project-root {project-root}
+python3 {metodoloji-root}/hooks/scripts/blackboard.py hot --clear --project-root {project-root}
 ```
 
 (The `IR-{date}` run key is the relay heartbeat: the engine mirrors `methodology.last_ir` from it automatically — the injected context shows how far the E→IR→SP→S→QR→PR relay progressed.)
 
-If the assessment gated the transition to implementation (READY, or NEEDS WORK the user chooses to proceed past), signal the next stage so the sprint planning run opens already knowing the readiness verdict: `python3 {metodoloji-root}/bmad/scripts/blackboard.py mirror --key IR-{date} --value "readiness: <verdict> — report: {outputFile}" --to bmad-sprint-planning --note "Readiness <verdict> — report: {outputFile}; <one-line what sprint planning should honor first>" --project-root {project-root}` (repeating the same mirror never duplicates the waiting signal; it waits in `handoff.bmad-sprint-planning` until a sprint-planning run consumes it — that consumption completes the handshake). Trace the relay on the graph: `python3 {metodoloji-root}/bmad/scripts/blackboard.py link --a E-<experiment-id> --b IR-{date} --relation informs --project-root {project-root}` (the experiment id is the one the consumed baton named; downstream reads it via `neighbors --node IR-{date}`). Run the close-out check: `python3 {metodoloji-root}/bmad/scripts/blackboard.py doctor --json --project-root {project-root}` — waiting hand-off signals are the designed post-close state, not a failure: name them from `signal_warnings` (chain verdict `SIGNAL`). On `NEEDS ATTENTION`, surface the health warnings and resolve or disclose them before exiting.
+If the assessment gated the transition to implementation (READY, or NEEDS WORK the user chooses to proceed past), signal the next stage so the sprint planning run opens already knowing the readiness verdict: `python3 {metodoloji-root}/hooks/scripts/blackboard.py mirror --key IR-{date} --value "readiness: <verdict> — report: {outputFile}" --to bmad-sprint-planning --note "Readiness <verdict> — report: {outputFile}; <one-line what sprint planning should honor first>" --project-root {project-root}` (repeating the same mirror never duplicates the waiting signal; it waits in `handoff.bmad-sprint-planning` until a sprint-planning run consumes it — that consumption completes the handshake). Trace the relay on the graph: `python3 {metodoloji-root}/hooks/scripts/blackboard.py link --a E-<experiment-id> --b IR-{date} --relation informs --project-root {project-root}` (the experiment id is the one the consumed baton named; downstream reads it via `neighbors --node IR-{date}`). Run the close-out check: `python3 {metodoloji-root}/hooks/scripts/blackboard.py doctor --json --project-root {project-root}` — waiting hand-off signals are the designed post-close state, not a failure: name them from `signal_warnings` (chain verdict `SIGNAL`). On `NEEDS ATTENTION`, surface the health warnings and resolve or disclose them before exiting.
 
 Implementation Readiness complete. Invoke the `bmad-help` skill.
 

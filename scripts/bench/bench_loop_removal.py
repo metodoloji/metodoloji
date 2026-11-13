@@ -47,8 +47,8 @@ POINTERS = (
 )
 
 _CATALOGS = (
-    "bmad/_config/skill-manifest.csv",
-    "bmad/_config/bmad-help.csv",
+    "skills/skill-manifest.csv",
+    "skills/bmad-help/references/bmad-help.csv",
 )
 _PROSE = ("GUIDE.md", "KILAVUZ.md", "README.md", "docs/CLAUDE.md")
 _COUNT_CLAIMS = (

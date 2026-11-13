@@ -44,7 +44,7 @@ Write it once; do not restate it lower down.}
 
 ## On Activation
 
-1. Resolve config with one targeted call — `--key` is repeatable; a module dump is never the substitute: `python3 {metodoloji-root}/bmad/scripts/resolve_config.py --project-root {project-root} --key core.user_name --key core.communication_language --key core.document_output_language`. Use sensible defaults for anything missing rather than requiring configuration.
+1. Resolve config with one targeted call — `--key` is repeatable; a module dump is never the substitute: `python3 {metodoloji-root}/hooks/scripts/resolve_config.py --project-root {project-root} --key core.user_name --key core.communication_language --key core.document_output_language`. Use sensible defaults for anything missing rather than requiring configuration.
 
 <!-- Keep step 2 only for artifact-producing skills that carry process memory. -->
 2. Resume check. Look for existing working state in the run folder. If one is found, read it once to rebuild state and continue; otherwise initialize it per the skill's working-state strategy.

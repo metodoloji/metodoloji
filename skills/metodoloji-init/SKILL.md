@@ -33,7 +33,7 @@ One-time, idempotent installation. The canonical contract is
    metodoloji_init(force=True)              # deliberate re-install
    ```
 
-   The tool runs `{metodoloji-root}/bmad/scripts/skeleton.py --install`, which
+   The tool runs `{metodoloji-root}/hooks/scripts/skeleton.py --install`, which
    creates the ten record directories, copies the twelve templates (never
    overwriting an existing file), and writes `.metodoloji/initialized`.
 

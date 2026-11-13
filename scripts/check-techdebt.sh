@@ -326,13 +326,13 @@ fi
 
 echo "== 5) No orphan TODO [TD-XXX] in the shipped code or free surfaces =="
 # The debt standard puts the marker in the CODE ("# TODO: [TD-XXX]"), so the
-# scan covers the code trees (hooks/ scripts/ bmad/ skills/) plus the free
+# scan covers the code trees (hooks/ scripts/ skills/) plus the free
 # surfaces (custom/ scratch/) — not docs/ (prose examples like TD-042), not
 # templates/, and not test directories (which embed synthetic ids by design).
 # This auditor is excluded by name (its --negtest injects ids).
 ALL_IDS=$(printf '%s\n%s\n' "$ACTIVE_IDS" "$PAID_IDS" | sort -u | grep -v '^$' || true)
 SCAN_EXCLUDES="--exclude-dir=__pycache__ --exclude-dir=tests --exclude=check-techdebt.sh"
-SCAN_ROOTS="$PLUGIN_ROOT/hooks $PLUGIN_ROOT/scripts $PLUGIN_ROOT/bmad $PLUGIN_ROOT/skills $PLUGIN_ROOT/custom $PLUGIN_ROOT/scratch"
+SCAN_ROOTS="$PLUGIN_ROOT/hooks $PLUGIN_ROOT/scripts $PLUGIN_ROOT/skills $PLUGIN_ROOT/custom $PLUGIN_ROOT/scratch"
 # IDs referenced in TODO markers (code trees + free surfaces only)
 TODO_IDS=$(grep -rhoE --binary-files=without-match $SCAN_EXCLUDES \
     'TODO:[[:space:]]*\[TD-[0-9]+\]' \

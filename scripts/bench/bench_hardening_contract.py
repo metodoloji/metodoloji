@@ -32,7 +32,7 @@ from modules import blackboard as bb  # noqa: E402
 from modules import blackboard_diagnostics as diag  # noqa: E402
 from modules.config import story_rigor_tier  # noqa: E402
 
-CLI = ROOT / "bmad" / "scripts" / "blackboard.py"
+CLI = ROOT / "hooks" / "scripts" / "blackboard.py"
 
 BROKEN = False
 

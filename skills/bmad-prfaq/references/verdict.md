@@ -77,7 +77,7 @@ purpose: "Token-efficient context for downstream PRD creation"
 ## Stage Complete
 
 Post the heartbeat and chain signal so downstream PRD creation opens knowing the concept is hardened (one call):
-`python3 {metodoloji-root}/bmad/scripts/blackboard.py mirror --key prfaq.<project_name> --value "PRFAQ complete — see {planning_artifacts}/prfaq-{project_name}.md" --to bmad-prd --note "PRFAQ complete — see {planning_artifacts}/prfaq-{project_name}.md; use for PRD creation" --project-root {project-root}`
+`python3 {metodoloji-root}/hooks/scripts/blackboard.py mirror --key prfaq.<project_name> --value "PRFAQ complete — see {planning_artifacts}/prfaq-{project_name}.md" --to bmad-prd --note "PRFAQ complete — see {planning_artifacts}/prfaq-{project_name}.md; use for PRD creation" --project-root {project-root}`
 
 This is the terminal stage. If the user wants to revise, loop back to the relevant stage. Otherwise, the workflow is done.
 

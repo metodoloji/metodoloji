@@ -29,7 +29,7 @@ def _planned_dev_templates() -> int:
     the expectation with it and the count could never fail (E-050).
     """
     spec = importlib.util.spec_from_file_location(
-        "skeleton_leak_scope", PLUGIN / "bmad" / "scripts" / "skeleton.py")
+        "skeleton_leak_scope", PLUGIN / "hooks" / "scripts" / "skeleton.py")
     sk = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(sk)
     return len([src for src, dest in sk.TEMPLATE_PAIRS

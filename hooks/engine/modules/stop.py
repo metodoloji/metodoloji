@@ -436,7 +436,7 @@ def stop(json_in: dict) -> dict:
                 f"upstream runs — the designed post-close state, not a "
                 f"failure; a run finished its work but nobody picked "
                 f"up the baton — peek "
-                f"`{_plugin_cmd('bmad/scripts/blackboard.py', 'handoffs', '--skill', '<self>')}`, "
+                f"`{_plugin_cmd('hooks/scripts/blackboard.py', 'handoffs', '--skill', '<self>')}`, "
                 f"then consume the channel (doctor --json lists every waiting "
                 f"hop; correct a note with handoff-replace, never "
                 f"consume-then-repost).")
@@ -452,7 +452,7 @@ def stop(json_in: dict) -> dict:
                          + " may no longer apply — the code moved past "
                            "them since they were recorded; verify before "
                            "consuming, or withdraw with "
-                           f"`{_plugin_cmd('bmad/scripts/blackboard.py', 'handoff-retire')} "
+                           f"`{_plugin_cmd('hooks/scripts/blackboard.py', 'handoff-retire')} "
                            "--retire <key|channel> --reason <why>`.")
             notes.append(note)
     except Exception:
@@ -495,7 +495,7 @@ def stop(json_in: dict) -> dict:
             more = f" (+{len(stop_alerts) - 1} more)" if len(stop_alerts) > 1 else ""
             notes.append(f"routed alert(s) on the stop channel: {first}{more} — "
                          f"clear with "
-                         f"`{_plugin_cmd('bmad/scripts/blackboard.py', 'consume', '--channel', 'stop')}`.")
+                         f"`{_plugin_cmd('hooks/scripts/blackboard.py', 'consume', '--channel', 'stop')}`.")
     except Exception:
         pass
 
@@ -504,7 +504,7 @@ def stop(json_in: dict) -> dict:
         plugin_root = str(pathlib.Path(__file__).resolve().parents[3])
         if plugin_root not in sys.path:
             sys.path.insert(0, plugin_root)
-        from bmad.workflow import advisory
+        from hooks.workflow import advisory
         wf_peek = advisory.peek(root)
         if wf_peek:
             notes.append(f"active workflow: {wf_peek}.")

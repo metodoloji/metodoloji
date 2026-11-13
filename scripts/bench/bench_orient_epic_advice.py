@@ -23,7 +23,7 @@ import tempfile
 
 _REPO = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO / "hooks" / "engine"))
-sys.path.insert(0, str(_REPO / "bmad" / "scripts"))
+sys.path.insert(0, str(_REPO / "hooks" / "scripts"))
 
 from modules import state  # noqa: E402
 import orient  # noqa: E402

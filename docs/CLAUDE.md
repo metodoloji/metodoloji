@@ -127,7 +127,7 @@ stop_guard = "soft"     # backward compat — stop is report-only and never bloc
 
 - `/metodoloji:init` — install the record skeleton (one-time; writes `.metodoloji/initialized`).
   Any harness without slash commands runs the same installer directly:
-  `python3 {metodoloji-root}/bmad/scripts/skeleton.py --install` (`--status` to only report)
+  `python3 {metodoloji-root}/hooks/scripts/skeleton.py --install` (`--status` to only report)
 - `/metodoloji:gate-setup` — generate `~/.bmad/gate-key` (machine-local, not committed).
   Multi-machine development: import a peer machine's key into the trust ring
   (`~/.bmad/gate-keys/`) with `{metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --import-key` (key material via the
@@ -149,8 +149,8 @@ A process that must not skip a step is a **workflow**: a JSON spec (stages,
 per-stage evidence, computed transitions) that the kernel runs as a state
 machine. The model authors the spec and does the work inside a stage; the kernel
 sets the order and refuses a stage whose evidence is missing. Entry point:
-`python3 {metodoloji-root}/bmad/scripts/workflow.py <validate|create|list|status|next|complete|block|resume|flag|history> --project-root {project-root}`,
-skill `bmad-workflow`, design in `bmad/workflow/` (kernel + evidence; commands in
+`python3 {metodoloji-root}/hooks/scripts/workflow.py <validate|create|list|status|next|complete|block|resume|flag|history> --project-root {project-root}`,
+skill `bmad-workflow`, design in `hooks/workflow/` (kernel + evidence; commands in
 GUIDE §15.2). The SessionStart line names
 the active run's stage and its computed next stage; state lives under
 `{project-root}/.metodoloji/workflow/` and is never hand-edited.
@@ -158,7 +158,7 @@ the active run's stage and its computed next stage; state lives under
 ## Orientation (start here)
 
 ```sh
-python3 {metodoloji-root}/bmad/scripts/orient.py --project-root {project-root}
+python3 {metodoloji-root}/hooks/scripts/orient.py --project-root {project-root}
 ```
 
 Read-only digest: both roots, resolved core + module output paths, board focus
@@ -185,7 +185,7 @@ openers and front doors across the BMad verticals (`DIGEST_FIRST`
 in `scripts/check-handoff.py`). For a router or persona the digest *is* the
 board grounding, so it replaces the raw `read --context` + `handoffs` pair; a
 guest contributor that only needs the invoking run's focus keeps the single
-bounded `read --context`. Config beyond the digest: `{metodoloji-root}/bmad/scripts/resolve_config.py --key
+bounded `read --context`. Config beyond the digest: `{metodoloji-root}/hooks/scripts/resolve_config.py --key
 <dotted.path>` — no dump of any kind, the module-scoped one (`--module`)
 included: `--module bmm` is 23 lines / 818 B here against 5 lines / 142 B for a
 targeted read, and the unbounded dump is every key of every layer (~13.7 KB).

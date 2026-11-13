@@ -32,7 +32,7 @@ output_folder = "{project-root}/docs"
 # (planning → docs/planning, stories → docs/development/native,
 # sprint-status → docs/development/native, test → docs/quality/...).
 # Legacy {project-root}/bmad-output paths are still READ as fallback
-# (see bmad/scripts/resolve_config.py) but never written.
+# (see hooks/scripts/resolve_config.py) but never written.
 [modules.bmm]
 planning_artifacts = "{project-root}/docs/planning"
 implementation_artifacts = "{project-root}/docs/development/native"

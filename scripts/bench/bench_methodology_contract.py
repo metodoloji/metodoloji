@@ -53,7 +53,8 @@ def measurement_timeout() -> int:
 _TEST_ROOTS = (
     "hooks/engine/tests",
     "scripts/tests",
-    "bmad/tests",
+    "hooks/scripts/tests",
+    "hooks/workflow/tests",
     "optimization/tests",
 )
 

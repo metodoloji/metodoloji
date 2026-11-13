@@ -129,7 +129,7 @@ def _engine():
 
 def catalog_digest() -> dict:
     """Catalog facts a router needs without reading the whole CSV."""
-    path = _PLUGIN_ROOT / "bmad" / "_config" / "bmad-help.csv"
+    path = _PLUGIN_ROOT / "skills" / "bmad-help" / "references" / "bmad-help.csv"
     try:
         with open(path, newline="", encoding="utf-8") as fh:
             rows = list(csv.reader(fh))
@@ -691,7 +691,7 @@ def build(project_root: pathlib.Path) -> dict:
                 f"peek `{info['peek']}`, then consume it")
     if not skeleton_state["installed"] and not skeleton_state["problems"]:
         next_steps.append(
-            f"record skeleton not installed — run: python3 {_PLUGIN_ROOT}/bmad/"
+            f"record skeleton not installed — run: python3 {_PLUGIN_ROOT}/hooks/"
             f"scripts/skeleton.py --install")
     for problem in skeleton_state["problems"]:
         next_steps.append(f"skeleton/marker drift: {problem}")
@@ -705,7 +705,7 @@ def build(project_root: pathlib.Path) -> dict:
             f"board hot run '{board['hot']}' names no record file — the run "
             f"was reset or its record deleted while the board kept the "
             f"claim. Either re-create the record or clear the stale focus: "
-            f"`python3 {_PLUGIN_ROOT}/bmad/scripts/blackboard.py hot --clear "
+            f"`python3 {_PLUGIN_ROOT}/hooks/scripts/blackboard.py hot --clear "
             f"--project-root {project_root}`")
     for sv in board.get("verdict_stale") or []:
         # A gate verdict is a snapshot verdict, not a permanent one: name the
@@ -974,7 +974,7 @@ def _print_text(digest: dict) -> None:
     print(f"  skeleton        : {'installed' if skeleton['installed'] else 'NOT installed'}"
           f" (marker {'present' if skeleton['marker_present'] else 'absent'})"
           + ("" if skeleton['installed'] else
-             f" — run: python3 {digest['plugin_root']}/bmad/scripts/skeleton.py --install"))
+             f" — run: python3 {digest['plugin_root']}/hooks/scripts/skeleton.py --install"))
     print(f"  gate_key        : {'present' if digest['gate_key']['present'] else 'MISSING'}"
           f" ({digest['gate_key']['path']})")
     catalog = digest["catalog"]

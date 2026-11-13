@@ -21,7 +21,7 @@ triggers: ["bmad-checkpoint-preview", "/bmad-checkpoint-preview", "checkpoint-pr
 
 ### Step 1: Run the Orientation Digest
 
-Run: `python3 {metodoloji-root}/bmad/scripts/orient.py --project-root {project-root}` — one read-only call, before anything else, and it IS this session's chain grounding (formerly the raw board pair in Step 6b): both roots, the config this review needs (`{communication_language}`, `{document_output_language}`, `{date}` as `today`), the resolved output paths including `{implementation_artifacts}` and `{planning_artifacts}`, the board's live focus (with a `STALE` flag when a hot run still claims `complete`) and every waiting hand-off with the skill it waits for. Read it once; never re-run it "for clean output" — it is small by construction. On failure, fall through to the config step's neutral defaults.
+Run: `python3 {metodoloji-root}/hooks/scripts/orient.py --project-root {project-root}` — one read-only call, before anything else, and it IS this session's chain grounding (formerly the raw board pair in Step 6b): both roots, the config this review needs (`{communication_language}`, `{document_output_language}`, `{date}` as `today`), the resolved output paths including `{implementation_artifacts}` and `{planning_artifacts}`, the board's live focus (with a `STALE` flag when a hot run still claims `complete`) and every waiting hand-off with the skill it waits for. Read it once; never re-run it "for clean output" — it is small by construction. On failure, fall through to the config step's neutral defaults.
 
 ### Step 2: Resolve the Workflow Block
 
@@ -45,7 +45,7 @@ Treat every entry in `{workflow.persistent_facts}` as foundational context you c
 
 ### Step 5: Load Config
 
-**Config comes from the digest** (Step 1). Only a key it genuinely lacks needs a targeted read: `python3 {metodoloji-root}/bmad/scripts/resolve_config.py --project-root {project-root} --key <dotted.path>` — `--key` is repeatable and the targeted shape is the only one a review needs; a module dump is never a substitute. Resolve:
+**Config comes from the digest** (Step 1). Only a key it genuinely lacks needs a targeted read: `python3 {metodoloji-root}/hooks/scripts/resolve_config.py --project-root {project-root} --key <dotted.path>` — `--key` is repeatable and the targeted shape is the only one a review needs; a module dump is never a substitute. Resolve:
 
 - `implementation_artifacts`
 - `planning_artifacts`

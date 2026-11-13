@@ -48,7 +48,7 @@ Do not treat this as text to read once from cover to cover. It is a **decision t
 
 1. Take the chain's real state from the **SessionStart output** (`Chain progress`, record inventory, sprint line, PROACTIVE nudge). The session's own state is authoritative, not your recollection of the model.
 2. Never invent the `{metodoloji-root}` value: use the SessionStart `METODOLOJI active (plugin: PATH)` line **verbatim**. If you cannot find it, use the resolution order in #20.
-3. If you cannot recall a script's interface, run its `--help` from `{metodoloji-root}` (e.g. `python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --help`; `blackboard.py` and `workflow.py` live under `{metodoloji-root}/bmad/scripts/` — same rule). The engine and CLIs are canonical; this document summarises them.
+3. If you cannot recall a script's interface, run its `--help` from `{metodoloji-root}` (e.g. `python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --help`; `blackboard.py` and `workflow.py` live under `{metodoloji-root}/hooks/scripts/` — same rule). The engine and CLIs are canonical; this document summarises them.
 4. Keep this runbook aligned with the current release. When in doubt, cross-check `README.md`, `docs/CLAUDE.md`, `HERMES.md`, `docs/OPENCODE.md`, `docs/bmad/*-methodology.md`, `templates/` and `.plugin/plugin.json`.
 
 ---
@@ -150,7 +150,7 @@ Does the target project have .metodoloji/initialized?
 1. **Read the SessionStart context** (the engine prints it, you consume it): chain reminder + gate key status + init status + **project state** (record inventory + sprint line: review/in-progress stories, epic-lag flags) + PROACTIVE nudge if a handoff is pending + chain progress (`Chain progress`) if the board carries E/IR/SP/S/QR/PR run keys. Open the session from those lines, not from memory.
 2. **Note the `METODOLOJI active (plugin: PATH)` line** — that is `{metodoloji-root}`; use it verbatim, do not search (#20).
 3. **Status probe:** pending handoffs (`handoffs`), open run list, `hot` key (#14). Give the user a one-sentence "where we left off".
-4. **Interpret the status:** a complete marker-backed skeleton needs no action; missing directories/templates in an initialized project are repaired by the non-destructive `python3 {metodoloji-root}/bmad/scripts/skeleton.py --install`; skeleton present + no marker is **broken init** and uses the same repair command.
+4. **Interpret the status:** a complete marker-backed skeleton needs no action; missing directories/templates in an initialized project are repaired by the non-destructive `python3 {metodoloji-root}/hooks/scripts/skeleton.py --install`; skeleton present + no marker is **broken init** and uses the same repair command.
 5. **Take the user's request** → map it via the #3 decision tree and state which playbook you will run.
 
 **Don't:** run a full audit at session start (`{metodoloji-root}/scripts/check-plugin.sh` takes \~65s) — leave that to P22 unless the user asks.
@@ -624,23 +624,23 @@ Skills know "how to do a step", hooks know "which file was touched"; the layer t
 - **The order is mechanical, hooks are informational.** The runtime enforces order with evidence; hooks only report position (the SessionStart line tells you the active run, its stage and the computed next stage). Code writing still depends on the E record's gate — the kernel does not replace the gate.
 
 ```sh
-python3 {metodoloji-root}/bmad/scripts/workflow.py validate --spec file.json --project-root {project-root}
-python3 {metodoloji-root}/bmad/scripts/workflow.py create --spec file.json --project-root {project-root}
-python3 {metodoloji-root}/bmad/scripts/workflow.py create --builtin seo-visibility --project-root {project-root}
-python3 {metodoloji-root}/bmad/scripts/workflow.py list --project-root {project-root}
-python3 {metodoloji-root}/bmad/scripts/workflow.py status --project-root {project-root}
-python3 {metodoloji-root}/bmad/scripts/workflow.py next --project-root {project-root}
-python3 {metodoloji-root}/bmad/scripts/workflow.py complete --slug seo-visibility --stage analyze --project-root {project-root}
-python3 {metodoloji-root}/bmad/scripts/workflow.py flag --slug seo-visibility --key regressed --value true --project-root {project-root}
-python3 {metodoloji-root}/bmad/scripts/workflow.py block --slug seo-visibility --reason "no GSC access" --project-root {project-root}
-python3 {metodoloji-root}/bmad/scripts/workflow.py resume --slug seo-visibility --project-root {project-root}
+python3 {metodoloji-root}/hooks/scripts/workflow.py validate --spec file.json --project-root {project-root}
+python3 {metodoloji-root}/hooks/scripts/workflow.py create --spec file.json --project-root {project-root}
+python3 {metodoloji-root}/hooks/scripts/workflow.py create --builtin seo-visibility --project-root {project-root}
+python3 {metodoloji-root}/hooks/scripts/workflow.py list --project-root {project-root}
+python3 {metodoloji-root}/hooks/scripts/workflow.py status --project-root {project-root}
+python3 {metodoloji-root}/hooks/scripts/workflow.py next --project-root {project-root}
+python3 {metodoloji-root}/hooks/scripts/workflow.py complete --slug seo-visibility --stage analyze --project-root {project-root}
+python3 {metodoloji-root}/hooks/scripts/workflow.py flag --slug seo-visibility --key regressed --value true --project-root {project-root}
+python3 {metodoloji-root}/hooks/scripts/workflow.py block --slug seo-visibility --reason "no GSC access" --project-root {project-root}
+python3 {metodoloji-root}/hooks/scripts/workflow.py resume --slug seo-visibility --project-root {project-root}
 ```
 
 Every command prints JSON: exit `0` on success, exit `1` on refusal (`ok:false` + an `error` field naming what is missing). State lives under `{project-root}/.metodoloji/workflow/` and is **never edited by hand**.
 
 **Ready-made example — the `seo-visibility` builtin spec:** `analyze` (list problems in `sorunlar.md` with `ISSUE-`) → `map` (bind each problem to code with `MAP:`) → `plan` (score scenarios, pick with `FIX:`) → `apply` (`APPLIED:`) → `test` (`RESULT:`; on failure return to `apply` with the `regressed` flag) → `done`.
 
-Details: `skills/bmad-workflow/authoring.md` (writing specs), `skills/bmad-workflow/running.md` (running a run), process engine code in `bmad/workflow/`.
+Details: `skills/bmad-workflow/authoring.md` (writing specs), `skills/bmad-workflow/running.md` (running a run), process engine code in `hooks/workflow/`.
 
 ---
 
@@ -1001,7 +1001,7 @@ The order guard asks before a write: **scan for secrets → deny if dirty → is
 
 > **Symlink rule (E-036):** a lexical free surface keeps the free verdict only when the **filesystem-resolved** path is free too. `scratch/link -> ../src` does not release `src/` through the link — the guard re-checks the resolved spelling on the release direction and fails closed when resolution fails or escapes the project root; the gate resolves the bench target the same way, so `scripts/link -> scratch` cannot host a measurement either. Resolution runs only where a free verdict would be granted (two `realpath` calls per released write), never on the gated path.
 
-**Conditional self-modification:** `hooks/`, `scripts/`, `skills/`, `bmad/tests/` (plugin source trees) are free **only when the protected project root is the plugin's own repo** (working on the plugin itself). In an ordinary target project these trees are **protected** — editing plugin source requires an approved experiment too. The `bmad/tests/` exemption is for circularity: the gate's own tests cannot be gated behind the gate's permission.
+**Conditional self-modification:** `hooks/`, `scripts/`, `skills/`, `hooks/scripts/tests/` (plugin source trees) are free **only when the protected project root is the plugin's own repo** (working on the plugin itself). In an ordinary target project these trees are **protected** — editing plugin source requires an approved experiment too. The `hooks/scripts/tests/` exemption is for circularity: the gate's own tests cannot be gated behind the gate's permission.
 
 ### 10.2 Protected area (requires approval)
 
@@ -1070,12 +1070,12 @@ Merge rules: for scalars the override wins; tables deep-merge (recursively); for
 Resolution:
 
 ```bash
-python3 {metodoloji-root}/bmad/scripts/resolve_customization.py -s skills/bmad-dev-story
-python3 {metodoloji-root}/bmad/scripts/resolve_customization.py -s skills/bmad-dev-story -k workflow.activation_steps_append
-python3 {metodoloji-root}/bmad/scripts/resolve_customization.py -s skills/bmad-dev-story -k agent.name -k workflow.activation_steps_append
+python3 {metodoloji-root}/hooks/scripts/resolve_customization.py -s skills/bmad-dev-story
+python3 {metodoloji-root}/hooks/scripts/resolve_customization.py -s skills/bmad-dev-story -k workflow.activation_steps_append
+python3 {metodoloji-root}/hooks/scripts/resolve_customization.py -s skills/bmad-dev-story -k agent.name -k workflow.activation_steps_append
 ```
 
-(The canonical implementation is `bmad/scripts/resolve_customization.py` — stdlib only, py3.11+; `uv run` also works.)
+(The canonical implementation is `hooks/scripts/resolve_customization.py` — stdlib only, py3.11+; `uv run` also works.)
 
 ### 13.2 Central config — 4 layers (later ones win)
 
@@ -1108,7 +1108,7 @@ Legacy YAML bridge: module `config.yaml` files from old installs are read as a l
 Flat module output (CLI/legacy shape only):
 
 ```bash
-python3 {metodoloji-root}/bmad/scripts/resolve_config.py --project-root . --module bmm
+python3 {metodoloji-root}/hooks/scripts/resolve_config.py --project-root . --module bmm
 ```
 
 Returns the shared `core` plus that module's keys (the old module config.yaml shape). `--module core` returns only core. Artifact paths in the plugin layers point the output at `{project-root}` (`docs/`), not inside the plugin.
@@ -1123,7 +1123,7 @@ Every surface must reference these documents: `research-methodology.md` (all sur
 
 ## 14. Blackboard — Working Context
 
-One event-sourced JSON: `.metodoloji/blackboard.json` + an append-only event log. Hooks read it for context, skills use it to write focus. Full design: `hooks/engine/modules/blackboard.py` + `{metodoloji-root}/bmad/scripts/blackboard.py --help` (the old `docs/BLACKBOARD.md` was pruned — the code is canonical).
+One event-sourced JSON: `.metodoloji/blackboard.json` + an append-only event log. Hooks read it for context, skills use it to write focus. Full design: `hooks/engine/modules/blackboard.py` + `{metodoloji-root}/hooks/scripts/blackboard.py --help` (the old `docs/BLACKBOARD.md` was pruned — the code is canonical).
 
 **Concepts:** `hot`/`hot_canvas` (the single key + single canvas in focus — surfaced at session start/end); `keys` (named text, max 128, oldest fade); lists (ordered under one key, max 100); canvases (grid/free live surfaces; `watch` file paths and turn a `touch` notification into an auto-cell); `links` (directed graph edges); subscription (glob → channel); alert (bounded, channel-addressed notification — the `session` channel is injected at session start, the `stop` channel at the end); `tags`/`contributions`/`watchers`.
 
@@ -1134,34 +1134,34 @@ One event-sourced JSON: `.metodoloji/blackboard.json` + an append-only event log
 **CLI (the memorisation set):**
 
 ```bash
-python3 {metodoloji-root}/bmad/scripts/blackboard.py write --key prd.acme --value "PRD v1: discovery" --type state --hot
-python3 {metodoloji-root}/bmad/scripts/blackboard.py write --key prd.acme --value "PRD v1: finalize" --type state
-python3 {metodoloji-root}/bmad/scripts/blackboard.py list-add --key prd.acme.pending --item "Confirm NFR-2"
-python3 {metodoloji-root}/bmad/scripts/blackboard.py list-remove --key prd.acme.pending --item "Confirm NFR-2"
-python3 {metodoloji-root}/bmad/scripts/blackboard.py list-clear --key prd.acme.pending
-python3 {metodoloji-root}/bmad/scripts/blackboard.py canvas create --name doc-map --grid 8x8 --focus
-python3 {metodoloji-root}/bmad/scripts/blackboard.py canvas set --name doc-map --cell A1 --content "nav hub" --kind decision
-python3 {metodoloji-root}/bmad/scripts/blackboard.py canvas watch --name doc-map --path docs/
-python3 {metodoloji-root}/bmad/scripts/blackboard.py canvas touch --path docs/design/spec.md --tool bmad-architecture
-python3 {metodoloji-root}/bmad/scripts/blackboard.py canvas-read --name doc-map
-python3 {metodoloji-root}/bmad/scripts/blackboard.py canvas focus --clear
-python3 {metodoloji-root}/bmad/scripts/blackboard.py link --a prd.acme --b arch.acme --relation informs
-python3 {metodoloji-root}/bmad/scripts/blackboard.py neighbors --node prd.acme
-python3 {metodoloji-root}/bmad/scripts/blackboard.py subscribe --watcher session --pattern "prd.*" --channel session
-python3 {metodoloji-root}/bmad/scripts/blackboard.py alerts
-python3 {metodoloji-root}/bmad/scripts/blackboard.py consume --channel stop
-python3 {metodoloji-root}/bmad/scripts/blackboard.py notify --channel stop --kind risk --text "NFR unapproved"
-python3 {metodoloji-root}/bmad/scripts/blackboard.py mirror --key prd.acme --value "PRD final" --to bmad-ux --note "PRD final — start from NFR-3"
-python3 {metodoloji-root}/bmad/scripts/blackboard.py handoffs
-python3 {metodoloji-root}/bmad/scripts/blackboard.py handoffs --skill bmad-ux
-python3 {metodoloji-root}/bmad/scripts/blackboard.py consume --channel handoff.bmad-ux
-python3 {metodoloji-root}/bmad/scripts/blackboard.py chain-health
-python3 {metodoloji-root}/bmad/scripts/blackboard.py doctor
-python3 {metodoloji-root}/bmad/scripts/blackboard.py tag --tag crm
-python3 {metodoloji-root}/bmad/scripts/blackboard.py contribute --who bmad-prd --what "PRD v1 draft"
-python3 {metodoloji-root}/bmad/scripts/blackboard.py stats
-python3 {metodoloji-root}/bmad/scripts/blackboard.py read --context
-python3 {metodoloji-root}/bmad/scripts/blackboard.py hot --clear
+python3 {metodoloji-root}/hooks/scripts/blackboard.py write --key prd.acme --value "PRD v1: discovery" --type state --hot
+python3 {metodoloji-root}/hooks/scripts/blackboard.py write --key prd.acme --value "PRD v1: finalize" --type state
+python3 {metodoloji-root}/hooks/scripts/blackboard.py list-add --key prd.acme.pending --item "Confirm NFR-2"
+python3 {metodoloji-root}/hooks/scripts/blackboard.py list-remove --key prd.acme.pending --item "Confirm NFR-2"
+python3 {metodoloji-root}/hooks/scripts/blackboard.py list-clear --key prd.acme.pending
+python3 {metodoloji-root}/hooks/scripts/blackboard.py canvas create --name doc-map --grid 8x8 --focus
+python3 {metodoloji-root}/hooks/scripts/blackboard.py canvas set --name doc-map --cell A1 --content "nav hub" --kind decision
+python3 {metodoloji-root}/hooks/scripts/blackboard.py canvas watch --name doc-map --path docs/
+python3 {metodoloji-root}/hooks/scripts/blackboard.py canvas touch --path docs/design/spec.md --tool bmad-architecture
+python3 {metodoloji-root}/hooks/scripts/blackboard.py canvas-read --name doc-map
+python3 {metodoloji-root}/hooks/scripts/blackboard.py canvas focus --clear
+python3 {metodoloji-root}/hooks/scripts/blackboard.py link --a prd.acme --b arch.acme --relation informs
+python3 {metodoloji-root}/hooks/scripts/blackboard.py neighbors --node prd.acme
+python3 {metodoloji-root}/hooks/scripts/blackboard.py subscribe --watcher session --pattern "prd.*" --channel session
+python3 {metodoloji-root}/hooks/scripts/blackboard.py alerts
+python3 {metodoloji-root}/hooks/scripts/blackboard.py consume --channel stop
+python3 {metodoloji-root}/hooks/scripts/blackboard.py notify --channel stop --kind risk --text "NFR unapproved"
+python3 {metodoloji-root}/hooks/scripts/blackboard.py mirror --key prd.acme --value "PRD final" --to bmad-ux --note "PRD final — start from NFR-3"
+python3 {metodoloji-root}/hooks/scripts/blackboard.py handoffs
+python3 {metodoloji-root}/hooks/scripts/blackboard.py handoffs --skill bmad-ux
+python3 {metodoloji-root}/hooks/scripts/blackboard.py consume --channel handoff.bmad-ux
+python3 {metodoloji-root}/hooks/scripts/blackboard.py chain-health
+python3 {metodoloji-root}/hooks/scripts/blackboard.py doctor
+python3 {metodoloji-root}/hooks/scripts/blackboard.py tag --tag crm
+python3 {metodoloji-root}/hooks/scripts/blackboard.py contribute --who bmad-prd --what "PRD v1 draft"
+python3 {metodoloji-root}/hooks/scripts/blackboard.py stats
+python3 {metodoloji-root}/hooks/scripts/blackboard.py read --context
+python3 {metodoloji-root}/hooks/scripts/blackboard.py hot --clear
 ```
 
 **Handoff handshake (critical):** when upstream work finishes it leaves a signal with `handoff --to <skill>`; the signal waits until downstream looks with `handoffs --skill <self>` and consumes it with `consume --channel handoff.<skill>` — consuming **is** the handshake. While waiting it appears on two announce-only surfaces (which never consume): the session\_start context nudge (delivery chain + methodology\_chain + sub-chains + `bmad-help`; tool-workflow channels excluded) and the stop wrap-up report (methodology\_chain signals). Delivery relay: prd → ux → architecture → spec → create-epics-and-stories → create-story → dev-story.
@@ -1243,22 +1243,22 @@ sh scripts/check-techdebt.sh
 python scripts/check-handoff.py
 
 # Customization
-python3 {metodoloji-root}/bmad/scripts/resolve_customization.py -s skills/bmad-dev-story -k workflow.activation_steps_append
-python3 {metodoloji-root}/bmad/scripts/resolve_config.py --project-root . --key core.communication_language --key modules.bmm.planning_artifacts
+python3 {metodoloji-root}/hooks/scripts/resolve_customization.py -s skills/bmad-dev-story -k workflow.activation_steps_append
+python3 {metodoloji-root}/hooks/scripts/resolve_config.py --project-root . --key core.communication_language --key modules.bmm.planning_artifacts
 python3 {metodoloji-root}/scripts/sync-hooks-json.py --write
 
 # Blackboard
-python3 {metodoloji-root}/bmad/scripts/blackboard.py write --key prd.acme --value "..." --type state --hot
-python3 {metodoloji-root}/bmad/scripts/blackboard.py mirror --key prd.acme --value "PRD final" --to bmad-ux --note "..."
-python3 {metodoloji-root}/bmad/scripts/blackboard.py mirror --key story.1-1 --value "dev complete" --to bmad-code-review --sender bmad-dev-story
-python3 {metodoloji-root}/bmad/scripts/blackboard.py doctor
+python3 {metodoloji-root}/hooks/scripts/blackboard.py write --key prd.acme --value "..." --type state --hot
+python3 {metodoloji-root}/hooks/scripts/blackboard.py mirror --key prd.acme --value "PRD final" --to bmad-ux --note "..."
+python3 {metodoloji-root}/hooks/scripts/blackboard.py mirror --key story.1-1 --value "dev complete" --to bmad-code-review --sender bmad-dev-story
+python3 {metodoloji-root}/hooks/scripts/blackboard.py doctor
 
 # Workflow (process engine)
-python3 {metodoloji-root}/bmad/scripts/workflow.py list --project-root .
-python3 {metodoloji-root}/bmad/scripts/workflow.py next --project-root .
-python3 {metodoloji-root}/bmad/scripts/workflow.py create --builtin seo-visibility --project-root .
-python3 {metodoloji-root}/bmad/scripts/workflow.py complete --slug seo-visibility --stage analyze --project-root .
-python3 {metodoloji-root}/bmad/scripts/workflow.py validate --spec docs/workflows/process.json
+python3 {metodoloji-root}/hooks/scripts/workflow.py list --project-root .
+python3 {metodoloji-root}/hooks/scripts/workflow.py next --project-root .
+python3 {metodoloji-root}/hooks/scripts/workflow.py create --builtin seo-visibility --project-root .
+python3 {metodoloji-root}/hooks/scripts/workflow.py complete --slug seo-visibility --stage analyze --project-root .
+python3 {metodoloji-root}/hooks/scripts/workflow.py validate --spec docs/workflows/process.json
 
 # Log
 tail -10 .metodoloji/logs/hook-audit.log
@@ -1392,7 +1392,7 @@ These 60 items are not "good practice" — they are the system's mechanical boun
 47. Array merge looks at `code`/`id` — arrays without those keys append (watch for duplicate bloat).
 48. Personal settings in `*.user.toml` (gitignored), team settings committed — the reverse leaks information or causes conflicts.
 49. Legacy `config.yaml` loses to the project TOML — migrate and delete the YAML.
-50. Activations read config in a targeted way: `{metodoloji-root}/bmad/scripts/resolve_config.py --key <dotted.path>` (repeatable). `--module bmm` (23 lines / 818 B) is a CLI shape only for old installs — it gives the flat view a module sees, but it is not the shape to run; the controller has `check_targeted_config_reads` + `check_no_module_dump_in_skills`.
+50. Activations read config in a targeted way: `{metodoloji-root}/hooks/scripts/resolve_config.py --key <dotted.path>` (repeatable). `--module bmm` (23 lines / 818 B) is a CLI shape only for old installs — it gives the flat view a module sees, but it is not the shape to run; the controller has `check_targeted_config_reads` + `check_no_module_dump_in_skills`.
 51. Output rule: record/artifact → `{project-root}`; template/config/script → `{metodoloji-root}`. When in doubt ask "what IS the file?".
 52. Manifests are not copied into the project — delete a stale `docs/bmad/` copy.
 53. `init` never overwrites — that is why "the template didn't update"; update it by hand if needed.
@@ -1439,11 +1439,11 @@ metodoloji/
 │   ├── hooks.json                       # SINGLE unified hook manifest (both runtimes find this; generated)
 │   ├── engine/main.py                   # entry (pre/guard/quality/deploy/audit/stop/session_start)
 │   ├── engine/modules/                  # guard (guard+quality+deploy), audit, stop, plan, mirror, state, config, archive, bash_targets, blackboard, utils
-│   ├── engine/resolve_customization.py  # thin re-export (real: bmad/scripts/resolve_customization.py)
-│   └── scripts/bootstrap.sh, hook-entry.sh, run-hook.sh
+│   ├── engine/resolve_customization.py  # thin re-export (real: hooks/scripts/resolve_customization.py)
+│   ├── scripts/                         # blackboard, workflow, orient, resolve_config, resolve_customization, skeleton + bootstrap.sh, hook-entry.sh, run-hook.sh
+│   └── workflow/                        # kernel (engine, spec, evidence, store, paths, advisory) + builtin specs
 ├── skills/                              # 48 skills (native bodies) + 42 customize.toml (7 active BRIDGEs)
 ├── config.toml                          # the plugin config (gate policy, soft/hard)
-├── bmad/                                # module data (bmm,tea,core,bmb,loop,_config) + scripts/ (blackboard, workflow, orient, resolve_config, resolve_customization, skeleton)
 ├── templates/                           # _template_E/IR/SP/QR/PR/S/PM/BD/C/STRUCT + README/tech-debt/scratch-README/external-context-README/external-context
 ├── commands/                            # /metodoloji:init, gate-setup, verify, audit (.md)
 ├── scripts/                             # check-plugin/custom/methodology/techdebt, check-handoff, create-*-record, sync-*, bench/

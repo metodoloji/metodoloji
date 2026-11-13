@@ -31,7 +31,7 @@ import sys
 import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-RESOLVER = ROOT / "bmad" / "scripts" / "resolve_customization.py"
+RESOLVER = ROOT / "hooks" / "scripts" / "resolve_customization.py"
 BASELINE = ROOT / "scripts" / "bench" / "fixtures" / "bridge-fold-baseline.json"
 PREFIX_REV = "a3a9891"  # the E-147 commit: the last tree that shipped custom/
 

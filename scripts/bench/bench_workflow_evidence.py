@@ -230,7 +230,7 @@ _PLUGIN = pathlib.Path(__file__).resolve().parents[2]
 if str(_PLUGIN) not in sys.path:
     sys.path.insert(0, str(_PLUGIN))
 
-from bmad.workflow import (advisory as advisory_mod, engine,  # noqa: E402
+from hooks.workflow import (advisory as advisory_mod, engine,  # noqa: E402
                            evidence as evidence_mod, store as store_mod)
 
 # Pre-fix delivery semantics: the read surfaces carried no evidence dimension,

@@ -484,7 +484,7 @@ Check .env hygiene: .env must not be tracked, .env.example must exist, and
 | `Everything is denied with exit 2.` | check Python ≥3.11 and the engine path (`hooks/engine/main.py` + `modules/`) — fail-closed means a broken engine denies everything |
 | `This record says FORGED.` | determine hand-edit vs other-machine: regenerate, **or** the `Re-Measured-By` procedure with a fresh record under your key |
 | `Tokens are FORGED only inside WSL (or only in PowerShell).` | re-sync the single key between the two homes — never `--init-secret` twice |
-| `init says already installed but there is no skeleton.` | broken init: one-off repair `python3 {metodoloji-root}/bmad/scripts/skeleton.py --install` |
+| `init says already installed but there is no skeleton.` | broken init: one-off repair `python3 {metodoloji-root}/hooks/scripts/skeleton.py --install` |
 | `The stop report appears twice.` | duplicate Stop registration → remove one via `/hooks` |
 | `Claude reports "2 async PostToolUse hooks completed".` | duplicate plugin install: manifest + manual `settings.json` entry + stale marketplace cache |
 | `hooks.json does not match.` | regenerate with `python3 scripts/sync-hooks-json.py --write` |

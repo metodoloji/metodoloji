@@ -1,6 +1,6 @@
 [project]
 name = "metodoloji"
-version = "0.2.70"
+version = "0.2.71"
 requires-python = ">=3.11"
 dependencies = [
 ]
@@ -8,7 +8,8 @@ dependencies = [
 [tool.pytest.ini_options]
 testpaths = [
     "hooks/engine/tests",
-    "bmad/tests",
+    "hooks/scripts/tests",
+    "hooks/workflow/tests",
     "scripts/tests",
     "skills/bmad-architecture/scripts/tests",
     "skills/bmad-brainstorming/scripts/tests",

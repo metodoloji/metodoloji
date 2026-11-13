@@ -27,7 +27,7 @@ If you need an explicit user instruction to run them, ask once now for the whole
 
 ### Step 1: Run the Orientation Digest
 
-Run: `python3 {metodoloji-root}/bmad/scripts/orient.py --project-root {project-root}` — one read-only call, before anything else. It carries both roots, the core config this run reads (`{user_name}`, `{communication_language}`, `{document_output_language}`, `{project_name}`, `{date}` as `today`), every resolved output path, the record inventory, the board's live focus (with a `STALE` flag when a hot run still claims `complete`) and **waiting hand-offs addressed to you** (the digest names the sender and the peek command), and skeleton/gate state. Read it once; never re-run it "for clean output" — it is small by construction. On failure, fall through to the config step's neutral defaults.
+Run: `python3 {metodoloji-root}/hooks/scripts/orient.py --project-root {project-root}` — one read-only call, before anything else. It carries both roots, the core config this run reads (`{user_name}`, `{communication_language}`, `{document_output_language}`, `{project_name}`, `{date}` as `today`), every resolved output path, the record inventory, the board's live focus (with a `STALE` flag when a hot run still claims `complete`) and **waiting hand-offs addressed to you** (the digest names the sender and the peek command), and skeleton/gate state. Read it once; never re-run it "for clean output" — it is small by construction. On failure, fall through to the config step's neutral defaults.
 
 ### Step 2: Resolve the Workflow Block
 
@@ -51,7 +51,7 @@ Treat every entry in `{workflow.persistent_facts}` as foundational context you c
 
 ### Step 5: Load Config
 
-**Config comes from the digest** (Step 1). Only a key it genuinely lacks needs a targeted read: `python3 {metodoloji-root}/bmad/scripts/resolve_config.py --project-root {project-root} --key <dotted.path>` — the targeted shape survives the transport; **never the full merged dump**. Resolve:
+**Config comes from the digest** (Step 1). Only a key it genuinely lacks needs a targeted read: `python3 {metodoloji-root}/hooks/scripts/resolve_config.py --project-root {project-root} --key <dotted.path>` — the targeted shape survives the transport; **never the full merged dump**. Resolve:
 
 - `project_name`, `planning_artifacts`, `implementation_artifacts`, `user_name`
 - `communication_language`, `document_output_language`, `user_skill_level`
@@ -97,6 +97,6 @@ This uses **step-file architecture** for disciplined execution:
 
 ## FIRST STEP
 
-Before `./steps/step-01-gather-context.md`, check the chain for signals addressed to you: `python3 {metodoloji-root}/bmad/scripts/blackboard.py handoffs --skill bmad-code-review --project-root {project-root}` — the canonical sender is a `bmad-dev-story` run whose note names the story that landed in review. Read the named story (and its QR record) first, feed it into step-01's context gathering, then complete the handshake: `python3 {metodoloji-root}/bmad/scripts/blackboard.py consume --channel handoff.bmad-code-review --project-root {project-root}` (consume only after the story is identified — an unconsumed signal keeps the hand-off waiting, which is correct when the review targets something else). Read the upstream graph alongside the handoff: `blackboard.py neighbors --node <upstream-run-key> --project-root {project-root}`.
+Before `./steps/step-01-gather-context.md`, check the chain for signals addressed to you: `python3 {metodoloji-root}/hooks/scripts/blackboard.py handoffs --skill bmad-code-review --project-root {project-root}` — the canonical sender is a `bmad-dev-story` run whose note names the story that landed in review. Read the named story (and its QR record) first, feed it into step-01's context gathering, then complete the handshake: `python3 {metodoloji-root}/hooks/scripts/blackboard.py consume --channel handoff.bmad-code-review --project-root {project-root}` (consume only after the story is identified — an unconsumed signal keeps the hand-off waiting, which is correct when the review targets something else). Read the upstream graph alongside the handoff: `blackboard.py neighbors --node <upstream-run-key> --project-root {project-root}`.
 
 Read fully and follow: `./steps/step-01-gather-context.md`

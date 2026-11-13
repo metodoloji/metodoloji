@@ -18,7 +18,7 @@ import pytest
 
 _HOOKS = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_HOOKS))
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3] / "bmad" / "scripts"))
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3] / "hooks" / "scripts"))
 
 from modules import audit as audit_mod  # noqa: E402
 from modules import blackboard as bb  # noqa: E402

@@ -69,7 +69,7 @@ def _plugin_root() -> Path:
 def load_agents(project_root: Path):
     """Installed agents as {code: entry}. Empty dict (with a flag) on failure."""
     root = _plugin_root()
-    script = root / "bmad" / "scripts" / "resolve_config.py"
+    script = root / "hooks" / "scripts" / "resolve_config.py"
     data = _run_json([sys.executable, str(script), "--project-root", str(project_root), "--key", "agents"])
     if data is None:
         return {}, False

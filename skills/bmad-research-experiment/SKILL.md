@@ -72,7 +72,7 @@ import another harness's schema:
 
 ### Step 1: Run the Orientation Digest
 
-Run: `python3 {metodoloji-root}/bmad/scripts/orient.py --project-root {project-root}` — one read-only call, before anything else. It carries both roots, the core config this run reads (`{user_name}`, `{communication_language}`, `{document_output_language}`, `{project_name}`, `{date}` as `today`), every resolved output path, the record inventory, the board's live focus (with a `STALE` flag when a hot run still claims `complete`), the chain's progress, **waiting hand-offs addressed to you**, and skeleton/gate state. Read it once; never re-run it "for clean output" — it is small by construction. On failure, fall through to the config step's neutral defaults.
+Run: `python3 {metodoloji-root}/hooks/scripts/orient.py --project-root {project-root}` — one read-only call, before anything else. It carries both roots, the core config this run reads (`{user_name}`, `{communication_language}`, `{document_output_language}`, `{project_name}`, `{date}` as `today`), every resolved output path, the record inventory, the board's live focus (with a `STALE` flag when a hot run still claims `complete`), the chain's progress, **waiting hand-offs addressed to you**, and skeleton/gate state. Read it once; never re-run it "for clean output" — it is small by construction. On failure, fall through to the config step's neutral defaults.
 
 ### Step 1b: Exploration loop guard (mechanical, not advice)
 
@@ -126,7 +126,7 @@ Activation is complete. If prepend/append steps were non-empty, confirm every en
 
 ### Chain Handshake
 
-This skill opens the methodology relay (E is its first run key), but the relay is a loop: a `bmad-retrospective` run hands its testable lessons back here as the next hypothesis, and a course correction may point at a re-run. Claim that baton before Stage 1: `python3 {metodoloji-root}/bmad/scripts/blackboard.py handoffs --skill bmad-research-experiment --project-root {project-root}` — the signal names the epic whose retrospective produced the lesson; read it first and let it seed the Theory/Hypothesis stages. Then complete the handshake: `python3 {metodoloji-root}/bmad/scripts/blackboard.py consume --channel handoff.bmad-research-experiment --project-root {project-root}` (consume only after the experiment target is chosen — an unconsumed signal keeps the loop's return edge waiting, which is correct when the user starts an unrelated experiment instead). Watch the governance return edge: `python3 {metodoloji-root}/bmad/scripts/blackboard.py subscribe --watcher bmad-research-experiment --pattern "retro.*" --channel session --project-root {project-root}` (a retrospective lesson needing an experiment surfaces at SessionStart; clear with `consume --channel session`).
+This skill opens the methodology relay (E is its first run key), but the relay is a loop: a `bmad-retrospective` run hands its testable lessons back here as the next hypothesis, and a course correction may point at a re-run. Claim that baton before Stage 1: `python3 {metodoloji-root}/hooks/scripts/blackboard.py handoffs --skill bmad-research-experiment --project-root {project-root}` — the signal names the epic whose retrospective produced the lesson; read it first and let it seed the Theory/Hypothesis stages. Then complete the handshake: `python3 {metodoloji-root}/hooks/scripts/blackboard.py consume --channel handoff.bmad-research-experiment --project-root {project-root}` (consume only after the experiment target is chosen — an unconsumed signal keeps the loop's return edge waiting, which is correct when the user starts an unrelated experiment instead). Watch the governance return edge: `python3 {metodoloji-root}/hooks/scripts/blackboard.py subscribe --watcher bmad-research-experiment --pattern "retro.*" --channel session --project-root {project-root}` (a retrospective lesson needing an experiment surfaces at SessionStart; clear with `consume --channel session`).
 
 ## THE EXPERIMENT FLOW (6 stages, gated)
 
@@ -163,9 +163,9 @@ Turn the theory into a **falsifiable hypothesis**:
 - Output: `Hypothesis` + `Measurement Metrics` (metric name + threshold) recorded.
 - **Blackboard run binding:** Once the experiment ID (`E-xxx`) and hypothesis are established, bind the run to the blackboard:
   ```bash
-  python3 {metodoloji-root}/bmad/scripts/blackboard.py write --key E-{experiment-id} --value "in-progress: H-{xxx} <claim>" --type state --hot --project-root {project-root}
-  python3 {metodoloji-root}/bmad/scripts/blackboard.py write --key status --value in-progress --type state --project-root {project-root}
-  python3 {metodoloji-root}/bmad/scripts/blackboard.py write --key scope --value "docs/experiments" --type state --project-root {project-root}
+  python3 {metodoloji-root}/hooks/scripts/blackboard.py write --key E-{experiment-id} --value "in-progress: H-{xxx} <claim>" --type state --hot --project-root {project-root}
+  python3 {metodoloji-root}/hooks/scripts/blackboard.py write --key status --value in-progress --type state --project-root {project-root}
+  python3 {metodoloji-root}/hooks/scripts/blackboard.py write --key scope --value "docs/experiments" --type state --project-root {project-root}
   ```
   The `--hot` flag marks this experiment as the active focus so session start/stop hooks and audit logs trace the run.
 
@@ -388,16 +388,16 @@ python3 {skill-root}/scripts/run_experiment.py --verify --record {project-root}/
 - **Blackboard run close-out (mandatory — do not skip even when the gate already mirrored):**
   - The gate (`{skill-root}/scripts/run_experiment.py --run`, without `--no-blackboard`) already mirrors the decision onto the board automatically: `E-{experiment-id}` run key + (on APPROVED) the hand-off to `bmad-check-implementation-readiness`. Verify the mirror landed — if the gate ran with `--no-blackboard`, on another machine, or the mirror was skipped, bind it by hand:
   - **On APPROVED:** Bind the outcome and post the hand-off signal to implementation readiness (one call):
-    `python3 {metodoloji-root}/bmad/scripts/blackboard.py mirror --key E-{experiment-id} --value "APPROVED: <metric>=<measured> (GATE-OK token verified)" --to bmad-check-implementation-readiness --note "Experiment E-NNN APPROVED — see docs/experiments/E-NNN.md; <one-line what readiness should account for>" --project-root {project-root}`
+    `python3 {metodoloji-root}/hooks/scripts/blackboard.py mirror --key E-{experiment-id} --value "APPROVED: <metric>=<measured> (GATE-OK token verified)" --to bmad-check-implementation-readiness --note "Experiment E-NNN APPROVED — see docs/experiments/E-NNN.md; <one-line what readiness should account for>" --project-root {project-root}`
     (waits in `handoff.bmad-check-implementation-readiness` until a readiness run consumes it — that consumption completes the handshake; repeating the same mirror never duplicates the signal).
   - **On REJECTED:** Confess the outcome honestly on the blackboard (no hand-off is posted to readiness, as unapproved experiments cannot unlock code):
-    `python3 {metodoloji-root}/bmad/scripts/blackboard.py mirror --key E-{experiment-id} --value "REJECTED: <metric>=<measured> failed threshold <threshold> — return to theory" --project-root {project-root}`
+    `python3 {metodoloji-root}/hooks/scripts/blackboard.py mirror --key E-{experiment-id} --value "REJECTED: <metric>=<measured> failed threshold <threshold> — return to theory" --project-root {project-root}`
     (the `E-{experiment-id}` run key is the relay heartbeat: the engine mirrors `methodology.last_experiment` from it automatically — no extra command, and the injected context shows how far the E→IR→SP→S→QR→PR chain progressed).
   - **Intent mirror & close-out check (both outcomes, mandatory):**
     First confirm you are writing to the project's board, not the plugin's: the terminal's working directory must be `{project-root}` (check with `pwd`; the ack's `root` field must equal it). A board that never changes is almost always a wrong-root write.
-    Mirror completion onto the intent bridge: `python3 {metodoloji-root}/bmad/scripts/blackboard.py write --key status --value complete --type state --project-root {project-root}` (the audit trail stamps this intent on every record, and stop skips story checks once progress is `complete`).
-    Clear the blackboard focus: `python3 {metodoloji-root}/bmad/scripts/blackboard.py hot --clear --project-root {project-root}`.
-    Run the close-out diagnostic check: `python3 {metodoloji-root}/bmad/scripts/blackboard.py doctor --json --project-root {project-root}` — waiting hand-off signals are the designed post-close state, not a failure: name them from `signal_warnings` (chain verdict `SIGNAL`). On `NEEDS ATTENTION`, surface the health warnings and resolve or disclose them before exiting.
+    Mirror completion onto the intent bridge: `python3 {metodoloji-root}/hooks/scripts/blackboard.py write --key status --value complete --type state --project-root {project-root}` (the audit trail stamps this intent on every record, and stop skips story checks once progress is `complete`).
+    Clear the blackboard focus: `python3 {metodoloji-root}/hooks/scripts/blackboard.py hot --clear --project-root {project-root}`.
+    Run the close-out diagnostic check: `python3 {metodoloji-root}/hooks/scripts/blackboard.py doctor --json --project-root {project-root}` — waiting hand-off signals are the designed post-close state, not a failure: name them from `signal_warnings` (chain verdict `SIGNAL`). On `NEEDS ATTENTION`, surface the health warnings and resolve or disclose them before exiting.
 - **Next step is derived from the decision:** APPROVED → proceed to delivery (below); REJECTED → "Return to Theory; open a new experiment for a new hypothesis."
 - Summarize honestly to the user: what was measured, what the gate decided, and what happens next.
 

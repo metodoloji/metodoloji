@@ -650,7 +650,7 @@ def _freshness_scan_paths() -> list:
     engine = PLUGIN / "hooks" / "engine"
     return (sorted((engine / "modules").glob("*.py"))
             + [engine / "main.py"]
-            + [PLUGIN / "bmad" / "scripts" / "blackboard.py",
+            + [PLUGIN / "hooks" / "scripts" / "blackboard.py",
                PLUGIN / "skills" / "bmad-research-experiment" / "scripts" / "run_experiment.py"])
 
 

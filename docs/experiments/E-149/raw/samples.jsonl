@@ -1,0 +1,9 @@
+{"check": "the plugin ships no bmad/ tree", "ok": true, "detail": "bmad/ is gone"}
+{"check": "every CLI reproduces its pre-move output", "ok": true, "detail": "48 skills + 7 CLI surfaces identical"}
+{"check": "the digest names the moved catalog", "ok": true, "detail": "orient names the moved catalog and it resolves"}
+{"check": "the workflow kernel imports from its new home", "ok": true, "detail": "hooks.workflow imports; both hook call sites re-pointed"}
+{"check": "the engine shim reaches the moved resolver", "ok": true, "detail": "shim resolves all 48 skills"}
+{"check": "the moved tests sit at their new path", "ok": true, "detail": "7 tests at their new path; testpaths matches"}
+{"check": "catalog data survived the move", "ok": true, "detail": "2 catalogs byte-identical; 3 stale module-help files gone"}
+{"check": "no free-zone verdict shifted outside the moved set", "ok": true, "detail": "13 verdicts held; 1 intended shift(s) inside the moved set"}
+{"check": "no shipped file names the retired tree", "ok": true, "detail": "no live spelling of the retired tree"}

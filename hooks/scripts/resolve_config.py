@@ -426,7 +426,7 @@ def resolve(project_root: Path | str, *, modules=(), keys=()) -> dict:
     # fallback: read when present, always beaten by {project-root}/docs/.
     # E-147: the plugin's bmad/ and custom/ config paths and the
     # {project-root}/bmad/*.toml layer are gone — never read, never created.
-    _script_dir = Path(__file__).resolve().parent  # .../bmad/scripts
+    _script_dir = Path(__file__).resolve().parent  # .../hooks/scripts
     metodoloji_root = _script_dir.parent.parent     # plugin root
     project_output_dir = project_root / "docs"
     legacy_output_dir = project_root / "bmad-output"

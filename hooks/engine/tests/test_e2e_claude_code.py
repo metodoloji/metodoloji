@@ -11,7 +11,7 @@ This test walks the real Claude Code hook workflow end to end:
 4. Restores the environment it borrowed (CLAUDE_PROJECT_DIR)
 
 The role cascade is simulated in-process (the engine is also driven for real by
-hooks/engine/tests and bmad/tests/test_claude_code_simulation.py); this module
+hooks/engine/tests and hooks/engine/tests/test_claude_code_simulation.py); this module
 asserts the workflow shape and the on-disk output, then prints a report.
 """
 
@@ -29,7 +29,7 @@ import pytest
 # Imported so the simulation is checked AGAINST the real engine instead of
 # asserting its own assumptions. Same guard as test_claude_code_simulation.py:
 # skip the module cleanly when the engine cannot be imported on this interpreter.
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "hooks" / "engine"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "hooks" / "engine"))
 try:
     from modules.utils import normalize_hook_input as _engine_normalize
     from modules.blackboard import AlertKind as _AlertKind
@@ -113,7 +113,7 @@ def create_test_project() -> tuple[Path, str]:
     
     # Create directory structure
     (temp_dir / "bmad").mkdir(exist_ok=True)
-    (temp_dir / "bmad" / "bmm" / "workflows" / "research").mkdir(parents=True, exist_ok=True)
+    (temp_dir / "docs" / "planning" / "research").mkdir(parents=True, exist_ok=True)
     (temp_dir / ".metodoloji").mkdir(exist_ok=True)
     (temp_dir / ".metodoloji" / "blackboard").mkdir(exist_ok=True)
     (temp_dir / ".metodoloji" / "logs").mkdir(exist_ok=True)
@@ -137,7 +137,7 @@ status: approved_for_test
 Test hypothesis for E2E workflow validation.
 
 ## Code Scope
-bmad/bmm/workflows/research
+docs/planning/research
 
 ## Measurement Command
 echo "test"
@@ -237,7 +237,7 @@ class BlackboardRoleSimulator:
         # Role #1: Guard detects no valid experiment record
         self.record_event(1, "Cascade Invalidation", {
             "action": "detected_missing_record",
-            "file": "bmad/bmm/workflows/research/test.md",
+            "file": "docs/planning/research/test.md",
             "trigger": "PreToolUse guard check",
         })
         self.post_alert(1, "info", "Write operation detected without valid experiment record")
@@ -270,7 +270,7 @@ class BlackboardRoleSimulator:
         self.record_event(4, "Canvas Integration", {
             "action": "touched_set_lookup",
             "lookup_method": "canvas_O(1)",
-            "files_touched": ["bmad/bmm/workflows/research/test.md"],
+            "files_touched": ["docs/planning/research/test.md"],
             "performance": "1000x faster than replay",
         })
     
@@ -328,7 +328,7 @@ class BlackboardRoleSimulator:
         self.record_event(8, "Diagnostics", {
             "action": "write_diagnostic",
             "diagnostic_type": "guard_decision",
-            "target_file": "bmad/bmm/workflows/research/test.md",
+            "target_file": "docs/planning/research/test.md",
             "decision": "allow_with_warning",
             "reasoning": "Write in free zone or soft gate enabled",
         })
@@ -425,7 +425,7 @@ def test_end_to_end_workflow():
         print("  Tool: Claude Code Edit")
         
         guard_payload = ClaudeCodePayloadGenerator.edit_file(
-            file_path="bmad/bmm/workflows/research/e2e-test.md",
+            file_path="docs/planning/research/e2e-test.md",
             content="# E2E Test File\n\nTesting full workflow.",
             cwd=temp_root_str,
         )
@@ -457,7 +457,7 @@ def test_end_to_end_workflow():
         
         # Step 4: Tool executes
         print("\n[Step 4] Tool Executes (write to file)")
-        target_file = Path(temp_root_str) / "bmad" / "bmm" / "workflows" / "research" / "e2e-test.md"
+        target_file = Path(temp_root_str) / "docs" / "planning" / "research" / "e2e-test.md"
         target_file.parent.mkdir(parents=True, exist_ok=True)
         target_file.write_text("# E2E Test File\n\nTesting full workflow.")
         print(f"  ✓ File written: {target_file}")

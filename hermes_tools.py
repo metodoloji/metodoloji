@@ -4,8 +4,8 @@ Four deterministic entry points. Each one shells out to a script the plugin
 already ships — none of them re-implements methodology logic, so the CLI and
 the agent can never disagree about what "APPROVED" or "HEALTHY" means:
 
-    metodoloji_orient   bmad/scripts/orient.py --json        (read-only digest)
-    metodoloji_init     bmad/scripts/skeleton.py --install   (idempotent)
+    metodoloji_orient   hooks/scripts/orient.py --json        (read-only digest)
+    metodoloji_init     hooks/scripts/skeleton.py --install   (idempotent)
     metodoloji_verify   skills/bmad-research-experiment/scripts/run_experiment.py
     metodoloji_audit    scripts/check-plugin.sh              (optional, slow)
 
@@ -155,7 +155,7 @@ def _run(argv_script: str, argv: list[str], *, cwd: str, timeout: float = 60.0) 
 def handle_orient(params: dict, **kwargs) -> str:
     del kwargs
     cwd = str(params.get("project_root") or agent_cwd())
-    proc = _run("bmad/scripts/orient.py", ["--json", "--project-root", cwd], cwd=cwd)
+    proc = _run("hooks/scripts/orient.py", ["--json", "--project-root", cwd], cwd=cwd)
     if not proc.get("success"):
         return _json({"success": False, "project_root": cwd, **proc})
     try:
@@ -171,7 +171,7 @@ def handle_init(params: dict, **kwargs) -> str:
     argv = ["--install", "--project-root", cwd, "--json"]
     if params.get("force"):
         argv.append("--force")
-    proc = _run("bmad/scripts/skeleton.py", argv, cwd=cwd, timeout=90.0)
+    proc = _run("hooks/scripts/skeleton.py", argv, cwd=cwd, timeout=90.0)
     if not proc.get("success"):
         return _json({"success": False, "project_root": cwd, **proc})
     try:
@@ -241,7 +241,7 @@ def handle_audit(params: dict, **kwargs) -> str:
     scope = str(params.get("scope") or "records")
 
     if scope != "full":
-        proc = _run("bmad/scripts/orient.py", ["--json", "--project-root", cwd], cwd=cwd)
+        proc = _run("hooks/scripts/orient.py", ["--json", "--project-root", cwd], cwd=cwd)
         if not proc.get("success"):
             return _json({"success": False, "project_root": cwd, **proc})
         try:

@@ -37,7 +37,7 @@ triggers: ["bmad-retrospective", "/bmad-retrospective", "retrospective", "run a 
 
 ### Step 1: Run the Orientation Digest
 
-Run: `python3 {metodoloji-root}/bmad/scripts/orient.py --project-root {project-root}` — one read-only call, before anything else. It carries both roots, the core config this run reads (`{user_name}`, `{communication_language}`, `{document_output_language}`, `{project_name}`, `{date}` as `today`), every resolved output path, the record inventory, the board's live focus (with a `STALE` flag when a hot run still claims `complete`) and **waiting hand-offs addressed to you**, and skeleton/gate state. Read it once; never re-run it "for clean output" — it is small by construction. On failure, fall through to the config step's neutral defaults.
+Run: `python3 {metodoloji-root}/hooks/scripts/orient.py --project-root {project-root}` — one read-only call, before anything else. It carries both roots, the core config this run reads (`{user_name}`, `{communication_language}`, `{document_output_language}`, `{project_name}`, `{date}` as `today`), every resolved output path, the record inventory, the board's live focus (with a `STALE` flag when a hot run still claims `complete`) and **waiting hand-offs addressed to you**, and skeleton/gate state. Read it once; never re-run it "for clean output" — it is small by construction. On failure, fall through to the config step's neutral defaults.
 
 ### Step 2: Resolve the Workflow Block
 
@@ -61,7 +61,7 @@ Treat every entry in `{workflow.persistent_facts}` as foundational context you c
 
 ### Step 5: Load Config
 
-**Config comes from the digest** (Step 1). Only a key it genuinely lacks needs a targeted read: `python3 {metodoloji-root}/bmad/scripts/resolve_config.py --project-root {project-root} --key <dotted.path>` — the targeted shape survives the transport; **never the full merged dump**. Resolve:
+**Config comes from the digest** (Step 1). Only a key it genuinely lacks needs a targeted read: `python3 {metodoloji-root}/hooks/scripts/resolve_config.py --project-root {project-root} --key <dotted.path>` — the targeted shape survives the transport; **never the full merged dump**. Resolve:
 
 - `project_name`, `user_name`
 - `communication_language`, `document_output_language`
@@ -96,7 +96,7 @@ Activation is complete. If `activation_steps_prepend` or `activation_steps_appen
 
 ## Required Inputs
 
-- `agent_roster` = resolved via `python3 {metodoloji-root}/bmad/scripts/resolve_config.py --project-root {project-root} --key agents` (merges four plugin layers then four `{project-root}` layers — project values win)
+- `agent_roster` = resolved via `python3 {metodoloji-root}/hooks/scripts/resolve_config.py --project-root {project-root} --key agents` (merges four plugin layers then four `{project-root}` layers — project values win)
 
 ## Execution
 
@@ -1506,7 +1506,7 @@ Alice (Product Owner): "See you at epic planning!"
 Charlie (Senior Dev): "Time to knock out that prep work."
 
 </output>
-<action>If the retrospective produced lessons that imply a new falsifiable claim, close the loop — turn them into the next hypothesis (one call): `python3 {metodoloji-root}/bmad/scripts/blackboard.py mirror --key retro.{{epic_number}} --value "Retrospective complete — {{total_action_count}} action items" --to bmad-research-experiment --note "Epic {{epic_number}} retrospective — <the lesson that needs an experiment>; open an experiment record before building on it" --project-root {project-root}`. This is the hop that closes E→IR→SP→S→QR→PR back onto E, so the next experiment run opens already knowing what the retro learned. Repeating the same mirror never duplicates the waiting signal; it waits in `handoff.bmad-research-experiment` until a research-experiment run consumes it. A retrospective with no testable lesson leaves the hop silent — say so plainly instead of padding the note.</action>
+<action>If the retrospective produced lessons that imply a new falsifiable claim, close the loop — turn them into the next hypothesis (one call): `python3 {metodoloji-root}/hooks/scripts/blackboard.py mirror --key retro.{{epic_number}} --value "Retrospective complete — {{total_action_count}} action items" --to bmad-research-experiment --note "Epic {{epic_number}} retrospective — <the lesson that needs an experiment>; open an experiment record before building on it" --project-root {project-root}`. This is the hop that closes E→IR→SP→S→QR→PR back onto E, so the next experiment run opens already knowing what the retro learned. Repeating the same mirror never duplicates the waiting signal; it waits in `handoff.bmad-research-experiment` until a research-experiment run consumes it. A retrospective with no testable lesson leaves the hop silent — say so plainly instead of padding the note.</action>
 <action>Run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --project-root {project-root} --key workflow.on_complete` — use your harness-native shell tool with the command as given (no extra wrapper params) — if the resolved value is non-empty, follow it as the final terminal instruction before exiting.</action>
 </step>
 

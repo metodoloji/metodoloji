@@ -36,7 +36,7 @@ import sys
 import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-RESOLVER = ROOT / "bmad" / "scripts" / "resolve_config.py"
+RESOLVER = ROOT / "hooks" / "scripts" / "resolve_config.py"
 BASELINE = ROOT / "scripts" / "bench" / "fixtures" / "config-baseline.json"
 CONFIG = ROOT / "config.toml"
 PREFIX_REV = "7249e5b"  # the E-146 commit: the last reader that honoured the retired paths
@@ -82,7 +82,7 @@ def _prefix_resolver() -> pathlib.Path:
         capture_output=True, text=True, encoding="utf-8", stdin=subprocess.DEVNULL)
     if out.returncode != 0:
         raise RuntimeError(f"cannot read {PREFIX_REV}:bmad/scripts/resolve_config.py")
-    tmp = pathlib.Path(tempfile.mkdtemp()) / "bmad" / "scripts"
+    tmp = pathlib.Path(tempfile.mkdtemp()) / "hooks" / "scripts"
     tmp.mkdir(parents=True)
     target = tmp / "resolve_config.py"
     target.write_text(out.stdout, encoding="utf-8")
@@ -171,7 +171,7 @@ def _case_no_retired_reference() -> tuple[bool, str]:
     retired = RETIRED_PATHS
     me = pathlib.Path(__file__).resolve()
     hits = []
-    for pattern in ("bmad/scripts/*.py", "hooks/engine/*.py", "hooks/engine/modules/*.py",
+    for pattern in ("hooks/scripts/*.py", "hooks/engine/*.py", "hooks/engine/modules/*.py",
                     "hooks/scripts/*.sh", "scripts/*.py", "scripts/*.sh"):
         for path in ROOT.glob(pattern):
             if path.resolve() == me:
@@ -195,7 +195,7 @@ def _case_retired_files_are_inert() -> tuple[bool, str]:
         base = pathlib.Path(td)
         plugin, project = base / "plugin", base / "project"
         for root in (plugin, project):
-            (root / "bmad" / "scripts").mkdir(parents=True)
+            (root / "hooks" / "scripts").mkdir(parents=True)
             (root / "custom").mkdir()
         (plugin / "hooks" / "engine" / "modules").mkdir(parents=True)
         hostile = ('[core]\nproject_name = "retired-probe"\n'
@@ -207,7 +207,7 @@ def _case_retired_files_are_inert() -> tuple[bool, str]:
             '[core]\nproject_name = "owner-probe"\n[hooks]\ncode_guard = "hard"\n',
             encoding="utf-8")
 
-        resolver = plugin / "bmad" / "scripts" / "resolve_config.py"
+        resolver = plugin / "hooks" / "scripts" / "resolve_config.py"
         engine_cfg = plugin / "hooks" / "engine" / "modules" / "config.py"
         if BROKEN:
             import shutil as _shutil

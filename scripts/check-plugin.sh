@@ -1120,7 +1120,7 @@ except Exception:
 # not exempt any more: the engine's own free-zone rule already releases the
 # plugin source trees here (hooks/, scripts/, skills/ — self-
 # modification), so tracking a manifest still costs nothing, while a genuinely
-# GATED path (bmad/scripts/**, any consumer repo) is now caught in-tree too.
+# GATED path (a consumer repo's own files) is still caught in-tree too.
 try:
     from modules.utils import _project_is_methodology_root as _dogfood_root  # noqa: E402
     if _dogfood_root():
@@ -1634,9 +1634,9 @@ INIT_MARKER="$PROJECT_ROOT/.metodoloji/initialized"
 # command substitution leaves every token but the last with a trailing CR and
 # `[ -f "$PROJECT_ROOT/$f" ]` can never match it — measured 2026-10-15, the
 # probe set read as "not installed" on a project holding the first probe (E-048).
-SKELETON_PROBE_LIST=$("$PY" "$PLUGIN_ROOT/bmad/scripts/skeleton.py" --probe-paths 2>/dev/null | tr -d '\r' || true)
+SKELETON_PROBE_LIST=$("$PY" "$PLUGIN_ROOT/hooks/scripts/skeleton.py" --probe-paths 2>/dev/null | tr -d '\r' || true)
 if [ -z "$SKELETON_PROBE_LIST" ]; then
-    echo "[ERROR] cannot read the skeleton probe set (bmad/scripts/skeleton.py --probe-paths)"
+    echo "[ERROR] cannot read the skeleton probe set (hooks/scripts/skeleton.py --probe-paths)"
     PROBLEMS=$((PROBLEMS + 1))
 fi
 SKELETON_PRESENT=0
@@ -1661,27 +1661,27 @@ fi
 
 # Every other shipped restatement of the same contract — the init runbook's
 # directory list and template table, the session-start probe loop — must still
-# agree with bmad/scripts/skeleton.py, which is the only canonical owner (the
+# agree with hooks/scripts/skeleton.py, which is the only canonical owner (the
 # probe set above is derived from it precisely so it cannot drift again).
-DECLARATION_REPORT=$("$PY" "$PLUGIN_ROOT/bmad/scripts/skeleton.py" --audit-declarations 2>&1)
+DECLARATION_REPORT=$("$PY" "$PLUGIN_ROOT/hooks/scripts/skeleton.py" --audit-declarations 2>&1)
 DECLARATION_RC=$?
 if [ "$DECLARATION_RC" -eq 0 ]; then
     echo "[OK]   $DECLARATION_REPORT"
 else
     printf '%s\n' "$DECLARATION_REPORT" | sed 's/^/        /'
-    echo "[ERROR] skeleton contract declarations drifted from bmad/scripts/skeleton.py"
+    echo "[ERROR] skeleton contract declarations drifted from hooks/scripts/skeleton.py"
     PROBLEMS=$((PROBLEMS + 1))
 fi
 
-echo "== 6d2) Command→script reference integrity (commands/*.md ↔ bmad/scripts/*.py) =="
+echo "== 6d2) Command→script reference integrity (commands/*.md ↔ hooks/scripts/*.py) =="
 # A real session hit this: the installed plugin served a NEW commands/init.md
-# (skeleton.py contract) over an OLD plugin tree without bmad/scripts/skeleton.py,
-# so init fell back to a hand copy. Every bmad/scripts/*.py a command names must
+# (skeleton.py contract) over an OLD plugin tree without hooks/scripts/skeleton.py,
+# so init fell back to a hand copy. Every hooks/scripts/*.py a command names must
 # exist in the plugin tree — otherwise the command's contract is unexecutable.
 REFS_OK=1
 for cmd in "$PLUGIN_ROOT"/commands/*.md; do
     # shellcheck disable=SC2013
-    for ref in $(grep -o 'bmad/scripts/[A-Za-z0-9_.-]*\.py' "$cmd" 2>/dev/null | sort -u); do
+    for ref in $(grep -o 'hooks/scripts/[A-Za-z0-9_.-]*\.py' "$cmd" 2>/dev/null | sort -u); do
         if [ ! -f "$PLUGIN_ROOT/$ref" ]; then
             echo "[ERROR] $(basename "$cmd") references $ref but it is missing from the plugin tree"
             PROBLEMS=$((PROBLEMS + 1))
@@ -1745,7 +1745,7 @@ else
 fi
 
 echo "== 6e) Help catalog integrity (columns, code collisions, code vocabulary) =="
-# bmad-help routes on bmad/_config/bmad-help.csv, and a real session showed what
+# bmad-help routes on skills/bmad-help/references/bmad-help.csv, and a real session showed what
 # a sloppy catalog costs: with `Core/bmad-spec` wearing the code SP, the help
 # output offered "[SP] Sprint Planning" while SP is also this methodology's own
 # Sprint-Plan record prefix, and 23 codes are shared across modules (CU/CS/DS…),
@@ -1756,7 +1756,7 @@ echo "== 6e) Help catalog integrity (columns, code collisions, code vocabulary) 
 import collections, csv, os, sys
 from pathlib import Path
 PLUGIN = Path(os.environ.get("PLUGIN_ROOT") or ".")
-CATALOG = PLUGIN / "bmad" / "_config" / "bmad-help.csv"
+CATALOG = PLUGIN / "skills" / "bmad-help" / "references" / "bmad-help.csv"
 HEADER = ["module", "skill", "display-name", "menu-code", "description", "action",
           "args", "phase", "preceded-by", "followed-by", "required",
           "output-location", "outputs"]

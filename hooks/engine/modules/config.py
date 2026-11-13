@@ -150,7 +150,7 @@ SCOPE_GIT_TIMEOUT_SECONDS = 8
 #
 # NOTE (deliberate): this reads the plugin's own config, NOT the
 # bmad resolve_config.py merge (plugin + {project-root} layers, plus the legacy
-# per-module config.yaml bridge — see bmad/scripts/resolve_config.py). Hook
+# per-module config.yaml bridge — see hooks/scripts/resolve_config.py). Hook
 # enforcement is plugin policy, not project configuration: the layers above let
 # a PROJECT override its own behavior, but a target project must never be able
 # to silently relax the guard that watches it. There is currently no
@@ -465,9 +465,9 @@ FREE_PREFIXES = (
 # Plugin source trees that are free ONLY when the plugin root resolves to the
 # methodology root (i.e. this repository running as its own project). Resolved
 # per-call in utils.is_free(); under test it is monkeypatched via config._METHODOLOGY_ROOT.
-# bmad/tests/ is test tooling, not methodology content: the gate's own tests
-# cannot sit behind experiment approval (circularity — the gate could never be
-# tested without the gate's permission). bmad/ workflows stay gated.
+# E-149: bmad/ is gone, so there is no gated plugin tree left to special-case.
+# Every plugin source tree — code, kernel and the gate's own tests — is free
+# in self-modification and gated in an ordinary project.
 #
 # opencode-plugin/ is the third runtime's source tree (the same kind of surface
 # as hooks//scripts//skills/ — it just arrived later) and .githooks//.github/
@@ -475,7 +475,7 @@ FREE_PREFIXES = (
 # dogfood run of check-plugin §3b measured them as "edited files outside every
 # approved scope": the check had never run inside this repo (F-05), so the
 # omission was invisible. With the check live, the free zone has to name them.
-PLUGIN_FREE_PREFIXES = ("hooks/", "scripts/", "skills/", "bmad/tests/",
+PLUGIN_FREE_PREFIXES = ("hooks/", "scripts/", "skills/",
                         "opencode-plugin/", ".githooks/", ".github/", "assets/")
 
 # Root-level plugin SOURCE FILES with no tree of their own — the same class as

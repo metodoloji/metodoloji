@@ -137,7 +137,7 @@ def doctor(project_root: str, *, post: bool = False) -> dict:
         warnings.append(f"event log at bound ({lines}/{MAX_EVENTS} lines) — "
                         "oldest events were already dropped by the truncation "
                         f"guard; archive history with "
-                        f"`{_plugin_cmd('bmad/scripts/blackboard.py', 'rotate')}`")
+                        f"`{_plugin_cmd('hooks/scripts/blackboard.py', 'rotate')}`")
 
     # caps
     cells_per_canvas = {name: len(cv.get("cells", {}))

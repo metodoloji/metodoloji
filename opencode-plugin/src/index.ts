@@ -148,7 +148,7 @@ export default Plugin.define({
           "Run the methodology blackboard health check (doctor --json) for the current project.",
         input: { type: "object", properties: {}, additionalProperties: false },
         async execute() {
-          const result = runPluginScript("bmad/scripts/blackboard.py", [
+          const result = runPluginScript("hooks/scripts/blackboard.py", [
             "doctor",
             "--json",
             "--project-root",

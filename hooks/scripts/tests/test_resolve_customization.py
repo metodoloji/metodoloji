@@ -1,4 +1,4 @@
-"""Tests for bmad/scripts/resolve_customization.py — F3 merge-rule goldens.
+"""Tests for hooks/scripts/resolve_customization.py — F3 merge-rule goldens.
 
 Locks the three-layer merge contract (base -> team -> user):
 scalar override, table deep-merge, keyed array merge (code|id),
@@ -14,8 +14,8 @@ import sys
 from pathlib import Path
 
 _SCRIPT = (
-    Path(__file__).resolve().parent.parent.parent
-    / "bmad" / "scripts" / "resolve_customization.py"
+    Path(__file__).resolve().parents[3]
+    / "hooks" / "scripts" / "resolve_customization.py"
 )
 _spec = importlib.util.spec_from_file_location("resolve_customization", _SCRIPT)
 rc = importlib.util.module_from_spec(_spec)

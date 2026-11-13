@@ -22,7 +22,7 @@ triggers: ["bmad-help", "/bmad-help", "help"]
 ## Data Sources — start with the digest
 
 ```sh
-python3 {metodoloji-root}/bmad/scripts/orient.py --project-root {project-root}
+python3 {metodoloji-root}/hooks/scripts/orient.py --project-root {project-root}
 ```
 
 One read-only call returns everything routing needs: both roots, core config and
@@ -102,9 +102,9 @@ mechanical rule, not advice:
 
 Then, only if a specific field is still missing:
 
-- **Config**: `python3 {metodoloji-root}/bmad/scripts/resolve_config.py --project-root {project-root} --key <dotted.path>` (repeatable). **Never a module dump and never the full dump** — the full one arrives truncated, and re-running it is the loop the digest exists to end.
+- **Config**: `python3 {metodoloji-root}/hooks/scripts/resolve_config.py --project-root {project-root} --key <dotted.path>` (repeatable). **Never a module dump and never the full dump** — the full one arrives truncated, and re-running it is the loop the digest exists to end.
 - **Waiting batons**: the digest's `handoff` section; for the raw list, `blackboard.py handoffs --project-root {project-root}` (read-only peek — consuming is the receiving skill's step, not help's).
-- **Catalog**: `{metodoloji-root}/bmad/_config/bmad-help.csv` — read it only for rows the digest's summary cannot answer, and read `references/catalog.md` for the column, phase, sequencing, completion-detection and menu-code semantics.
+- **Catalog**: `{metodoloji-root}/skills/bmad-help/references/bmad-help.csv` — read it only for rows the digest's summary cannot answer, and read `references/catalog.md` for the column, phase, sequencing, completion-detection and menu-code semantics.
 - **Module docs**: `_meta` rows carry a doc URL/path per module; fetch those to answer general questions.
 
 ## Purpose

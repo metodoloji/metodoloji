@@ -7,16 +7,16 @@ to do now, and — only with real evidence — records a stage complete and
 computes the next one.
 
 Usage:
-    python3 bmad/scripts/workflow.py validate --spec FILE
-    python3 bmad/scripts/workflow.py create  (--spec FILE | --builtin ID) [--slug S] [--force]
-    python3 bmad/scripts/workflow.py list
-    python3 bmad/scripts/workflow.py status   [--slug S]
-    python3 bmad/scripts/workflow.py next      [--slug S]
-    python3 bmad/scripts/workflow.py complete --stage ID [--note TEXT] [--force] [--slug S]
-    python3 bmad/scripts/workflow.py block    --reason TEXT [--slug S]
-    python3 bmad/scripts/workflow.py resume    [--slug S]
-    python3 bmad/scripts/workflow.py flag     --key K --value V [--slug S]
-    python3 bmad/scripts/workflow.py history   [--slug S]
+    python3 hooks/scripts/workflow.py validate --spec FILE
+    python3 hooks/scripts/workflow.py create  (--spec FILE | --builtin ID) [--slug S] [--force]
+    python3 hooks/scripts/workflow.py list
+    python3 hooks/scripts/workflow.py status   [--slug S]
+    python3 hooks/scripts/workflow.py next      [--slug S]
+    python3 hooks/scripts/workflow.py complete --stage ID [--note TEXT] [--force] [--slug S]
+    python3 hooks/scripts/workflow.py block    --reason TEXT [--slug S]
+    python3 hooks/scripts/workflow.py resume    [--slug S]
+    python3 hooks/scripts/workflow.py flag     --key K --value V [--slug S]
+    python3 hooks/scripts/workflow.py history   [--slug S]
 
 Every command prints JSON and exits 0 on success, 1 on a refusal. All commands
 accept --project-root R (default: cwd).
@@ -34,8 +34,8 @@ _ROOT = os.path.dirname(os.path.dirname(_HERE))  # repo root
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
-from bmad.workflow import engine  # noqa: E402
-from bmad.workflow import spec as spec_mod  # noqa: E402
+from hooks.workflow import engine  # noqa: E402
+from hooks.workflow import spec as spec_mod  # noqa: E402
 
 
 def _emit(obj: dict) -> int:
@@ -44,7 +44,7 @@ def _emit(obj: dict) -> int:
 
 
 def _builtin_dir() -> str:
-    return os.path.join(_ROOT, "bmad", "workflow", "builtin")
+    return os.path.join(_ROOT, "hooks", "workflow", "builtin")
 
 
 def _resolve_slug(root: str, slug: str | None) -> str | None:

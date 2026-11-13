@@ -49,8 +49,8 @@ def _make_project(stories=(), records=()):
 # git repo, so the verdict depends on nothing outside it.
 
 SCOPE_FIXTURE_KEY = "scope-fixture-key"
-SCOPE_FIXTURE_PROBE = "bmad/scripts/scope_probe_fake.py"
-SCOPE_FIXTURE_EDITED = "bmad/scripts/baseline_fixture.py"
+SCOPE_FIXTURE_PROBE = "lib/scope_probe_fake.py"
+SCOPE_FIXTURE_EDITED = "lib/baseline_fixture.py"
 
 
 def _fixture_git(args, cwd):
@@ -107,7 +107,7 @@ def _scope_repo(tmp_path, monkeypatch, scope=None, probe=SCOPE_FIXTURE_PROBE,
     monkeypatch.setenv("BMAD_GATE_KEY", SCOPE_FIXTURE_KEY)
     root = tmp_path / "scope-repo"
     (root / "docs" / "experiments").mkdir(parents=True)
-    (root / "bmad" / "scripts").mkdir(parents=True)
+    (root / "lib").mkdir(parents=True)
     (root / "README.md").write_text("baseline\n", encoding="utf-8")
     (root / SCOPE_FIXTURE_EDITED).write_text("# baseline\n", encoding="utf-8")
     _fixture_git(["init", "-q"], root)
@@ -1555,7 +1555,7 @@ def test_guard_board_write_command_allowed(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "hook_gate_mode", lambda key: "hard")
     monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
     monkeypatch.delenv("OPENHANDS_PROJECT_DIR", raising=False)
-    cmd = ('python "C:/plugins/metodoloji/1.2.4/bmad/scripts/blackboard.py" '
+    cmd = ('python "C:/plugins/metodoloji/1.2.4/hooks/scripts/blackboard.py" '
            'write --key prd.x.pending --value complete')
     res = guard({"tool_name": "terminal", "tool_input": {"command": cmd}})
     assert res["decision"] == "allow"
@@ -1920,6 +1920,8 @@ def test_quality_warns_on_scope_miss_at_commit_time(tmp_path, monkeypatch):
                         lambda *a, **k: {"ok": True})
     # Fixture: an APPROVED record exists, but its scope covers neither the
     # untracked probe nor the modified tracked file (both are reported).
+    # E-149: the scope names a DIFFERENT protected tree than the fixture lives
+    # in — a scope equal to the fixture's own tree would silently cover it.
     root = _scope_repo(tmp_path, monkeypatch, scope="src/**", edit_tracked=True)
     res = g.quality({"tool_name": "terminal",
                      "tool_input": {"command": "git commit -m 'x'"},
@@ -1962,7 +1964,7 @@ def test_scope_coverage_clean_tree_has_no_warning(tmp_path, monkeypatch):
     monkeypatch.setattr(g, "_check_qr_table_coherence",
                         lambda root, action: {"decision": "allow"})
     # (a) nothing edited at all
-    clean = _scope_repo(tmp_path, monkeypatch, scope="bmad/scripts/**", probe=None)
+    clean = _scope_repo(tmp_path, monkeypatch, scope="lib/**", probe=None)
     res = g.quality({"tool_name": "terminal",
                      "tool_input": {"command": "git commit -m 'x'"},
                      "cwd": str(clean)})
@@ -1970,7 +1972,7 @@ def test_scope_coverage_clean_tree_has_no_warning(tmp_path, monkeypatch):
                    for w in res.get("methodology_warnings", []))
     # (b) an edit inside the approved scope
     covered = _scope_repo(tmp_path / "covered", monkeypatch,
-                          scope="bmad/scripts/**", edit_tracked=True)
+                          scope="lib/**", edit_tracked=True)
     res2 = g.quality({"tool_name": "terminal",
                       "tool_input": {"command": "git commit -m 'x'"},
                       "cwd": str(covered)})
@@ -2019,7 +2021,7 @@ def test_scope_coverage_retry_recovers_from_transient_oserror(tmp_path, monkeypa
                 self.stdout = s
         state["attempts"] += 1
         if "diff" in args:
-            return Out("bmad/scripts/scope_probe_fake.py\n")
+            return Out("lib/scope_probe_fake.py\n")
         return Out("")  # untracked: file gets added to diff below
 
     monkeypatch.setattr(sp, "run", flaky)

@@ -480,7 +480,7 @@ Check .env hygiene: .env must not be tracked, .env.example must exist, and
 | `Everything is denied with exit 2.` | Python ≥3.11 ve motor yolunu kontrol et (`hooks/engine/main.py` + `modules/`) — fail-closed: bozuk motor her şeyi engeller |
 | `This record says FORGED.` | elle düzenleme mi, başka makine mi: yeniden üret **ya da** kendi anahtarınla yeni kayıtla `Re-Measured-By` prosedürü |
 | `Tokens are FORGED only inside WSL (or only in PowerShell).` | iki ev arasında tek anahtarı senkronla — `--init-secret` iki kez asla |
-| `init says already installed but there is no skeleton.` | bozuk init: tek seferlik onarım `python3 {metodoloji-root}/bmad/scripts/skeleton.py --install` |
+| `init says already installed but there is no skeleton.` | bozuk init: tek seferlik onarım `python3 {metodoloji-root}/hooks/scripts/skeleton.py --install` |
 | `The stop report appears twice.` | yinelenen Stop kaydı → `/hooks` ile birini kaldır |
 | `Claude reports "2 async PostToolUse hooks completed".` | yinelenen eklenti kurulumu: manifest + manuel `settings.json` girişi + eski cache |
 | `hooks.json does not match.` | `python3 scripts/sync-hooks-json.py --write` ile yeniden üret |

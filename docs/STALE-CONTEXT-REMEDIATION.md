@@ -128,7 +128,7 @@ Her bulgu: **iddia → kanıt (file:line) → sonuç → şiddet**.
 ### F-13 — İkinci bir sınıf: kayıt dışı kalıcı durumlar
 
 - `.metodoloji/relay-note.state` (digest + ts) — throttle durumu; tazelikle ilgisi yok ama kalıcı bir "en son ne duyurdum" hafızası (F-10).
-- `bmad/workflow/*.state.json` + `events.jsonl` (`bmad/workflow/store.py:12-14`) — çalışma zamanı durumu; `_check_evidence` `artifact`/`command exit 0`/`note` kabul eder (`engine.py:354-421`) ve **evidence'ın ne zaman/kimin tarafından üretildiğine dair kod-durumu bağı yoktur**: bir `artifact` kanıtı, artefakt dosyası değiştikten sonra da "kanıt" sayılmaya devam eder.
+- `hooks/workflow/*.state.json` + `events.jsonl` (`hooks/workflow/store.py:12-14`) — çalışma zamanı durumu; `_check_evidence` `artifact`/`command exit 0`/`note` kabul eder (`engine.py:354-421`) ve **evidence'ın ne zaman/kimin tarafından üretildiğine dair kod-durumu bağı yoktur**: bir `artifact` kanıtı, artefakt dosyası değiştikten sonra da "kanıt" sayılmaya devam eder.
 - **Sonuç:** freshness açığı yalnız board'da değil; kayıt dışı üç ayrı kalıcı durumda da aynı. **Kapanış (17.10.2026):** `artifact` kanıtı sahiplenildi — E-055 (baseline, measured=1.0) → E-056 (fix, measured=0.0); `command` kanıtı da tarihlendi — E-063 (baseline, measured=1.0) → E-064 (fix, measured=0.0); ayrıntı §13. `relay-note.state` hâlâ işaretli.
 
 ### F-14 — Provenance katmanında da üçüncü hâl yok: "doğrulanamadı" yerine "FORGED" (YÜKSEK)
@@ -231,7 +231,7 @@ Instance'lar farklı, kök nedenler beş tane:
 | `quality` / `deploy` | zincir kontrolüne tazelik satırı eklenir (rapor; `deny` modunda blok) |
 | `stop` | rapor "bu oturumda yazılanlar"a ek olarak "bu oturumda emekliye ayrılanlar"ı listeler |
 
-### 5.4 CLI (`bmad/scripts/blackboard.py`)
+### 5.4 CLI (`hooks/scripts/blackboard.py`)
 
 ```
 handoffs [--skill S] [--freshness]   # verdict + yaş sütunu
@@ -284,14 +284,14 @@ max_digest_files = 2000   # bounded; üstünde UNKNOWN + neden
 
 ### P2 — Okuma yolu (en yüksek fayda / en düşük risk)
 
-- **Dosyalar:** `audit.py` (session_start), `blackboard.py` (`pending_handoffs`, `pending_handoff_channels`, `recent_handoffs`, `chain_health`, `doctor`), `bmad/scripts/blackboard.py` (CLI).
+- **Dosyalar:** `audit.py` (session_start), `blackboard.py` (`pending_handoffs`, `pending_handoff_channels`, `recent_handoffs`, `chain_health`, `doctor`), `hooks/scripts/blackboard.py` (CLI).
 - **Çıktı:** her sinyal/anahtar `verdict` taşır; inject verdict + yaş basar; `STALE` "canlı iş" diye duyurulmaz.
 - **Kabul (ölçülebilir):** canlı board'da 11 baton artık `STALE (age 1.8d)` olarak enjekte edilir; enjekte metinde "nobody picked up the baton" ifadesi `STALE` için geçmez; `CURRENT` sinyal için metin **değişmez** (gereksiz gürültü yok).
 - **Risk düşük:** salt-okuma; hiçbir davranışı bloke etmez.
 
 ### P3 — Emeklilik / retirement protokolü
 
-- **Dosyalar:** `blackboard.py` (`retire` event, `_apply_event`, `handoff-replace` kardeşi), `bmad/scripts/blackboard.py` (`handoff --retire`), `mirror.py`.
+- **Dosyalar:** `blackboard.py` (`retire` event, `_apply_event`, `handoff-replace` kardeşi), `hooks/scripts/blackboard.py` (`handoff --retire`), `mirror.py`.
 - **Çıktı:** bir sinyal/anahtar "artık geçerli değil" olarak işaretlenir; `ts` korunur; `pending_*` onu canlı döndürmez; `retire` event'i replay'de de aynı sonucu verir (drift-free).
 - **Cascade:** `Re-Measured-By` ile süpersede olan kayda atıfta bulunan sinyaller `CASCADE_INVALIDATION` ile işaretlenir — **F-06 burada gerçekten bağlanır.**
 - **Kabul:** emekli sinyal `pending_handoffs`'ta görünmez; snapshot silinip event log'dan yeniden kurulduğunda **aynı** sonuç; `--negtest` retire event'i bozunca kırmızı.
@@ -377,7 +377,7 @@ kapsam altında toplandı; kod her yerde bu kayda atıf yapar).
 | **P2** okuma yolu | ✅ | `audit.session_start` inject'i verdict+yaş basar; `blackboard.pending_handoffs` / `pending_handoff_channels` / `recent_handoffs` / `chain_health` / `doctor` verdict taşır; CLI `handoffs --freshness --only-current`. Bench: `stale_delivery_rate=0.0`, `false_alarm_rate=0.0` |
 | **P3** emeklilik | ✅ | `retire` event + `retired_map`, CLI `handoff-retire`; `stop` raporu "bu oturumda emekliye ayrılanlar"ı listeler; `CASCADE_INVALIDATION` `Re-Measured-By`'den türetilir |
 | **P4** kayıt-tarafı witness | ✅ | `templates/_template_E.md` + `docs/experiments/_template.md` `Witness:` alanı; `run_experiment.py` yazar + HMAC'e bağlar, `verify()` gövdeden türetir (oynanırsa FORGED); `guard.find_approved` tazelik verdict'ini raporlar/bloke eder |
-| **P5** monoton birleşim | ✅ | `scripts/check-plugin.sh` §3b dogfood'da da koşar, bayat kapsamı işaretler; E-053 kapsamı `bmad/scripts/blackboard.py`'yi kapsar (MISS kapandı) |
+| **P5** monoton birleşim | ✅ | `scripts/check-plugin.sh` §3b dogfood'da da koşar, bayat kapsamı işaretler; E-053 kapsamı `hooks/scripts/blackboard.py`'yi kapsar (MISS kapandı) |
 | **P6** hijyen | ✅ | `cascade_warnings` bağlandı, `invalidate_verify_cache` silindi, `AlertKind` taksonomisi türetilir, `docs/BLACKBOARD.md` atıfları kaldırıldı; `templates/tech-debt.md` ↔ canlı envanter senkron |
 | **P7** self-check | ✅ | `scripts/check-handoff.py --freshness-only` (= check-plugin §6h) üretici↔tüketici sözleşmesini ağaçtan türetir: 2 producer / 18 consumer / ham-uyarı okuyucusu yok |
 
@@ -391,7 +391,7 @@ kapsam altında toplandı; kod her yerde bu kayda atıf yapar).
 `--freshness` bayrağına gerek yok). `handoff --retire` yerine ayrı bir `handoff-retire` komutu
 seçildi (alt-komut ayrıştırıcısı daha net; devam eden testler bu adı kullanır).
 
-**Bilinçli kalan (kapsam dışı, §10):** `bmad/workflow` evidence'ı ve `relay-note.state` işaretlendi, sahiplenilmedi;
+**Bilinçli kalan (kapsam dışı, §10):** `hooks/workflow` evidence'ı ve `relay-note.state` işaretlendi, sahiplenilmedi;
 F-08'in süresi dolmayan uyarıları P2'de raporlanır ama otomatik eskime yine yaş/Verdict raporu üzerinden yürür.
 
 ---
@@ -401,7 +401,7 @@ F-08'in süresi dolmayan uyarıları P2'de raporlanır ama otomatik eskime yine 
 - **Ölçümü yeniden icat etmek yok.** Witness bir *çapa*dır; yeni bir gate, yeni bir metrik dili veya yeni bir onay yolu değil.
 - **Yaş bilgisini silmek yok.** Yaş raporlanmaya devam eder (`stale` listesi, `(Nm ago)`), ama geçerlilik ondan **türetilmez**.
 - **İmzayı zayıflatmak yok.** `gate_token` aynen kalır; `Witness:` onun yerine geçmez, yanına eklenir.
-- **Tüm kalıcı durumlar (F-13) aynı anda düzeltilmez.** `bmad/workflow` kanıt düzleminin `artifact` yarısı sonraki iterasyonda sahiplenildi (§13, E-055 → E-056), `command` yarısı da ondan sonraki iterasyonda tarihlendi (§13, E-063 → E-064: kod-durumu witness'ı, "ayrı bir kayıt gerektirir" diyen bu satırın tarif ettiği şekilde), ve spec'in `artifact` alanı bir sonraki iterasyonda kısıtlandı (§13, E-066 → E-067: run'ın sahibi olmadığı bir yolu ajana teslim etmek de bir ihlaldir). `relay-note.state` (tazelik değil, throttle hafızası) hâlâ **işaretli**, sahiplenilmemiş.
+- **Tüm kalıcı durumlar (F-13) aynı anda düzeltilmez.** `hooks/workflow` kanıt düzleminin `artifact` yarısı sonraki iterasyonda sahiplenildi (§13, E-055 → E-056), `command` yarısı da ondan sonraki iterasyonda tarihlendi (§13, E-063 → E-064: kod-durumu witness'ı, "ayrı bir kayıt gerektirir" diyen bu satırın tarif ettiği şekilde), ve spec'in `artifact` alanı bir sonraki iterasyonda kısıtlandı (§13, E-066 → E-067: run'ın sahibi olmadığı bir yolu ajana teslim etmek de bir ihlaldir). `relay-note.state` (tazelik değil, throttle hafızası) hâlâ **işaretli**, sahiplenilmemiş.
 
 ---
 
@@ -427,7 +427,7 @@ F-08'in süresi dolmayan uyarıları P2'de raporlanır ama otomatik eskime yine 
 
 ## 13. F-13 takibi — workflow kanıt düzlemi (uygulandı, 17.10.2026)
 
-E-053 planı bu sınıfı **işaretlemiş, sahiplenmemişti** (§10): board düzlemi tazelik kazandı, ama `bmad/workflow` kanıtı aynı açığı taşımaya devam etti. Sonraki iterasyonda `artifact` yarısı ölçülüp kapatıldı.
+E-053 planı bu sınıfı **işaretlemiş, sahiplenmemişti** (§10): board düzlemi tazelik kazandı, ama `hooks/workflow` kanıtı aynı açığı taşımaya devam etti. Sonraki iterasyonda `artifact` yarısı ölçülüp kapatıldı.
 
 **Arıza (ölçülen):** workflow çekirdeği bir aşamanın kanıtını **yalnızca `complete` anında bir kez** kontrol eder; sonrasında run kaydı aşamayı `completed` sayar ve `next` ondan ileriye hesaplamaya devam eder. Kod durumu ilerlediğinde (artifact silindi, token kaldırıldı, glob eşleşmesi gitti) temel çökmüştür ama ajan onu hâlâ "yapılmış iş" olarak devralır. Bu, F-01/F-02'nin board'daki hâlinin bir kat üstüdür.
 
@@ -441,20 +441,20 @@ E-053 planı bu sınıfı **işaretlemiş, sahiplenmemişti** (§10): board düz
 **Tasarım (E-053 doktrininin aynısı, kanıt düzlemine):**
 
 1. **Tamamlanma bir witness taşır:** `artifact` aşaması tamamlanırken onu karşılayan yüklem (`path`, `contains`, `min`) run state'ine yazılır (`state["evidence"][stage_id]`).
-2. **Verdict saklanmaz, türetilir:** `bmad/workflow/evidence.py::verify` her okumada artifact'ı yeniden okur.
+2. **Verdict saklanmaz, türetilir:** `hooks/workflow/evidence.py::verify` her okumada artifact'ı yeniden okur.
 3. **Üç değerli:** `CURRENT | STALE | UNKNOWN` — witness'sız eski tamamlanma `UNKNOWN` (asla sessiz `CURRENT`), okunamayan artifact `UNKNOWN` (yanlış `STALE` değil).
 4. **Yüklem-duyarlı, digest-duyarlı değil:** iddia "bu artifact beyan edilen token'ları taşıyor"dur; token'ları koruyan bir düzenleme `CURRENT` kalır. Digest tabanlı bir tasarım, takip edilen artifact'a sonraki aşamada eklenen her satırı "bayat" sayardı — bench'in eşleştirilmiş yanlış-alarm kontrolü (`rewritten-with-token`, `glob-other-match`) tam olarak bunu reddeder.
 5. **Tek türetme, çok yüzey:** `_check_evidence` (tamamlama) ve tüm okuma yüzeyleri aynı eşleştiriciyi çağırır (`evidence.artifact_matches`); `status`/`next` `evidence` bloğu + `stale_evidence` taşır, SessionStart uyarısı `FOUNDATION MOVED: …` basar, `complete` **STALE** bir temele ilerlemeyi reddeder (`--force` geçersiz kılar, `UNKNOWN` asla engellemez).
 
-**Kabul (ölçülen):** bayat kanıt teslimi 0/8; yanlış alarm 0/8; `--baseline` hâlâ 1.0 (bench kendi kırmızısını üretebiliyor); `pytest bmad/tests/test_workflow.py` 119 test yeşil; `check-methodology.sh` yeşil (yalnız E-052/E-055 REJECTED uyarıları, ikisi de bilinçli baseline).
+**Kabul (ölçülen):** bayat kanıt teslimi 0/8; yanlış alarm 0/8; `--baseline` hâlâ 1.0 (bench kendi kırmızısını üretebiliyor); `pytest hooks/workflow/tests/test_workflow.py` 119 test yeşil; `check-methodology.sh` yeşil (yalnız E-052/E-055 REJECTED uyarıları, ikisi de bilinçli baseline).
 
-**Kayıt zinciri:** E-055 → E-056 → IR-003 → SP-006 → S-003 → QR-018 (`bmad/tests/test_workflow.py`, `scripts/bench/bench_workflow_evidence.py`).
+**Kayıt zinciri:** E-055 → E-056 → IR-003 → SP-006 → S-003 → QR-018 (`hooks/workflow/tests/test_workflow.py`, `scripts/bench/bench_workflow_evidence.py`).
 
 **Sertleştirme (E-058, 17.10.2026):** aynı düzlemde kalan iki açık ölçüldü ve kapatıldı — E-057 baseline (`stale_evidence_rate=0.3333`, `unbounded_read_rate=1.0`, REJECTED) → E-058 (0.0 / 0.0, APPROVED + VERIFIED). (1) **Envanter yüzeyi** (`list`): operatörün run seçtiği yüzey hiçbir verdict taşımıyordu, yani temeli çökmüş run sağlıklı gibi listeleniyordu → artık `status`/`next` ile aynı türetilmiş bloğu taşır. (2) **Okuma bütçesi**: yeniden türetme oturum kenarında koştuğu halde sınırsızdı (her aday tamamen okunuyor, her glob eşleşmesi taranıyordu) → artık aday başına 4 MiB / 200 aday bütçesi var, bütçe içinde bulunan eşleşme **aynen** cevaplanır ve yalnız negatif taraf gerekçeli `UNKNOWN`'a düşer, yani bütçe asla `STALE` uyduramaz; aşama **tamamlama** okuması sınırsız kalır (operatörün az önce ürettiği artifact bir kez okunur). Bu, E-056'nın "envanter yüzeyi run başına artifact okuması ödememeli" gerekçesiyle açık bıraktığı boşluğu kapatır: bütçe, o okumayı karşılanabilir kılar.
 
 **Sertleştirme 2 (E-060, 17.10.2026):** E-058'in Known Gaps'i ve QR-019'un takip maddesi aynı hazard'ı iki kez **ertelemişti**: "proje kökünün dışına çıkan artifact yolları ne ölçülü ne kısıtlanmış". E-059 bunu ölçtü (`escape_read_rate=1.0`, `escape_accepted_rate=1.0`, REJECTED; üç yazım: `../…`, `docs/../../…`, mutlak yol — üçü de okunuyor ve `complete` kabul ediyordu) ve E-060 kısıtladı (0.0 / 0.0, APPROVED + VERIFIED). Kural tek eşleştiricide (`evidence.root_of` / `_outside`, iki taraf da `realpath` ile çözülür): **beyan edilen** yol kökten çıkıyorsa hiçbir şey okunmadan reddedilir; glob'un **ulaştığı** bir aday (symlink/junction) atlanır ve **sayılır**, böylece atlanan aday yalancı bir `STALE` üretemez — E-058'in okuma bütçesiyle aynı asimetri. İki taraf E-058'deki asimetrisini korur: **gate reddeder** (`complete`, sebebi adlandırarak, witness yazmadan), **view raporlar** (`status`/`next`/`list` `UNKNOWN` der, kökü ve çareyi adlandırır) ve `UNKNOWN` ilerlemeyi asla bloke etmez. Bu, E-056'nın "tek eşleştirici" doktrinini korur: eski bir ağaçtan kalan ya da elle düzenlenmiş bir witness, taze beyan edilmiş bir yolla aynı kısıttan geçer.
 
-**Sertleştirme 3 (E-062, 17.10.2026):** E-060'ın kendi Known Gaps'i "çekirdeğin **kendi depolama** yolları (`store.py`) ve spec'in `artifact` alanı bu kısıtın kapsamı dışında — ayrı bir kayıt" diyordu. E-061 bunu ölçtü ve **E-008'in dikişini bir dosya adı ötede** buldu: `state_path` slug'ı sanitize ederken `load_spec` slug'ı **ham** birleştiriyordu, yani `../../../../loaded` proje kökünün yanındaki bir JSON dosyasını run'ın **iş akışı tanımı** olarak okutabiliyordu; ayrıca state'in kaydettiği `spec_file` nereyi gösterirse orası açılıyordu (eski bir ağaçtan kalan ya da elle düzenlenmiş state — E-060'ın witness için kabul ettiği aynı meşruiyet). Ölçüm: `storage_escape_rate=0.8333` (6 trial'ın 5'i; slug yazımı `status`/`next`'te, kayıtlı yol üç yüzeyde de sızdı — envanter dosya adlarını saydığı ve sanitize edilmiş bir ad ayırıcı taşımadığı için slug yazımından **yapısal olarak** muaf), kontrol 0.0, REJECTED. E-062 (0.0 / 0.0, APPROVED + VERIFIED) düzeltmeyi iki mevcut kuralın eksik yarısı olarak yaptı: (1) sanitizer artık **adlı** bir fonksiyon (`store.safe_slug`) ve `state_path`/`save_spec`/`load_spec` onu kullanır — kuralın ikinci bir kopyası zaten iki yolun ayrı düşme sebebiydi; (2) kapsama sınırı artık **ortak bir modül** (`bmad/workflow/paths.py`), yani kanıt düzlemi ile depolama düzlemi aynı fonksiyonu çağırır (kimlik testle sabitlendi) ve her iki spec adayı da kökün içinde kalır. Çekirdeğin kendi yazdığı hiçbir yol reddedilmez: `save_spec` da aynı sanitizer'dan geçer, geçerli bir `spec_file` yine okunur — eşleştirilmiş kontrol bunu 0.0'da tutar. Sınırlanan `spec_file` okunamazsa cevap dürüstçe "spec yok"tur (`{}`; `complete`: "spec for '<slug>' is missing — cannot advance"), yüzeylerin kapsamayı ayrıca adlandırması ayrı bir kayıt.
+**Sertleştirme 3 (E-062, 17.10.2026):** E-060'ın kendi Known Gaps'i "çekirdeğin **kendi depolama** yolları (`store.py`) ve spec'in `artifact` alanı bu kısıtın kapsamı dışında — ayrı bir kayıt" diyordu. E-061 bunu ölçtü ve **E-008'in dikişini bir dosya adı ötede** buldu: `state_path` slug'ı sanitize ederken `load_spec` slug'ı **ham** birleştiriyordu, yani `../../../../loaded` proje kökünün yanındaki bir JSON dosyasını run'ın **iş akışı tanımı** olarak okutabiliyordu; ayrıca state'in kaydettiği `spec_file` nereyi gösterirse orası açılıyordu (eski bir ağaçtan kalan ya da elle düzenlenmiş state — E-060'ın witness için kabul ettiği aynı meşruiyet). Ölçüm: `storage_escape_rate=0.8333` (6 trial'ın 5'i; slug yazımı `status`/`next`'te, kayıtlı yol üç yüzeyde de sızdı — envanter dosya adlarını saydığı ve sanitize edilmiş bir ad ayırıcı taşımadığı için slug yazımından **yapısal olarak** muaf), kontrol 0.0, REJECTED. E-062 (0.0 / 0.0, APPROVED + VERIFIED) düzeltmeyi iki mevcut kuralın eksik yarısı olarak yaptı: (1) sanitizer artık **adlı** bir fonksiyon (`store.safe_slug`) ve `state_path`/`save_spec`/`load_spec` onu kullanır — kuralın ikinci bir kopyası zaten iki yolun ayrı düşme sebebiydi; (2) kapsama sınırı artık **ortak bir modül** (`hooks/workflow/paths.py`), yani kanıt düzlemi ile depolama düzlemi aynı fonksiyonu çağırır (kimlik testle sabitlendi) ve her iki spec adayı da kökün içinde kalır. Çekirdeğin kendi yazdığı hiçbir yol reddedilmez: `save_spec` da aynı sanitizer'dan geçer, geçerli bir `spec_file` yine okunur — eşleştirilmiş kontrol bunu 0.0'da tutar. Sınırlanan `spec_file` okunamazsa cevap dürüstçe "spec yok"tur (`{}`; `complete`: "spec for '<slug>' is missing — cannot advance"), yüzeylerin kapsamayı ayrıca adlandırması ayrı bir kayıt.
 
 **Sertleştirme 4 (E-064, 17.10.2026):** yukarıdaki "bilinçli kalan" listesinin ilk maddesi — `command` kanıtı — ölçüldü ve kapatıldı. E-063 baseline'ı arızayı plandaki tanımdan **daha keskin** buldu: sorun "komutun sonucuna güvenilmemesi" değil, düzlemin o sonuç hakkında **hiçbir şey söylememesi**ydi (`verify`, witness'ı olmayan ve spec türü `artifact` olmayan her tamamlanmış aşamayı atlıyordu). Ölçüm: `command_silence_rate=1.0` (6/6, üç okuma yüzeyi × iki hareket şekli: yeni commit ve kirli takipli düzenleme) ve eşleştirilmiş kontrol de **sessizlikle** düştü (`command_hold_rate=1.0`) — yani "hiç verdict yok" iki yönde de yanlıştı, REJECTED. E-064 (0.0 / 0.0, APPROVED + VERIFIED) tarihler: tamamlanma, komutun koştuğu **takipli kod durumunu** yazar (`code_state`: HEAD'in adlandırdığı commit + takipli çalışma ağacı değişikliğinin digest'i, böylece kirli ağaçta alınan bir tamamlanma hiç görmediği bir commit'e tarihlenmez) ve her okuma onu o anki durumla karşılaştırır. Değişmemiş → **CURRENT** (sessizliğin veremediği gerçek verdict); taşınmış → **UNKNOWN**, iki durumu da adlandırarak; oracle cevap veremiyorsa (git yok, henüz commit yok, `--porcelain=v2` desteklemeyen eski git) → gerekçeli **UNKNOWN**, tahmin değil. **Bir komut asla STALE değildir ve ilerlemeyi asla bloke etmez:** bakmak "bu argv 0 döndü"yü çürütemez, dolayısıyla düzlem karşılaştırabildiğini raporlar ve çürütebiliyormuş gibi yapmaz — `complete`'in ret listesi bu yüzden değişmedi. Oracle board düzleminin zaten kullandığı oracle'dır (E-053/E-054), yani çekirdek ikinci bir "kod taşındı" tanımı icat etmez. Maliyet E-058 usulünce sınırlı: okuma geçişi başına **tek** probe (`CodeStateProbe`), envanter sınıflandırdığı tüm run'lar için bir kez öder ve yalnız artifact witness'ı taşıyan bir proje hiç ödemez. Parmak izi yalnızca **takipli** dosyaları kapsar; her gerekçe metni bunu "tracked" diye söyler.
 

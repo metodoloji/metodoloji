@@ -1,4 +1,4 @@
-"""Tests for bmad/scripts/orient.py — the one-call orientation digest.
+"""Tests for hooks/scripts/orient.py — the one-call orientation digest.
 
 The digest exists because a real session (2026-09-21, /root/mailjs) re-derived
 state all run long: full `resolve_config.py` dumps arrived truncated so it
@@ -17,8 +17,8 @@ import sys
 import time
 from pathlib import Path
 
-PLUGIN = Path(__file__).resolve().parents[2]
-SCRIPT = PLUGIN / "bmad" / "scripts" / "orient.py"
+PLUGIN = Path(__file__).resolve().parents[3]
+SCRIPT = PLUGIN / "hooks" / "scripts" / "orient.py"
 
 _spec = importlib.util.spec_from_file_location("orient", SCRIPT)
 orient = importlib.util.module_from_spec(_spec)
@@ -58,7 +58,7 @@ def test_catalog_digest_reports_real_ambiguity():
     # tree keeps losing modules, and a hard-coded "> 40" only records how big
     # the catalog happened to be when it was written.
     import csv
-    with open(PLUGIN / "bmad" / "_config" / "bmad-help.csv",
+    with open(PLUGIN / "skills" / "bmad-help" / "references" / "bmad-help.csv",
               newline="", encoding="utf-8") as fh:
         rows = list(csv.DictReader(fh))
     live = [r for r in rows if r["skill"] and r["skill"] != "_meta"]

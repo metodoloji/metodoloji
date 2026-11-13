@@ -21,7 +21,7 @@ triggers: ["bmad-correct-course", "/bmad-correct-course", "correct-course", "cor
 
 ### Step 1: Run the Orientation Digest
 
-Run: `python3 {metodoloji-root}/bmad/scripts/orient.py --project-root {project-root}` — one read-only call, before anything else. It carries both roots, the core config this run reads (`{user_name}`, `{communication_language}`, `{document_output_language}`, `{project_name}`, `{date}` as `today`), every resolved output path (incl. `{planning_artifacts}`), the record inventory, the board's live focus (with a `STALE` flag when a hot run still claims `complete`) and **waiting hand-offs addressed to you** (the digest names the sender and the peek command), and skeleton/gate state. Read it once; never re-run it "for clean output" — it is small by construction. On failure, fall through to the config step's neutral defaults.
+Run: `python3 {metodoloji-root}/hooks/scripts/orient.py --project-root {project-root}` — one read-only call, before anything else. It carries both roots, the core config this run reads (`{user_name}`, `{communication_language}`, `{document_output_language}`, `{project_name}`, `{date}` as `today`), every resolved output path (incl. `{planning_artifacts}`), the record inventory, the board's live focus (with a `STALE` flag when a hot run still claims `complete`) and **waiting hand-offs addressed to you** (the digest names the sender and the peek command), and skeleton/gate state. Read it once; never re-run it "for clean output" — it is small by construction. On failure, fall through to the config step's neutral defaults.
 
 ### Step 2: Resolve the Workflow Block
 
@@ -45,7 +45,7 @@ Treat every entry in `{workflow.persistent_facts}` as foundational context you c
 
 ### Step 5: Load Config
 
-**Config comes from the digest** (Step 1). Only a key it genuinely lacks needs a targeted read: `python3 {metodoloji-root}/bmad/scripts/resolve_config.py --project-root {project-root} --key <dotted.path>` — the targeted shape survives the transport; **never the full merged dump**. Resolve:
+**Config comes from the digest** (Step 1). Only a key it genuinely lacks needs a targeted read: `python3 {metodoloji-root}/hooks/scripts/resolve_config.py --project-root {project-root} --key <dotted.path>` — the targeted shape survives the transport; **never the full merged dump**. Resolve:
 
 - `project_name`, `user_name`
 - `communication_language`, `document_output_language`
@@ -300,7 +300,7 @@ Activation is complete. If `activation_steps_prepend` or `activation_steps_appen
 
 <action>Report workflow completion to user with personalized message: "Correct Course workflow complete, {user_name}!"</action>
 <action>Remind user of success criteria and next steps for Developer agent</action>
-<action>Post the baton so the planning surface opens knowing the plan moved under it (one call): `python3 {metodoloji-root}/bmad/scripts/blackboard.py mirror --key change.{date} --value "Sprint change proposal: {{scope_classification}} scope — {default_output_file}" --to bmad-sprint-planning --note "Course correction ({{scope_classification}} scope) — {default_output_file}; <one-line what sprint planning must re-cut>" --project-root {project-root}`. Sprint planning owns the backlog, so even a Major replan re-enters the chain there. Repeating the same mirror never duplicates the waiting signal; it waits in `handoff.bmad-sprint-planning` until a sprint-planning run consumes it. A proposal still awaiting approval posts nothing — the baton goes out when the user approves it.</action>
+<action>Post the baton so the planning surface opens knowing the plan moved under it (one call): `python3 {metodoloji-root}/hooks/scripts/blackboard.py mirror --key change.{date} --value "Sprint change proposal: {{scope_classification}} scope — {default_output_file}" --to bmad-sprint-planning --note "Course correction ({{scope_classification}} scope) — {default_output_file}; <one-line what sprint planning must re-cut>" --project-root {project-root}`. Sprint planning owns the backlog, so even a Major replan re-enters the chain there. Repeating the same mirror never duplicates the waiting signal; it waits in `handoff.bmad-sprint-planning` until a sprint-planning run consumes it. A proposal still awaiting approval posts nothing — the baton goes out when the user approves it.</action>
 <action>Run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --project-root {project-root} --key workflow.on_complete` — use your harness-native shell tool with the command as given (no extra wrapper params) — if the resolved value is non-empty, follow it as the final terminal instruction before exiting.</action>
 </step>
 

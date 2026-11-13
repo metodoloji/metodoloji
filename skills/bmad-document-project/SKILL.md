@@ -41,7 +41,7 @@ Treat every entry in `{workflow.persistent_facts}` as foundational context you c
 
 ### Step 4: Load Config
 
-Resolve config with one targeted call — `--key` is repeatable and names exactly the keys this run reads; a module dump is never the substitute: `python3 {metodoloji-root}/bmad/scripts/resolve_config.py --project-root {project-root} --key core.user_name --key core.project_name --key core.communication_language --key core.document_output_language --key modules.bmm.planning_artifacts --key modules.bmm.project_knowledge`. Resolve:
+Resolve config with one targeted call — `--key` is repeatable and names exactly the keys this run reads; a module dump is never the substitute: `python3 {metodoloji-root}/hooks/scripts/resolve_config.py --project-root {project-root} --key core.user_name --key core.project_name --key core.communication_language --key core.document_output_language --key modules.bmm.planning_artifacts --key modules.bmm.project_knowledge`. Resolve:
 - Use `{user_name}` for greeting
 - Use `{communication_language}` for all communications
 - Use `{document_output_language}` for output documents

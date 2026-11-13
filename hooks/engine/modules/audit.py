@@ -331,7 +331,7 @@ def _workflow_peek(root: str) -> str:
         plugin_root = str(pathlib.Path(__file__).resolve().parents[3])
         if plugin_root not in sys.path:
             sys.path.insert(0, plugin_root)
-        from bmad.workflow import advisory
+        from hooks.workflow import advisory
         return advisory.peek(root)
     except Exception:
         return ""
@@ -428,8 +428,8 @@ def session_start(json_in: dict) -> dict:
                 info = detail.get(s) or {}
                 stale = list(info.get("stale_keys") or [])
                 unknown = list(info.get("unknown_keys") or []) if announce_unknown else []
-                peek_cmd = _plugin_cmd('bmad/scripts/blackboard.py', 'handoffs', '--skill', s)
-                consume_cmd = _plugin_cmd('bmad/scripts/blackboard.py', 'consume',
+                peek_cmd = _plugin_cmd('hooks/scripts/blackboard.py', 'handoffs', '--skill', s)
+                consume_cmd = _plugin_cmd('hooks/scripts/blackboard.py', 'consume',
                                           '--channel', 'handoff.' + s)
                 if stale:
                     # Only a STALE verdict rewrites the sentence: the code has
@@ -445,7 +445,7 @@ def session_start(json_in: dict) -> dict:
                         f"{len(stale)} stale, {unknown_count} unknown) — NO LONGER "
                         f"VALID WORK: {shown}; verify with `{peek_cmd}`, then "
                         f"retire it "
-                        f"(`{_plugin_cmd('bmad/scripts/blackboard.py', 'handoff-retire', '--retire', '<key>', '--reason', '<why>')}`) "
+                        f"(`{_plugin_cmd('hooks/scripts/blackboard.py', 'handoff-retire', '--retire', '<key>', '--reason', '<why>')}`) "
                         f"or consume the channel with `{consume_cmd}`")
                     continue
                 legacy = (
@@ -461,7 +461,7 @@ def session_start(json_in: dict) -> dict:
                     legacy += (f" NOTE: {len(unknown)} of them carry no "
                                f"code-state anchor (UNKNOWN: {', '.join(unknown[:3])}) "
                                f"— verify before obeying ("
-                               f"`{_plugin_cmd('bmad/scripts/blackboard.py', 'witness', '--target', '<key>')}`)")
+                               f"`{_plugin_cmd('hooks/scripts/blackboard.py', 'witness', '--target', '<key>')}`)")
                 parts.append(legacy)
             context += f" PROACTIVE — hand-off waiting: {'; '.join(parts)}."
         # Chain progress: when methodology run keys exist on the board,
@@ -534,7 +534,7 @@ def session_start(json_in: dict) -> dict:
                     if len(session_alerts) > 1 else "")
             context += (f" Blackboard — {len(session_alerts)} routed alert(s) on the "
                         f"session channel: {first}{more}; clear with "
-                        f"`{_plugin_cmd('bmad/scripts/blackboard.py', 'consume', '--channel', 'session')}`.")
+                        f"`{_plugin_cmd('hooks/scripts/blackboard.py', 'consume', '--channel', 'session')}`.")
     except Exception:
         pass
 

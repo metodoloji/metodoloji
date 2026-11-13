@@ -172,7 +172,7 @@ def test_mirror_cli_roundtrip(tmp_path):
     import json
     import subprocess
     cli = (Path(__file__).resolve().parent.parent.parent.parent
-           / "bmad" / "scripts" / "blackboard.py")
+           / "hooks" / "scripts" / "blackboard.py")
     r = subprocess.run(
         [sys.executable, str(cli), "mirror", "--key", "IR-9",
          "--value", "readiness: READY", "--to", "bmad-sprint-planning",

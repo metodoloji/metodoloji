@@ -15,7 +15,7 @@ probe further):
    Claude Code — do not depend on them, do not echo them to "verify".)
 2. Fixed checkout `~/.claude/plugins/marketplaces/metodoloji/`
 3. Versioned cache `~/.claude/plugins/cache/metodoloji/metodoloji/*`
-   (newest first; e.g. `.../0.2.70/` on Claude Code v2.1.x)
+   (newest first; e.g. `.../0.2.71/` on Claude Code v2.1.x)
 4. OpenHands install directory `~/.openhands/plugins/installed/metodoloji/`
 
 (An old `~/.claude/plugins/cache/yunusgungor/metodoloji/*` path appears in
@@ -25,17 +25,17 @@ it first; it is a last-resort fallback only.)
 ## Init is safe to re-run for repairs
 
 The marker `{project-root}/.metodoloji/initialized` records the first installation.
-When it is present, first inspect `{metodoloji-root}/bmad/scripts/skeleton.py --status`: if the installed
+When it is present, first inspect `{metodoloji-root}/hooks/scripts/skeleton.py --status`: if the installed
 directories and templates are complete, report "already installed" and stop.
 If the plugin has added a directory or template since the last init, run
-`{metodoloji-root}/bmad/scripts/skeleton.py --install` to add only missing assets. This is idempotent and never
+`{metodoloji-root}/hooks/scripts/skeleton.py --install` to add only missing assets. This is idempotent and never
 overwrites user files; the marker's original initialization date is preserved.
 Do not re-run init on every skill activation — only for initial setup or when
 status reports an incomplete skeleton.
 
 ## Steps
 
-0. **Check existing installation.** Run `{metodoloji-root}/bmad/scripts/skeleton.py --status --json --project-root {project-root}`.
+0. **Check existing installation.** Run `{metodoloji-root}/hooks/scripts/skeleton.py --status --json --project-root {project-root}`.
    - Marker present and `problems` empty: say "already installed" (report the marker's `initialized_at` / `plugin_version`), print `/metodoloji:audit`, and finish.
    - Marker present with an incomplete-skeleton problem: continue to Step 1 without `--force`; the installer will add missing assets and preserve existing files.
    - Marker absent: continue to Step 1 for initial installation.
@@ -46,18 +46,18 @@ status reports an incomplete skeleton.
    (OpenHands, a plain terminal) install the same skeleton:
 
    ```sh
-   python3 {metodoloji-root}/bmad/scripts/skeleton.py --install --project-root {project-root}
+   python3 {metodoloji-root}/hooks/scripts/skeleton.py --install --project-root {project-root}
    ```
 
     **Precondition — verify the script exists first, with ONE probe.** Check
-    `{metodoloji-root}/bmad/scripts/skeleton.py` is a file with a single
+    `{metodoloji-root}/hooks/scripts/skeleton.py` is a file with a single
     read-only call that can never fail the turn (note the `|| echo` guard —
     every existence probe in this command MUST end with one, otherwise a
     missing path exits non-zero and the harness reports the whole call as
     an error):
 
     ```sh
-    ls {metodoloji-root}/bmad/scripts/skeleton.py 2>/dev/null || echo MISSING-SKELETON
+    ls {metodoloji-root}/hooks/scripts/skeleton.py 2>/dev/null || echo MISSING-SKELETON
     ```
 
     If it is **missing**, STOP: the installed plugin copy is stale (a version-skewed
@@ -73,12 +73,12 @@ status reports an incomplete skeleton.
 
    Idempotent, byte-exact copies, never overwrites an existing file (add
    `--force` to replace copies and rewrite the marker deliberately).
-   `{metodoloji-root}/bmad/scripts/skeleton.py --status` reports the state without changing anything. Steps
+   `{metodoloji-root}/hooks/scripts/skeleton.py --status` reports the state without changing anything. Steps
    2–3 below describe what that run does — check them against the script's
    summary rather than hand-copying files. Those two lists are the DECLARED side
    of the same contract (the script executes it, `check-plugin.sh` §6d verifies
    its outcome), so they are not held in step by hand:
-   `{metodoloji-root}/bmad/scripts/skeleton.py --audit-declarations` fails when a
+   `{metodoloji-root}/hooks/scripts/skeleton.py --audit-declarations` fails when a
    directory, a template destination or the probe set below stops matching the
    script, and §6d runs it on every audit — the listed contract and the executed
    one cannot drift unnoticed.
@@ -120,7 +120,7 @@ status reports an incomplete skeleton.
    - `{metodoloji-root}/templates/deferred-work.md` → `docs/development/native/deferred-work.md`
    - `{metodoloji-root}/templates/scratch-README.md` → `scratch/README.md`
 
-4. **The init marker is written by `{metodoloji-root}/bmad/scripts/skeleton.py --install`, never by hand.**
+4. **The init marker is written by `{metodoloji-root}/hooks/scripts/skeleton.py --install`, never by hand.**
     Do NOT run any shell to create `.metodoloji/initialized` yourself
     (no `mkdir -p .metodoloji`, no `VERSION=$(python3 -c ...)`, no
     `echo ... > .../initialized`, no heredocs — heredoc appends are

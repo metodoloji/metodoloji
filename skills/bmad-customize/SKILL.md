@@ -21,7 +21,7 @@ When the target's `customize.toml` doesn't expose what the user wants, say so pl
 ## Preflight
 
 - No `{metodoloji-root}/bmad/` → BMad isn't installed. Say so, stop.
-- `{metodoloji-root}/bmad/scripts/resolve_customization.py` missing → continue, but Step 6 verify falls back to manual merge.
+- `{metodoloji-root}/hooks/scripts/resolve_customization.py` missing → continue, but Step 6 verify falls back to manual merge.
 - Both present → proceed.
 
 ## Activation
@@ -94,7 +94,7 @@ Default by character (policy → team, personal → user), confirm before writin
 3. Write. Create `{project-root}/custom/` if needed.
 4. Verify:
    ```
-   python3 {metodoloji-root}/bmad/scripts/resolve_customization.py --skill <install-path> --project-root {project-root} --key <agent-or-workflow>` — use your harness-native shell tool with the command as given (no extra wrapper params)``
+   python3 {metodoloji-root}/hooks/scripts/resolve_customization.py --skill <install-path> --project-root {project-root} --key <agent-or-workflow>` — use your harness-native shell tool with the command as given (no extra wrapper params)``
    Show the merged output, point out the changed fields.
 
    **Resolver missing or fails:** read whichever layers exist — `<install-path>/customize.toml` (base), `{project-root}/custom/{skill-name}.toml` (team), `{project-root}/custom/{skill-name}.user.toml` (user) — apply base → team → user with the same merge rules (scalars override, tables deep-merge, `code`/`id`-keyed arrays merge by key, all other arrays append), describe how the changed fields resolve.

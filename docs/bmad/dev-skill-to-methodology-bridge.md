@@ -219,7 +219,7 @@ When `bmad-check-implementation-readiness` completes, the IR record is created:
 When `bmad-sprint-planning` completes, the SP record is created:
 
 0. **Prerequisite — the record skeleton exists.** On a project that has never
-   been initialised, run `python3 {metodoloji-root}/bmad/scripts/skeleton.py
+   been initialised, run `python3 {metodoloji-root}/hooks/scripts/skeleton.py
    --install` first: it creates the record directories and copies the templates
    into them. Without it `check-methodology.sh` CHECK 2 reports
    `docs/development/stories/_template_S.md is MISSING` on an otherwise correct
