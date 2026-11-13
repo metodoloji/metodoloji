@@ -7,6 +7,7 @@ gate which already owns that verdict, and the run is scoped to one story.
 """
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -121,3 +122,17 @@ def test_an_unreadable_run_is_scoped_to_its_story(tmp_path):
     proc = _run_gate(tmp_path, "experiment", "S-042")
     assert proc.returncode == 2
     assert "S-042" in proc.stdout
+
+
+def test_the_contract_page_names_the_specs_stages(chain):
+    """`docs/methodology.md` is the page every skill is pointed at.
+
+    It must not grow into a second owner: its stage table may only list the
+    stages the spec declares, in the spec's order. A page that invents or drops
+    a stage sends a reader to a stage the kernel will refuse.
+    """
+    text = (_ROOT / "docs" / "methodology.md").read_text(encoding="utf-8")
+    named = re.findall(r"^\| `([a-z][a-z-]*)` \|", text, re.M)
+    declared = [s["id"] for s in chain["stages"] if s.get("evidence")]
+    assert named == declared, (
+        f"docs/methodology.md lists {named}, the spec declares {declared}")
