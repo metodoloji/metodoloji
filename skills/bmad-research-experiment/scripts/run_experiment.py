@@ -34,6 +34,7 @@ class of dead instruction as a remedy naming a missing script):
 from __future__ import annotations
 
 import argparse
+import functools
 import hashlib
 import hmac
 import json
@@ -265,11 +266,38 @@ def parse_scope(scope: str) -> list[str]:
         return []
     return [p for p in re.split(r"[,\s]+", scope) if p]
 
+@functools.lru_cache(maxsize=4096)
+def _scope_patterns(scope: str) -> tuple[str, ...]:
+    """`parse_scope` as an immutable tuple, memoised.
+
+    `scope_matches` runs once per (record, edited file) pair. On this corpus the
+    scope audit made 140,318 such calls over 86 distinct scopes, so the same
+    handful of scope strings was split 140k times. A tuple (not a list) because
+    the caller must not mutate a shared cached value.
+    """
+    return tuple(parse_scope(scope))
+
+#: Bounded memo for the glob parser. The same defect `freshness.glob_to_regex`
+#: carries a memo for (E-132 measured 114,109 parses over 248 patterns there)
+#: lived here unfixed: the gate's matcher is what `check-plugin.sh` §3b and the
+#: guard call, and it re-parsed every glob on every comparison. Measured on this
+#: 135-record corpus: 1,184,988 parses, 95 s of a 117 s section (E-140). The
+#: function is pure — no state, no I/O — so a cached answer is the recomputed
+#: answer by construction, and `freshness.py`'s parity test keeps the two in step.
+GLOB_CACHE_SIZE = 4096
+
+@functools.lru_cache(maxsize=GLOB_CACHE_SIZE)
+def _glob_regex(pattern: str) -> str:
+    return glob_to_regex(pattern)
+
 
 def glob_to_regex(pattern: str) -> str:
     """Convert a scope glob to a regex. Semantics:
       '*'  -> one path segment, '**' -> any depth (incl. zero), '?' -> one char.
     Backslashes are normalized to forward slashes first.
+
+    Memoised by `_glob_regex` (see GLOB_CACHE_SIZE) — this function stays the
+    uncached reference the parity test compares against.
     """
     pat = pattern.replace("\\", "/")
     out = ["^"]
@@ -319,8 +347,8 @@ def scope_matches(scope: str, target: str) -> bool:
     if not scope or not target:
         return False
     target = _strip_dot_prefix(target)
-    for pat in parse_scope(scope):
-        if re.fullmatch(glob_to_regex(_strip_dot_prefix(pat)), target, re.IGNORECASE):
+    for pat in _scope_patterns(scope):
+        if re.fullmatch(_glob_regex(_strip_dot_prefix(pat)), target, re.IGNORECASE):
             return True
     return False
 
@@ -1727,6 +1755,14 @@ def main() -> int:
                     help="preview the decision (measured vs threshold, Wilson bound, "
                          "would-be GATE-OK token) WITHOUT writing to the record")
     ap.add_argument("--verify", action="store_true", help="verify an existing decision")
+    ap.add_argument("--verify-corpus", metavar="DIR", default=None,
+                    help="verify EVERY record in DIR in one process and print one "
+                         "JSON object ({records: [{id, rc, message}], counts}); the "
+                         "audit's per-record verdicts without paying a Python start "
+                         "per record")
+    ap.add_argument("--verify-corpus-format", choices=("json", "tsv"), default="json",
+                    help="--verify-corpus output shape: json (default, the contract) "
+                         "or tsv (`id<TAB>rc<TAB>message`, for a POSIX shell loop)")
     ap.add_argument("--reproduce", action="store_true",
                     help="re-run a decided record's measurement and compare — the "
                          "only check that tests the number against the world rather "
@@ -1775,6 +1811,8 @@ def main() -> int:
         if not args.record:
             ap.error("--verify requires --record")
         return verify(args.record)
+    if args.verify_corpus is not None:
+        return verify_corpus(args.verify_corpus, args.verify_corpus_format)
     if args.reproduce:
         if not args.record:
             ap.error("--reproduce requires --record")
@@ -2600,6 +2638,67 @@ def verify(path: str) -> int:
     print(f"{path} — undecided (no Decision). Run the gate with --record and --run.")
     return 1
 
+
+def verify_corpus(directory: str, output_format: str = "json") -> int:
+    """Verify every record in `directory` in ONE process; print JSON.
+
+    The audit used to pay a Python start per record (`--verify` in a shell
+    loop): 135 records cost 67 s of process startup for 0.24 s of work, which
+    is why `check-plugin.sh` ran past the 10 s hook budget and every commit
+    needed a wrapper. This mode does the same verification — it calls
+    :func:`verify` unchanged — and pays the startup once.
+
+    Output (stdout, one JSON object)::
+
+        {"records": [{"id": "E-001", "rc": 0, "message": "VERIFIED: ..."}, ...],
+         "counts": {"0": 83, "1": 44, "2": 8},
+         "records_total": 135}
+
+    `message` is the verifier's own verdict text (the reason a record failed),
+    captured so a caller can print it without a second run. Exit code is always
+    0: an undecided or REJECTED record is a normal state of a corpus, not a
+    tool failure — the caller decides what a given rc means for its own gate.
+
+    `output_format="tsv"` emits `id<TAB>rc<TAB>message` per record instead —
+    the same data for a POSIX shell loop that has no JSON parser. Tabs inside a
+    message are flattened to spaces so a field can never split.
+    """
+    import contextlib
+    import io
+    import json
+
+    root = pathlib.Path(directory)
+    if not root.is_dir():
+        print(f"ERROR: not a directory: {directory}", file=sys.stderr)
+        return 2
+    paths = sorted(p for p in root.glob("E-*.md") if p.name != "_template.md")
+    records = []
+    counts: dict[str, int] = {}
+    for path in paths:
+        out = io.StringIO()
+        err = io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            rc = verify(str(path))
+        message = (out.getvalue() or err.getvalue()).strip()
+        records.append({"id": path.stem, "rc": rc, "message": message})
+        counts[str(rc)] = counts.get(str(rc), 0) + 1
+    try:
+        if output_format == "tsv":
+            for record in records:
+                message = " ".join(record["message"].split())
+                print(f"{record['id']}\t{record['rc']}\t{message}")
+            return 0
+        print(json.dumps({"records": records, "counts": counts,
+                          "records_total": len(records)}, ensure_ascii=False))
+        return 0
+    except BrokenPipeError:
+        # `| head` closed the pipe: the data the reader wanted is delivered.
+        # A traceback here would read as a verifier failure.
+        try:
+            sys.stdout.close()
+        except Exception:
+            pass
+        return 0
 
 def _selfcheck() -> None:
     import os

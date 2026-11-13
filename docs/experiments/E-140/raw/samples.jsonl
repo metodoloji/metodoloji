@@ -1,0 +1,5 @@
+{"check": "one verification pass for the corpus", "ok": true, "detail": "one pass: 0.61s for the whole corpus (budget 10.0s)"}
+{"check": "the pass agrees with a per-record --verify", "ok": true, "detail": "8 sampled records agree with --verify"}
+{"check": "each distinct glob parses once", "ok": true, "detail": "misses=8 hits=312 (≤16 allowed for 8 patterns × 40 targets)"}
+{"check": "the audit reuses the pass instead of spawning per record", "ok": true, "detail": "corpus pass present, no per-record spawn in the §3 loop"}
+{"check": "the gate stays stdlib-only", "ok": true, "detail": "stdlib only"}

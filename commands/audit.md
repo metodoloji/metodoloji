@@ -31,8 +31,11 @@ Mechanically audits the plugin's own integrity and the record discipline in the 
 3. Record chain status: list the records under `{project-root}/docs/experiments/` and
    `{project-root}/docs/development/`; note chain link gaps (e.g. S exists but no QR).
 
-4. Approved experiment inventory: run `--verify` on each E record and report the
-   VERIFIED/FORGED distribution (`/metodoloji:verify` logic).
+4. Approved experiment inventory: verify the whole corpus in ONE pass —
+   `run_experiment.py --verify-corpus {project-root}/docs/experiments` — and
+   report the VERIFIED/FORGED distribution from its `counts` object
+   (`/metodoloji:verify` logic). Do not loop `--verify --record` per record: the
+   corpus pass runs the same verifier and pays the interpreter start once.
 
 5. Runtime coverage and hook configuration:
    - Identify the active host runtime from the current session/tool context. Do
