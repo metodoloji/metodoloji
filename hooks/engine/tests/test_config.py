@@ -26,17 +26,17 @@ def test_methodology_root_is_repo_root():
     # or by a local clone (e.g. "metodoloji") — pin the structural identity instead
     # of the directory's literal name.
     assert (_METHODOLOGY_ROOT / "hooks" / "engine").is_dir()
-    assert (_METHODOLOGY_ROOT / "custom").is_dir()
     assert (_METHODOLOGY_ROOT / "bmad").is_dir()
+    assert (_METHODOLOGY_ROOT / "config.toml").is_file()
 
 
 def test_hooks_cfg_is_pinned_to_plugin_root():
     # F3 authority separation: hook enforcement reads the PLUGIN's own
-    # custom/config.toml — never the target project's layers and never
-    # cwd-relative. A target project must not be able to silently relax
-    # the guard that watches it; personal *.user.toml layers don't apply.
+    # config.toml — never the target project's layers and never cwd-relative.
+    # A target project must not be able to silently relax the guard that
+    # watches it; personal *.user.toml layers don't apply.
     assert _HOOKS_CFG.is_absolute()
-    assert _HOOKS_CFG.parent == _METHODOLOGY_ROOT / "custom"
+    assert _HOOKS_CFG.parent == _METHODOLOGY_ROOT
     assert _HOOKS_CFG.name == "config.toml"
 
 
@@ -195,7 +195,7 @@ def test_hook_gate_mode_default_soft(tmp_path, monkeypatch):
 
 
 def test_binary_hooks_config_stays_fail_closed(tmp_path, monkeypatch):
-    """A non-UTF-8 custom/config.toml must not kill the decision path (E-017).
+    """A non-UTF-8 config.toml must not kill the decision path (E-017).
 
     UnicodeDecodeError is a ValueError, not OSError, so it used to escape both
     `_read_hooks_section` and `_validate_hooks_config` — leaving the guard with

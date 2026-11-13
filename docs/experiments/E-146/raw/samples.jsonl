@@ -1,0 +1,6 @@
+{"check": "one owner: the plugin ships a single config", "ok": true, "detail": "one owner: config.toml"}
+{"check": "full merged dump is unchanged", "ok": true, "detail": "4 top-level sections identical"}
+{"check": "targeted read is unchanged", "ok": true, "detail": "targeted keys identical"}
+{"check": "hook engine modes are unchanged", "ok": true, "detail": "every hook mode unchanged"}
+{"check": "no key is declared twice", "ok": true, "detail": "18 keys, no legacy duplicate"}
+{"check": "a legacy install keeps its gate policy", "ok": true, "detail": "owner wins over legacy; legacy read only when the owner is absent"}

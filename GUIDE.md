@@ -17,7 +17,7 @@
 11. [Free Zone / Protected Area / Secret Scanning](#10-free-zone--protected-area--secret-scanning)
 12. [Security — Gate Key, Trust Ring, and HMAC](#11-security--gate-key-trust-ring-and-hmac)
 13. [Skill Catalog — When to Call Which Skill](#12-skill-catalog--when-to-call-which-skill)
-14. [TOML Customization — 3 Layers + 8-Layer Config](#13-toml-customization--3-layers--8-layer-config)
+14. [TOML Customization — 3 Layers + 6-Layer Config](#13-toml-customization--3-layers--6-layer-config)
 15. [Blackboard — Working Context](#14-blackboard--working-context)
 16. [Command Reference](#15-command-reference)
 17. [Auditing and Health Checks](#16-auditing-and-health-checks)
@@ -321,7 +321,7 @@ mkdir my-project && cd my-project && git init
 /metodoloji:audit        # or: sh {metodoloji-root}/scripts/check-plugin.sh
 
 # 3. Go to hard mode (do not wait in greenfield! brownfield-soft is not for you)
-# custom/config.toml [hooks]: code_guard="hard", quality_gate="hard", deploy_guard="hard"
+# config.toml [hooks]: code_guard="hard", quality_gate="hard", deploy_guard="hard"
 # stop_guard is report-only anyway — the key stays for compatibility, it has no effect.
 
 # 4. Write the first experiment (NARROW scope — trick: keep the first scope deliberately small)
@@ -360,7 +360,7 @@ cp {metodoloji-root}/templates/_template_PR.md docs/development/PR-001.md
 cd existing-project
 /metodoloji:init          # ONCE; does not overwrite existing files — safe; writes the marker
 /metodoloji:gate-setup
-# custom/config.toml [hooks] → set ONLY code_guard="soft"
+# config.toml [hooks] → set ONLY code_guard="soft"
 # (WARNING: this file is plugin-global policy — it affects every project; soften it
 # temporarily and put it back to "hard" at the first VERIFIED scope. Do NOT touch
 # quality_gate/deploy_guard — they are the commit/deploy guards; stop_guard is already
@@ -1051,7 +1051,7 @@ Families:
 
 ---
 
-## 13. TOML Customization — 3 Layers + 8-Layer Config
+## 13. TOML Customization — 3 Layers + 6-Layer Config
 
 ### 13.1 Three layers per skill (highest priority first)
 
@@ -1079,16 +1079,16 @@ python3 {metodoloji-root}/bmad/scripts/resolve_customization.py -s skills/bmad-d
 ### 13.2 Central config — 8 layers (later ones win)
 
 
-| Priority    | Layer                                       | Owner                                |
-| ----------- | ------------------------------------------- | ------------------------------------ |
-| 1 (lowest)  | `{metodoloji-root}/bmad/config.toml`        | installer (produced at install time) |
-| 2           | `{metodoloji-root}/bmad/config.user.toml`   | installer                            |
-| 3           | `{metodoloji-root}/custom/config.toml`      | plugin team (committed)              |
-| 4           | `{metodoloji-root}/custom/config.user.toml` | plugin user (gitignored)             |
-| 5           | `{project-root}/bmad/config.toml`           | **project team (committed)**         |
-| 6           | `{project-root}/bmad/config.user.toml`      | **project user (gitignored)**        |
-| 7           | `{project-root}/docs/config.toml`           | project team, output-local           |
-| 8 (highest) | `{project-root}/docs/config.user.toml`      | project user, output-local           |
+| Priority    | Layer                                  | Owner                        |
+| ----------- | -------------------------------------- | ---------------------------- |
+| 1 (lowest)  | `{metodoloji-root}/config.toml`        | plugin team (committed)      |
+| 2           | `{metodoloji-root}/config.user.toml`   | plugin user (gitignored)     |
+| 3           | `{project-root}/bmad/config.toml`      | **project team (committed)** |
+| 4           | `{project-root}/bmad/config.user.toml` | **project user (gitignored)**|
+| 5           | `{project-root}/docs/config.toml`      | project team, output-local   |
+| 6 (highest) | `{project-root}/docs/config.user.toml` | project user, output-local   |
+
+Legacy paths (`{metodoloji-root}/bmad/config.toml`, `{metodoloji-root}/custom/config.toml`, `{project-root}/bmad-output/config.toml`) are still **read** below every layer above so an upgraded install keeps its settings; nothing writes them. Delete a surviving plugin-side copy after copying anything you changed.
 
 
 > Legacy `{project-root}/bmad-output/config.toml` (+ `.user.toml`) is read as a fallback for pre-migration projects — never written.
@@ -1198,7 +1198,7 @@ python3 {metodoloji-root}/bmad/scripts/blackboard.py hot --clear
 - **Tags (priority vocabulary):** `critical|urgent|low-priority` drive `read --context` priority; `blocked` marks a stalled run (surfaced by `doctor`); `risk|nfr-open|needs-review` are informational; anything else is a free area label.
 - **Closure check (all):** after clearing focus+list but before posting your own handoff, run `blackboard.py doctor --json` and show the `NEEDS ATTENTION` items to the user.
 
-`custom/config.toml [hooks] blackboard = "on"|"off"` turns skill-side usage on/off; the engine's read-only peek is independent of it.
+`config.toml [hooks] blackboard = "on"|"off"` turns skill-side usage on/off; the engine's read-only peek is independent of it.
 
 ---
 
@@ -1213,7 +1213,7 @@ python3 {metodoloji-root}/bmad/scripts/blackboard.py hot --clear
 | `/metodoloji:gate-setup` | If `~/.bmad/gate-key` exists, say "already installed" and stop (do NOT overwrite). Otherwise run `--init-secret`. Check 0600. **Never** print/copy/move the content. A sample `GATE-OK-...` output = done. Next step: the first E record.                                                                                                                                                                                                                                                                                                                                    |
 | `/metodoloji:verify`     | Verify one record: `python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --verify --record {project-root}/docs/experiments/<id>.md`. `VERIFIED` = scope open; `FORGED` = regenerate the record; `REJECTED` = revise the hypothesis; `ADVISORY-BLOCK` (exit 2) = re-measure in a new record (it does not open code).                                                                                                                                                                                                                           |
 | `/metodoloji:add <source>` | Analyze a repository URL, documentation site, or local PDF/Markdown file against this project and register `{project-root}/docs/research/external/<slug>/context.md`. Run `{metodoloji-root}/scripts/external-context.py prepare` first (non-destructive scaffold), do the analysis with the harness's repository/web/file tools, fill every template section, then `finalize` (validates + updates the index) and `check`. The entry is registered evidence — it does not authorize code. An existing entry is revalidated with `external-context.py refresh` (keeps the analysis, sets `Status: draft`, dates the new pass), then finalize re-indexes it. `check` exits non-zero when an index line no longer matches its entry (name, analyzed ref or date), so a skipped `finalize` cannot pass unnoticed. An abandoned draft is archived under `.archive/` (never deleted) with `external-context.py discard`; a reviewed entry needs `--force`. |
-| `/metodoloji:audit`      | Health check: (1) run and summarise `sh {metodoloji-root}/scripts/check-plugin.sh` (exit 0 = HEALTHY). (2) If a custom-focused report is wanted, `{metodoloji-root}/scripts/check-custom.sh` (#0–#7). (3) List `{project-root}/docs/experiments/` + `docs/development/` records and note chain gaps (an S without a QR, etc.). (4) Verify the corpus in ONE pass — `python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --verify-corpus docs/experiments` — and report the VERIFIED/FORGED split from its `counts` (never loop `--verify --record` per record). (5) Read the `custom/config.toml [hooks]` soft/hard values. (6) Board: `doctor --json` + `stats` + `chain-health` (HEALTHY/SIGNAL = pass, NEEDS ATTENTION = fix; `rotate` on event-log bound). (7) PASS/FAIL + a fix suggestion. When a bridge is suspect, show break→catch→restore evidence with `{metodoloji-root}/scripts/check-custom.sh --negtest`. |
+| `/metodoloji:audit`      | Health check: (1) run and summarise `sh {metodoloji-root}/scripts/check-plugin.sh` (exit 0 = HEALTHY). (2) If a custom-focused report is wanted, `{metodoloji-root}/scripts/check-custom.sh` (#0–#7). (3) List `{project-root}/docs/experiments/` + `docs/development/` records and note chain gaps (an S without a QR, etc.). (4) Verify the corpus in ONE pass — `python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --verify-corpus docs/experiments` — and report the VERIFIED/FORGED split from its `counts` (never loop `--verify --record` per record). (5) Read the `config.toml [hooks]` soft/hard values. (6) Board: `doctor --json` + `stats` + `chain-health` (HEALTHY/SIGNAL = pass, NEEDS ATTENTION = fix; `rotate` on event-log bound). (7) PASS/FAIL + a fix suggestion. When a bridge is suspect, show break→catch→restore evidence with `{metodoloji-root}/scripts/check-custom.sh --negtest`. |
 
 
 ### 15.2 Quick command card

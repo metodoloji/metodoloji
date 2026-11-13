@@ -93,7 +93,7 @@ def _case_help_rows() -> tuple[bool, str]:
 
 
 def _case_config_sections() -> tuple[bool, str]:
-    text = (ROOT / "bmad" / "config.toml").read_text(encoding="utf-8")
+    text = (ROOT / "config.toml").read_text(encoding="utf-8")
     hits = sorted(set(re.findall(r"^\[(?:modules|agents)\.([a-z-]*?(?:gds|wds|cis)[a-z-]*)\]",
                                  text, re.M)))
     return (not hits, f"surviving config sections: {hits}" if hits else "none")

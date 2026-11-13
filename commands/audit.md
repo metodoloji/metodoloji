@@ -47,7 +47,7 @@ Mechanically audits the plugin's own integrity and the record discipline in the 
      are outside the hook boundary. Never summarize this as “all writes are
      protected.”
    - Read the `quality_gate`/`deploy_guard`/`code_guard`/
-     `stop_guard` values in `custom/config.toml [hooks]` (soft/hard). That file
+     `stop_guard` values in `config.toml [hooks]` (soft/hard). That file
      is plugin-global policy (every project shares it; the hook engine reads
      only that file — there is no per-project override). Shipped values are
      explicit and win over code fallback defaults (quality/deploy soft,

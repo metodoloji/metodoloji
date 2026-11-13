@@ -51,7 +51,7 @@ machine-local) — say so instead of calling it tampering.
 
 ## Hook policy
 
-Read `[hooks]` in `{metodoloji-root}/custom/config.toml`:
+Read `[hooks]` in `{metodoloji-root}/config.toml`:
 `quality_gate`, `deploy_guard`, `code_guard`, `stop_guard` (soft/hard).
 Shipped defaults: quality/deploy soft, code hard when absent. Flag
 `quality_gate` or `deploy_guard` softened — that is over-softening;

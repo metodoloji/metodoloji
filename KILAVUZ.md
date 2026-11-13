@@ -321,7 +321,7 @@ mkdir benim-projem && cd benim-projem && git init
 /metodoloji:audit        # veya: sh {metodoloji-root}/scripts/check-plugin.sh
 
 # 3. Sert moda geç (greenfield'da bekleme! brownfield-soft sana değil)
-# custom/config.toml [hooks]: code_guard="hard", quality_gate="hard", deploy_guard="hard"
+# config.toml [hooks]: code_guard="hard", quality_gate="hard", deploy_guard="hard"
 # stop_guard zaten report-only — anahtar dursa da etkisi yok.
 
 # 4. İlk deneyi yaz (DAR scope — trik: ilk scope'u bilerek küçük tut)
@@ -360,7 +360,7 @@ cp {metodoloji-root}/templates/_template_PR.md docs/development/PR-001.md
 cd mevcut-proje
 /metodoloji:init          # BİR kez; mevcut dosyaları ezmez — güvenli; marker yazar
 /metodoloji:gate-setup
-# custom/config.toml [hooks] → SADECE code_guard="soft"
+# config.toml [hooks] → SADECE code_guard="soft"
 # (UYARI: bu dosya plugin-global politikadır — tüm projeleri etkiler; geçici yumuşat,
 # ilk VERIFIED scope'ta "hard"a geri al. quality_gate/deploy_guard'a DOKUNMA —
 # onlar commit/deploy bekçisidir; stop_guard zaten "soft" ve hiçbir şey onu okumaz.)
@@ -1076,19 +1076,19 @@ python3 {metodoloji-root}/bmad/scripts/resolve_customization.py -s skills/bmad-d
 
 (Kanonik implementasyon `bmad/scripts/resolve_customization.py` — stdlib only, py3.11+; `uv run` da olur.)
 
-### 13.2 Merkezi config — 8 katman (son kazananlar önce)
+### 13.2 Merkezi config — 6 katman (son kazananlar önce)
 
 
 | Öncelik       | Katman                                      | Sahibi                             |
 | ------------- | ------------------------------------------- | ---------------------------------- |
-| 1 (en düşük)  | `{metodoloji-root}/bmad/config.toml`        | installer (kurulumda üretilir)     |
-| 2             | `{metodoloji-root}/bmad/config.user.toml`   | installer                          |
-| 3             | `{metodoloji-root}/custom/config.toml`      | plugin takımı (commitli)           |
-| 4             | `{metodoloji-root}/custom/config.user.toml` | plugin kullanıcısı (gitignored)    |
-| 5             | `{project-root}/bmad/config.toml`           | **proje takımı (commitli)**        |
-| 6             | `{project-root}/bmad/config.user.toml`      | **proje kullanıcısı (gitignored)** |
-| 7             | `{project-root}/docs/config.toml`           | proje takımı, output-local         |
-| 8 (en yüksek) | `{project-root}/docs/config.user.toml`      | proje kullanıcısı, output-local    |
+| 1 (en düşük)  | `{metodoloji-root}/config.toml`        | plugin takımı (commitli)           |
+| 2             | `{metodoloji-root}/config.user.toml`   | plugin kullanıcısı (gitignored)    |
+| 3             | `{project-root}/bmad/config.toml`      | **proje takımı (commitli)**        |
+| 4             | `{project-root}/bmad/config.user.toml` | **proje kullanıcısı (gitignored)** |
+| 5             | `{project-root}/docs/config.toml`      | proje takımı, çıktı-yerel          |
+| 6 (en yüksek) | `{project-root}/docs/config.user.toml` | proje kullanıcısı, çıktı-yerel     |
+
+Eski yollar (`{metodoloji-root}/bmad/config.toml`, `{metodoloji-root}/custom/config.toml`, `{project-root}/bmad-output/config.toml`) yükseltilmiş kurulum ayarlarını kaybetmesin diye yukarıdaki tüm katmanların **altında** okunmaya devam eder; hiçbiri yazılmaz. Plugin tarafında kalan bir kopyayı, değiştirdiğin değerleri taşıdıktan sonra sil.
 
 
 > Legacy `{project-root}/bmad-output/config.toml` (+ `.user.toml`) migrasyon öncesi projeler için fallback olarak okunur — yazılmaz.
@@ -1198,7 +1198,7 @@ python3 {metodoloji-root}/bmad/scripts/blackboard.py hot --clear
 - **Tag (öncelik sözlüğü):** `critical|urgent|low-priority` → `read --context` priority; `blocked` durmuş run (`doctor` uyarır); `risk|nfr-open|needs-review` bilgilendirici; diğerleri serbest alan etiketi.
 - **Kapanış kontrolü (tümü):** Focus+liste temizlendikten ama kendi handoff'unu atmadan önce `blackboard.py doctor --json` koş, `NEEDS ATTENTION`'ları kullanıcıya göster.
 
-`custom/config.toml [hooks] blackboard = "on"|"off"` skill-tarafı kullanımı açar/kapar; motorun salt-okunur peek'i bundan bağımsızdır.
+`config.toml [hooks] blackboard = "on"|"off"` skill-tarafı kullanımı açar/kapar; motorun salt-okunur peek'i bundan bağımsızdır.
 
 ---
 
@@ -1213,7 +1213,7 @@ python3 {metodoloji-root}/bmad/scripts/blackboard.py hot --clear
 | `/metodoloji:gate-setup` | `~/.bmad/gate-key` varsa "already installed" deyip bitir (üzerine YAZMA). Yoksa `--init-secret` koş. 0600 kontrol et. İçeriği **asla** yazdırma/kopyalama/taşıma. Örnek `GATE-OK-...` çıktısı = tamam. Sonraki adım: ilk E kaydı.                                                                                                                                                                                                                                                                                                                               |
 | `/metodoloji:verify`     | Tek kaydı doğrula: `python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --verify --record {project-root}/docs/experiments/<id>.md`. `VERIFIED` = scope açık; `FORGED` = kaydı yeniden üret; `REJECTED` = hipotezi revize et; `ADVISORY-BLOCK` (exit 2) = yeni kayıtta yeniden ölç (kodu açmaz).                                                                                                                                                                                                                                 |
 | `/metodoloji:add <kaynak>` | Bir repository URL'sini, dokümantasyon sitesini veya yerel PDF/Markdown dosyasını projeye göre analiz edip `{project-root}/docs/research/external/<slug>/context.md` kaydını oluştur. Önce `{metodoloji-root}/scripts/external-context.py prepare` (ezmeyen taslak), sonra harness'in repository/web/dosya araçlarıyla analiz, tüm template bölümlerini doldur, `finalize` (doğrula + index) ve `check`. Kayıt kanıttır — kod yazma izni vermez. Mevcut kayıt `external-context.py refresh` ile yeniden doğrulanır (analiz korunur, `Status: draft` olur, yeni tarih yazılır), ardından finalize index'i günceller. `check`, bir index satırı kaydıyla artık uyuşmadığında (isim, analiz edilen ref veya tarih) sıfırdan çıkar; atlanmış `finalize` sessizce geçmez. Yarım kalan taslak `external-context.py discard` ile `.archive/` altına taşınır (silinmez); reviewed kayıt için `--force` gerekir. |
-| `/metodoloji:audit`      | Sağlık kontrolü: (1) `sh {metodoloji-root}/scripts/check-plugin.sh` koş + özetle (exit 0 = HEALTHY). (2) Custom-odaklı rapor istenirse `{metodoloji-root}/scripts/check-custom.sh` (#0–#7). (3) `{project-root}/docs/experiments/` + `docs/development/` kayıtlarını listele, zincir boşluklarını not et (S var QR yok gibi). (4) Korpusu TEK geçişte doğrula — `python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --verify-corpus docs/experiments` — VERIFIED/FORGED dağılımını `counts`'tan raporla (kayıt başına `--verify --record` döngüsü kurma). (5) `custom/config.toml [hooks]` soft/hard değerlerini oku. (6) Board: `doctor --json` + `stats` + `chain-health` (HEALTHY/SIGNAL = geç, NEEDS ATTENTION = düzelt; event-log bound'da `rotate`). (7) PASS/FAIL + düzeltme önerisi. Bridge şüphesinde `{metodoloji-root}/scripts/check-custom.sh --negtest` ile break→catch→restore kanıtı göster. |
+| `/metodoloji:audit`      | Sağlık kontrolü: (1) `sh {metodoloji-root}/scripts/check-plugin.sh` koş + özetle (exit 0 = HEALTHY). (2) Custom-odaklı rapor istenirse `{metodoloji-root}/scripts/check-custom.sh` (#0–#7). (3) `{project-root}/docs/experiments/` + `docs/development/` kayıtlarını listele, zincir boşluklarını not et (S var QR yok gibi). (4) Korpusu TEK geçişte doğrula — `python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --verify-corpus docs/experiments` — VERIFIED/FORGED dağılımını `counts`'tan raporla (kayıt başına `--verify --record` döngüsü kurma). (5) `config.toml [hooks]` soft/hard değerlerini oku. (6) Board: `doctor --json` + `stats` + `chain-health` (HEALTHY/SIGNAL = geç, NEEDS ATTENTION = düzelt; event-log bound'da `rotate`). (7) PASS/FAIL + düzeltme önerisi. Bridge şüphesinde `{metodoloji-root}/scripts/check-custom.sh --negtest` ile break→catch→restore kanıtı göster. |
 
 
 ### 15.2 Hızlı komut kartı

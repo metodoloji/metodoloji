@@ -576,7 +576,7 @@ for _s in (sys.stdout, sys.stderr):
     except (AttributeError, ValueError): pass
 
 PLUGIN = os.environ.get("PLUGIN_ROOT") or "."
-cfg = os.path.join(PLUGIN, "custom", "config.toml")
+cfg = os.path.join(PLUGIN, "config.toml")
 if not os.path.isfile(cfg):
     print("  [ERROR] %s missing" % cfg)
     sys.exit(1)

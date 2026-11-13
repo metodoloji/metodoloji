@@ -19,7 +19,7 @@ payloads into that contract and maps the result back to the host. Therefore,
 shared decision rules do not imply identical tool coverage or identical
 fail-open behavior for every advisory feature.
 
-The shipped `custom/config.toml` sets `code_guard`, `quality_gate`, and
+The shipped `config.toml` sets `code_guard`, `quality_gate`, and
 `deploy_guard` to `hard`, and freshness to `warn`. Hook behavior is still
 bounded by the host's registered interception points. Use the runtime's
 configuration and this matrix when assessing enforcement in a particular

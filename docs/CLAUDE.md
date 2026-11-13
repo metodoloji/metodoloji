@@ -6,7 +6,7 @@ Claude Code plugin for methodology enforcement, compatible with BMad Method.
 
 - **Record chain**: E → IR → SP → S → QR → PR (experiment → implementation readiness → sprint planning → story → quality review → production readiness)
 - **Mechanical gates**: guard (write/edit blocking, config-gated), quality (`git commit` chain check, config-gated), deploy (deploy-command chain check, config-gated), audit (post-write trail), stop (session-end report, never blocks)
-- **48 skills** with **42 customization TOMLs** + `config.toml` (7 active BRIDGEs linking native outputs to methodology records). `bmad-customize`/`bmad-help` are tool/meta skills with no bridge TOML by design: they ship no customize.toml and are audited through their SKILL.md manifesto pointer (see §2 / §6b pairing).
+- **48 skills** with **42 customization TOMLs** + the root `config.toml` (7 active BRIDGEs linking native outputs to methodology records). `bmad-customize`/`bmad-help` are tool/meta skills with no bridge TOML by design: they ship no customize.toml and are audited through their SKILL.md manifesto pointer (see §2 / §6b pairing).
 
 ## Hooks
 
@@ -68,7 +68,7 @@ plugin root and dispatch to the same `hooks/engine/` core.
 
 ### Gate strictness (soft/hard)
 
-`custom/config.toml [hooks]` controls the commit/deploy gates. Values are read live
+`config.toml [hooks]` controls the commit/deploy gates. Values are read live
 per-call, so config edits apply without a reload:
 
 ```toml
@@ -82,7 +82,7 @@ stop_guard = "soft"     # backward compat — stop is report-only and never bloc
 - **soft** — a missing IR/QR/SP (quality) or IR/QR/SP/PR (deploy) record
   becomes a warning: `allow` + `methodology_warnings`. Nothing blocks.
 - **hard** — the same missing records cause `DENY`.
-(Code fallback defaults when a key is absent are soft for quality/deploy — but the shipped values above are explicit `hard` and win. Brownfield adoption softens ONLY `code_guard`, temporarily; `custom/config.toml` is plugin-global.)
+(Code fallback defaults when a key is absent are soft for quality/deploy — but the shipped values above are explicit `hard` and win. Brownfield adoption softens ONLY `code_guard`, temporarily; `config.toml` is plugin-global.)
 - **guard** is fail-closed by default (mechanical): a code/tool write requires an
   approved, scope-matching VERIFIED experiment record. Brownfield projects set
   `code_guard = "soft"` until the first VERIFIED scope exists.

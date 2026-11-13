@@ -2,7 +2,7 @@
 # "Seçenek A": {project-root}/docs/config.toml — project values WIN over plugin
 # defaults).
 #
-# Why a project layer at all: the plugin's base config (bmad/config.toml) is
+# Why a project layer at all: the plugin's base config (config.toml) is
 # shared by every install and must stay neutral — a real project name there
 # leaks into other projects and renames their run folders
 # (prd-{project_name}-{date}). Identity belongs here.

@@ -422,16 +422,16 @@ def _check_stop_engine_never_denies() -> str | None:
 
 
 def _check_claude_toml_matches_config() -> str | None:
-    """The toml block docs/CLAUDE.md shows must equal custom/config.toml [hooks]."""
+    """The toml block docs/CLAUDE.md shows must equal config.toml [hooks]."""
     text = _read("docs/CLAUDE.md")
     fence = re.search(r"```toml\n(.*?)```", text, re.DOTALL)
     if not fence:
         return "docs/CLAUDE.md has no toml block"
     documented = dict(re.findall(r"(\w+)\s*=\s*\"(soft|hard)\"", fence.group(1)))
     try:
-        real = tomllib.loads(_read("custom/config.toml")).get("hooks", {})
+        real = tomllib.loads(_read("config.toml")).get("hooks", {})
     except tomllib.TOMLDecodeError as exc:  # pragma: no cover - guarded by CI too
-        return f"custom/config.toml unparsable: {exc}"
+        return f"config.toml unparsable: {exc}"
     bad = [f"{k}: doc={v} config={real.get(k)}"
            for k, v in documented.items() if str(real.get(k)) != v]
     return f"documented gate modes drift from config: {bad}" if bad else None
@@ -447,7 +447,7 @@ def _check_config_comment_truthful() -> str | None:
 
 
 def _check_config_file_comments_truthful() -> str | None:
-    """custom/config.toml comments must not claim a blocking effect for stop_guard.
+    """config.toml comments must not claim a blocking effect for stop_guard.
 
     Same defect class as _check_config_comment_truthful (config.py), same
     rule shape: a comment naming stop_guard alongside a blocking claim
@@ -455,7 +455,7 @@ def _check_config_file_comments_truthful() -> str | None:
     blocks" disclaimer is the truthful form and passes.
     """
     problems = []
-    for no, line in enumerate(_read("custom/config.toml").splitlines(), start=1):
+    for no, line in enumerate(_read("config.toml").splitlines(), start=1):
         low = line.lower()
         if "stop_guard" not in low:
             continue
@@ -468,7 +468,7 @@ def _check_config_file_comments_truthful() -> str | None:
                  or (re.search(r"\bblock(s|ed|ing)?\b|\bdeny\b", low)
                      and "never" not in low))
         if stale:
-            problems.append(f"custom/config.toml:{no}: {line.strip()[:80]}")
+            problems.append(f"config.toml:{no}: {line.strip()[:80]}")
     return "; ".join(problems) if problems else None
 
 
@@ -5233,9 +5233,9 @@ def build_checks() -> list[tuple[str, Callable[[], str | _SkippedCheck | None]]]
     for rel in STOP_DOCS:
         checks.append((f"Stop described as report-only: {rel}", _check_stop_report_only(rel)))
     checks.append(("stop.py has no deny path", _check_stop_engine_never_denies))
-    checks.append(("docs/CLAUDE.md toml matches custom/config.toml", _check_claude_toml_matches_config))
+    checks.append(("docs/CLAUDE.md toml matches config.toml", _check_claude_toml_matches_config))
     checks.append(("config.py comments truthful about stop", _check_config_comment_truthful))
-    checks.append(("custom/config.toml comments truthful about stop", _check_config_file_comments_truthful))
+    checks.append(("config.toml comments truthful about stop", _check_config_file_comments_truthful))
     checks.append(("stop_guard has no reader", _check_no_stop_guard_reader))
     checks.append(("canvas feed wired (engine + CLI)", _check_canvas_feed_wired))
     for rel in CANVAS_DOCS:

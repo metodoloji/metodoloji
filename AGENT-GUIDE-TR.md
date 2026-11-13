@@ -136,7 +136,7 @@ Install the metodoloji plugin:
 
 Then in this project run /metodoloji:init, /metodoloji:gate-setup and
 /metodoloji:audit, and set code_guard, quality_gate and deploy_guard to
-"hard" in custom/config.toml. Finish with a health summary.
+"hard" in config.toml. Finish with a health summary.
 ```
 
 **OpenHands varyantı:**
@@ -515,7 +515,7 @@ Kural: hedef ve serbest prompt'lar runtime'lar arasında taşınır; kurulum ad�
 
 ### 6.3 Mod boyutu (aynı prompt ne üretir)
 
-Aynı yapım prompt'u yapılandırmaya göre farklı davranır (`custom/config.toml [hooks]`):
+Aynı yapım prompt'u yapılandırmaya göre farklı davranır (`config.toml [hooks]`):
 
 | Prompt'un amacı | `code_guard = "soft"` | `code_guard = "hard"` |
 |---|---|---|

@@ -622,7 +622,7 @@ for pr_file in "$PROJECT_ROOT"/docs/development/PR-*.md; do
     fi
 done
 # A project-side custom/ directory is an ORPHAN: the gate reads team/user config
-# from {metodoloji-root}/custom/ only (plugin-global policy — see
+# from {metodoloji-root}/config.toml only (plugin-global policy — see
 # hooks/engine/modules/config.py), so a copy in the target project looks
 # authoritative and is never read. The graph-engineering-arge session
 # (2026-10-01) found exactly this and had to decide whether it was in scope.
@@ -631,7 +631,7 @@ if [ -f "$PROJECT_ROOT/custom/config.toml" ]; then
     _proj_abs=$(cd "$PROJECT_ROOT" 2>/dev/null && pwd || printf '%s' "$PROJECT_ROOT")
     _plug_abs=$(cd "$METODOLOJI_ROOT" 2>/dev/null && pwd || printf '%s' "$METODOLOJI_ROOT")
     if [ "$_proj_abs" != "$_plug_abs" ]; then
-        log_warn "project-side custom/config.toml is never read — custom/ is plugin-global policy ({metodoloji-root}/custom/); a project copy looks authoritative but has no effect; move the settings to docs/config.toml or bmad/config.toml"
+        log_warn "project-side custom/config.toml is never read — plugin policy is {metodoloji-root}/config.toml; a project copy looks authoritative but has no effect; move the settings to docs/config.toml or bmad/config.toml"
     fi
 fi
 

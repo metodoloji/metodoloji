@@ -38,7 +38,7 @@ def plugin(tmp_path):
     """A minimal fake plugin root with the required base config."""
     root = tmp_path / "plugin"
     _write_toml(
-        root / "bmad" / "config.toml",
+        root / "config.toml",
         """
 [core]
 project_name = "base-project"
@@ -396,7 +396,7 @@ def test_bridge_arrays_replace_not_append(plugin, tmp_path):
     # Installer YAML carries the FULL value of a key, not a delta: the legacy
     # bridge must REPLACE arrays, not append ("en" + ["tr"] must not become
     # ["en", "tr"] — the real repo duplicated every list that way).
-    _write_toml(plugin / "bmad" / "config.toml", '[modules.alt]\nproduct_languages = ["en"]\n')
+    _write_toml(plugin / "config.toml", '[modules.alt]\nproduct_languages = ["en"]\n')
     _write_yaml(project / "bmad" / "alt" / "config.yaml", "product_languages:\n  - tr\n")
     out = _run(plugin, project, "--module", "alt")
     assert out["alt"]["product_languages"] == ["tr"]
@@ -411,7 +411,7 @@ def test_same_file_layers_not_double_applied(tmp_path):
     root = tmp_path / "selfhost"
     root.mkdir()
     _write_toml(
-        root / "bmad" / "config.toml",
+        root / "config.toml",
         '[modules.demo]\nplatforms = ["unity", "unreal", "godot", "other"]\n',
     )
     dest = root / "bmad" / "scripts"

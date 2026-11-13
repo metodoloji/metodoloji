@@ -2,7 +2,7 @@
 # check-plugin.sh — methodology plugin health check (single command, plugin variant).
 #
 #   0. Is the gate key installed?            (run_experiment.py --check-secret)
-#   0b. Base config carries no project-name leak (bmad/config.toml is shared by
+#   0b. Base config carries no project-name leak (config.toml is shared by
 #       every install; a real name there renames other projects' run folders)
 #   1. Gate + hook engine selfcheck        (plugin copies, both)
 #   1b. hooks.json dispatch locator drift  (generated from sync-hooks-json.py; == run-hook.sh roots)
@@ -11,7 +11,7 @@
 #   3. Approved experiment inventory              (records where the guard opened code writing)
 #   4. Documentary (B/C/D) record completeness  (run_experiment.py --validate)
 #   5. Engine drift audit               (plugin engine == repo canonical, if repo reachable)
-#   5b. Hard gate enforcement mode (soft/hard — custom/config.toml [hooks])
+#   5b. Hard gate enforcement mode (soft/hard — config.toml [hooks])
 #   5c. custom/ bridge TOMLs static quality audit (scripts/check-custom.sh)
 #   6. Development records format check  (run_experiment.py --validate)
 #   6c. Template copy identity (templates/ ↔ docs/_template copies)
@@ -396,7 +396,7 @@ else
 fi
 
 echo "== 0b) Plugin base config carries no project-name leak =="
-# bmad/config.toml is the BASE config layer for every install
+# config.toml is the BASE config layer for every install
 # (resolve_config.py layer 1, required=True). A concrete project name there
 # becomes the default project_name for every target project that does not
 # override it, and run folders are named from project_name
@@ -409,15 +409,15 @@ if "$PY" - "$PLUGIN_ROOT" <<'PY'
 import os, sys, tomllib
 plugin = sys.argv[1]
 NEUTRAL = {"", "unconfigured", "bmad-project", "project"}
-path = os.path.join(plugin, "bmad", "config.toml")
+path = os.path.join(plugin, "config.toml")
 try:
     with open(path, "rb") as fh:
         name = str((tomllib.load(fh).get("core") or {}).get("project_name") or "")
 except Exception as exc:
-    print(f"[ERROR] cannot read bmad/config.toml: {exc}")
+    print(f"[ERROR] cannot read config.toml: {exc}")
     sys.exit(1)
 if name.strip().lower() not in NEUTRAL:
-    print(f"[ERROR] bmad/config.toml ships project_name='{name}' — a real project "
+    print(f"[ERROR] config.toml ships project_name='{name}' — a real project "
           f"name in the BASE layer leaks into every install (run folders become "
           f"prd-{name}-...); keep it neutral, set identity in the project layer")
     sys.exit(1)
@@ -429,6 +429,15 @@ then
 else
     PROBLEMS=$((PROBLEMS + 1))
 fi
+
+# E-146: the plugin config has one owner. A surviving pre-E-146 file is still
+# read (so an upgraded install keeps its settings) but it is a second owner the
+# reader has to reason about — name it so the operator can delete it.
+for _legacy in bmad/config.toml bmad/config.user.toml custom/config.toml custom/config.user.toml; do
+    if [ -f "$PLUGIN_ROOT/$_legacy" ]; then
+        echo "[WARNING] legacy plugin config still present: $_legacy — its values are read BELOW config.toml; copy anything you changed there, then delete it"
+    fi
+done
 
 echo "== 1) Gate + hook engine selfcheck (plugin copies) =="
 if "$PY" "$GATE" --selfcheck >/tmp/meth-selfcheck.$$.log 2>&1; then
@@ -1333,13 +1342,13 @@ else
 fi
 
 echo "== 5b) Hard gate enforcement mode (soft/hard) =="
-# quality/deploy/code gates are config-gated: custom/config.toml [hooks].
+# quality/deploy/code gates are config-gated: config.toml [hooks].
 # quality+deploy default soft; code defaults hard; stop_guard is inert/back-compat.
 "$PY" - <<'PY'
 import tomllib, os, sys
 PLUGIN = os.environ.get("PLUGIN_ROOT") or "."
 PROJECT = os.environ.get("PROJECT_ROOT") or "."
-cfg = os.path.join(PLUGIN, "custom", "config.toml")
+cfg = os.path.join(PLUGIN, "config.toml")
 qg, dg, cg, sg = "soft", "soft", "hard", "soft"
 src = "(no config — quality/deploy soft, code hard; stop_guard inert)"
 if os.path.isfile(cfg):
@@ -1364,7 +1373,7 @@ print("  deploy_guard: %s (%s)" % (dg, src))
 print("  code_guard: %s (%s)" % (cg, src))
 print("  stop_guard: %s (%s)" % (sg, src))
 # Dogfood exemption: this repository IS the plugin. The plugin's global gate
-# policy (custom/config.toml) is deliberately hardened, and the plugin itself
+# policy (config.toml) is deliberately hardened, and the plugin itself
 # ships no IR/SP/QR/PR records (the record set was pruned 2026-10-06) —
 # escalating here would demand the plugin keep its own experiment records just
 # to pass its own audit. Report the mode and pass; the consumer-project case

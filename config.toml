@@ -1,10 +1,34 @@
-# Team / enterprise overrides for bmad/config.toml.
-# Committed to the repo — applies to every developer on the project.
-# Tables deep-merge over base config; keyed entries merge by key.
-# Example: override an agent descriptor, or add a new agent.
+# ─────────────────────────────────────────────────────────────────
+# THE plugin config. One owner: this file.
 #
-# [agents.<your-agent>]
-# description = "Prefers short, bulleted PRDs over narrative drafts."
+# It replaced two files (E-146):
+#   bmad/config.toml      → [core] / [modules.*] path defaults (here)
+#   custom/config.toml    → [hooks] / [freshness] policy      (here)
+# Both are still READ as lower-priority legacy fallbacks so an upgraded
+# install keeps the gate policy it set, but neither is written and a
+# value here always wins. `check-plugin.sh` reports a surviving legacy
+# file as a WARNING — delete it after copying anything you changed.
+#
+# Layer order (resolve_config.py), later wins:
+#   1. /config.toml                     plugin team (this file, committed)
+#   2. /config.user.toml                plugin personal (gitignored)
+#   3. {project-root}/bmad/config.toml  project team
+#   4. {project-root}/bmad/config.user.toml
+#   5. {project-root}/docs/config.toml  project canonical (Seçenek A)
+#   6. {project-root}/docs/config.user.toml
+# Legacy fallbacks (read-only, below everything above):
+#   {metodoloji-root}/bmad/config.toml, {metodoloji-root}/custom/config.toml,
+#   {project-root}/bmad-output/config.toml (+ .user.toml)
+# ─────────────────────────────────────────────────────────────────
+
+[core]
+# Neutral by design: this is the BASE layer every install inherits. A concrete
+# project name here leaks into every target project and renames its run folders
+# (prd-{project_name}-{date}) — see check-plugin.sh §0b. Set identity in the
+# PROJECT layer instead: {project-root}/docs/config.toml.
+project_name = "unconfigured"
+document_output_language = "English"
+output_folder = "{project-root}/docs"
 
 # --- Artifact paths: point to the target project (NOT the plugin!) ---
 # When the plugin is installed, {metodoloji-root} = plugin dir, {project-root} = target repo.
@@ -15,13 +39,14 @@
 # sprint-status → docs/development/native, test → docs/quality/...).
 # Legacy {project-root}/bmad-output paths are still READ as fallback
 # (see bmad/scripts/resolve_config.py) but never written.
-[core]
-output_folder = "{project-root}/docs"
-
 [modules.bmm]
 planning_artifacts = "{project-root}/docs/planning"
 implementation_artifacts = "{project-root}/docs/development/native"
 project_knowledge = "{project-root}/docs"
+
+[modules.bmb]
+bmad_builder_output_folder = "{project-root}/skills"
+bmad_builder_reports = "{project-root}/skills/reports"
 
 # --- Hook enforcement modu ---
 # GLOBAL SCOPE WARNING: this file is plugin policy shared by EVERY project

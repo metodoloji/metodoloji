@@ -3,7 +3,7 @@
 Covers: write/read/tag/untag/contribute/hot/stats, caps and expiry,
 event-sourced snapshot rebuild, atomicity under concurrent writers,
 unicode content, fail-open behavior (missing dir, corrupt JSON),
-and the config gate (custom/config.toml [hooks] blackboard).
+and the config gate (config.toml [hooks] blackboard).
 """
 
 import concurrent.futures

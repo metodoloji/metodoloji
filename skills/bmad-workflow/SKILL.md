@@ -75,7 +75,7 @@ replace-then-append, other arrays append. Missing files are skipped.
 
 Execute `{workflow.activation_steps_prepend}` in order, load every `{workflow.persistent_facts}`
 entry (`file:`-prefixed entries are loaded as facts), take config from the digest (only read
-`{metodoloji-root}/bmad/config.toml` + `config.user.toml` if it could not run), greet
+`{metodoloji-root}/config.toml` + `config.user.toml` if it could not run), greet
 `{user_name}`, then execute `{workflow.activation_steps_append}` in order.
 
 ### Step 4: Read the Run State — before choosing a mode

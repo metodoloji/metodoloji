@@ -48,7 +48,7 @@ One-time, idempotent installation. The canonical contract is
   denied by the guard by design). Gate state comes from
   `/metodoloji-verify` with `action="check_secret"` or the orient digest.
 - Brownfield project (existing code, no experiment history)? You MAY propose
-  `code_guard = "soft"` in `custom/config.toml [hooks]` so unapproved writes
+  `code_guard = "soft"` in `config.toml [hooks]` so unapproved writes
   warn instead of deny — but ASK FIRST. That file is plugin-global policy for
   every project on this machine. Re-harden to `"hard"` once a VERIFIED
   experiment scope exists. Never soften `quality_gate` / `deploy_guard`.

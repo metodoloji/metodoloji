@@ -1,0 +1,67 @@
+{
+  "note": "Pre-consolidation baseline (E-146). Captured from the 8-layer tree BEFORE config/ merge; the consolidation must reproduce it exactly.",
+  "full_dump": {
+    "core": {
+      "project_name": "metodoloji",
+      "document_output_language": "English",
+      "output_folder": "{project-root}/docs",
+      "user_name": "Yunus",
+      "communication_language": "Turkish"
+    },
+    "modules": {
+      "bmm": {
+        "planning_artifacts": "{project-root}/docs/planning",
+        "implementation_artifacts": "{project-root}/docs/development/native",
+        "project_knowledge": "{project-root}/docs",
+        "user_skill_level": "intermediate"
+      },
+      "bmb": {
+        "bmad_builder_output_folder": "{project-root}/skills",
+        "bmad_builder_reports": "{project-root}/skills/reports"
+      }
+    },
+    "hooks": {
+      "quality_gate": "hard",
+      "freshness": "warn",
+      "deploy_guard": "hard",
+      "code_guard": "hard",
+      "stop_guard": "soft",
+      "blackboard": "on",
+      "blackboard_backend": "sqlite"
+    },
+    "freshness": {
+      "scope_digest": true,
+      "unknown_policy": "warn",
+      "max_digest_files": 2000
+    }
+  },
+  "targeted": {
+    "core": {
+      "project_name": "metodoloji",
+      "document_output_language": "English",
+      "output_folder": "{project-root}/docs",
+      "user_name": "Yunus",
+      "communication_language": "Turkish"
+    },
+    "modules.bmm": {
+      "planning_artifacts": "{project-root}/docs/planning",
+      "implementation_artifacts": "{project-root}/docs/development/native",
+      "project_knowledge": "{project-root}/docs",
+      "user_skill_level": "intermediate"
+    },
+    "modules.bmb": {
+      "bmad_builder_output_folder": "{project-root}/skills",
+      "bmad_builder_reports": "{project-root}/skills/reports"
+    }
+  },
+  "hook_modes": {
+    "code": "soft",
+    "quality": "soft",
+    "deploy": "soft",
+    "blackboard": true,
+    "blackboard_backend": "sqlite",
+    "freshness_unknown_policy": "warn",
+    "freshness_scope_digest": "true",
+    "freshness_max_digest_files": "2000"
+  }
+}

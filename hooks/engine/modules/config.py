@@ -136,7 +136,7 @@ GATE_VERIFY_TIMEOUT_SECONDS = 8
 SCOPE_GIT_TIMEOUT_SECONDS = 8
 
 # --- Gate strictness ---------------------------------------------------------
-# custom/config.toml [hooks]: quality_gate / deploy_guard / code_guard /
+# config.toml [hooks]: quality_gate / deploy_guard / code_guard /
 # stop_guard (soft|hard). quality/deploy default soft (warn-only); code
 # defaults hard (code writes stay mechanical unless a project explicitly
 # relaxes them, e.g. brownfield adoption). stop_guard is a backward-compat
@@ -144,25 +144,30 @@ SCOPE_GIT_TIMEOUT_SECONDS = 8
 # reader consults its value (see modules/stop.py). Read live per-call so
 # config edits apply without a reload. Each key is read independently.
 #
-# NOTE: the shipped custom/config.toml sets code_guard = "hard" (steady state).
+# NOTE: the shipped config.toml sets code_guard = "hard" (steady state).
 # Brownfield adoption may temporarily relax it to "soft" (warn-only) until
 # the first VERIFIED scope lands, then returns to hard — see KILAVUZ #7.
 #
-# NOTE (deliberate): this reads the plugin's own custom/config.toml, NOT the
-# bmad resolve_config.py merge (four plugin layers + four {project-root}
-# layers, plus the legacy per-module config.yaml bridge — see
-# bmad/scripts/resolve_config.py). Hook enforcement is plugin policy, not
-# project configuration: the layers above let a PROJECT override its own
-# behavior, but a target project must never be able to silently relax the
-# guard that watches it. There is currently no per-project or
-# config.user.toml override for [hooks]: any softening in custom/config.toml
-# applies plugin-globally to every project and must be re-hardened after
-# brownfield adoption (see custom/config.toml header).
-_HOOKS_CFG = _METHODOLOGY_ROOT / "custom" / "config.toml"
+# NOTE (deliberate): this reads the plugin's own config, NOT the
+# bmad resolve_config.py merge (plugin + {project-root} layers, plus the legacy
+# per-module config.yaml bridge — see bmad/scripts/resolve_config.py). Hook
+# enforcement is plugin policy, not project configuration: the layers above let
+# a PROJECT override its own behavior, but a target project must never be able
+# to silently relax the guard that watches it. There is currently no
+# per-project or config.user.toml override for [hooks]: any softening in
+# config.toml applies plugin-globally to every project and must be re-hardened
+# after brownfield adoption (see config.toml header).
+_HOOKS_CFG = _METHODOLOGY_ROOT / "config.toml"
+if not _HOOKS_CFG.exists():
+    # Pre-E-146 install: the policy lived in custom/config.toml. Keep reading it
+    # so an upgraded checkout does not silently fall back to the code defaults.
+    _legacy_hooks_cfg = _METHODOLOGY_ROOT / "custom" / "config.toml"
+    if _legacy_hooks_cfg.exists():
+        _HOOKS_CFG = _legacy_hooks_cfg
 
 # --- [hooks] section cache (Faz 1) -------------------------------------------
 # hook_gate_mode()/blackboard_enabled() are called several times per hook
-# invocation; re-reading + re-parsing custom/config.toml on every call wastes
+# invocation; re-reading + re-parsing config.toml on every call wastes
 # disk I/O on the hot path. The parsed [hooks] dict is cached per process and
 # invalidated by (mtime_ns, size) — a hook process is short-lived, so a stale
 # read can only lag a config edit by one process lifetime. Tests that swap
@@ -171,7 +176,7 @@ _HOOKS_CACHE: dict | None = None
 _HOOKS_CACHE_KEY: tuple | None = None
 
 
-# One parser for every table of custom/config.toml: a second reader would be
+# One parser for every table of config.toml: a second reader would be
 # a second opinion about what the file says. Cached per (section, path,
 # mtime_ns, size); switching the path (tests, a temp config) is itself a cache
 # miss, so no caller has to remember to clear anything.
@@ -179,7 +184,7 @@ _SECTION_CACHE: dict[str, tuple[tuple, dict]] = {}
 
 
 def _read_config_section(section: str) -> dict:
-    """Parse one `[<section>]` table of custom/config.toml (cached)."""
+    """Parse one `[<section>]` table of config.toml (cached)."""
     global _HOOKS_CACHE, _HOOKS_CACHE_KEY
     try:
         st = _HOOKS_CFG.stat()
@@ -264,7 +269,7 @@ def _hook_gate_value(gate_key: str, *args) -> str:
         return val
     return default
 
-# Per-key defaults, used only when the key is absent from custom/config.toml:
+# Per-key defaults, used only when the key is absent from config.toml:
 # the commit/deploy gates are warn-only unless opted into hard, and the code
 # gate defaults to hard. stop_guard is retained for backward compatibility and
 # has no reader — stop is report-only whatever its value.
@@ -352,12 +357,12 @@ def _validate_config_section(section: str, valid_keys: frozenset) -> tuple[bool,
 
 
 def _validate_hooks_config() -> tuple[bool, str]:
-    """Validate [hooks] section in custom/config.toml (MEDIUM #9 / ISSUE #68)."""
+    """Validate [hooks] section in config.toml (MEDIUM #9 / ISSUE #68)."""
     return _validate_config_section("hooks", _VALID_HOOKS_KEYS)
 
 
 def _validate_freshness_config() -> tuple[bool, str]:
-    """Validate [freshness] section in custom/config.toml (E-053)."""
+    """Validate [freshness] section in config.toml (E-053)."""
     ok, error = _validate_config_section("freshness", _VALID_FRESHNESS_KEYS)
     if not ok:
         return ok, error
@@ -407,7 +412,7 @@ def blackboard_backend() -> str:
 def hook_gate_mode(gate_key: str) -> str:
     """Public per-call accessor for one [hooks] gate mode: 'soft' | 'hard'.
 
-    Each gate key is read INDEPENDENTLY and live from custom/config.toml —
+    Each gate key is read INDEPENDENTLY and live from config.toml —
     an import-time constant would go stale, and one gate's mode must never
     leak into the other's semantics.
     """

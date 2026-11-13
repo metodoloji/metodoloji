@@ -305,7 +305,7 @@ max_digest_files = 2000   # bounded; üstünde UNKNOWN + neden
 
 ### P5 — Monoton birleşim düzeltmesi
 
-- **Dosyalar:** `scripts/check-plugin.sh` §3b, `guard._check_scope_coverage`, `custom/config.toml` yorumu.
+- **Dosyalar:** `scripts/check-plugin.sh` §3b, `guard._check_scope_coverage`, `config.toml` yorumu.
 - **Çıktı:** "scopes in force" artık **taze** kapsamlardır; bayat kapsam `[STALE]` işaretlenir ve `freshness=deny`de yazmayı açmaz. §3b **dogfood'da da** koşar (F-05).
 - **Kabul:** kapsamı değişmiş kayıt §3b'de `STALE` satırı üretir; diger tüm dosyalar hâlâ `[OK]`; dogfood'da §3b çalışır ve yeşil/kırmızı verebilir.
 

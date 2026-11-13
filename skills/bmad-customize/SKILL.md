@@ -14,7 +14,7 @@ Meta yuzey: urettigi yuzeyler arastirma metodolojisini miras alir
 
 Translate the user's intent into a correctly-placed TOML override file under `{metodoloji-root}/custom/` for a customizable agent or workflow skill. Discover, route, author, write, verify.
 
-Scope v1: per-skill `[agent]` overrides (`<agent-skill>.toml` / `.user.toml`) and per-skill `[workflow]` overrides (`bmad-<workflow>.toml` / `.user.toml`). Central config (`{metodoloji-root}/custom/config.toml`) is out of scope — point users at the [How to Customize BMad guide](https://docs.bmad-method.org/how-to/customize-bmad/).
+Scope v1: per-skill `[agent]` overrides (`<agent-skill>.toml` / `.user.toml`) and per-skill `[workflow]` overrides (`bmad-<workflow>.toml` / `.user.toml`). Central config (`{metodoloji-root}/config.toml`) is out of scope — point users at the [How to Customize BMad guide](https://docs.bmad-method.org/how-to/customize-bmad/).
 
 When the target's `customize.toml` doesn't expose what the user wants, say so plainly. Don't invent fields.
 
@@ -26,7 +26,7 @@ When the target's `customize.toml` doesn't expose what the user wants, say so pl
 
 ## Activation
 
-Load `bmad/config.toml` and `bmad/config.user.toml` from `{metodoloji-root}` (the plugin installation — configuration is source material, never a project file) for `user_name` (default `BMad`) and `communication_language` (default `English`). Greet. If the user's invocation already names a target skill AND a specific change, jump to Step 3.
+Load `config.toml` and `config.user.toml` from `{metodoloji-root}` (the plugin installation — configuration is source material, never a project file) for `user_name` (default `BMad`) and `communication_language` (default `English`). Greet. If the user's invocation already names a target skill AND a specific change, jump to Step 3.
 
 ## Step 1: Classify intent
 
@@ -112,6 +112,6 @@ Otherwise the skill isn't done — finish or tell the user they're exiting incom
 
 ## When this skill can't help
 
-- **Central config** (`{metodoloji-root}/custom/config.toml`) — see the [How to Customize BMad guide](https://docs.bmad-method.org/how-to/customize-bmad/).
+- **Central config** (`{metodoloji-root}/config.toml`) — see the [How to Customize BMad guide](https://docs.bmad-method.org/how-to/customize-bmad/).
 - **Step logic, ordering, behavior not in `customize.toml`** — open a feature request, or use `bmad-builder` to create a custom skill. Offer to help with either.
 - **Skills without a `customize.toml`** — not customizable.

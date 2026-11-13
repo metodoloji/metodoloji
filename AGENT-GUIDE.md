@@ -138,7 +138,7 @@ Install the metodoloji plugin:
 
 Then in this project run /metodoloji:init, /metodoloji:gate-setup and
 /metodoloji:audit, and set code_guard, quality_gate and deploy_guard to
-"hard" in custom/config.toml. Finish with a health summary.
+"hard" in config.toml. Finish with a health summary.
 ```
 
 **OpenHands variant:**
@@ -519,7 +519,7 @@ Rule of thumb: the goal and free-form prompts transfer between runtimes; install
 
 ### 6.3 Mode dimension (what the same prompt will produce)
 
-The same build prompt behaves differently depending on the configured mode (`custom/config.toml [hooks]`):
+The same build prompt behaves differently depending on the configured mode (`config.toml [hooks]`):
 
 | Goal of the prompt | `code_guard = "soft"` | `code_guard = "hard"` |
 |---|---|---|

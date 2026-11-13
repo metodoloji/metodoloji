@@ -32,7 +32,8 @@ _generated_splits/
 # SkillOpt training outputs
 outputs/
 
-# Personal config layer in the output-local project layer (never commit)
+# Personal config layers (never commit)
+config.user.toml
 docs/config.user.toml
 # Pre-migration legacy (kept one release for fallback reads; never written)
 bmad-output/config.user.toml

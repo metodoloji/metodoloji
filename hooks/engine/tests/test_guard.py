@@ -1091,7 +1091,7 @@ def test_guard_soft_gate_warns_not_denies(tmp_path, monkeypatch):
     """Faz 2d: story editing in guard() is allowed; metadata gaps are enforced at commit time via quality()."""
     from modules.guard import guard, quality
     from modules import config
-    # Force the soft-gate branch regardless of custom/config.toml.
+    # Force the soft-gate branch regardless of config.toml.
     monkeypatch.setattr(config, "hook_gate_mode", lambda key: "soft")
     stories = tmp_path / "docs/development/stories"
     stories.mkdir(parents=True)

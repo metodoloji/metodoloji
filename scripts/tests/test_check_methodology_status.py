@@ -564,9 +564,9 @@ def test_check7_flags_a_project_side_custom_dir_as_an_orphan(tmp_path):
 
 def test_plugin_base_config_is_neutral_and_the_project_layer_names_the_repo():
     """A real project name in the shipped base layer leaks into every install."""
-    base = (PLUGIN / "bmad" / "config.toml").read_text(encoding="utf-8")
+    base = (PLUGIN / "config.toml").read_text(encoding="utf-8")
     m = re.search(r'^project_name\s*=\s*"([^"]*)"', base, re.MULTILINE)
-    assert m, "bmad/config.toml must declare project_name"
+    assert m, "config.toml must declare project_name"
     assert m.group(1).strip().lower() in {"", "unconfigured", "bmad-project", "project"}
     layer = PLUGIN / "docs" / "config.toml"
     assert layer.is_file(), "this repo must carry its identity in a project layer"

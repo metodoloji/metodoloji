@@ -93,7 +93,7 @@ def _case_help_rows() -> tuple[bool, str]:
 
 
 def _case_config_sections() -> tuple[bool, str]:
-    text = (ROOT / "bmad" / "config.toml").read_text(encoding="utf-8")
+    text = (ROOT / "config.toml").read_text(encoding="utf-8")
     hits = sorted(set(re.findall(r"^\[(?:modules|agents)\.(tea|bmad-tea)\]\s*$", text, re.M)))
     return (not hits, f"surviving config sections: {hits}" if hits else "none")
 
@@ -118,9 +118,9 @@ def _case_handoff_lint() -> tuple[bool, str]:
 
 
 def _case_custom_config() -> tuple[bool, str]:
-    text = (ROOT / "custom" / "config.toml").read_text(encoding="utf-8")
+    text = (ROOT / "config.toml").read_text(encoding="utf-8")
     hit = "[modules.tea]" in text
-    return (not hit, "custom/config.toml still carries [modules.tea]" if hit else "none")
+    return (not hit, "config.toml still carries [modules.tea]" if hit else "none")
 
 
 def _case_manifests_declare_the_surviving_count() -> tuple[bool, str]:
