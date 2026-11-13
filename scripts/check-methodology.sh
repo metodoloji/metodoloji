@@ -621,20 +621,6 @@ for pr_file in "$PROJECT_ROOT"/docs/development/PR-*.md; do
         log_issue "$pr_base -> no Date field"
     fi
 done
-# A project-side custom/ directory is an ORPHAN: the gate reads team/user config
-# from {metodoloji-root}/config.toml only (plugin-global policy — see
-# hooks/engine/modules/config.py), so a copy in the target project looks
-# authoritative and is never read. The graph-engineering-arge session
-# (2026-10-01) found exactly this and had to decide whether it was in scope.
-# Skipped when the project IS the plugin checkout (dogfood: same directory).
-if [ -f "$PROJECT_ROOT/custom/config.toml" ]; then
-    _proj_abs=$(cd "$PROJECT_ROOT" 2>/dev/null && pwd || printf '%s' "$PROJECT_ROOT")
-    _plug_abs=$(cd "$METODOLOJI_ROOT" 2>/dev/null && pwd || printf '%s' "$METODOLOJI_ROOT")
-    if [ "$_proj_abs" != "$_plug_abs" ]; then
-        log_warn "project-side custom/config.toml is never read — plugin policy is {metodoloji-root}/config.toml; a project copy looks authoritative but has no effect; move the settings to docs/config.toml or bmad/config.toml"
-    fi
-fi
-
 GATE_TOTAL=$((IR_SEEN + SP_SEEN + PR_SEEN))
 if [ "$GATE_TOTAL" -eq 0 ]; then
     # A fresh project has judged no gate yet — one honest warning, like CHECK 4/5.

@@ -1,31 +1,25 @@
 #!/usr/bin/env python3
 """
-Resolve BMad's central config using a six-layer merge.
+Resolve BMad's central config using a four-layer merge.
 
-Reads from six layers (highest priority LAST):
+Reads from four layers (highest priority LAST):
 
   Plugin layers (ship with the methodology, human-authored):
     1. {metodoloji-root}/config.toml                   (plugin team, committed)
     2. {metodoloji-root}/config.user.toml              (plugin user, gitignored)
 
   Project layers (owned by the TARGET PROJECT — these WIN):
-    3. {project-root}/bmad/config.toml                 (project team, committed)
-    4. {project-root}/bmad/config.user.toml            (project user, gitignored)
-    5. {project-root}/docs/config.toml                 (output-local team, committed — Seçenek A kanonik)
-    6. {project-root}/docs/config.user.toml            (output-local user, gitignored)
+    3. {project-root}/docs/config.toml                 (project team, committed)
+    4. {project-root}/docs/config.user.toml            (project user, gitignored)
 
-  Legacy fallbacks (read-only, BELOW every layer above, never written):
-    L1. {metodoloji-root}/bmad/config.toml             (pre-E-146 plugin team)
-    L2. {metodoloji-root}/bmad/config.user.toml        (pre-E-146 plugin user)
-    L3. {metodoloji-root}/custom/config.toml           (pre-E-146 plugin team)
-    L4. {metodoloji-root}/custom/config.user.toml      (pre-E-146 plugin user)
-    L5. {project-root}/bmad-output/config.toml         (pre-migration team)
-    L6. {project-root}/bmad-output/config.user.toml    (pre-migration user)
+  Legacy fallback (read-only, BELOW every layer above, never written):
+    L1. {project-root}/bmad-output/config.toml         (pre-migration team)
+    L2. {project-root}/bmad-output/config.user.toml    (pre-migration user)
 
-  E-146 collapsed four plugin config files into one owner (`/config.toml`).
-  The four old paths stay READ so an upgraded install keeps the gate policy it
-  set; a value in `/config.toml` always wins, and `check-plugin.sh` reports a
-  surviving legacy file as a WARNING so it can be deleted.
+  E-146 collapsed the plugin config into one owner (`/config.toml`); E-147
+  removed the old plugin paths and the `{project-root}/bmad/*.toml` project
+  layer outright. They are not read, not written, and not created: a project
+  configures itself through `docs/` only. Do not reintroduce them.
 
 The project layers let a user configure BMad entirely from their own repo,
 without touching the plugin. Values set there override plugin defaults.
@@ -426,58 +420,26 @@ def resolve(project_root: Path | str, *, modules=(), keys=()) -> dict:
     keys = list(keys)
     project_root = Path(project_root).resolve()
     # {metodoloji-root} = derived from this script's location (plugin root).
-    # When the plugin is installed, base configs live inside the plugin
-    # ({metodoloji-root}/bmad, {metodoloji-root}/custom); the target project's
-    # own layers live under {project-root}/bmad and {project-root}/docs
-    # and OVERRIDE the plugin layers — that is the point of the project layers.
+    # The target project's own layers live under {project-root}/docs and
+    # OVERRIDE the plugin layers — that is the point of the project layers.
     # {project-root}/bmad-output/config.toml is the pre-migration legacy
     # fallback: read when present, always beaten by {project-root}/docs/.
+    # E-147: the plugin's bmad/ and custom/ config paths and the
+    # {project-root}/bmad/*.toml layer are gone — never read, never created.
     _script_dir = Path(__file__).resolve().parent  # .../bmad/scripts
     metodoloji_root = _script_dir.parent.parent     # plugin root
-    bmad_dir = metodoloji_root / "bmad"
-    custom_dir = metodoloji_root / "custom"
-    project_bmad_dir = project_root / "bmad"
     project_output_dir = project_root / "docs"
     legacy_output_dir = project_root / "bmad-output"
 
-    # One owner (E-146): the plugin config lives at the plugin root. The four
-    # pre-E-146 paths are read BELOW it so an upgraded install does not lose
-    # the gate policy it set; nothing here is written.
+    # One owner (E-146): the plugin config lives at the plugin root.
     base_team = load_toml(metodoloji_root / "config.toml", required=True)
     base_user = load_toml(metodoloji_root / "config.user.toml")
-    legacy_plugin_team = load_toml(bmad_dir / "config.toml")
-    legacy_plugin_user = load_toml(bmad_dir / "config.user.toml")
-    legacy_custom_team = load_toml(custom_dir / "config.toml")
-    legacy_custom_user = load_toml(custom_dir / "config.user.toml")
-    project_team = load_toml(project_bmad_dir / "config.toml")
-    project_user = load_toml(project_bmad_dir / "config.user.toml")
     legacy_output_team = load_toml(legacy_output_dir / "config.toml")
     legacy_output_user = load_toml(legacy_output_dir / "config.user.toml")
     output_team = load_toml(project_output_dir / "config.toml")
     output_user = load_toml(project_output_dir / "config.user.toml")
 
-    # Dedup guard: when the methodology runs AS its own project (this repo),
-    # {metodoloji-root} == {project-root} and the plugin and project layers
-    # resolve to the SAME files. Loading them twice double-applies array
-    # append semantics (4-element lists became 8). Skip identical paths —
-    # the later project layer has no new information to add.
-    def _same_file(a: Path, b: Path) -> bool:
-        return a.exists() and b.exists() and a.resolve() == b.resolve()
-
-    if _same_file(bmad_dir / "config.toml", project_bmad_dir / "config.toml"):
-        project_team = {}
-    if _same_file(bmad_dir / "config.user.toml", project_bmad_dir / "config.user.toml"):
-        project_user = {}
-    if _same_file(custom_dir / "config.toml", project_bmad_dir / "config.toml"):
-        project_team = {}
-    if _same_file(custom_dir / "config.user.toml", project_bmad_dir / "config.user.toml"):
-        project_user = {}
-
-    merged = deep_merge(legacy_plugin_team, legacy_plugin_user)
-    merged = deep_merge(merged, legacy_custom_team)
-    merged = deep_merge(merged, legacy_custom_user)
-    merged = deep_merge(merged, base_team)
-    merged = deep_merge(merged, base_user)
+    merged = deep_merge(base_team, base_user)
 
     # Project-root legacy YAML sits between the plugin layers and the project
     # TOML layers: it overrides plugin defaults and is overridden by project TOML.
@@ -486,10 +448,6 @@ def resolve(project_root: Path | str, *, modules=(), keys=()) -> dict:
         wanted_modules = discover_legacy_modules(project_root)  # full dump: bridge everything
     merged = apply_legacy_bridge(project_root, merged, wanted_modules)
 
-    merged = deep_merge(merged, project_team)
-    merged = deep_merge(merged, project_user)
-    # Legacy output-local layers (bmad-output/) apply BEFORE the canonical
-    # docs/ layers so a migrated project always wins over its own leftovers.
     merged = deep_merge(merged, legacy_output_team)
     merged = deep_merge(merged, legacy_output_user)
     merged = deep_merge(merged, output_team)

@@ -195,7 +195,7 @@ def test_legacy_yaml_overrides_plugin_default(plugin, tmp_path):
 def test_project_toml_beats_legacy_yaml(plugin, tmp_path):
     project = _make_project(tmp_path)
     _write_yaml(project / "bmad" / "sample" / "config.yaml", "risk_threshold: p0\n")
-    _write_toml(project / "bmad" / "config.toml", '[modules.sample]\nrisk_threshold = "p2"\n')
+    _write_toml(project / "docs" / "config.toml", '[modules.sample]\nrisk_threshold = "p2"\n')
     out = _run(plugin, project, "--key", "modules.sample.risk_threshold")
     assert out == {"modules.sample.risk_threshold": "p2"}
 
@@ -258,54 +258,6 @@ def test_legacy_core_yaml_authority_over_module_stamps(plugin, tmp_path):
     _write_yaml(project / "bmad" / "sample" / "config.yaml", "user_name: StaleStamp\n")
     out = _run(plugin, project, "--key", "core.user_name")
     assert out == {"core.user_name": "CoreAuthority"}
-
-
-def test_module_stamp_fills_gap_when_core_yaml_missing(plugin, tmp_path):
-    project = _make_project(tmp_path)
-    # No core/config.yaml — the module file's core stamp fills the gap in the
-    # flat --module output (the realistic legacy skill query).
-    _write_yaml(project / "bmad" / "sample" / "config.yaml", "user_name: FromStamp\n")
-    out = _run(plugin, project, "--module", "sample")
-    assert out["sample"]["user_name"] == "FromStamp"
-
-
-def test_project_user_toml_beats_legacy_core(plugin, tmp_path):
-    project = _make_project(tmp_path)
-    _write_yaml(project / "bmad" / "core" / "config.yaml", "user_name: Legacy\n")
-    _write_toml(project / "bmad" / "config.user.toml", '[core]\nuser_name = "Me"\n')
-    out = _run(plugin, project, "--key", "core.user_name")
-    assert out == {"core.user_name": "Me"}
-
-
-# ── Project-root layers ──────────────────────────────────────────────
-
-def test_project_bmad_toml_overrides_plugin_and_legacy(plugin, tmp_path):
-    project = _make_project(tmp_path)
-    _write_toml(
-        project / "bmad" / "config.toml",
-        '[modules.sample]\nrisk_threshold = "p0"\n',
-    )
-    out = _run(plugin, project, "--key", "modules.sample.risk_threshold")
-    assert out == {"modules.sample.risk_threshold": "p0"}
-
-
-def test_project_config_user_toml_overrides_project_team(plugin, tmp_path):
-    project = _make_project(tmp_path)
-    _write_toml(project / "bmad" / "config.toml", '[core]\nuser_name = "Team"\n')
-    _write_toml(project / "bmad" / "config.user.toml", '[core]\nuser_name = "Me"\n')
-    out = _run(plugin, project, "--key", "core.user_name")
-    assert out == {"core.user_name": "Me"}
-
-
-def test_bmad_output_layer_wins_over_project_bmad(plugin, tmp_path):
-    # Legacy fallback: pre-migration bmad-output/ still beats bmad/ (backward compat).
-    project = _make_project(tmp_path)
-    _write_toml(project / "bmad" / "config.toml", '[core]\noutput_folder = "a"\n')
-    _write_toml(project / "bmad-output" / "config.toml", '[core]\noutput_folder = "b"\n')
-    out = _run(plugin, project, "--key", "core.output_folder")
-    assert out == {"core.output_folder": "b"}
-
-
 def test_docs_output_layer_wins_over_legacy_bmad_output(plugin, tmp_path):
     # Seçenek A kanonik: docs/ beats legacy bmad-output/ when both present.
     project = _make_project(tmp_path)
@@ -325,12 +277,10 @@ def test_legacy_bmad_output_fallback_when_docs_absent(plugin, tmp_path):
 
 def test_project_user_output_beats_everything(plugin, tmp_path):
     project = _make_project(tmp_path)
-    _write_toml(project / "bmad" / "config.toml", '[core]\nlanguage = "en"\n')
     _write_toml(project / "bmad-output" / "config.toml", '[core]\nlanguage = "tr"\n')
     _write_toml(project / "docs" / "config.user.toml", '[core]\nlanguage = "de"\n')
     out = _run(plugin, project, "--key", "core.language")
     assert out == {"core.language": "de"}
-
 
 def test_project_layers_absent_is_fine(plugin, tmp_path):
     project = _make_project(tmp_path)  # no project files at all
@@ -343,7 +293,7 @@ def test_project_layers_absent_is_fine(plugin, tmp_path):
 def test_module_flat_output_merges_core(plugin, tmp_path):
     project = _make_project(tmp_path)
     _write_toml(
-        project / "bmad" / "config.toml",
+        project / "docs" / "config.toml",
         '[modules.alt]\nproduct_type = "digital_product"\n',
     )
     out = _run(plugin, project, "--module", "alt")
@@ -357,7 +307,7 @@ def test_module_flat_output_merges_core(plugin, tmp_path):
 def test_module_output_project_override_applies(plugin, tmp_path):
     project = _make_project(tmp_path)
     _write_toml(
-        project / "bmad" / "config.toml",
+        project / "docs" / "config.toml",
         '[modules.sample]\nrisk_threshold = "p0"\n',
     )
     out = _run(plugin, project, "--module", "sample")

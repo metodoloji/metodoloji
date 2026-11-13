@@ -55,13 +55,13 @@
     }
   },
   "hook_modes": {
-    "code": "soft",
-    "quality": "soft",
-    "deploy": "soft",
     "blackboard": true,
     "blackboard_backend": "sqlite",
     "freshness_unknown_policy": "warn",
     "freshness_scope_digest": "true",
-    "freshness_max_digest_files": "2000"
+    "freshness_max_digest_files": "2000",
+    "code_guard": "hard",
+    "quality_gate": "hard",
+    "deploy_guard": "hard"
   }
 }

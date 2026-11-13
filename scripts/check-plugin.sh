@@ -430,14 +430,8 @@ else
     PROBLEMS=$((PROBLEMS + 1))
 fi
 
-# E-146: the plugin config has one owner. A surviving pre-E-146 file is still
-# read (so an upgraded install keeps its settings) but it is a second owner the
-# reader has to reason about — name it so the operator can delete it.
-for _legacy in bmad/config.toml bmad/config.user.toml custom/config.toml custom/config.user.toml; do
-    if [ -f "$PLUGIN_ROOT/$_legacy" ]; then
-        echo "[WARNING] legacy plugin config still present: $_legacy — its values are read BELOW config.toml; copy anything you changed there, then delete it"
-    fi
-done
+# E-147: the six pre-E-146/E-147 config paths are gone and are never created.
+# Absence is asserted by bench_config_consolidation.py case 1 (one owner).
 
 echo "== 1) Gate + hook engine selfcheck (plugin copies) =="
 if "$PY" "$GATE" --selfcheck >/tmp/meth-selfcheck.$$.log 2>&1; then

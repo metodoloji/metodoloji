@@ -586,7 +586,7 @@ Carry the PRD → UX → architecture → spec → epics → story → dev relay
 - Team rule (committed): `custom/{skill}.toml` — e.g. review rigour, risk threshold.
 - Personal (gitignored): `custom/{skill}.user.toml` — e.g. language preference.
 - No deletion: fork or noop-override instead of removing. After a change, verify the BRIDGE is visible at runtime with `resolve_customization.py -k ...` (that is what #2b looks at).
-- Project level: `{project-root}/bmad/config.toml` (team) + `.user.toml` (personal) — configuration without touching the plugin.
+- Project level: `{project-root}/docs/config.toml` (team) + `.user.toml` (personal) — configuration without touching the plugin.
 
 ### P25 — Updating the plugin
 
@@ -1076,37 +1076,33 @@ python3 {metodoloji-root}/bmad/scripts/resolve_customization.py -s skills/bmad-d
 
 (The canonical implementation is `bmad/scripts/resolve_customization.py` — stdlib only, py3.11+; `uv run` also works.)
 
-### 13.2 Central config — 8 layers (later ones win)
-
+### 13.2 Central config — 4 layers (later ones win)
 
 | Priority    | Layer                                  | Owner                        |
 | ----------- | -------------------------------------- | ---------------------------- |
 | 1 (lowest)  | `{metodoloji-root}/config.toml`        | plugin team (committed)      |
 | 2           | `{metodoloji-root}/config.user.toml`   | plugin user (gitignored)     |
-| 3           | `{project-root}/bmad/config.toml`      | **project team (committed)** |
-| 4           | `{project-root}/bmad/config.user.toml` | **project user (gitignored)**|
-| 5           | `{project-root}/docs/config.toml`      | project team, output-local   |
-| 6 (highest) | `{project-root}/docs/config.user.toml` | project user, output-local   |
+| 3           | `{project-root}/docs/config.toml`      | **project team (committed)** |
+| 4 (highest) | `{project-root}/docs/config.user.toml` | **project user (gitignored)**|
 
-Legacy paths (`{metodoloji-root}/bmad/config.toml`, `{metodoloji-root}/custom/config.toml`, `{project-root}/bmad-output/config.toml`) are still **read** below every layer above so an upgraded install keeps its settings; nothing writes them. Delete a surviving plugin-side copy after copying anything you changed.
-
+Exactly these four layers exist. No plugin- or project-side config file outside them is read, written or created (E-147): a copy planted under `bmad/` or `custom/` is inert, and there is no second owner to reconcile. `scripts/bench/bench_config_consolidation.py` fails if one reappears.
 
 > Legacy `{project-root}/bmad-output/config.toml` (+ `.user.toml`) is read as a fallback for pre-migration projects — never written.
 
-The project-root layers let you configure the methodology from your own repo without touching the plugin. Team settings go into the committed `{project-root}/bmad/config.toml`, personal settings into the gitignored `.user.toml`:
+The project-root layers let you configure the methodology from your own repo without touching the plugin. Team settings go into the committed `{project-root}/docs/config.toml`, personal settings into the gitignored `.user.toml`:
 
 ```toml
-# {project-root}/bmad/config.user.toml (personal — not committed)
+# {project-root}/docs/config.user.toml (personal — not committed)
 [core]
 user_name = "Ayla"
 communication_language = "Turkish"
 
-# {project-root}/bmad/config.toml (team — committed)
+# {project-root}/docs/config.toml (team — committed)
 [modules.bmm]
 planning_artifacts = "{project-root}/docs/planning"
 ```
 
-Legacy YAML bridge: module `config.yaml` files from old installs are read as a layer **between** the plugin TOML and the project TOML (it overrides the plugin default and loses to the project TOML). Migrate by moving the values into the project TOML and deleting the YAMLs.
+Legacy YAML bridge: module `config.yaml` files from old installs are read as a layer **between** the plugin TOML and the project TOML (it overrides the plugin default and loses to the project TOML). Migrate by moving the values into `{project-root}/docs/config.toml` and deleting the YAMLs.
 
 Flat module output (CLI/legacy shape only):
 

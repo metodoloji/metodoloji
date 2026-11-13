@@ -64,7 +64,6 @@ _gate_is_hard() {
         *) return 1 ;;
     esac
     _cfg="$PLUGIN_ROOT/config.toml"
-    [ -r "$_cfg" ] || _cfg="$PLUGIN_ROOT/custom/config.toml"   # pre-E-146 layout
     [ -r "$_cfg" ] || return 1
     awk -v target="$_key" '
         function trim(value) {

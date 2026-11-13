@@ -1,4 +1,4 @@
-# Project config layer for this repository (resolve_config.py layer 7, canonical
+# Project config layer for this repository (resolve_config.py layer 3, canonical
 # "Seçenek A": {project-root}/docs/config.toml — project values WIN over plugin
 # defaults).
 #

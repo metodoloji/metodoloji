@@ -15,7 +15,7 @@ probe further):
    Claude Code — do not depend on them, do not echo them to "verify".)
 2. Fixed checkout `~/.claude/plugins/marketplaces/metodoloji/`
 3. Versioned cache `~/.claude/plugins/cache/metodoloji/metodoloji/*`
-   (newest first; e.g. `.../0.2.68/` on Claude Code v2.1.x)
+   (newest first; e.g. `.../0.2.69/` on Claude Code v2.1.x)
 4. OpenHands install directory `~/.openhands/plugins/installed/metodoloji/`
 
 (An old `~/.claude/plugins/cache/yunusgungor/metodoloji/*` path appears in
@@ -152,7 +152,7 @@ status reports an incomplete skeleton.
 
 7. Existing project (brownfield) note: if the target already has code AND
     no experiment history yet, you MAY propose `code_guard = "soft"` in
-    `custom/config.toml [hooks]` so writes warn instead of deny — but ASK
+    `config.toml [hooks]` so writes warn instead of deny — but ASK
     FIRST and never apply silently, because that file is plugin-global
     policy shared by every project on this machine (the softening leaks to
     all of them). If experiment history already exists (e.g.

@@ -1,23 +1,17 @@
 # ─────────────────────────────────────────────────────────────────
 # THE plugin config. One owner: this file.
 #
-# It replaced two files (E-146):
-#   bmad/config.toml      → [core] / [modules.*] path defaults (here)
-#   custom/config.toml    → [hooks] / [freshness] policy      (here)
-# Both are still READ as lower-priority legacy fallbacks so an upgraded
-# install keeps the gate policy it set, but neither is written and a
-# value here always wins. `check-plugin.sh` reports a surviving legacy
-# file as a WARNING — delete it after copying anything you changed.
+# It replaced two files (E-146) and the retired paths are gone for good
+# (E-147). No config file outside the four layers below is read, written or
+# created — on either side. Do not reintroduce one; a second copy would
+# re-open a second owner (bench_config_consolidation.py fails if it does).
 #
 # Layer order (resolve_config.py), later wins:
-#   1. /config.toml                     plugin team (this file, committed)
-#   2. /config.user.toml                plugin personal (gitignored)
-#   3. {project-root}/bmad/config.toml  project team
-#   4. {project-root}/bmad/config.user.toml
-#   5. {project-root}/docs/config.toml  project canonical (Seçenek A)
-#   6. {project-root}/docs/config.user.toml
-# Legacy fallbacks (read-only, below everything above):
-#   {metodoloji-root}/bmad/config.toml, {metodoloji-root}/custom/config.toml,
+#   1. /config.toml                          plugin team (this file, committed)
+#   2. /config.user.toml                     plugin personal (gitignored)
+#   3. {project-root}/docs/config.toml       project team (canonical)
+#   4. {project-root}/docs/config.user.toml  project personal
+# Legacy fallback (read-only, below everything above):
 #   {project-root}/bmad-output/config.toml (+ .user.toml)
 # ─────────────────────────────────────────────────────────────────
 

@@ -546,22 +546,6 @@ def test_check7_tolerates_the_draft_preparing_state(tmp_path):
     assert "no verdict yet" in section, section
 
 
-def test_check7_flags_a_project_side_custom_dir_as_an_orphan(tmp_path):
-    """custom/ is plugin-global policy — a project copy is never read."""
-    (tmp_path / "custom").mkdir(parents=True)
-    (tmp_path / "custom" / "config.toml").write_text("[hooks]\n", encoding="utf-8")
-    env = dict(os.environ)
-    env["OPENHANDS_PROJECT_DIR"] = str(tmp_path)
-    env.pop("CLAUDE_PLUGIN_ROOT", None)
-    env.pop("METODOLOJI_PLUGIN_ROOT", None)
-    r = subprocess.run(["sh", str(SCRIPT), "--only", "7"], capture_output=True,
-                       text=True,
-                       encoding="utf-8", errors="replace", timeout=300, env=env,
-                       cwd=str(PLUGIN), stdin=subprocess.DEVNULL)
-    out = (r.stdout or "") + (r.stderr or "")
-    assert "project-side custom/config.toml is never read" in out, out
-
-
 def test_plugin_base_config_is_neutral_and_the_project_layer_names_the_repo():
     """A real project name in the shipped base layer leaks into every install."""
     base = (PLUGIN / "config.toml").read_text(encoding="utf-8")

@@ -585,7 +585,7 @@ PRD → UX → mimari → spec → epics → story → dev rölesini handoff kan
 - Takım kuralı (commitli): `custom/{skill}.toml` — örn. review titizliği, risk eşiği.
 - Kişisel (gitignored): `custom/{skill}.user.toml` — örn. dil tercihi.
 - Silme yok: kaldırmak yerine fork veya noop override. Değişiklikten sonra `resolve_customization.py -k ...` ile BRIDGE'in runtime'da göründüğünü doğrula (#2b'nin baktığı şey bu).
-- Proje-seviyesi: `{project-root}/bmad/config.toml` (takım) + `.user.toml` (kişisel) — plugine dokunmadan konfigürasyon.
+- Proje-seviyesi: `{project-root}/docs/config.toml` (takım) + `.user.toml` (kişisel) — plugine dokunmadan konfigürasyon.
 
 ### P25 — Plugin güncelleme
 
@@ -1076,32 +1076,28 @@ python3 {metodoloji-root}/bmad/scripts/resolve_customization.py -s skills/bmad-d
 
 (Kanonik implementasyon `bmad/scripts/resolve_customization.py` — stdlib only, py3.11+; `uv run` da olur.)
 
-### 13.2 Merkezi config — 6 katman (son kazananlar önce)
-
+### 13.2 Merkezi config — 4 katman (son kazananlar önce)
 
 | Öncelik       | Katman                                      | Sahibi                             |
 | ------------- | ------------------------------------------- | ---------------------------------- |
 | 1 (en düşük)  | `{metodoloji-root}/config.toml`        | plugin takımı (commitli)           |
 | 2             | `{metodoloji-root}/config.user.toml`   | plugin kullanıcısı (gitignored)    |
-| 3             | `{project-root}/bmad/config.toml`      | **proje takımı (commitli)**        |
-| 4             | `{project-root}/bmad/config.user.toml` | **proje kullanıcısı (gitignored)** |
-| 5             | `{project-root}/docs/config.toml`      | proje takımı, çıktı-yerel          |
-| 6 (en yüksek) | `{project-root}/docs/config.user.toml` | proje kullanıcısı, çıktı-yerel     |
+| 3             | `{project-root}/docs/config.toml`      | **proje takımı (commitli)**        |
+| 4 (en yüksek) | `{project-root}/docs/config.user.toml` | **proje kullanıcısı (gitignored)** |
 
-Eski yollar (`{metodoloji-root}/bmad/config.toml`, `{metodoloji-root}/custom/config.toml`, `{project-root}/bmad-output/config.toml`) yükseltilmiş kurulum ayarlarını kaybetmesin diye yukarıdaki tüm katmanların **altında** okunmaya devam eder; hiçbiri yazılmaz. Plugin tarafında kalan bir kopyayı, değiştirdiğin değerleri taşıdıktan sonra sil.
-
+Yalnız bu dört katman vardır. Bunların dışında ne plugin ne proje tarafında config dosyası okunur, yazılır ya da oluşturulur (E-147): `bmad/` veya `custom/` altına bırakılan kopya etkisizdir, uzlaştırılacak ikinci bir sahip yoktur. Yeniden beliren bir kopyayı `scripts/bench/bench_config_consolidation.py` yakalar.
 
 > Legacy `{project-root}/bmad-output/config.toml` (+ `.user.toml`) migrasyon öncesi projeler için fallback olarak okunur — yazılmaz.
 
-Proje kökü katmanları plugine dokunmadan metodolojiyi kendi repondan konfigüre etmeni sağlar. Takım ayarları commitli `{project-root}/bmad/config.toml`'a, kişisel ayarlar gitignored `.user.toml`'a:
+Proje kökü katmanları plugine dokunmadan metodolojiyi kendi repondan konfigüre etmeni sağlar. Takım ayarları commitli `{project-root}/docs/config.toml`'a, kişisel ayarlar gitignored `.user.toml`'a:
 
 ```toml
-# {project-root}/bmad/config.user.toml (kişisel — commitlenmez)
+# {project-root}/docs/config.user.toml (kişisel — commitlenmez)
 [core]
 user_name = "Ayla"
 communication_language = "Turkish"
 
-# {project-root}/bmad/config.toml (takım — commitlenir)
+# {project-root}/docs/config.toml (takım — commitlenir)
 [modules.bmm]
 planning_artifacts = "{project-root}/docs/planning"
 ```

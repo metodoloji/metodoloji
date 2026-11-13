@@ -158,12 +158,6 @@ SCOPE_GIT_TIMEOUT_SECONDS = 8
 # config.toml applies plugin-globally to every project and must be re-hardened
 # after brownfield adoption (see config.toml header).
 _HOOKS_CFG = _METHODOLOGY_ROOT / "config.toml"
-if not _HOOKS_CFG.exists():
-    # Pre-E-146 install: the policy lived in custom/config.toml. Keep reading it
-    # so an upgraded checkout does not silently fall back to the code defaults.
-    _legacy_hooks_cfg = _METHODOLOGY_ROOT / "custom" / "config.toml"
-    if _legacy_hooks_cfg.exists():
-        _HOOKS_CFG = _legacy_hooks_cfg
 
 # --- [hooks] section cache (Faz 1) -------------------------------------------
 # hook_gate_mode()/blackboard_enabled() are called several times per hook
