@@ -32,7 +32,7 @@ Mechanically audits the plugin's own integrity and the record discipline in the 
    `{project-root}/docs/development/`; note chain link gaps (e.g. S exists but no QR).
 
 4. Approved experiment inventory: verify the whole corpus in ONE pass —
-   `run_experiment.py --verify-corpus {project-root}/docs/experiments` — and
+   `python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --verify-corpus {project-root}/docs/experiments` — and
    report the VERIFIED/FORGED distribution from its `counts` object
    (`/metodoloji:verify` logic). Do not loop `--verify --record` per record: the
    corpus pass runs the same verifier and pays the interpreter start once.
