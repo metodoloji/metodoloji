@@ -7,7 +7,7 @@
 # Production Readiness: PR-XXX — [Release Name]
 
 - **Date:** [YYYY-MM-DD]
-- **Status:** preparing | READY | WAITING
+- **Status:** preparing | ready | deployed | rolled-back
 - **Release type:** [Major / Minor / Patch / Hotfix]
 - **Version:** [v1.2.3]
 - **Stories:**

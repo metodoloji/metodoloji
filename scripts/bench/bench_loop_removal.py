@@ -40,7 +40,7 @@ FORMAT = ROOT / "skills" / "bmad-code-review" / "references" / "deferred-work-fo
 FORMAT_REL = "skills/bmad-code-review/references/deferred-work-format.md"
 POINTERS = (
     "templates/deferred-work.md",
-    "docs/bmad/development-methodology.md",
+    "skills/bmad-code-review/references/deferred-work-format.md",
     "hooks/engine/modules/quality_gate.py",
     "scripts/check-methodology.sh",
     "scripts/bench/bench_deferred_work_integration.py",

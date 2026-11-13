@@ -7,7 +7,7 @@
 # Sprint: SP-XXX — [Sprint Name]
 
 - **Date:** [Start: YYYY-MM-DD] — [End: YYYY-MM-DD]
-- **Status:** planned | in-progress | completed | cancelled
+- **Status:** planned | active | completed | cancelled
 - **Readiness input:** [IR-id + path this sprint plans from, e.g. IR-001 (`docs/development/IR-001.md`)]
 - **Sprint goal:** [Single sentence — what will be achieved in this sprint]
 - **Stories:**

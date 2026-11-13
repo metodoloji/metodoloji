@@ -83,7 +83,7 @@ else
 fi
 
 # {metodoloji-root} is named in the context so no skill has to hunt for it —
-# the real session spent turns on `find / -name research-methodology.md` and on
+# the real session spent turns on `find / -name methodology.md` and on
 # guessing whether the root was ~/.metodoloji, /root/bmad or the plugin dir,
 # even though this line was already printing it.
 # Short context: gate-key status + record chain reminder.

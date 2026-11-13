@@ -7,7 +7,7 @@ whoever fixes the item (the maintainer, or the next story that pays it). The
 file is append-only: never rewrite or delete existing entries.
 
 This file is the format's single owner. The manifesto
-(`{metodoloji-root}/docs/bmad/development-methodology.md` §6.4) and the ledger
+(this file) and the ledger
 template (`{metodoloji-root}/templates/deferred-work.md`) point here rather
 than restating it.
 

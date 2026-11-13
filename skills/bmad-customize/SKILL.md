@@ -7,7 +7,7 @@ triggers: ["bmad-customize", "/bmad-customize", "customize", "customize bmad", "
 ## Metodoloji
 
 Meta yuzey: urettigi yuzeyler arastirma metodolojisini miras alir
-(`{metodoloji-root}/docs/bmad/research-methodology.md`). Bu yuzeyin ciktisi metodoloji kapsami disinda kalamaz.
+(`{metodoloji-root}/docs/methodology.md`). Bu yuzeyin ciktisi metodoloji kapsami disinda kalamaz.
 
 
 # BMad Customize

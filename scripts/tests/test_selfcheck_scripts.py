@@ -50,8 +50,7 @@ def test_review_layers_must_cite_verified_file_lines():
     citation by hand. The rule now lives on all three surfaces the review
     flows read: the methodology chapter and both code-review skills.
     """
-    for rel in ("docs/bmad/development-methodology.md",
-                "skills/bmad-code-review/SKILL.md"):
+    for rel in ("skills/bmad-code-review/SKILL.md",):
         src = (PLUGIN / rel).read_text(encoding="utf-8")
         assert "VERIFIED by reading that file" in src, (
             f"{rel} lost the verified-citation rule (E-037)")
@@ -96,7 +95,7 @@ def test_external_context_finder_contract_is_falsifiable():
                 "skills/bmad-dev-story/SKILL.md",
                 "skills/bmad-code-review/steps/step-01-gather-context.md",
                 "skills/bmad-production-readiness/SKILL.md",
-                "docs/bmad/research-methodology.md",
+                "docs/methodology.md",
                 "docs/research/external/README.md",
                 "templates/external-context-README.md")):
             dest = root / copy_rel
@@ -391,7 +390,7 @@ def test_external_context_workflows_reject_embedded_source_instructions(tmp_path
             "skills/bmad-check-implementation-readiness/steps/step-06-final-assessment.md",
             "skills/bmad-code-review/steps/step-01-gather-context.md",
             "skills/bmad-production-readiness/SKILL.md",
-            "docs/bmad/research-methodology.md", "docs/research/external/README.md",
+            "docs/methodology.md", "docs/research/external/README.md",
             "templates/external-context-README.md"):
         target = root / policy_file
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -548,16 +547,17 @@ def test_bridge_verify_pattern_parity_with_the_custom_audit():
     assert problem is None, problem
 
 
-def test_bridge_section_refs_resolve_on_every_citing_surface():
-    """Every live surface citing the bridge must point at a real section (E-019).
+def test_record_steps_name_live_owners():
+    """Every record step must name a shipped template and a live stage (E-019).
 
-    §7 used to audit only the bridge TOMLs; the two review ``SKILL.md`` files
-    cited a non-existent ``§1.1`` and went unnoticed. This calls the bench's
-    check, which evaluates the invariant across custom overrides,
+    The bridge document is gone: its order lives in the chain spec and its field
+    lists in ``templates/``. A step pointing at the deleted document, an
+    unshipped template, or a stage the spec does not define sends the agent to a
+    dead owner. This calls the bench's check across custom overrides,
     ``skills/*/SKILL.md`` and ``commands/*.md``.
     """
     bench = _load_bench()
-    problem = bench._check_bridge_section_refs_resolve()
+    problem = bench._check_record_steps_name_live_owners()
     assert problem is None, problem
 
 
@@ -618,7 +618,7 @@ def test_qr_feeder_skillmd_audit_lists_every_bridge_skill():
     tree = {
         p.parent.name
         for p in (PLUGIN / "skills").glob("*/SKILL.md")
-        if "dev-skill-to-methodology-bridge" in p.read_text(
+        if "does not produce an independent methodology record" in p.read_text(
             encoding="utf-8", errors="replace")
     }
     assert listed == tree, (
@@ -764,8 +764,8 @@ def test_bridge_runtime_visibility_audit_lists_every_bridge_override():
     tree = {
         p.parent.name
         for p in (PLUGIN / "skills").glob("*/customize.toml")
-        if "dev-skill-to-methodology-bridge" in p.read_text(
-            encoding="utf-8", errors="replace")
+        if "docs/development/" in p.read_text(encoding="utf-8", errors="replace")
+        or "docs/quality/QR" in p.read_text(encoding="utf-8", errors="replace")
     }
     assert covered == tree, (
         f"§2b coverage {sorted(covered)} != bridge-citing customize.toml {sorted(tree)}"
@@ -814,7 +814,7 @@ def test_shipped_gate_invocations_resolve_where_they_ship():
     """
     roots = ("{metodoloji-root}", "{skill-root}", "$SYNCED",
              "METODOLOJI_SYNCED")
-    globs = ("GUIDE.md", "KILAVUZ.md", "docs/CLAUDE.md", "docs/bmad/*.md",
+    globs = ("GUIDE.md", "KILAVUZ.md", "docs/CLAUDE.md", "docs/methodology.md",
              "docs/experiments/_template.md", "commands/*.md",
              "skills/*/customize.toml", "templates/*.md", "skills/*/SKILL.md",
              "skills/bmad-research-experiment/plan.md",
@@ -1265,10 +1265,10 @@ def test_init_copied_docs_only_promise_paths_init_creates(tmp_path):
     # falsifier 2: a relative link to a plugin-canonical doc (init never copies it)
     root = _inventory_fixture(tmp_path / "links")
     _rewrite(root / "templates" / "README.md", lambda t: t.replace(
-        "`{metodoloji-root}/docs/bmad/development-methodology.md`",
-        "[Development Methodology](../bmad/development-methodology.md)"))
+        "`{metodoloji-root}/docs/methodology.md`",
+        "[Methodology](../bmad/methodology.md)"))
     problems = bench._installed_doc_path_problems(root)
-    assert any("../bmad/development-methodology.md" in p for p in problems), problems
+    assert any("../bmad/methodology.md" in p for p in problems), problems
 
     # falsifier 3: the tree draws a directory init does not create
     root = _inventory_fixture(tmp_path / "dirs")

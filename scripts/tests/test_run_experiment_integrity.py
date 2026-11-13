@@ -202,7 +202,7 @@ def test_zero_of_six_is_not_zero_percent():
     # is reachable; "exactly 0%" is not — unless the n cases are the WHOLE
     # population rather than a sample, in which case this is a census and the
     # Wilson framing does not apply. The record must say which it is; that
-    # ambiguity is logged in docs/bmad/experiment-integrity.md rather than
+    # ambiguity is logged in docs/design/experiment-integrity.md rather than
     # silently resolved here.
     assert "small sample" in gate.uncertainty_note(0, 500, 0.0, 0.0, "<=")
     assert "none" in gate.uncertainty_note(0, 500, 0.0, 0.05, "<=")

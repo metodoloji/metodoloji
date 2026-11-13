@@ -1,142 +1,122 @@
 {
   "id": "methodology-chain",
-  "version": 1,
+  "version": 2,
   "title": "Methodology Governance Record Chain (E → IR → SP → S → QR → PR)",
-  "intent": "Drives software development through the 6-stage mechanical governance chain from experiment research to production readiness.",
+  "intent": "Drives one story through the governance chain. The kernel owns the order; every stage is proven by the gate that already owns its verdict (hooks/scripts/chain-gate.py), never by a keyword in a file. The run's identity is the story id it is created for (--slug S-005), so evidence is resolved for THAT story only.",
   "artifact": "docs/development/README.md",
   "start": "experiment",
   "stages": [
     {
       "id": "experiment",
       "title": "E: Research Experiment",
-      "goal": "Formulate hypothesis, run mechanical gate, and obtain approved gate token.",
+      "goal": "The story's experiment references verify on this machine's trust ring.",
       "actions": [
-        "Create docs/experiments/E-*.md",
-        "Run experiment measurement gate",
-        "Verify APPROVED status and GATE-OK token"
+        "Create docs/experiments/E-*.md and run the measurement gate",
+        "Reference the approved ids from the story's experiment_refs"
       ],
       "evidence": {
-        "kind": "artifact",
-        "path": "docs/experiments/E-*.md",
-        "contains": ["approved"],
-        "min": 1
+        "kind": "command",
+        "argv": ["{python}", "{metodoloji-root}/hooks/scripts/chain-gate.py",
+                 "--stage", "experiment", "--slug", "{slug}",
+                 "--project-root", "{project-root}"],
+        "timeout": 180
       },
-      "bridge": "E-",
       "next": [
         {
-          "to": "implementation-readiness"
-        }
+          "to": "implementation-readiness",
+          "when": { "key": "tier", "equals": "3" }
+        },
+        { "to": "story", "when": { "key": "tier", "equals": "1" } },
+        { "to": "story", "when": { "key": "tier", "equals": "2" } },
+        { "to": "implementation-readiness" }
       ]
     },
     {
       "id": "implementation-readiness",
       "title": "IR: Implementation Readiness",
       "requires": ["experiment"],
-      "goal": "Validate PRD, Architecture, and UX readiness before code development.",
+      "goal": "Gate 1 holds for the sprint this story belongs to.",
       "actions": [
         "Create docs/development/IR-*.md",
-        "Verify architecture and dependencies"
+        "The story names its sprint (SP-id); the sprint names its IR"
       ],
       "evidence": {
-        "kind": "artifact",
-        "path": "docs/development/IR-*.md",
-        "contains": ["IR-"],
-        "min": 1
+        "kind": "command",
+        "argv": ["{python}", "{metodoloji-root}/hooks/scripts/chain-gate.py",
+                 "--stage", "implementation-readiness", "--slug", "{slug}",
+                 "--project-root", "{project-root}"],
+        "timeout": 120
       },
-      "bridge": "IR-",
-      "next": [
-        {
-          "to": "sprint-planning"
-        }
-      ]
+      "next": [ { "to": "sprint-planning" } ]
     },
     {
       "id": "sprint-planning",
       "title": "SP: Sprint Planning",
       "requires": ["implementation-readiness"],
-      "goal": "Structure epics and user stories into a tracked sprint plan.",
-      "actions": [
-        "Create docs/development/SP-*.md",
-        "Plan story breakdown and estimates"
-      ],
+      "goal": "The story's sprint record passes the schema check.",
+      "actions": [ "Create docs/development/SP-*.md and list the story in it" ],
       "evidence": {
-        "kind": "artifact",
-        "path": "docs/development/SP-*.md",
-        "contains": ["SP-"],
-        "min": 1
+        "kind": "command",
+        "argv": ["{python}", "{metodoloji-root}/hooks/scripts/chain-gate.py",
+                 "--stage", "sprint-planning", "--slug", "{slug}",
+                 "--project-root", "{project-root}"],
+        "timeout": 120
       },
-      "bridge": "SP-",
-      "next": [
-        {
-          "to": "story"
-        }
-      ]
+      "next": [ { "to": "story" } ]
     },
     {
       "id": "story",
       "title": "S: Story Execution & Dev",
-      "requires": ["sprint-planning"],
-      "goal": "Implement story code within verified experiment scope.",
+      "requires": ["experiment"],
+      "goal": "The story record's AC metadata, DoD and chain references hold.",
       "actions": [
-        "Create story record docs/development/stories/S-*.md",
-        "Implement verified changes and tests"
+        "Implement the story within the verified scope",
+        "Move the story record to review (or done) once the work lands"
       ],
       "evidence": {
-        "kind": "artifact",
-        "path": "docs/development/stories/S-*.md",
-        "contains": ["S-"],
-        "min": 1
+        "kind": "command",
+        "argv": ["{python}", "{metodoloji-root}/hooks/scripts/chain-gate.py",
+                 "--stage", "story", "--slug", "{slug}",
+                 "--project-root", "{project-root}"],
+        "timeout": 120
       },
-      "bridge": "S-",
-      "next": [
-        {
-          "to": "quality-review"
-        }
-      ]
+      "next": [ { "to": "quality-review" } ]
     },
     {
       "id": "quality-review",
       "title": "QR: Quality Review",
       "requires": ["story"],
-      "goal": "Audit Definition of Done, run tests, and record quality signoff.",
+      "goal": "The QR record that declares this story is APPROVED and coherent.",
       "actions": [
-        "Create QR record in docs/quality/QR-*.md or docs/development/QR-*.md",
-        "Verify DoD checklist and test pass"
+        "Create the QR record and verify the Definition of Done",
+        "Approve it only when every DoD item is verified"
       ],
       "evidence": {
-        "kind": "artifact",
-        "path": "docs/**/QR-*.md",
-        "contains": ["QR-"],
-        "min": 1
+        "kind": "command",
+        "argv": ["{python}", "{metodoloji-root}/hooks/scripts/chain-gate.py",
+                 "--stage", "quality-review", "--slug", "{slug}",
+                 "--project-root", "{project-root}"],
+        "timeout": 120
       },
-      "bridge": "QR-",
       "next": [
-        {
-          "to": "production-readiness"
-        }
+        { "to": "production-readiness", "when": { "key": "deploy", "equals": "true" } },
+        { "to": "done" }
       ]
     },
     {
       "id": "production-readiness",
       "title": "PR: Production Readiness",
       "requires": ["quality-review"],
-      "goal": "Verify deployment readiness and rollback plans before release.",
-      "actions": [
-        "Create PR record docs/development/PR-*.md",
-        "Confirm rollback strategy"
-      ],
+      "goal": "The PR record naming this story passes the schema check.",
+      "actions": [ "Create docs/development/PR-*.md and confirm rollback" ],
       "evidence": {
-        "kind": "artifact",
-        "path": "docs/development/PR-*.md",
-        "contains": ["PR-"],
-        "min": 1
+        "kind": "command",
+        "argv": ["{python}", "{metodoloji-root}/hooks/scripts/chain-gate.py",
+                 "--stage", "production-readiness", "--slug", "{slug}",
+                 "--project-root", "{project-root}"],
+        "timeout": 120
       },
-      "bridge": "PR-",
-      "next": [
-        {
-          "to": "done"
-        }
-      ]
+      "next": [ { "to": "done" } ]
     },
     {
       "id": "done",

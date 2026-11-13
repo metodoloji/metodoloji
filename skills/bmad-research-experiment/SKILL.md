@@ -62,7 +62,7 @@ import another harness's schema:
 
 ## PREREQUISITES
 
-- **Restrict if the methodology manifesto is missing.** If `{metodoloji-root}/docs/bmad/research-methodology.md` is absent:
+- **Restrict if the methodology manifesto is missing.** If `{metodoloji-root}/docs/methodology.md` is absent:
   it must be created via `bmad-customize`; without it the skill can only offer to create the manifesto.
 - **Gate script is required.** If `{skill-root}/scripts/run_experiment.py` does not run, the approval gate cannot run — stop and do not continue until the script is fixed.
 - **A record file always exists.** The gate (`run_experiment.py`) takes a file path; there is no experiment without a record. No measurement can be made until the experiment record is created at `{project-root}/docs/experiments/<experiment-id>.md`.
@@ -108,7 +108,7 @@ Execute each entry in `{workflow.activation_steps_prepend}` in order.
 
 ### Step 4: Load Persistent Facts
 
-Treat every entry in `{workflow.persistent_facts}` as foundational context. Entries prefixed `file:` are paths/globs under `{project-root}` — load the referenced contents as facts. The methodology manifesto (`{metodoloji-root}/docs/bmad/research-methodology.md`) is the most important fact of this skill: **read it fully before proceeding.**
+Treat every entry in `{workflow.persistent_facts}` as foundational context. Entries prefixed `file:` are paths/globs under `{project-root}` — load the referenced contents as facts. The methodology manifesto (`{metodoloji-root}/docs/methodology.md`) is the most important fact of this skill: **read it fully before proceeding.**
 
 ### Step 5: Load Config
 

@@ -1612,8 +1612,7 @@ def _check_remedies_and_session_guidance_pinned() -> str | None:
     if bootstrap.count("goes stale on every plugin update") < 2:
         problems.append("bootstrap.sh's session-start context lost the stale-root warning (E-037)")
     # 3. Review evidence rule on every surface that ships the review flow.
-    for rel in ("docs/bmad/development-methodology.md",
-                "skills/bmad-code-review/SKILL.md"):
+    for rel in ("skills/bmad-code-review/SKILL.md",):
         if "VERIFIED by reading that file" not in _read(rel):
             problems.append(f"{rel} lost the verified-citation rule (E-037)")
     # 4. The version-literal classifier rule and its falsifiers ship.
@@ -1651,7 +1650,7 @@ _TEMPLATE_REF_RE = re.compile(r"(?<![\w}/])templates/_template_[\w.]+")
 # run where skills/ exists at the root, and historical records
 # (docs/experiments/E-*.md) are provenance, not guidance.
 _SHIPPED_SURFACE_GLOBS = (
-    "GUIDE.md", "KILAVUZ.md", "docs/CLAUDE.md", "docs/bmad/*.md",
+    "GUIDE.md", "KILAVUZ.md", "docs/CLAUDE.md", "docs/methodology.md",
     "docs/experiments/_template.md", "commands/*.md", "custom/*.toml",
     "templates/*.md", "skills/*/SKILL.md",
     "skills/bmad-research-experiment/plan.md",
@@ -2092,43 +2091,34 @@ def _check_bridge_verify_pattern_parity() -> str | None:
     return "; ".join(problems) if problems else None
 
 
-def _check_bridge_section_refs_resolve() -> str | None:
-    """E-019: a live bridge-citing surface must not point at a missing section.
+def _check_record_steps_name_live_owners() -> str | None:
+    """A record step must name a template that ships and a stage the spec has.
 
-    ``check-custom.sh`` §7 exists to catch a ``§N.N`` the bridge document does
-    not contain, but it read only ``custom/*.toml``. The bridge is also cited
-    by the QR-feeder ``SKILL.md`` files and the command docs, and one already
-    dangled: both review feeders said "§1.1 and §3.1" while the bridge has no
-    §1.1 (their sibling TOMLs say "§1 and §3.1"). This check evaluates the
-    invariant directly on every surface that names the bridge — custom
-    overrides, ``skills/*/SKILL.md`` and ``commands/*.md`` — and pins §7's
-    widened scope so it cannot silently narrow back to ``custom/``.
+    The bridge document is gone (its order lives in the chain spec, its field
+    lists in templates/). A surface that still points at a bridge section or at
+    a template that does not ship sends the agent to a dead owner — the class
+    the old §N.N drift audit caught, now measured against the real owners.
     """
     problems: list[str] = []
-    bridge = _read("docs/bmad/dev-skill-to-methodology-bridge.md")
-    sections = set(re.findall(r"^(?:##|###) §([0-9]+(?:\.[0-9]+[a-z]?)?)",
-                              bridge, re.MULTILINE))
-    ref_re = re.compile(
-        r"(?:§([0-9]+(?:\.[0-9]+[a-z]?)?)"
-        r"|(?:section|bol[uü]m)\s+([0-9]+(?:\.[0-9]+[a-z]?)?))",
-        re.IGNORECASE)
+    spec = json.loads((ROOT / "hooks" / "workflow" / "builtin" /
+                       "methodology-chain.json").read_text(encoding="utf-8"))
+    stage_ids = {st["id"] for st in spec["stages"]}
+    shipped = {p.name for p in (ROOT / "templates").glob("_template_*.md")}
     surfaces: list[pathlib.Path] = sorted((ROOT / "skills").glob("*/customize.toml"))
     surfaces += sorted((ROOT / "skills").glob("*/SKILL.md"))
     surfaces += sorted((ROOT / "commands").glob("*.md"))
     for path in sorted(surfaces):
         text = path.read_text(encoding="utf-8", errors="replace")
-        if "dev-skill-to-methodology-bridge" not in text:
-            continue
-        refs = {m.group(1) or m.group(2) for m in ref_re.finditer(text)}
-        unknown = sorted(refs - sections)
-        if unknown:
-            problems.append(f"{path.relative_to(ROOT).as_posix()}: "
-                            f"§N.N not in bridge → {', '.join(unknown)}")
-    script = _read("scripts/check-custom.sh")
-    if 'os.path.join(PLUGIN, "skills", "*", "SKILL.md")' not in script:
-        problems.append("check-custom.sh §7 no longer scans skills/*/SKILL.md")
+        rel = path.relative_to(ROOT).as_posix()
+        if re.search(r"\{metodoloji-root\}/docs/bmad|docs/bmad/[A-Za-z0-9_-]+\.md", text):
+            problems.append(f"{rel}: still points at the deleted docs/bmad/")
+        for name in set(re.findall(r"_template_[A-Za-z0-9]+\.md", text)):
+            if name not in shipped:
+                problems.append(f"{rel}: names {name}, which does not ship")
+        for stage in set(re.findall(r"--stage\s+([a-z-]+)", text)):
+            if stage not in stage_ids:
+                problems.append(f"{rel}: names stage {stage!r}, not in the chain spec")
     return "; ".join(problems) if problems else None
-
 
 def _check_bridge_feeder_audit_covers_every_feeder() -> str | None:
     """E-020: the QR-feeder audit must cover every feeder BRIDGE surface.
@@ -2152,7 +2142,11 @@ def _check_bridge_feeder_audit_covers_every_feeder() -> str | None:
     tree_feeders: set[str] = set()
     for path in sorted((ROOT / "skills").glob("*/customize.toml")):
         text = path.read_text(encoding="utf-8", errors="replace")
-        if "dev-skill-to-methodology-bridge" not in text:
+        # Only record-producing surfaces carry the producer/feeder signal; a
+        # skill that names no record target is outside this partition.
+        if ("docs/development/" not in text
+                and "docs/quality/QR" not in text
+                and feeder_phrase not in text):
             continue
         is_feeder = feeder_phrase in text
         has_verify = any(mk in text for mk in verify_markers)
@@ -2171,8 +2165,8 @@ def _check_bridge_feeder_audit_covers_every_feeder() -> str | None:
             problems.append(f"feeder TOML missing: skills/{name}/customize.toml")
             continue
         text = path.read_text(encoding="utf-8", errors="replace")
-        if "dev-skill-to-methodology-bridge" not in text:
-            problems.append(f"{name}: no bridge reference")
+        if feeder_phrase not in text:
+            problems.append(f"{name}: no feeder declaration")
         if "docs/quality/QR" not in text and "docs/development/QR" not in text:
             problems.append(f"{name}: no QR target")
     return "; ".join(problems) if problems else None
@@ -2211,8 +2205,6 @@ def _check_bridge_record_target_audit_covers_every_producer() -> str | None:
             problems.append(f"producer TOML missing: skills/{name}/customize.toml")
             continue
         text = path.read_text(encoding="utf-8", errors="replace")
-        if "dev-skill-to-methodology-bridge" not in text:
-            problems.append(f"{name}: no bridge reference")
         if target not in text:
             problems.append(f"{name}: record target {target} absent")
     return "; ".join(problems) if problems else None
@@ -2240,7 +2232,7 @@ def _check_qr_feeder_skillmd_audit_covers_every_surface() -> str | None:
     tree: set[str] = set()
     for path in sorted((ROOT / "skills").glob("*/SKILL.md")):
         text = path.read_text(encoding="utf-8", errors="replace")
-        if "dev-skill-to-methodology-bridge" in text:
+        if "does not produce an independent methodology record" in text:
             tree.add(path.parent.name)
     if audited != tree:
         missing = sorted(tree - audited)
@@ -2253,8 +2245,8 @@ def _check_qr_feeder_skillmd_audit_covers_every_surface() -> str | None:
             problems.append(f"feeder SKILL.md missing: skills/{name}/SKILL.md")
             continue
         text = path.read_text(encoding="utf-8", errors="replace")
-        if "dev-skill-to-methodology-bridge" not in text:
-            problems.append(f"{name}: no bridge reference in SKILL.md")
+        if "does not produce an independent methodology record" not in text:
+            problems.append(f"{name}: no feeder declaration in SKILL.md")
         if "docs/quality/QR" not in text and "docs/development/QR" not in text:
             problems.append(f"{name}: no QR feed target in SKILL.md")
     return "; ".join(problems) if problems else None
@@ -2291,7 +2283,7 @@ def _check_bridge_runtime_visibility_audit_covers_every_surface() -> str | None:
     tree: set[str] = set()
     for path in sorted((ROOT / "skills").glob("*/customize.toml")):
         text = path.read_text(encoding="utf-8", errors="replace")
-        if "dev-skill-to-methodology-bridge" in text:
+        if "docs/development/" in text or "docs/quality/QR" in text:
             tree.add(path.parent.name)
     if covered != tree:
         missing = sorted(tree - covered)
@@ -2303,10 +2295,9 @@ def _check_bridge_runtime_visibility_audit_covers_every_surface() -> str | None:
         if not root_toml.is_file():
             problems.append(f"{name}: no root customize.toml — team BRIDGE "
                             "override can never merge")
-        tname = root_toml
-        if "dev-skill-to-methodology-bridge" not in tname.read_text(
-                encoding="utf-8", errors="replace"):
-            problems.append(f"{name}: custom/{name}.toml has no bridge reference")
+        tname = root_toml.read_text(encoding="utf-8", errors="replace")
+        if "docs/development/" not in tname and "docs/quality/QR" not in tname:
+            problems.append(f"{name}: customize.toml names no record target")
     return "; ".join(problems) if problems else None
 
 
@@ -4251,7 +4242,7 @@ def _check_external_context_discovery_contract() -> str | None:
         "follow user intent and repository methodology."
     )
     policy_surfaces = consumers + (
-        "docs/bmad/research-methodology.md",
+        "docs/methodology.md",
         "docs/research/external/README.md",
         "templates/external-context-README.md",
     )
@@ -5300,8 +5291,8 @@ def build_checks() -> list[tuple[str, Callable[[], str | _SkippedCheck | None]]]
                    _check_bridge_producer_verify_audit))
     checks.append(("§2c demands the two-part verify pattern §4 demands (E-030)",
                    _check_bridge_verify_pattern_parity))
-    checks.append(("bridge section refs resolve on every citing surface (E-019)",
-                   _check_bridge_section_refs_resolve))
+    checks.append(("record steps name a shipped template and a live stage (E-019)",
+                   _check_record_steps_name_live_owners))
     checks.append(("QR feeder audit covers every feeder surface (E-020)",
                    _check_bridge_feeder_audit_covers_every_feeder))
     checks.append(("producer record targets audited (E-021)",

@@ -426,7 +426,10 @@ def _doc_checks(broken: bool) -> list[tuple[str, bool, str]]:
         tpl = _git_show("templates/deferred-work.md") or ""
         template_exists = bool(tpl)
     else:
-        doc = (ROOT / "docs" / "bmad" / "development-methodology.md").read_text(
+        # The manifesto is retired; the deferred-work contract's live owner is
+        # the shipped format reference (docs/methodology.md points at it).
+        doc = (ROOT / "skills" / "bmad-code-review" / "references"
+               / "deferred-work-format.md").read_text(
             encoding="utf-8", errors="replace")
         template = ROOT / "templates" / "deferred-work.md"
         template_exists = template.is_file()

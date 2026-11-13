@@ -61,10 +61,6 @@ def test_builtin_seo_spec_is_valid():
     (lambda s: s["stages"][0]["next"].append({"to": "ghost"}), "ghost"),
     (lambda s: s["stages"][0].pop("evidence"), "no 'evidence'"),
     (lambda s: s["stages"][0].update(next=[]), "no 'next'"),
-    # bridge validation
-    (lambda s: s["stages"][0].update(bridge=123), "bridge must be a string"),
-    (lambda s: s["stages"][0].update(bridge="E*"), "bridge must be a prefix"),
-    (lambda s: s["stages"][0].update(bridge=""), "bridge must be a prefix"),
     # min validation
     (lambda s: s["stages"][0]["evidence"].update(min=-1), ">= 1"),
     (lambda s: s["stages"][0]["evidence"].update(min="not-a-number"), "must be an integer"),
@@ -262,6 +258,49 @@ def test_cli_resolve_slug_requires_explicit_when_ambiguous(tmp_path, capsys):
     assert out["ok"] is False and "no --slug" in out["error"]
 
 
+def test_cli_accepts_project_root_after_the_subcommand(tmp_path, capsys):
+    """The documented form (`create ... --project-root .`) must run.
+
+    Every GUIDE/KILAVUZ/docs example put the flag last; argparse only knew the
+    global position, so each one exited 2 and the kernel was never driven.
+    """
+    root = str(tmp_path)
+    assert wf_cli.main(["create", "--builtin", "seo-visibility",
+                        "--project-root", root]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["ok"] and out["state"]["current"] == "analyze"
+    assert wf_cli.main(["--project-root", root, "status",
+                        "--slug", "seo-visibility"]) == 0
+    assert json.loads(capsys.readouterr().out)["slug"] == "seo-visibility"
+
+def test_cli_create_flags_are_read_by_the_first_edge(tmp_path, capsys):
+    spec = {
+        "id": "flag-flow", "title": "flag flow", "start": "a",
+        "stages": [
+            {"id": "a", "title": "A", "evidence": {"kind": "note"},
+             "next": [{"to": "done", "when": {"key": "tier", "equals": "1"}},
+                      {"to": "b"}]},
+            {"id": "b", "title": "B", "requires": ["a"],
+             "evidence": {"kind": "note"}, "next": [{"to": "done"}]},
+            {"id": "done", "title": "Done", "terminal": True},
+        ],
+    }
+    root = str(tmp_path)
+    (tmp_path / "flow.json").write_text(json.dumps(spec), encoding="utf-8")
+    assert wf_cli.main(["create", "--spec", str(tmp_path / "flow.json"),
+                        "--slug", "S-001", "--flag", "tier=1",
+                        "--project-root", root]) == 0
+    capsys.readouterr()
+    assert wf_cli.main(["complete", "--slug", "S-001", "--stage", "a",
+                        "--note", "ok", "--project-root", root]) == 0
+    assert json.loads(capsys.readouterr().out)["status"] == "completed"
+
+def test_cli_rejects_a_malformed_flag(tmp_path, capsys):
+    root = str(tmp_path)
+    assert wf_cli.main(["create", "--builtin", "seo-visibility",
+                        "--flag", "tier", "--project-root", root]) == 1
+    assert "KEY=VALUE" in json.loads(capsys.readouterr().out)["error"]
+
 def test_cli_validate_spec(tmp_path, capsys):
     spec_path = tmp_path / "test_spec.json"
     spec_path.write_text(json.dumps(_spec()), encoding="utf-8")
@@ -393,54 +432,22 @@ def test_builtin_methodology_chain_spec_is_valid():
     assert spec_mod.validate(data) == []
 
 
-def test_engine_complete_writes_bridge_key_to_blackboard(tmp_path):
-    """When a stage carries 'bridge', complete() writes a bridge key to the
-    blackboard so the methodology relay sees methodology.last_* keys."""
-    spec = {
-        "id": "bridge-test",
-        "title": "Bridge test",
-        "start": "alpha",
-        "stages": [
-            {"id": "alpha", "title": "Alpha",
-             "evidence": {"kind": "artifact", "path": "log.md", "contains": ["OK"]},
-             "bridge": "E-",
-             "next": [{"to": "beta"}]},
-            {"id": "beta", "title": "Beta",
-             "requires": ["alpha"],
-             "evidence": {"kind": "artifact", "path": "log.md", "contains": ["OK"]},
-             "bridge": "IR-",
-             "next": [{"to": "done"}]},
-            {"id": "done", "title": "Done", "terminal": True},
-        ],
-    }
+def test_kernel_never_mints_a_methodology_relay_key(tmp_path):
+    """The kernel writes only `workflow.<slug>.*`; the relay belongs to records.
+
+    It used to mint `<bridge-prefix><slug>` too, so a run named after the builtin
+    spec wrote `E-methodology-chain`, and the chain-progress line showed a fake
+    experiment. Record producers write their own ids; the kernel must not.
+    """
     root = str(tmp_path)
-    engine.create(root, spec)
+    engine.create(root, _spec(), slug="methodology-chain")
+    _write(tmp_path / "log.md", "A1\n")
+    engine.complete(root, "methodology-chain", "a")
     from hooks.engine.modules import blackboard
-
-    # Complete alpha
-    (tmp_path / "log.md").write_text("OK\n", encoding="utf-8")
-    engine.complete(root, "bridge-test", "alpha")
-
     board = blackboard.read_board(root)
-    # Bridge key written
-    bridge_key = next((k for k in board["keys"] if k.startswith("E-")), None)
-    assert bridge_key is not None, "bridge key E-* was not written"
-    assert bridge_key == "E-bridge-test"
-    assert "alpha" in board["keys"][bridge_key]["value"]
-
-    # Mirror: methodology.last_experiment populated
-    me = board["keys"].get("methodology.last_experiment")
-    assert me is not None, "methodology.last_experiment not set"
-    assert "E-bridge-test" in me["value"]
-
-    # Complete beta
-    engine.complete(root, "bridge-test", "beta")
-    board = blackboard.read_board(root)
-
-    ir_key = next((k for k in board["keys"] if k.startswith("IR-")), None)
-    assert ir_key is not None, "bridge key IR-* was not written"
-    mi = board["keys"].get("methodology.last_ir")
-    assert mi is not None, "methodology.last_ir not set"
+    relay = [k for k in board["keys"] if k.startswith("methodology.last_")]
+    assert relay == [], f"the kernel minted a relay key: {relay}"
+    assert board["keys"]["workflow.methodology-chain.status"]["value"] == "advanced"
 
 
 def test_engine_stage_without_bridge_does_not_write_bridge_key(tmp_path):
@@ -734,18 +741,59 @@ def test_store_save_spec_writes_and_returns_valid_path(tmp_path):
     assert loaded["id"] == spec["id"]
 
 
-def test_store_load_spec_fallback_from_state_file(tmp_path):
-    """When spec dir has no file matching the slug, load_spec falls back to
-    state['spec_file'] (which uses the spec's own id, not the run slug)."""
+def test_store_snapshot_is_keyed_by_the_run_not_the_spec_id(tmp_path):
+    """Two runs of one spec each own their snapshot; a spec edit cannot reach
+    across runs (the file used to be `specs/<spec-id>.json` for both)."""
     root = str(tmp_path)
-    # Use a slug that differs from the spec id so the spec-dir lookup misses.
-    engine.create(root, _spec(), slug="my-run")
-    # specs/my-run.json does not exist (it is specs/demo.json — the spec id).
+    engine.create(root, _spec(), slug="story-one")
+    engine.create(root, _spec(), slug="story-two")
     p = store_mod.paths(root)
-    assert not os.path.isfile(os.path.join(p["specs"], "my-run.json"))
-    loaded = store_mod.load_spec(root, "my-run")
-    assert loaded.get("id") == "demo"
+    assert os.path.isfile(os.path.join(p["specs"], "story-one.json"))
+    assert os.path.isfile(os.path.join(p["specs"], "story-two.json"))
+    assert not os.path.isfile(os.path.join(p["specs"], "demo.json"))
+    assert store_mod.load_spec(root, "story-one")["id"] == "demo"
 
+
+def test_spec_placeholders_expand_to_the_runs_own_environment(tmp_path):
+    """`{python}`/`{project-root}`/`{metodoloji-root}`/`{slug}` are filled when
+    the run's spec is loaded, so the check and the witness agree."""
+    spec = {
+        "id": "expand", "title": "expand", "start": "a",
+        "stages": [{"id": "a", "title": "A",
+                    "evidence": {"kind": "command",
+                                 "argv": ["{python}", "-c", "pass",
+                                          "{project-root}", "{metodoloji-root}",
+                                          "{slug}"]},
+                    "next": [{"to": "done"}]},
+                   {"id": "done", "title": "Done", "terminal": True}],
+    }
+    root = str(tmp_path)
+    engine.create(root, spec, slug="S-042")
+    argv = store_mod.load_spec(root, "S-042")["stages"][0]["evidence"]["argv"]
+    assert argv[0] == sys.executable
+    assert argv[3] == root
+    assert argv[4] == str(_ROOT)
+    assert argv[5] == "S-042"
+    assert engine.complete(root, "S-042", "a")["ok"] is True
+
+def test_two_runs_of_one_spec_do_not_share_a_snapshot(tmp_path):
+    """Story-scoped runs: each run's completion is proven by its own record."""
+    root = str(tmp_path)
+    spec = {
+        "id": "scoped", "title": "scoped", "start": "a",
+        "stages": [{"id": "a", "title": "A",
+                    "evidence": {"kind": "artifact",
+                                 "path": "docs/development/stories/{slug}.md",
+                                 "contains": ["Status: ready-for-dev"]},
+                    "next": [{"to": "done"}]},
+                   {"id": "done", "title": "Done", "terminal": True}],
+    }
+    engine.create(root, spec, slug="S-001")
+    engine.create(root, spec, slug="S-002")
+    _write(tmp_path / "docs" / "development" / "stories" / "S-001.md",
+           "Status: ready-for-dev\n")
+    assert engine.complete(root, "S-001", "a")["ok"] is True
+    assert engine.complete(root, "S-002", "a")["ok"] is False
 
 def test_store_load_spec_returns_empty_when_all_sources_gone(tmp_path):
     root = str(tmp_path)
@@ -1011,9 +1059,8 @@ def test_engine_load_returns_empty_for_missing(tmp_path):
     assert spec == {}
 
 
-def test_blocked_transition_writes_bridge_for_completed_stage(tmp_path):
-    """A stage that completes but hits a blocked transition should still
-    write its bridge key — the stage was completed, it just can't advance."""
+def test_blocked_transition_still_records_the_completed_stage(tmp_path):
+    """A stage that completes but hits an unmatched edge is recorded, then blocks."""
     spec = {
         "id": "block-bridge",
         "title": "Block bridge test",
@@ -1021,7 +1068,6 @@ def test_blocked_transition_writes_bridge_for_completed_stage(tmp_path):
         "stages": [
             {"id": "a", "title": "A",
              "evidence": {"kind": "artifact", "path": "log.md", "contains": ["OK"]},
-             "bridge": "E-",
              "next": [{"to": "b", "when": {"key": "flag", "equals": "true"}}]},
             {"id": "b", "title": "B",
              "evidence": {"kind": "note"},
@@ -1032,12 +1078,10 @@ def test_blocked_transition_writes_bridge_for_completed_stage(tmp_path):
     root = str(tmp_path)
     engine.create(root, spec)
     (tmp_path / "log.md").write_text("OK\n", encoding="utf-8")
-    engine.complete(root, "block-bridge", "a")
+    res = engine.complete(root, "block-bridge", "a")
+    assert res["completed"] == ["a"] and res["status"] == "blocked"
     from hooks.engine.modules import blackboard
     board = blackboard.read_board(root)
-    # Stage 'a' was completed (evidence passed) even though blocked at transition
-    bridge_key = next((k for k in board["keys"] if k.startswith("E-")), None)
-    assert bridge_key is not None, "bridge should be written on successful complete"
     assert board["keys"]["workflow.block-bridge.status"]["value"] == "blocked"
 
 
@@ -1735,6 +1779,8 @@ def test_a_stored_spec_file_outside_the_root_is_not_read(tmp_path):
     # A slug with no spec file of its own: the stored spec_file is the only
     # candidate left, which is where an older tree or a hand edit lands.
     engine.create(str(root), _storage_spec("MAP", "done"), slug="orphan")
+    # Drop the per-run snapshot so the STORED spec_file is the only candidate.
+    os.remove(os.path.join(store_mod.paths(str(root))["specs"], "orphan.json"))
     path = Path(store_mod.state_path(str(root), "orphan"))
     state = json.loads(path.read_text(encoding="utf-8"))
     state["spec_file"] = str(outside)

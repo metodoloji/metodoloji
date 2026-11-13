@@ -11,7 +11,7 @@
 # Implementation Readiness: IR-XXX — [Short Title]
 
 - **Date:** [YYYY-MM-DD]
-- **Status:** preparing | READY | INCOMPLETE
+- **Status:** READY | NOT-READY | BLOCKED
 - **Research inputs:** [E/R/D/C-id list]
   - Example: E-001 (BFS optimization), D-005 (user flow design), R-010 (user needs finding)
 - **Design documents:**

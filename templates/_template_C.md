@@ -3,7 +3,7 @@
 This template covers Mode C (design) records: PRDs, UX designs, and architecture spines.
 For Mode A (quantitative/empirical) → `docs/experiments/_template.md`
 For Mode B/D (qualitative/contextual) → `docs/research/_template.md`
-Manifesto: `{metodoloji-root}/docs/bmad/research-methodology.md` (plugin-canonical — read from the plugin installation root, not the project).
+Manifesto: `{metodoloji-root}/docs/methodology.md` (plugin-canonical — read from the plugin installation root, not the project).
 
 ## Output Locations
 

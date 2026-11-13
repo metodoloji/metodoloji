@@ -618,7 +618,7 @@ PROJECT = os.environ.get("PROJECT_ROOT") or "."
 # the tree (`graft/` is a guard-free DIRECTORY, not a skill).
 EXCLUDED = set()
 
-# Development wing surfaces (development-methodology.md §6 mapping + dev agents):
+# Development wing surfaces (docs/methodology.md mapping + dev agents):
 DEV_WING = {
     "bmad-check-implementation-readiness", "bmad-prd", "bmad-ux",
     "bmad-create-architecture", "bmad-sprint-planning", "bmad-create-story",
@@ -670,12 +670,10 @@ for d in skills:
                 facts += data.get(sec, {}).get("persistent_facts", [])
         if not ok:
             continue
-        if not any("research-methodology.md" in x for x in facts):
-            missing.append("%s (no manifesto: root+team+user)" % name)
+        if not any("docs/methodology.md" in x for x in facts):
+            missing.append("%s (no methodology contract: root+team+user)" % name)
         elif not any("project-context.md" in x for x in facts):
             missing.append("%s (no project-context)" % name)
-        if name in DEV_WING and not any("development-methodology.md" in x for x in facts):
-            missing.append("%s (no development manifesto)" % name)
         # Consumption: facts must not just be configured — the surface must actually load them.
         consumed = False
         for root2, _, files in os.walk(d):
@@ -701,10 +699,8 @@ for d in skills:
         except Exception as e:
             missing.append("%s (unreadable: %s)" % (name, e))
             continue
-        if "research-methodology.md" not in txt:
-            missing.append("%s (no SKILL.md pointer)" % name)
-        if name in DEV_WING and "development-methodology.md" not in txt:
-            missing.append("%s (no SKILL.md development manifesto pointer)" % name)
+        if "docs/methodology.md" not in txt:
+            missing.append("%s (no SKILL.md methodology pointer)" % name)
 
 # Menu skill targets must exist (broken capability link class).
 for cp in sorted(glob.glob(os.path.join(PLUGIN, "skills", "*", "customize.toml"))):
@@ -720,16 +716,15 @@ for cp in sorted(glob.glob(os.path.join(PLUGIN, "skills", "*", "customize.toml")
             if s and not os.path.isdir(os.path.join(PLUGIN, "skills", s)):
                 missing.append("%s menu → %s (skill directory missing)" % (os.path.basename(cp), s))
 
-# Development wing manifesto: plugin-canonical — lives under the plugin root
-# ({metodoloji-root}/docs/bmad/). No per-project copy is required.
-DEVWING = os.path.join(PLUGIN, "docs", "bmad", "development-methodology.md")
-if not os.path.isfile(DEVWING):
-    missing.append("%s (document missing — plugin manifestos broken)" % DEVWING)
-
-# --- Bridge audit: native skill output → methodology record translation ---
-BRIDGE = os.path.join(PLUGIN, "docs", "bmad", "dev-skill-to-methodology-bridge.md")
-if not os.path.isfile(BRIDGE):
-    missing.append("%s (bridge document missing — native output not translated to methodology record)" % BRIDGE)
+# The methodology contract is plugin-canonical ({metodoloji-root}/docs/methodology.md).
+# Its stage table is owned by the chain spec; a surface that cites the contract
+# must name a record target, and the spec must name the same stages.
+CONTRACT = os.path.join(PLUGIN, "docs", "methodology.md")
+if not os.path.isfile(CONTRACT):
+    missing.append("%s (methodology contract missing)" % CONTRACT)
+SPEC = os.path.join(PLUGIN, "hooks", "workflow", "builtin", "methodology-chain.json")
+if not os.path.isfile(SPEC):
+    missing.append("%s (chain spec missing — the contract has no order)" % SPEC)
 
 # Phase-1 bridge skills: each must produce docs/development/<record>-*.md.
 # QR records may live under docs/quality/ (new) or docs/development/ (legacy).
@@ -748,24 +743,21 @@ BRIDGE_SKILLS = {
 for skill, (rec_type, target, _) in BRIDGE_SKILLS.items():
     toml_path = os.path.join(PLUGIN, "skills", skill, "customize.toml")
     if not os.path.isfile(toml_path):
-        missing.append("%s (no bridge skill override)" % skill)
+        missing.append("%s (no producer override)" % skill)
         continue
     try:
         txt = open(toml_path, encoding="utf-8").read()
     except OSError:
         missing.append("%s (unreadable)" % toml_path)
         continue
-    if "dev-skill-to-methodology-bridge" not in txt:
-        missing.append("%s (no bridge reference — append step may have been removed)" % skill)
     if target not in txt:
-        missing.append("%s (methodology record target %s missing)" % (skill, target))
+        missing.append("%s (methodology record target %s missing — the append step was removed)" % (skill, target))
 
 # Phase-3 QR feeders — ones working through the "## Methodology" section of SKILL.md.
-# This list must equal the tree's bridge-citing skills/*/SKILL.md surfaces: every
-# SKILL.md that cites dev-skill-to-methodology-bridge. The bench check "QR feeder
-# SKILL.md audit covers every bridge surface (E-024)" pins that equality. Before
-# E-024 it was a hardcoded 3, so a new bridge-citing SKILL.md would drop out of
-# this audit silently while §2 kept reporting HEALTHY (the E-018/E-020/E-021 class).
+# This list must equal the tree's feeder SKILL.md surfaces: every SKILL.md that
+# declares it produces no independent methodology record. The bench check "QR
+# feeder SKILL.md audit covers every feeder surface (E-024)" pins that equality,
+# so a new feeder SKILL.md cannot drop out of this audit silently.
 QR_FEEDERS_SKILLMD = ["bmad-review-adversarial-general", "bmad-review-edge-case-hunter", "bmad-eval-runner"]
 for skill in QR_FEEDERS_SKILLMD:
     skill_md = os.path.join(PLUGIN, "skills", skill, "SKILL.md")
@@ -777,29 +769,29 @@ for skill in QR_FEEDERS_SKILLMD:
     except OSError:
         missing.append("%s (unreadable)" % skill_md)
         continue
-    if "dev-skill-to-methodology-bridge" not in txt:
-        missing.append("%s (no bridge reference in SKILL.md)" % skill)
+    if "does not produce an independent methodology record" not in txt:
+        missing.append("%s (no feeder declaration in SKILL.md)" % skill)
     if "docs/quality/QR" not in txt and "docs/development/QR" not in txt:
         missing.append("%s (no QR feed target in SKILL.md)" % skill)
 
 # Phase-3 QR feeders — ones working via skills/{skill}/customize.toml activation_steps_append.
-# This list must equal the tree's FEEDER BRIDGE surfaces: every skills/*/customize.toml that
-# cites the bridge but carries no VERIFY step (its BRIDGE says "does not produce
-# an independent methodology record"). The bench check "QR feeder audit covers
+# This list must equal the tree's feeder TOML surfaces: every
+# skills/*/customize.toml that declares it produces no independent methodology
+# record and carries no VERIFY step. The bench check "QR feeder audit covers
 # every feeder surface (E-020)" pins that equality.
 QR_FEEDERS_TOML = []
 for skill in QR_FEEDERS_TOML:
     toml_path = os.path.join(PLUGIN, "skills", skill, "customize.toml")
     if not os.path.isfile(toml_path):
-        missing.append("%s (no bridge skill override)" % skill)
+        missing.append("%s (no producer override)" % skill)
         continue
     try:
         txt = open(toml_path, encoding="utf-8").read()
     except OSError:
         missing.append("%s (unreadable)" % toml_path)
         continue
-    if "dev-skill-to-methodology-bridge" not in txt:
-        missing.append("%s (no bridge reference in append)" % skill)
+    if "does not produce an independent methodology record" not in txt:
+        missing.append("%s (no feeder declaration in append)" % skill)
     if "docs/quality/QR" not in txt and "docs/development/QR" not in txt:
         missing.append("%s (no QR feed target in append)" % skill)
 
@@ -819,12 +811,11 @@ fi
 echo "== 2b) Bridge instructions visible at runtime? (resolve_customization merge) =="
 # The BRIDGE step lives in the skill-root customize.toml itself (E-147)
 # via resolve_customization.py deep_merge (append). Append semantics are persistent.
-# TOML_SKILLS + AGENT_TOML_SKILLS must equal the tree's BRIDGE-bearing overrides:
-# every skills/*/customize.toml that cites dev-skill-to-methodology-bridge. The bench check
-# "bridge runtime-visibility audit covers every bridge surface (E-027)" pins that
-# equality, so a new bridge-citing override cannot drop out of this probe silently
-# (the E-018/E-020/E-021/E-024 class). E-024 named QR_FEEDERS_SKILLMD the "last"
-# unpinned bridge-audit list; reading the tree falsifies that — this pair was another.
+# TOML_SKILLS + AGENT_TOML_SKILLS must equal the tree's record-producing
+# overrides: every skills/*/customize.toml that names a methodology record target.
+# The bench check "bridge runtime-visibility audit covers every bridge surface
+# (E-027)" pins that equality, so a new producing override cannot drop out of
+# this probe silently.
 "$PY" - <<'PY'
 import json, os, subprocess, sys
 from pathlib import Path

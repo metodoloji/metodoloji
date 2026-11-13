@@ -235,7 +235,7 @@ def main():
 
     # A missing skill-root customize.toml means "no defaults" ({}), not an
     # error: minimal skills carry no customization surface, and the team/user
-    # layers still merge on top. 26 skills carry no customize.toml (the old
+    # layers still merge on top. 6 skills carry no customize.toml (the old
     # byte-identical minimal stubs with only these persistent_facts were
     # deleted) — keep them working by defaulting here instead of requiring the
     # stub file on disk.
@@ -245,8 +245,7 @@ def main():
     else:
         defaults = {"workflow": {"persistent_facts": [
             "file:{project-root}/**/project-context.md",
-            "file:{metodoloji-root}/docs/bmad/research-methodology.md",
-            "file:{metodoloji-root}/docs/bmad/development-methodology.md",
+            "file:{metodoloji-root}/docs/methodology.md",
         ]}}
 
     # The skill lives inside the plugin, so deriving the project from the

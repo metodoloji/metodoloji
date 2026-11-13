@@ -45,9 +45,16 @@ def _warnings_field(warnings: list[str]) -> dict:
 
 
 def _notify_blackboard(project_root: str, slug: str, event: str,
-                       stage_id: str = "", detail: str = "",
-                       bridge_prefix: str = "") -> None:
-    """Fail-open notification to the project blackboard context."""
+                       stage_id: str = "") -> None:
+    """Fail-open notification to the project blackboard context.
+
+    Only the run's own `workflow.<slug>.*` keys are written here. The
+    methodology relay (`methodology.last_*`) belongs to the record producers:
+    each writes its own record id (E-001, IR-…, SP-…, story.…, QR-…, PR-…) and
+    the board stamps the relay from that prefix. The kernel also minted
+    `<bridge><slug>`, which made a run named `methodology-chain` write
+    `E-methodology-chain` — a fake experiment heartbeat on the chain line.
+    """
     try:
         root_dir = str(pathlib.Path(__file__).resolve().parents[2])
         if root_dir not in sys.path:
@@ -56,15 +63,6 @@ def _notify_blackboard(project_root: str, slug: str, event: str,
         blackboard.write_key(project_root, f"workflow.{slug}.status", event, type_="status")
         if stage_id:
             blackboard.write_key(project_root, f"workflow.{slug}.current", stage_id, type_="stage")
-        if bridge_prefix and stage_id:
-            # Write a methodology bridge key (e.g. "E-{slug}") so the
-            # blackboard _METHODOLOGY_MIRROR_KEYS mechanism automatically
-            # creates methodology.last_experiment, etc.
-            bridge_key = f"{bridge_prefix}{slug}"
-            bridge_value = (f"{stage_id}: {detail}" if detail
-                           else f"{stage_id}: completed")
-            blackboard.write_key(project_root, bridge_key, bridge_value,
-                                 type_="state")
     except Exception as exc:
         # The board is an advisory integration, so it must not undo a workflow
         # transition. Make the loss visible to CLI users instead of hiding it.
@@ -126,7 +124,7 @@ def declared_artifact(project_root: str, spec: dict) -> dict:
 # --- create / load ------------------------------------------------------------
 
 def create(project_root: str, spec: dict, *, slug: str | None = None,
-           force: bool = False) -> dict:
+           force: bool = False, flags: dict | None = None) -> dict:
     """Instantiate a run from a validated spec. Refuses to clobber by default."""
     problems = spec_mod.validate(spec)
     if problems:
@@ -149,7 +147,10 @@ def create(project_root: str, spec: dict, *, slug: str | None = None,
     if existing and not force:
         return _fail(f"workflow '{slug}' already exists (use --force to reset)",
                      slug=slug)
-    spec_file = store.save_spec(project_root, spec, allow_overwrite=force)
+    # Per-run snapshot: two stories run the same builtin spec at once, and a
+    # spec edited mid-run must not rewrite the other run's definition.
+    spec_file = store.save_spec(project_root, spec, allow_overwrite=force,
+                                slug=slug)
     state = {
         "slug": slug,
         "spec_id": spec_mod.spec_id(spec),
@@ -157,7 +158,9 @@ def create(project_root: str, spec: dict, *, slug: str | None = None,
         "status": "active",
         "current": spec["start"],
         "completed": [],
-        "flags": {},
+        # Branch flags arrive with creation so the first transition can read
+        # them without a separate write.
+        "flags": {str(k): str(v) for k, v in (flags or {}).items()},
         "blocked": None,
         "history": [_history_line(spec["start"], "start")],
         "created_at": _now(),
@@ -379,8 +382,7 @@ def complete(project_root: str, slug: str, stage_id: str, *,
         return _fail(f"evidence for '{stage_id}' is not satisfied: {detail}",
                      evidence=detail)
 
-    bridge_prefix = str(stage.get("bridge", "")).strip() or ""
-    notifications: list[tuple[str, str, str, str]] = []
+    notifications: list[tuple[str, str, str]] = []
 
     if stage_id not in completed:
         completed.append(stage_id)
@@ -400,11 +402,6 @@ def complete(project_root: str, slug: str, stage_id: str, *,
             witness["forced"] = True
             witness["forced_detail"] = detail
         state.setdefault("evidence", {})[stage_id] = witness
-
-    # Write bridge key for the completed stage (not the target) so the
-    # blackboard methodology relay sees methodology.last_* keys.
-    if bridge_prefix:
-        notifications.append(("completed", stage_id, detail, bridge_prefix))
 
     decision = spec_mod.compute_next(spec, current=stage_id,
                                      completed=set(completed),
@@ -432,28 +429,27 @@ def complete(project_root: str, slug: str, stage_id: str, *,
             state["current"] = None
             state["status"] = "completed"
             history.append(_history_line(target, "done"))
-            notifications.append(("completed", target, detail, ""))
+            notifications.append(("completed", target, detail))
         else:
             state["current"] = target
             state["status"] = "active"
-            notifications.append(("advanced", target, detail, ""))
+            notifications.append(("advanced", target, detail))
     elif decision.get("decision") == "end":
         state["current"] = None
         state["status"] = "completed"
         history.append(_history_line(stage_id, "done"))
-        notifications.append(("completed", stage_id, detail, ""))
+        notifications.append(("completed", stage_id, detail))
     else:  # blocked transition — the spec has no matching edge
         state["status"] = "blocked"
         state["blocked"] = {"stage": stage_id, "reason": decision.get("reason", ""),
                             "ts": _now()}
         notifications.append(("blocked", stage_id,
-                              decision.get("reason", ""), ""))
+                              decision.get("reason", "")))
 
     state["history"] = history[-MAX_HISTORY:]
     warnings = _save_state(project_root, slug, state)
-    for event, notified_stage, notification_detail, prefix in notifications:
-        _notify_blackboard(project_root, slug, event, notified_stage,
-                           notification_detail, prefix)
+    for event, notified_stage, _detail in notifications:
+        _notify_blackboard(project_root, slug, event, notified_stage)
     return {"ok": True, "slug": slug, "completed": completed,
             "next": decision, "status": state["status"],
             "current": state.get("current"),
@@ -470,7 +466,7 @@ def block(project_root: str, slug: str, reason: str) -> dict:
     state.setdefault("history", []).append(
         _history_line(state.get("current") or "-", "block", reason))
     warnings = _save_state(project_root, slug, state)
-    _notify_blackboard(project_root, slug, "blocked", state.get("current") or "", reason)
+    _notify_blackboard(project_root, slug, "blocked", state.get("current") or "")
     return {"ok": True, "slug": slug, "blocked": state["blocked"],
             **_warnings_field(warnings)}
 

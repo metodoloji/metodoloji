@@ -6,12 +6,12 @@ triggers: ["bmad-eval-runner", "/bmad-eval-runner", "eval-runner"]
 
 ## Methodology
 
-Bound to `{metodoloji-root}/docs/bmad/research-methodology.md` — Mode A (quantitative) — skill evaluation; measurements live in the run folder, opens no E-id record.
-Also bound to `{metodoloji-root}/docs/bmad/development-methodology.md` — Gate 3 (quality) — evaluation results feed the QR record as evidence.
+Bound to `{metodoloji-root}/docs/methodology.md` — Mode A (quantitative) — skill evaluation; measurements live in the run folder, opens no E-id record.
+Also bound to `{metodoloji-root}/docs/methodology.md` — Gate 3 (quality) — evaluation results feed the QR record as evidence.
 A documentary decision is not code-writing permission; code always requires Mode A mechanical approval
 (`/metodoloji:verify` + guard hook). Fabricated evidence/measurements are fraud.
 
-**Bridge:** This skill does not produce an independent methodology record; it feeds evaluation results into the `Mechanical Checks` section of the `docs/quality/QR-<sequence>.md` record produced by `bmad-code-review` ({metodoloji-root}/docs/bmad/dev-skill-to-methodology-bridge.md §2.5, Phase 3 QR feeder). If there is no linked QR record (bmad-code-review has not run before), say to run it first; feed the findings into the QR, do not open a separate record. If there are findings, update the relevant QR record's `Skill Eval` block (skill name, cases passed/total, run folder path) and add the `Methodology record: docs/quality/QR-<sequence>.md` reference to the native evaluation output.
+**Bridge:** This skill does not produce an independent methodology record; it feeds evaluation results into the `Mechanical Checks` section of the `docs/quality/QR-<sequence>.md` record produced by `bmad-code-review` ({metodoloji-root}/templates/_template_QR.md, `Skill Eval` block). If there is no linked QR record (bmad-code-review has not run before), say to run it first; feed the findings into the QR, do not open a separate record. If there are findings, update the relevant QR record's `Skill Eval` block (skill name, cases passed/total, run folder path) and add the `Methodology record: docs/quality/QR-<sequence>.md` reference to the native evaluation output.
 
 
 # Skill Eval Runner

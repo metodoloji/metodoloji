@@ -6,7 +6,7 @@ triggers: ["bmad-shard-doc", "/bmad-shard-doc", "shard-doc"]
 
 ## Metodoloji
 
-Bu yuzey arastirma metodolojisine baglidir: `{metodoloji-root}/docs/bmad/research-methodology.md` — Belgele (dokumantasyon).
+Bu yuzey arastirma metodolojisine baglidir: `{metodoloji-root}/docs/methodology.md` — Belgele (dokumantasyon).
 Uretilen parcali dokuman bir iddiadir; belgesel kayitlar Turkce alan etiketleriyle tutulur.
 Belgesel karar kod yazma izni degildir; kod her durumda Mod A mekanik onayini ister.
 

@@ -35,7 +35,7 @@ activation_steps_append = [
 
 persistent_facts = [
   "file:{project-root}/**/project-context.md",
-  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+  "file:{metodoloji-root}/docs/methodology.md",
 ]
 
 # Scalar: executed when the workflow reaches its terminal stage (Step 6: Research Synthesis),

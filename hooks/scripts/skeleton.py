@@ -157,9 +157,9 @@ def _runbook_block(text: str, start: str, end: str) -> str:
 def _declared_directories(runbook: str) -> list[str]:
     """The directory bullets of the init runbook's step 2 (backticked, trailing /).
 
-    Scoped to the step: the same document legitimately mentions `docs/bmad/`
-    ("do not create it in the target project"), which is not a skeleton
-    directory and must not read as one.
+    Scoped to the step: the same document mentions `docs/methodology.md`
+    ("read it from the plugin"), which is not a skeleton directory and must not
+    read as one.
     """
     block = _runbook_block(runbook, "The installer creates these directories",
                            "The installer copies these templates")

@@ -13,7 +13,7 @@
 
 # Steps to run before the standard activation (config load, greet).
 activation_steps_prepend = [
-  "Confirm the methodology manifesto is loaded: read {metodoloji-root}/docs/bmad/research-methodology.md if present. If it is missing, stop and tell the user this workflow requires it.",
+  "Confirm the methodology contract is loaded: read {metodoloji-root}/docs/methodology.md if present. If it is missing, stop and tell the user this workflow requires it.",
 ]
 
 # Steps to run after greet but before the operation begins.
@@ -29,7 +29,7 @@ activation_steps_append = [
 persistent_facts = [
   "file:{project-root}/project-context.md",
   "file:{project-root}/**/project-context.md",
-  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+  "file:{metodoloji-root}/docs/methodology.md",
 ]
 
 # Executed when the workflow completes. Scalar or array of instructions.

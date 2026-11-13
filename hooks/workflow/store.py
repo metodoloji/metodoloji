@@ -25,6 +25,7 @@ import threading
 import time
 from contextlib import contextmanager
 
+from . import spec as spec_mod
 from .paths import outside, root_of
 
 _DEFAULT_DIR = os.path.join(".metodoloji", "workflow")
@@ -302,14 +303,19 @@ def list_slugs(project_root: str) -> list[str]:
 
 
 def save_spec(project_root: str, spec: dict, *,
-              allow_overwrite: bool = False) -> str:
+              allow_overwrite: bool = False, slug: str | None = None) -> str:
     """Copy a workflow definition into the project so the run is reproducible.
 
     The id is already refused outside `[a-z0-9._-]` by `spec.validate`, so this
     sanitization is the same belt-and-braces E-008 asked of the state path: the
     file this writes must be reachable by the sanitized name every reader uses.
+
+    ``slug`` scopes the snapshot to ONE run. Without it, two runs of the same
+    spec share `specs/<spec-id>.json`, so creating the second with a newer spec
+    either conflicts or (with --force) rewrites the first run's definition.
     """
-    dest = os.path.join(paths(project_root)["specs"], f"{safe_slug(spec['id'])}.json")
+    name = safe_slug(slug if slug is not None else spec["id"])
+    dest = os.path.join(paths(project_root)["specs"], f"{name}.json")
     with _mutation_lock(paths(project_root)["lock"]):
         if os.path.exists(dest) and not allow_overwrite:
             try:
@@ -350,7 +356,8 @@ def load_spec(project_root: str, slug: str) -> dict:
             continue
         try:
             with open(candidate, encoding="utf-8") as fh:
-                return json.load(fh)
+                return spec_mod.expand(json.load(fh), project_root=project_root,
+                                       slug=slug)
         except (OSError, json.JSONDecodeError, UnicodeDecodeError):
             continue
     state = read_state(project_root, slug)
@@ -358,7 +365,8 @@ def load_spec(project_root: str, slug: str) -> dict:
     if spec_file and not outside(root_real, str(spec_file)):
         try:
             with open(spec_file, encoding="utf-8") as fh:
-                return json.load(fh)
+                return spec_mod.expand(json.load(fh), project_root=project_root,
+                                       slug=slug)
         except (OSError, json.JSONDecodeError, UnicodeDecodeError):
             pass
     return {}

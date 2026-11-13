@@ -304,7 +304,7 @@ def bfs(graph):
 
 ## Related Documents
 
-- Development Methodology — **plugin-canonical**, read `{metodoloji-root}/docs/bmad/development-methodology.md`
+- Development Methodology — **plugin-canonical**, read `{metodoloji-root}/docs/methodology.md`
   (it is never copied into the project, so a relative link would be dead)
 - [Quality Review Template](_template_QR.md)
 - [Sprint Template](_template_SP.md)

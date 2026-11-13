@@ -109,7 +109,7 @@ def test_bootstrap_mentions_the_record_chain_exactly_once(tmp_path):
 def test_bootstrap_names_the_plugin_root(tmp_path):
     """Both roots must be resolvable from the context alone.
 
-    The real session burned turns on `find / -name research-methodology.md`
+    The real session burned turns on `find / -name methodology.md`
     and on guessing between ~/.metodoloji, /root/bmad and the plugin dir while
     the root was already printed on this line. The project root is named too:
     the fixed sentence claims roots are "named in this context", so a literal

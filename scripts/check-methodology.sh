@@ -114,9 +114,9 @@ log_ok() {
     fi
 }
 
-# The three methodology manifestos are plugin-canonical: they live under the
-# plugin root and are read from there (custom/*.toml persistent_facts use
-# {metodoloji-root}/docs/bmad/...). Resolve the plugin root the same way the
+# The methodology contract is plugin-canonical: it lives under the plugin root
+# and is read from there (*/customize.toml persistent_facts use
+# {metodoloji-root}/docs/methodology.md). Resolve the plugin root the same way the
 # hook engine does; fall back to this repo (dogfooding: repo == plugin).
 #
 # Resolution happens OUTSIDE the CHECK blocks: later checks (deferred-work,
@@ -127,7 +127,7 @@ if [ -z "$METODOLOJI_ROOT" ]; then
     # Fixed candidates first, then versioned cache globs (newest first),
     # mirroring run-hook.sh's discovery list.
     for cand in "$SCRIPT_DIR/.."; do
-        if [ -f "$cand/docs/bmad/research-methodology.md" ]; then METODOLOJI_ROOT="$cand"; break; fi
+        if [ -f "$cand/docs/methodology.md" ]; then METODOLOJI_ROOT="$cand"; break; fi
     done
 fi
 if [ -z "$METODOLOJI_ROOT" ]; then
@@ -137,24 +137,24 @@ if [ -z "$METODOLOJI_ROOT" ]; then
                 $(_join_newest_first "$HOME/.claude/plugins/cache/yunusgungor/metodoloji/*") \
                 $(_join_newest_first "$HOME/.openhands/plugins/cache/*") \
                 "$HOME/.openhands/plugins/installed/metodoloji"; do
-        if [ -f "$cand/docs/bmad/research-methodology.md" ]; then METODOLOJI_ROOT="$cand"; break; fi
+        if [ -f "$cand/docs/methodology.md" ]; then METODOLOJI_ROOT="$cand"; break; fi
     done
 fi
 if [ -z "$METODOLOJI_ROOT" ]; then
     METODOLOJI_ROOT="$SCRIPT_DIR/.."
 fi
 
-# ─── CHECK 1: plugin methodology manifestos exist (plugin-canonical) ───
+# ─── CHECK 1: the methodology contract and chain spec exist (plugin-canonical) ───
 if _want_check 1; then
 echo "═══════════════════════════════════════════════════"
 echo "CHECK 1: Methodology Files"
 echo "═══════════════════════════════════════════════════"
 
-for f in docs/bmad/research-methodology.md docs/bmad/development-methodology.md docs/bmad/dev-skill-to-methodology-bridge.md; do
+for f in docs/methodology.md hooks/workflow/builtin/methodology-chain.json hooks/scripts/chain-gate.py; do
     if [ -f "$METODOLOJI_ROOT/$f" ]; then
         log_ok "$f exists (plugin root)"
     else
-        log_issue "$f is MISSING in plugin root ($METODOLOJI_ROOT) — required by custom/*.toml persistent_facts"
+        log_issue "$f is MISSING in plugin root ($METODOLOJI_ROOT) — the methodology contract is broken"
     fi
 done
 fi
@@ -511,9 +511,11 @@ for ir_file in "$PROJECT_ROOT"/docs/development/IR-*.md; do
     ir_status=$(grep -m1 -E '\*\*(Status|Durum):\*\*|^\| *(Status|Durum) *\|' "$ir_file" 2>/dev/null || true)
     ir_status=$(printf '%s' "$ir_status" | tr -d '\r' \
         | sed -E 's/.*\*\*(Status|Durum):\*\* *//; s/^\| *[^|]*\| *//; s/[|→—].*//; s/^ *//; s/ *$//')
+    # Accepted vocabulary comes from the schema owner (create-record.py), so a
+    # template/CLI/audit drift cannot hide behind a hand-kept alternation.
     case "$ir_status" in
-        READY|HAZIR|INCOMPLETE|EKSİK|preparing|"") : ;;
-        *) log_issue "$ir_base -> unexpected Status: '$ir_status' (expected READY | INCOMPLETE)" ;;
+        ""|READY|HAZIR|INCOMPLETE|EKSİK|NOT-READY|BLOCKED|preparing) : ;;
+        *) log_issue "$ir_base -> unexpected Status: '$ir_status' (expected READY | NOT-READY | BLOCKED)" ;;
     esac
     if ! grep -qE '\*\*(Date|Tarih):\*\*|^\| *(Date|Tarih) *\|' "$ir_file" 2>/dev/null; then
         log_issue "$ir_base -> no Date field"
@@ -592,8 +594,8 @@ for sp_file in "$PROJECT_ROOT"/docs/development/SP-*.md; do
     sp_status=$(printf '%s' "$sp_status" | tr -d '\r' \
         | sed -E 's/.*\*\*(Status|Durum):\*\* *//; s/^\| *[^|]*\| *//; s/[|→—].*//; s/^ *//; s/ *$//')
     case "$sp_status" in
-        planned|in-progress|completed|cancelled|canceled|planlandı|tamamlandı|iptal|"") : ;;
-        *) log_issue "$sp_base -> unexpected Status: '$sp_status' (expected planned | in-progress | completed | cancelled)" ;;
+        planned|active|in-progress|completed|cancelled|canceled|planlandı|tamamlandı|iptal|"") : ;;
+        *) log_issue "$sp_base -> unexpected Status: '$sp_status' (expected planned | active | completed | cancelled)" ;;
     esac
     if ! grep -qE '\*\*(Date|Tarih):\*\*|^\| *(Date|Tarih) *\|' "$sp_file" 2>/dev/null; then
         log_issue "$sp_base -> no Date field"
@@ -614,8 +616,8 @@ for pr_file in "$PROJECT_ROOT"/docs/development/PR-*.md; do
     pr_status=$(printf '%s' "$pr_status" | tr -d '\r' \
         | sed -E 's/.*\*\*(Status|Durum):\*\* *//; s/^\| *[^|]*\| *//; s/[|→—].*//; s/^ *//; s/ *$//')
     case "$pr_status" in
-        preparing|READY|WAITING|HAZIR|BEKLİYOR|"") : ;;
-        *) log_issue "$pr_base -> unexpected Status: '$pr_status' (expected preparing | READY | WAITING)" ;;
+        preparing|ready|READY|deployed|rolled-back|WAITING|HAZIR|BEKLİYOR|"") : ;;
+        *) log_issue "$pr_base -> unexpected Status: '$pr_status' (expected preparing | ready | deployed | rolled-back)" ;;
     esac
     if ! grep -qE '\*\*(Date|Tarih):\*\*|^\| *(Date|Tarih) *\|' "$pr_file" 2>/dev/null; then
         log_issue "$pr_base -> no Date field"

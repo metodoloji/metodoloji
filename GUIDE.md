@@ -49,7 +49,7 @@ Do not treat this as text to read once from cover to cover. It is a **decision t
 1. Take the chain's real state from the **SessionStart output** (`Chain progress`, record inventory, sprint line, PROACTIVE nudge). The session's own state is authoritative, not your recollection of the model.
 2. Never invent the `{metodoloji-root}` value: use the SessionStart `METODOLOJI active (plugin: PATH)` line **verbatim**. If you cannot find it, use the resolution order in #20.
 3. If you cannot recall a script's interface, run its `--help` from `{metodoloji-root}` (e.g. `python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --help`; `blackboard.py` and `workflow.py` live under `{metodoloji-root}/hooks/scripts/` — same rule). The engine and CLIs are canonical; this document summarises them.
-4. Keep this runbook aligned with the current release. When in doubt, cross-check `README.md`, `docs/CLAUDE.md`, `HERMES.md`, `docs/OPENCODE.md`, `docs/bmad/*-methodology.md`, `templates/` and `.plugin/plugin.json`.
+4. Keep this runbook aligned with the current release. When in doubt, cross-check `README.md`, `docs/CLAUDE.md`, `HERMES.md`, `docs/OPENCODE.md`, `docs/methodology.md`, `templates/` and `.plugin/plugin.json`.
 
 ---
 
@@ -1117,7 +1117,7 @@ Returns the shared `core` plus that module's keys (the old module config.yaml sh
 
 ### 13.3 Manifesto wiring
 
-Every surface must reference these documents: `research-methodology.md` (all surfaces), `project-context.md` (all surfaces), `development-methodology.md` (the development wing). The bridge document: `{metodoloji-root}/docs/bmad/dev-skill-to-methodology-bridge.md` (#-numbered — `{metodoloji-root}/scripts/check-custom.sh` #7 verifies that bridge references stay in sync with it).
+Every surface must reference `{metodoloji-root}/docs/methodology.md` (the contract: chain order, rule owners) and `project-context.md`. The chain spec `{metodoloji-root}/hooks/workflow/builtin/methodology-chain.json` owns the stage order; `scripts/check-plugin.sh` §2 verifies each surface names its record target and the contract.
 
 ---
 
@@ -1394,7 +1394,7 @@ These 60 items are not "good practice" — they are the system's mechanical boun
 49. Legacy `config.yaml` loses to the project TOML — migrate and delete the YAML.
 50. Activations read config in a targeted way: `{metodoloji-root}/hooks/scripts/resolve_config.py --key <dotted.path>` (repeatable). `--module bmm` (23 lines / 818 B) is a CLI shape only for old installs — it gives the flat view a module sees, but it is not the shape to run; the controller has `check_targeted_config_reads` + `check_no_module_dump_in_skills`.
 51. Output rule: record/artifact → `{project-root}`; template/config/script → `{metodoloji-root}`. When in doubt ask "what IS the file?".
-52. Manifests are not copied into the project — delete a stale `docs/bmad/` copy.
+52. The methodology contract is not copied into the project — it is read from the plugin.
 53. `init` never overwrites — that is why "the template didn't update"; update it by hand if needed.
 54. Verify a BRIDGE change with `resolve_customization.py -k workflow.activation_steps_append` — being in the file is not enough, it must be visible at runtime.
 55. If the VERIFY step (`ls -la`) in a producer BRIDGE is skipped, #2c catches it — do not create a record and move on without confirming it.
@@ -1447,7 +1447,7 @@ metodoloji/
 ├── templates/                           # _template_E/IR/SP/QR/PR/S/PM/BD/C/STRUCT + README/tech-debt/scratch-README/external-context-README/external-context
 ├── commands/                            # /metodoloji:init, gate-setup, verify, audit (.md)
 ├── scripts/                             # check-plugin/custom/methodology/techdebt, check-handoff, create-*-record, sync-*, bench/
-├── docs/                                # CLAUDE.md, bmad manifests, record templates (experiments/development/quality/research/design) + native outputs (development/native/)
+├── docs/                                # CLAUDE.md, methodology contract, record templates (experiments/development/quality/research/design) + native outputs (development/native/)
 └── .metodoloji/                         # blackboard.sqlite + logs/hook-audit.log + workflow/ (created on the first init/audit run — never committed)
 ```
 
@@ -1465,7 +1465,7 @@ metodoloji/
 
 **Instrument-as-tool rule:** you *run* a plugin script (`run_experiment.py`, `resolve_customization.py`) from `{metodoloji-root}`; the record it produces is still written to `{project-root}`. What the output *is* decides its root, not which script produced it. (E-038: every shipped invocation of the gate script carries a resolving root — `{metodoloji-root}`, `{skill-root}` or `$SYNCED`; a gate mention without one is a dead instruction in a consuming project.)
 
-**Manifesto rule:** the `docs/bmad/*-methodology.md` files are plugin-canonical — they are not copied into the project, they are read from the plugin. Delete a leftover `docs/bmad/` copy from an old `init` (stale copies confuse).
+**Contract rule:** `docs/methodology.md` is plugin-canonical — it is not copied into the project, it is read from the plugin; the rule text it names lives in its owners (the chain spec, `templates/`, `create-record.py`).
 
 ### 20.3 Glossary
 
@@ -1498,5 +1498,5 @@ metodoloji/
 
 ### 20.4 Maintenance note
 
-Keep this runbook aligned with the current release. Cross-check `README.md`, `docs/CLAUDE.md`, `HERMES.md`, `docs/OPENCODE.md`, `docs/bmad/*-methodology.md`, `.plugin/plugin.json` + `.claude-plugin/*.json` + `pyproject.toml`, `templates/` and `scripts/`. For the license + BMAD attribution see `LICENSE`.
+Keep this runbook aligned with the current release. Cross-check `README.md`, `docs/CLAUDE.md`, `HERMES.md`, `docs/OPENCODE.md`, `docs/methodology.md`, `.plugin/plugin.json` + `.claude-plugin/*.json` + `pyproject.toml`, `templates/` and `scripts/`. For the license + BMAD attribution see `LICENSE`.
 

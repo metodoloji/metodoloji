@@ -5,14 +5,12 @@
 [workflow]
 persistent_facts = [
   "file:{project-root}/**/project-context.md",
-  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
-  "file:{metodoloji-root}/docs/bmad/development-methodology.md",
+  "file:{metodoloji-root}/docs/methodology.md",
 ]
 
 [agent]
 persistent_facts = [
   "file:{project-root}/**/project-context.md",
-  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
 ]
 principles = [
   "Search for edge cases: find unexpected scenarios",

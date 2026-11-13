@@ -155,6 +155,13 @@ GUIDE §15.2). The SessionStart line names
 the active run's stage and its computed next stage; state lives under
 `{project-root}/.metodoloji/workflow/` and is never hand-edited.
 
+**The methodology chain is one of these workflows**, not a document:
+`hooks/workflow/builtin/methodology-chain.json` owns the E → IR → SP → S → QR → PR
+order and each stage's evidence is the command that owns its verdict
+(`hooks/scripts/chain-gate.py` dispatches; it writes no rule). One run per story:
+`create --builtin methodology-chain --slug S-005`. The contract every skill is
+pointed at is `docs/methodology.md`. There is no prose duplicate of the chain.
+
 ## Orientation (start here)
 
 ```sh

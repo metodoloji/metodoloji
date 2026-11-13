@@ -28,7 +28,7 @@ activation_steps_append = [
 # contents load as facts. Default picks up project-context.md if one exists.
 persistent_facts = [
   "file:{project-root}/**/project-context.md",
-  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
+  "file:{metodoloji-root}/docs/methodology.md",
 ]
 
 # Which party loads when the user just says "party mode" with no override.

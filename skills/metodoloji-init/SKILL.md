@@ -6,7 +6,7 @@ triggers: ["metodoloji-init", "/metodoloji-init", "install methodology", "init m
 
 # Metodoloji — install the record skeleton
 
-Bound to `{metodoloji-root}/docs/bmad/research-methodology.md` — this surface
+Bound to `{metodoloji-root}/docs/methodology.md` — this surface
 installs the record chain that manifesto defines (E → IR → SP → S → QR → PR);
 it never replaces it.
 
@@ -42,7 +42,7 @@ One-time, idempotent installation. The canonical contract is
 
 ## Notes
 
-- The methodology manifestos live under `{metodoloji-root}/docs/bmad/`.
+- The methodology contract lives at `{metodoloji-root}/docs/methodology.md`.
   Do **not** copy them into the project.
 - Never probe the gate key with shell (`cat`/`ls` of `~/.bmad/gate-key` is
   denied by the guard by design). Gate state comes from

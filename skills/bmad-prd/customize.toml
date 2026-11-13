@@ -18,7 +18,7 @@ activation_steps_prepend = []
 # Steps to run after greet but before the workflow begins.
 # Use for context-heavy setup that should happen once the user has been acknowledged.
 activation_steps_append = [
-  "Remember the project's scientific methodology: read {metodoloji-root}/docs/bmad/research-methodology.md if present. Every requirement about the problem domain is a theory, and its expected outcome is a falsifiable hypothesis to be validated by experiment — not an asserted fact.",
+  "Remember the project's scientific methodology: read {metodoloji-root}/docs/methodology.md if present. Every requirement about the problem domain is a theory, and its expected outcome is a falsifiable hypothesis to be validated by experiment — not an asserted fact.",
 ]
 
 # Persistent facts the workflow keeps in mind for the whole run
@@ -33,8 +33,7 @@ activation_steps_append = [
 #   "Investor PRDs must include a market sizing section."                    # generic agent instruction
 persistent_facts = [
   "file:{project-root}/**/project-context.md",
-  "file:{metodoloji-root}/docs/bmad/research-methodology.md",
-  "file:{metodoloji-root}/docs/bmad/development-methodology.md",
+  "file:{metodoloji-root}/docs/methodology.md",
 ]
 
 # Executed when the workflow completes (after the user has been told the

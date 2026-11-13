@@ -11,6 +11,10 @@ __pycache__/
 .metodoloji/blackboard.sqlite
 .metodoloji/blackboard.sqlite-wal
 .metodoloji/blackboard.sqlite-shm
+# Workflow run state is computed, never a commit: a run's stage is derived from
+# the records the gates verify, so committing it would freeze a verdict.
+.metodoloji/workflow/
+**/.metodoloji/workflow/
 # Methodology state anywhere in the tree (e.g. test residue under hooks/):
 # only root-level state files above are tracked-adjacent; nested trees are
 # always local-only.

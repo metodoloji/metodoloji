@@ -65,51 +65,68 @@ def _load_spec_arg(args) -> dict:
     return spec_mod.load(path)
 
 
+def _add_root(p) -> None:
+    """Accept --project-root after the subcommand, the form every doc example uses.
+
+    argparse only knew the global position, so the documented
+    `create --builtin X --project-root .` exited 2 ("unrecognized arguments").
+    SUPPRESS keeps a value given before the subcommand intact.
+    """
+    p.add_argument("--project-root", default=argparse.SUPPRESS)
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Dynamic workflow kernel CLI")
     ap.add_argument("--project-root", default=".")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     v = sub.add_parser("validate")
-    v.add_argument("--spec", required=True)
+    v.add_argument("--spec")
+    v.add_argument("--builtin")
+    _add_root(v)
 
     c = sub.add_parser("create")
     c.add_argument("--spec")
     c.add_argument("--builtin")
     c.add_argument("--slug")
+    c.add_argument("--flag", action="append", default=[], metavar="KEY=VALUE",
+                   help="branch flag read by a conditional edge (e.g. tier=1)")
     c.add_argument("--force", action="store_true")
+    _add_root(c)
 
-    sub.add_parser("list")
+    _add_root(sub.add_parser("list"))
 
-    for name in ("status", "next", "resume"):
+    for name in ("status", "next", "resume", "history"):
         p = sub.add_parser(name)
         p.add_argument("--slug")
+        if name == "history":
+            p.add_argument("--limit", type=int, default=50)
+        _add_root(p)
 
     comp = sub.add_parser("complete")
     comp.add_argument("--slug", required=True)
     comp.add_argument("--stage", required=True)
     comp.add_argument("--note", default="")
     comp.add_argument("--force", action="store_true")
+    _add_root(comp)
 
     blk = sub.add_parser("block")
     blk.add_argument("--slug", required=True)
     blk.add_argument("--reason", required=True)
+    _add_root(blk)
 
     flg = sub.add_parser("flag")
     flg.add_argument("--slug", required=True)
     flg.add_argument("--key", required=True)
     flg.add_argument("--value", required=True)
-
-    hist = sub.add_parser("history")
-    hist.add_argument("--slug")
-    hist.add_argument("--limit", type=int, default=50)
+    _add_root(flg)
 
     args = ap.parse_args(argv)
     root = os.path.abspath(args.project_root)
 
     try:
         if args.cmd == "validate":
-            data = spec_mod.load(args.spec)
+            data = _load_spec_arg(args)
             problems = spec_mod.validate(data)
             if problems:
                 return _emit({"ok": False, "error": "spec invalid", "problems": problems})
@@ -117,7 +134,15 @@ def main(argv=None) -> int:
                           "stages": [s["id"] for s in data["stages"]]})
         if args.cmd == "create":
             data = _load_spec_arg(args)
-            return _emit(engine.create(root, data, slug=args.slug, force=args.force))
+            flags = {}
+            for raw in args.flag:
+                if "=" not in raw:
+                    return _emit({"ok": False,
+                                  "error": f"--flag must be KEY=VALUE, got {raw!r}"})
+                key, value = raw.split("=", 1)
+                flags[key.strip()] = value.strip()
+            return _emit(engine.create(root, data, slug=args.slug,
+                                       force=args.force, flags=flags))
         if args.cmd == "list":
             return _emit(engine.list_runs(root))
         if args.cmd in ("status", "next", "resume", "history"):

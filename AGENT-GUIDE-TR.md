@@ -665,7 +665,7 @@ and the file you verified. If you cannot, mark it as not done.
 | `Delete this item from the TOML.` | merge'de silme mekanizması yok | `Override it with the same code/id and a noop description, or fork the skill.` |
 | `Put the bench in scratch/ so it's quick.` | gate free yüzeyden ölçüm koşmaz | `Put it in scripts/bench/ before we measure.` |
 | `Edit hooks.json directly.` | üretilen dosya, byte-identical kontrolü | `Regenerate it with scripts/sync-hooks-json.py --write.` |
-| `Copy the manifestos into the project.` | bayat kopyalar kafa karıştırır | `Read them from the plugin; delete any leftover docs/bmad/ copy.` |
+| `Copy the methodology contract into the project.` | kopya bayatlar | `docs/methodology.md` pluginden okunur; her kuralın sahibini adlandırır. |
 | `Mark the workflow stage complete — I'm sure it works.` | kanıtsız `complete` reddedilir | `Attach the evidence (artifact/command/note), then complete it.` |
 | `Report it as done and we'll verify later.` | sahte tamamlanma deny'den kötüdür | `Report: done / not done, with the gate output for each claim.` |
 | `Set the scope to the whole codebase.` | geniş kapsam = zayıf kanıt + yüksek `FORGED` riski | `One module per experiment; keep the first scope deliberately small.` |

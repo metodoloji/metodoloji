@@ -49,7 +49,7 @@ Bu dokümanı baştan sona "okuyup bitirilecek" bir metin sanma. Bir **karar tab
 1. Zincirin gerçek durumunu **SessionStart çıktısından** al (`Chain progress`, kayıt envanteri, sprint satırı, PROACTIVE dürtme). Modelin ezberi değil, oturumun kendi durumu esastır.
 2. `{metodoloji-root}` değerini uydurma: SessionStart'ın `METODOLOJI active (plugin: PATH)` satırını **verbatim** kullan. Bulamıyorsan #20'deki çözümleme sırasına bak.
 3. Bir script'in arayüzünü hatırlamıyorsan `--help`'i `{metodoloji-root}`'tan koş (ör. `python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --help`; `blackboard.py` ve `workflow.py` `{metodoloji-root}/hooks/scripts/` altındadır — aynı kural). Motor ve CLI'lar kanoniktir; bu doküman onların özetidir.
-4. Bu runbook'u güncel sürümle uyumlu tut. Şüphede `README.md`, `docs/CLAUDE.md`, `HERMES.md`, `docs/OPENCODE.md`, `docs/bmad/*-methodology.md`, `templates/` ve `.plugin/plugin.json` ile çapraz kontrol et.
+4. Bu runbook'u güncel sürümle uyumlu tut. Şüphede `README.md`, `docs/CLAUDE.md`, `HERMES.md`, `docs/OPENCODE.md`, `docs/methodology.md`, `templates/` ve `.plugin/plugin.json` ile çapraz kontrol et.
 
 ---
 
@@ -1117,7 +1117,7 @@ Paylaşılan `core` + o modülün anahtarlarını döndürür (eski modül confi
 
 ### 13.3 Manifesto wiring
 
-Her yüzey şu dokümanlara referans vermeli: `research-methodology.md` (tüm yüzeyler), `project-context.md` (tüm yüzeyler), `development-methodology.md` (development kanadı). Köprü dokümanı: `{metodoloji-root}/docs/bmad/dev-skill-to-methodology-bridge.md` (#-numaralı — `{metodoloji-root}/scripts/check-custom.sh` #7 `custom/` referanslarının onunla senkron kaldığını denetler).
+Her yüzey `{metodoloji-root}/docs/methodology.md` (sözleşme: zincir sırası, kural sahipleri) ve `project-context.md` dosyalarına referans vermeli. Aşama sırasının sahibi zincir spec'idir: `{metodoloji-root}/hooks/workflow/builtin/methodology-chain.json`; `scripts/check-plugin.sh` §2 her yüzeyin kayıt hedefini ve sözleşmeyi adlandırdığını denetler.
 
 ---
 
@@ -1394,7 +1394,7 @@ Bu 60 madde "iyi pratik" değil, sistemin mekanik sınırlarıdır. Her birini i
 49. Legacy `config.yaml` proje TOML'una yenilir — migrate edip YAML'ı sil.
 50. Aktivasyonlar config'i hedefli okur: `{metodoloji-root}/hooks/scripts/resolve_config.py --key <dotted.path>` (tekrarlanabilir). `--module bmm` (23 satır / 818 B) yalnız eski kurulumlar için CLI şeklidir — modülün gördüğü flat görünümü verir ama çalıştırılacak biçim değil; controller `check_targeted_config_reads` + `check_no_module_dump_in_skills`.
 51. Çıktı kuralı: kayıt/artefakt → `{project-root}`; template/config/script → `{metodoloji-root}`. Şüphede "dosya NE?" diye sor.
-52. Manifesto projeye kopyalanmaz — stale `docs/bmad/` kopyasını sil.
+52. Metodoloji sözleşmesi projeye kopyalanmaz — pluginden okunur.
 53. `init` mevcutu ezmez — "template güncellenmedi" sanıyorsan sebebi bu; gerekiyorsa elle güncelle.
 54. BRIDGE değişikliğini `resolve_customization.py -k workflow.activation_steps_append` ile doğrula — dosyada durması yetmez, runtime'da görünmeli.
 55. Producer BRIDGE'de VERIFY (`ls -la`) atlanırsa #2c yakalar — kaydı yaratıp doğrulamadan geçme.
@@ -1446,7 +1446,7 @@ metodoloji/
 ├── templates/                           # _template_E/IR/SP/QR/PR/S/PM/BD/C/STRUCT + README/tech-debt/scratch-README/external-context-README/external-context
 ├── commands/                            # /metodoloji:init, gate-setup, verify, audit (.md)
 ├── scripts/                             # check-plugin/custom/methodology/techdebt, check-handoff, create-*-record, sync-*, bench/
-├── docs/                                # CLAUDE.md, bmad manifestoları, kayıt şablonları (experiments/development/quality/research/design) + native çıktılar (development/native/)
+├── docs/                                # CLAUDE.md, methodology.md sözleşmesi, kayıt şablonları (experiments/development/quality/research/design) + native çıktılar (development/native/)
 └── .metodoloji/                         # blackboard.sqlite + logs/hook-audit.log + workflow/ (ilk init/audit koşusunda oluşur — repo'ya commitlenmez)
 ```
 
@@ -1464,7 +1464,7 @@ metodoloji/
 
 **Alet-olarak-enstrüman kuralı:** Plugin scriptini (`run_experiment.py`, `resolve_customization.py`) `{metodoloji-root}`'tan *çalıştırırsın*; ürettiği kayıt yine `{project-root}`'a yazılır. Çıktının kökünü ne olduğu belirler, hangi script ürettiği değil. (E-038: gate çağrısının shipped her görüntüsü çözümlü bir kök taşır — `{metodoloji-root}`, `{skill-root}` veya `$SYNCED`; köksüz bir gate çağrısı, tüketilen projede ölü talimattır.)
 
-**Manifesto kuralı:** `docs/bmad/*-methodology.md` dosyaları plugin-kanoniktir — projeye kopyalanmaz, pluginden okunur. Eski `init`'ten kalma `docs/bmad/` kopyası varsa sil (stale kafa karıştırır).
+**Sözleşme kuralı:** `docs/methodology.md` plugin-kanoniktir — projeye kopyalanmaz, pluginden okunur; adlandırdığı kural metni sahiplerinde yaşar (zincir spec'i, `templates/`, `create-record.py`).
 
 ### 20.3 Sözlük
 
@@ -1497,5 +1497,5 @@ metodoloji/
 
 ### 20.4 Bakım notu
 
-Bu runbook'u güncel sürümle uyumlu tut. `README.md`, `docs/CLAUDE.md`, `HERMES.md`, `docs/OPENCODE.md`, `docs/bmad/*-methodology.md`, `.plugin/plugin.json` + `.claude-plugin/*.json` + `pyproject.toml`, `templates/` ve `scripts/` dosyalarını çapraz kontrol et. Lisans + BMAD atfı için `LICENSE` dosyasına bak.
+Bu runbook'u güncel sürümle uyumlu tut. `README.md`, `docs/CLAUDE.md`, `HERMES.md`, `docs/OPENCODE.md`, `docs/methodology.md`, `.plugin/plugin.json` + `.claude-plugin/*.json` + `pyproject.toml`, `templates/` ve `scripts/` dosyalarını çapraz kontrol et. Lisans + BMAD atfı için `LICENSE` dosyasına bak.
 

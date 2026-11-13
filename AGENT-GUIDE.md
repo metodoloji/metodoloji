@@ -671,7 +671,7 @@ A **warning** (`methodology_warnings`, soft mode) means the agent got through wi
 | `Delete this item from the TOML.` | merges have no deletion mechanism | `Override it with the same code/id and a noop description, or fork the skill.` |
 | `Put the bench in scratch/ so it's quick.` | the gate refuses measurements from free surfaces | `Put it in scripts/bench/ before we measure.` |
 | `Edit hooks.json directly.` | generated file, byte-identical check | `Regenerate it with scripts/sync-hooks-json.py --write.` |
-| `Copy the manifestos into the project.` | stale copies confuse | `Read them from the plugin; delete any leftover docs/bmad/ copy.` |
+| `Copy the methodology contract into the project.` | a copy goes stale | `Read `docs/methodology.md` from the plugin; it names each rule's owner.` |
 | `Mark the workflow stage complete — I'm sure it works.` | `complete` refuses without evidence | `Attach the evidence (artifact/command/note), then complete it.` |
 | `Report it as done and we'll verify later.` | a false completion is worse than a deny | `Report: done / not done, with the gate output for each claim.` |
 | `Set the scope to the whole codebase.` | wide scope = weak evidence + high `FORGED` risk | `One module per experiment; keep the first scope deliberately small.` |

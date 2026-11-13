@@ -49,13 +49,12 @@ from __future__ import annotations
 import json
 import pathlib
 import re
+import sys
 
 EVIDENCE_KINDS = ("artifact", "command", "note")
 CLEARED_FLAG_VALUE = ""
 
 _ID_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
-# Bridge prefixes (e.g. "E-", "IR-") may use uppercase stage abbreviations.
-_BRIDGE_RE = re.compile(r"^[A-Za-z0-9]+-?$")
 
 
 class SpecError(ValueError):
@@ -86,6 +85,40 @@ def stage_by_id(spec: dict, stage_id: str) -> dict | None:
 
 def spec_id(spec: dict) -> str:
     return str(spec.get("id", "")).strip()
+
+
+def expand(spec: dict, *, project_root: str, slug: str) -> dict:
+    """Fill a run's environment placeholders in its copy of the spec.
+
+    The spec is committed data; the machine and the run are not. `{python}`
+    keeps the interpreter that invoked the kernel (Windows has no `python3`),
+    `{project-root}` / `{metodoloji-root}` keep the two roots distinct, and
+    `{slug}` scopes evidence to ONE run — which is what stops one story's
+    completion being proven by another story's record.
+    """
+    repo = str(pathlib.Path(__file__).resolve().parents[2])
+    values = {
+        "{python}": sys.executable,
+        "{project-root}": str(project_root),
+        "{metodoloji-root}": repo,
+        "{slug}": str(slug),
+    }
+
+    def fill(text: str) -> str:
+        out = str(text)
+        for key, value in values.items():
+            out = out.replace(key, value)
+        return out
+
+    for stage in spec.get("stages", []) or []:
+        ev = stage.get("evidence")
+        if not isinstance(ev, dict):
+            continue
+        if isinstance(ev.get("path"), str):
+            ev["path"] = fill(ev["path"])
+        if isinstance(ev.get("argv"), list):
+            ev["argv"] = [fill(a) for a in ev["argv"]]
+    return spec
 
 
 def validate(spec: dict) -> list[str]:
@@ -119,12 +152,6 @@ def validate(spec: dict) -> list[str]:
         ids.append(st_id)
         if not str(st.get("title", "")).strip():
             problems.append(f"stage '{st_id}' has no title")
-
-        bridge = st.get("bridge")
-        if bridge is not None and not isinstance(bridge, str):
-            problems.append(f"stage '{st_id}': bridge must be a string")
-        elif bridge is not None and not _BRIDGE_RE.match(str(bridge)):
-            problems.append(f"stage '{st_id}': bridge must be a prefix like 'E-' or 'IR-' ({bridge!r})")
 
         ev = st.get("evidence")
         if ev is not None:

@@ -2,7 +2,7 @@
 # check-custom.sh — static quality audit of the skill customize.toml bridge TOMLs.
 #
 #   0. TOML parse + table presence
-#   1. Persistent-facts trio  (research / development / project-context)
+#   1. Persistent-facts pair  (methodology contract / project-context)
 #   2. activation_steps_append depth
 #        Gate enforcers (GATE_REQUIRED)  → >= 3 steps
 #        Other workflows (MOD_A_RECORD_ONLY + tools) → >= 1 step
@@ -18,12 +18,12 @@
 #        Others → leak (wrong layer) → fail
 #   4. Bridge verify pattern (gate enforcers: "ls -la ... error and recreate")
 #   6. config.toml [hooks] soft/hard contract (DRY: same parser as the config audit)
-#   7. Bridge document §N.N reference drift audit (synced with bridge.md sections)
+#   7. Record steps name a live owner (shipped template + chain-spec stage)
 #
 # Usage:  sh scripts/check-custom.sh
 #            sh scripts/check-custom.sh --negtest
-#            (negative-test only, 4 stages: §3 hard-gate + §7 bridge drift ×2
-#             (delete §N.N, inject "bolum N.N") + §2b bare activation step
+#            (negative-test only, 4 stages: §3 hard-gate + §7 dead owner ×2
+#             (unshipped template, unknown stage) + §2b bare activation step
 #             → catch MISS → restore)
 # Output:    [OK] / [WARNING] / [ERROR] at the start of each line; overall status at the end.
 set -u
@@ -34,9 +34,8 @@ if [ "${1:-}" = "--negtest" ]; then
     # Negative test 1: §3 hard-gate — temporarily remove the hard-gate
     # keywords (ONAYLANDI / REDDEDİLDİ / FORGED / VERIFIED) from
     # bmad-dev-story.toml, verify §3 logic produces a MISS, then restore the file.
-    # Negative test 2: §7 bridge drift — temporarily remove the "### §2.3" heading
-    # from bridge.md, verify §7 logic produces a MISS because of the §2.3
-    # references in the skill customize.toml files, then restore the bridge.
+    # Negative tests 2/3: §7 dead owner — inject a step naming an unshipped
+    # template (2) and a stage outside the chain spec (3); §7 must MISS.
     SELF=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
     PLUGIN_ROOT=$(CDPATH= cd -- "$SELF/.." && pwd)
     PY=
@@ -53,7 +52,6 @@ from pathlib import Path
 
 PLUGIN = Path(os.environ["PLUGIN_ROOT"])
 toml = PLUGIN / "skills" / "bmad-dev-story" / "customize.toml"
-bridge = PLUGIN / "docs" / "bmad" / "dev-skill-to-methodology-bridge.md"
 # Accept both the legacy Turkish markers and the new English markers.
 KEYWORDS = ("APPROVED", "REJECTED", "FORGED", "VERIFIED", "ONAYLANDI", "REDDEDİLDİ")
 # Single source of truth for the stage count (E-026): the three banners and the
@@ -61,7 +59,6 @@ KEYWORDS = ("APPROVED", "REJECTED", "FORGED", "VERIFIED", "ONAYLANDI", "REDDEDİ
 total_stages = 4
 
 orig_toml = toml.read_text(encoding="utf-8")
-orig_bridge = bridge.read_text(encoding="utf-8")
 
 # ---- Test 1: §3 hard-gate ----
 def has_dev_story_gate_error(text: str) -> bool:
@@ -97,84 +94,53 @@ if not has_dev_story_gate_error(broken_toml):
     sys.exit(1)
 print(f"[OK]   negative test 1/{total_stages}: hard-gate keywords removed → §3 MISS caught")
 
-# ---- Test 2: §7 bridge drift ----
-def has_bridge_drift_error(bridge_text: str) -> bool:
-    """§7 drift: when §2.3 is removed from the bridge, a 'bridge §N.N drift'
-    WARNING line must appear because of the §2.3 references in custom/ files."""
-    bridge.write_text(bridge_text, encoding="utf-8")
-    try:
-        r = subprocess.run(
-            ["sh", str(PLUGIN / "scripts" / "check-custom.sh")],
-            capture_output=True, text=True, encoding="utf-8", timeout=30)
-        out = r.stdout
-        for line in out.splitlines():
-            if "bridge §N.N drift" in line or "not in bridge" in line:
-                return True
-        return False
-    finally:
-        bridge.write_text(orig_bridge, encoding="utf-8")
+# ---- Test 2: §7 a record step naming a template that does not ship ----
+def has_dead_owner_error() -> bool:
+    """§7: a record step naming a template the tree does not ship must MISS."""
+    r = subprocess.run(
+        ["sh", str(PLUGIN / "scripts" / "check-custom.sh")],
+        capture_output=True, text=True, encoding="utf-8", timeout=30)
+    for line in r.stdout.splitlines():
+        if "does not ship" in line or "not in the chain spec" in line:
+            return True
+    return False
 
-if has_bridge_drift_error(orig_bridge):
-    print("[ERROR] drift error visible even in intact bridge — test setup broken")
+if has_dead_owner_error():
+    print("[ERROR] §7 reports a dead owner in the intact tree — test setup broken")
     sys.exit(1)
 
-# Remove the "### §2.3" block from the bridge line-by-line: up to the next
-# `### ` or `## ` heading. Minimal intervention for the drift test.
-def remove_section_23(text: str) -> str:
-    lines = text.splitlines(keepends=True)
-    out = []
-    skip = False
-    for line in lines:
-        if line.startswith("### §2.3"):
-            skip = True
-            continue
-        if skip and (line.startswith("### ") or line.startswith("## ")):
-            skip = False
-        if not skip:
-            out.append(line)
-    return "".join(out)
-
-broken_bridge = remove_section_23(orig_bridge)
-if "### §2.3" in broken_bridge or "§2.3" in broken_bridge:
-    print("[ERROR] §2.3 could not be removed from bridge — heading different or no match")
+# Inject a step that names a template the tree does not ship.
+broken_toml = orig_toml + (
+    '\n  "Create the record from {metodoloji-root}/templates/_template_NOPE.md.",\n')
+# Re-open the array so the injected line lands inside it.
+broken_toml = broken_toml.replace(
+    "activation_steps_append = [",
+    'activation_steps_append = [\n  "Create the record from '
+    '{metodoloji-root}/templates/_template_NOPE.md.",', 1)
+toml.write_text(broken_toml, encoding="utf-8")
+try:
+    caught = has_dead_owner_error()
+finally:
+    toml.write_text(orig_toml, encoding="utf-8")
+if not caught:
+    print("[ERROR] negative test 2 failed: §7 did not catch a template that does not ship")
     sys.exit(1)
+print(f"[OK]   negative test 2/{total_stages}: unshipped template named → §7 MISS caught → TOML restored")
 
-if not has_bridge_drift_error(broken_bridge):
-    print("[ERROR] negative test 2 failed: §7 logic did not catch §2.3 removed from bridge")
+# ---- Test 3: §7 a record step naming a stage the chain spec does not define ----
+broken_toml = orig_toml.replace(
+    "activation_steps_append = [",
+    'activation_steps_append = [\n  "Run workflow.py complete --stage '
+    'not-a-real-stage --slug S-001 --project-root {project-root}.",', 1)
+toml.write_text(broken_toml, encoding="utf-8")
+try:
+    caught = has_dead_owner_error()
+finally:
+    toml.write_text(orig_toml, encoding="utf-8")
+if not caught:
+    print("[ERROR] negative test 3 failed: §7 did not catch a stage outside the chain spec")
     sys.exit(1)
-print(f"[OK]   negative test 2/{total_stages}: bridge §2.3 removed → §7 MISS caught → bridge restored")
-
-# ---- Test 3: §7 bolum N.N pattern ----
-# Inject "bolum 99.99" into a bridge-citing TOML — a section not in the
-# bridge; §7's "bolum" pattern must also catch it.
-test_toml = PLUGIN / "skills" / "bmad-dev-story" / "customize.toml"
-orig_test_toml = test_toml.read_text(encoding="utf-8")
-
-def has_bolum_drift_error(text: str) -> bool:
-    test_toml.write_text(text, encoding="utf-8")
-    try:
-        r = subprocess.run(
-            ["sh", str(PLUGIN / "scripts" / "check-custom.sh")],
-            capture_output=True, text=True, encoding="utf-8", timeout=30)
-        out = r.stdout
-        for line in out.splitlines():
-            if "bmad-dev-story" in line and "not in bridge" in line:
-                return True
-        return False
-    finally:
-        test_toml.write_text(orig_test_toml, encoding="utf-8")
-
-if has_bolum_drift_error(orig_test_toml):
-    print("[ERROR] bolum drift error visible even in the intact TOML — test setup broken")
-    sys.exit(1)
-
-# Inject as a comment line so TOML semantics are not broken. The file
-# already carries a bridge reference, so §7 audits it.
-broken_toml = orig_test_toml + "\n# drift test: bolum 99.99\n"
-if not has_bolum_drift_error(broken_toml):
-    print("[ERROR] negative test 3 failed: §7 logic did not catch injected 'bolum 99.99'")
-    sys.exit(1)
-print(f"[OK]   negative test 3/{total_stages}: 'bolum 99.99' injected → §7 MISS caught → TOML restored")
+print(f"[OK]   negative test 3/{total_stages}: unknown stage named → §7 MISS caught → TOML restored")
 
 # ---- Test 4: §2b activation compliance frame ----
 # Inject a bare workflow-stage command into a custom TOML's
@@ -265,7 +231,7 @@ else
     PROBLEMS=$((PROBLEMS + 1))
 fi
 
-echo "== 1) Persistent-facts trio (research / development / project-context) =="
+echo "== 1) Persistent-facts pair (methodology contract / project-context) =="
 "$PY" - <<'PY'
 import glob, os, sys, tomllib
 for _s in (sys.stdout, sys.stderr):
@@ -273,12 +239,11 @@ for _s in (sys.stdout, sys.stderr):
     except (AttributeError, ValueError): pass
 
 PLUGIN = os.environ.get("PLUGIN_ROOT") or "."
-# Development wing — those in this list must load the trio (research + development +
-# project-context). For those not in the list, the only requirement is
-# project-context.md; other manifesto pointers remain optional.
+# Development wing — those in this list must load the methodology contract
+# (docs/methodology.md) plus project-context. For those not in the list only
+# project-context.md is required.
 # Note: bmad-eval-runner / bmad-research-experiment / bmad-review-* are
-# deliberately not in the list — they "don't write code, they measure/audit" and
-# only load the research manifesto (they produce experiment records).
+# deliberately not in the list — they "don't write code, they measure/audit".
 DEV_WING = {
     "bmad-check-implementation-readiness", "bmad-prd", "bmad-ux",
     "bmad-create-architecture", "bmad-sprint-planning", "bmad-create-story",
@@ -307,14 +272,13 @@ for path in sorted(glob.glob(os.path.join(PLUGIN, "skills", "*", "customize.toml
     if not any("project-context.md" in x for x in facts):
         problems.append("%s: no project-context.md pointer" % name)
     if name in DEV_WING:
-        if not any("research-methodology.md" in x for x in facts):
-            problems.append("%s: no research-methodology.md pointer (DEV wing)" % name)
-        elif not any("{metodoloji-root}/docs/bmad/research-methodology.md" in x for x in facts):
-            problems.append("%s: research-methodology.md pointer not plugin-canonical ({metodoloji-root})" % name)
-        if not any("development-methodology.md" in x for x in facts):
-            problems.append("%s: no development-methodology.md pointer (DEV wing)" % name)
-        elif not any("{metodoloji-root}/docs/bmad/development-methodology.md" in x for x in facts):
-            problems.append("%s: development-methodology.md pointer not plugin-canonical ({metodoloji-root})" % name)
+        # One contract page replaced the two manifestos: the rule text moved to
+        # its owners (chain spec, templates, create-record.py) and the page only
+        # names them. A DEV-wing surface must load it, plugin-canonically.
+        if not any("docs/methodology.md" in x for x in facts):
+            problems.append("%s: no docs/methodology.md pointer (DEV wing)" % name)
+        elif not any("{metodoloji-root}/docs/methodology.md" in x for x in facts):
+            problems.append("%s: docs/methodology.md pointer not plugin-canonical ({metodoloji-root})" % name)
 
 print("  checked: %d" % checked)
 for p in problems:
@@ -322,9 +286,9 @@ for p in problems:
 raise SystemExit(1 if problems else 0)
 PY
 if [ $? -eq 0 ]; then
-    echo "[OK]   persistent_facts trio present on all surfaces"
+    echo "[OK]   persistent_facts contract + project-context present on all surfaces"
 else
-    echo "[WARNING] persistent_facts missing (see above)"
+    echo "[WARNING] persistent_facts incomplete (see above)"
     PROBLEMS=$((PROBLEMS + 1))
 fi
 
@@ -643,48 +607,27 @@ else
     PROBLEMS=$((PROBLEMS + 1))
 fi
 
-echo "== 7) Bridge document §N.N reference drift audit =="
-# In custom/*.toml files carrying a dev-skill-to-methodology-bridge reference,
-# every §N.N used (or the "bolum N.N" pattern) must actually exist in bridge.md.
-# This catches drift in custom/ when the bridge document is updated (wrong
-# references born from deleted/renamed sections).
+echo "== 7) Record steps name a shipped template and a live stage =="
+# The bridge document is gone: the order lives in the chain spec and the field
+# lists in templates/. A record step that points at a deleted document, a
+# template that does not ship, or a stage the spec does not define sends the
+# agent to an owner that cannot answer. This measures the step against the
+# owners themselves instead of against a prose section number.
 "$PY" - <<'PY'
-import glob, os, re, sys, tomllib
+import glob, json, os, re, sys
 for _s in (sys.stdout, sys.stderr):
     try: _s.reconfigure(encoding="utf-8")
     except (AttributeError, ValueError): pass
 
 PLUGIN = os.environ.get("PLUGIN_ROOT") or "."
-BRIDGE = os.path.join(PLUGIN, "docs", "bmad", "dev-skill-to-methodology-bridge.md")
-if not os.path.isfile(BRIDGE):
-    print("  [ERROR] bridge document missing: %s" % BRIDGE)
+SPEC = os.path.join(PLUGIN, "hooks", "workflow", "builtin", "methodology-chain.json")
+if not os.path.isfile(SPEC):
+    print("  [ERROR] chain spec missing: %s" % SPEC)
     sys.exit(1)
-
-# Extract bridge sections: ## §N or ### §N.N[a-z]?
-bridge_secs = set()
-with open(BRIDGE, encoding="utf-8") as f:
-    for m in re.finditer(r'^(?:##|###) §([0-9]+(?:\.[0-9]+[a-z]?)?)', f.read(), re.M):
-        bridge_secs.add(m.group(1))
-
-# Catch three patterns in each file: "§N.N", "section N.N", and "bolum/bölüm N.N"
-# (case insensitive). The second and third patterns catch misspellings that
-# forgot the § prefix (e.g. "bolum 1.1 ve 3.1 Faz 3").
-SECTION_RE = re.compile(
-    r'(?:§([0-9]+(?:\.[0-9]+[a-z]?)?)'
-    r'|(?:section|bol[uü]m)\s+([0-9]+(?:\.[0-9]+[a-z]?)?))',
-    re.IGNORECASE,
-)
-
-# Surfaces that cite the bridge document: the team overrides
-# (custom/*.toml), the QR-feeder SKILL.md files and the command docs. §7 used
-# to read only custom/*.toml, so a dangling §N.N in a SKILL.md stayed silent —
-# and one already was (§1.1 in the two review feeders; E-019). Every shipped
-# surface that names the bridge is audited here.
-def _bridge_label(path):
-    rel = os.path.relpath(path, PLUGIN).replace(os.sep, "/")
-    if rel.startswith("custom/"):
-        return os.path.basename(path)[:-5]
-    return rel
+with open(SPEC, encoding="utf-8") as f:
+    stage_ids = {st["id"] for st in json.load(f)["stages"]}
+shipped = {os.path.basename(p) for p in
+           glob.glob(os.path.join(PLUGIN, "templates", "_template_*.md"))}
 
 SURFACES = (sorted(glob.glob(os.path.join(PLUGIN, "skills", "*", "customize.toml")))
             + sorted(glob.glob(os.path.join(PLUGIN, "skills", "*", "SKILL.md")))
@@ -692,39 +635,33 @@ SURFACES = (sorted(glob.glob(os.path.join(PLUGIN, "skills", "*", "customize.toml
 problems = []
 checked = 0
 for path in SURFACES:
-    name = _bridge_label(path)
-    if name == "config":
-        continue
     try:
         with open(path, encoding="utf-8") as f:
             text = f.read()
     except OSError:
         continue
-    # Files not carrying a bridge reference are exempt (they may reference
-    # different manifestos — audit only those that use the bridge).
-    if "dev-skill-to-methodology-bridge" not in text:
+    if "docs/development/" not in text and "docs/quality/QR" not in text:
         continue
     checked += 1
-    refs = set()
-    for m in SECTION_RE.finditer(text):
-        sec = m.group(1) or m.group(2)
-        if sec:
-            refs.add(sec)
-    unknown = sorted(refs - bridge_secs)
-    if unknown:
-        problems.append("%s: §N.N not in bridge → %s (typo or stale "
-                        "section; check bridge.md)" %
-                        (name, ", ".join(unknown)))
+    rel = os.path.relpath(path, PLUGIN).replace(os.sep, "/")
+    if re.search(r"\{metodoloji-root\}/docs/bmad|docs/bmad/[A-Za-z0-9_-]+\.md", text):
+        problems.append("%s: still points at the deleted docs/bmad/" % rel)
+    for name in set(re.findall(r"_template_[A-Za-z0-9]+\.md", text)):
+        if name not in shipped:
+            problems.append("%s: names %s, which does not ship" % (rel, name))
+    for stage in set(re.findall(r"--stage\s+([a-z-]+)", text)):
+        if stage not in stage_ids:
+            problems.append("%s: names stage '%s', not in the chain spec" % (rel, stage))
 
-print("  checked bridge users: %d" % checked)
+print("  checked record surfaces: %d" % checked)
 for p in problems:
     print("  MISS: %s" % p)
 raise SystemExit(1 if problems else 0)
 PY
 if [ $? -eq 0 ]; then
-    echo "[OK]   bridge §N.N references in sync with bridge.md"
+    echo "[OK]   record steps name live owners (templates + chain stages)"
 else
-    echo "[WARNING] bridge §N.N drift (see above)"
+    echo "[WARNING] record step points at a dead owner (see above)"
     PROBLEMS=$((PROBLEMS + 1))
 fi
 

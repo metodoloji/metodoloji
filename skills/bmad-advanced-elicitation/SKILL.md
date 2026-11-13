@@ -6,7 +6,7 @@ triggers: ["bmad-advanced-elicitation", "/bmad-advanced-elicitation", "advanced-
 
 ## Methodology
 
-Bound to `{metodoloji-root}/docs/bmad/research-methodology.md` — Mode B (qualitative) — deep critique, rethinking.
+Bound to `{metodoloji-root}/docs/methodology.md` — Mode B (qualitative) — deep critique, rethinking.
 Produces no methodology record of its own: enhancements return to the invoking skill and land in its output.
 A documentary decision is not code-writing permission; code always requires Mode A mechanical approval
 (`/metodoloji:verify` + guard hook). Fabricated evidence/measurements are fraud.
