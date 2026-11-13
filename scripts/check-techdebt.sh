@@ -13,11 +13,18 @@
 #      auditor are excluded — they carry the standard's own example ids)
 #   6. Malformed reference: every bare TD-NNN token equals an inventory id
 #      (e.g. a lone `TD-14` where the inventory records `TD-014`)
+#   7. The live ledger carries no template placeholder (and the shipped
+#      template still carries at least one — it is a template, not a ledger)
+#   8. The metrics block agrees with the tables it summarizes: active counts per
+#      priority, the paid figure over the last three recorded sprints, one trend
+#      row per sprint record, and the trend's final total. A wrong NUMBER is not
+#      a placeholder, which is why §7 alone left the reporting half unread.
 #
 # Usage:  sh scripts/check-techdebt.sh
 #            sh scripts/check-techdebt.sh --negtest
 #            (negative-test only: inject ID collision + P0 overflow + orphan
-#             TODO + malformed TD reference → catch MISS → restore)
+#             TODO + malformed TD reference + live placeholder + wrong metrics
+#             total → catch MISS → restore)
 # Output:    [OK] / [WARNING] / [ERROR] at the start of each line; overall status at the end.
 set -u
 
@@ -41,7 +48,7 @@ from pathlib import Path
 PLUGIN = Path(os.environ["PLUGIN_ROOT"])
 td = PLUGIN / "docs" / "development" / "tech-debt.md"
 check_script = PLUGIN / "scripts" / "check-techdebt.sh"
-total_stages = 5
+total_stages = 6
 
 def run_check() -> subprocess.CompletedProcess:
     return subprocess.run(
@@ -176,6 +183,24 @@ try:
 finally:
     td.write_text(orig, encoding="utf-8")
 
+# Stage 6/6: Metrics vs tables. The reporting half used to be unread: a WRONG
+# number is not a placeholder, so §7 could stay green over a block that
+# disagreed with the tables it summarizes.
+print(f"[6/{total_stages}] does §8 catch a metrics block that disagrees with the tables")
+td.write_text(re.sub(r"(?m)^- \*\*Total active debt:\*\* \d+ items?",
+                     "- **Total active debt:** 3 items", orig, count=1),
+              encoding="utf-8")
+try:
+    r = run_check()
+    if ("[ERROR] metrics" in r.stdout and "Total active debt says 3" in r.stdout
+            and r.returncode == 1):
+        print("  [OK] §8 metrics disagreement caught, exit=1")
+    else:
+        print(f"  [ERROR] §8 metrics disagreement expected, output end: ...{r.stdout[-400:]!r}")
+        sys.exit(1)
+finally:
+    td.write_text(orig, encoding="utf-8")
+
 print(f"[OK] all {total_stages} negtest stages successful")
 sys.exit(0)
 PY
@@ -188,6 +213,15 @@ PLUGIN_ROOT=$(CDPATH= cd -- "$SELF/.." && pwd)
 
 TEMPLATE="$PLUGIN_ROOT/templates/tech-debt.md"
 LIVE="$PLUGIN_ROOT/docs/development/tech-debt.md"
+
+# §8 derives the metrics block from the tables, which needs more than awk can
+# carry honestly (per-subsection counts, a sprint list, a trend table). The
+# whole audit fails closed if no interpreter exists: a section that silently
+# skips is the "claim nothing measures" shape §8 exists to remove.
+PY=
+for cand in python3 python py; do
+    if command -v "$cand" >/dev/null 2>&1; then PY="$cand"; break; fi
+done
 
 echo "== 1) Ledger structure matches the shipped template =="
 if [ ! -f "$TEMPLATE" ]; then
@@ -240,20 +274,29 @@ echo "== 2) Active debt table: are IDs unique and sequential? =="
 # Active table: between "## Active Technical Debts" (or legacy "## Aktif Teknik Borçlar")
 # and "## Paid Debts" (or legacy "## Ödenmiş Borçlar")
 ACTIVE_IDS=$(awk '/^## Active Technical Debts|^## Aktif Teknik Borçlar/{flag=1; next} /^## Paid Debts|^## Ödenmiş Borçlar/{flag=0} flag && /^\| TD-/{print $2}' "$LIVE" | sed 's/|//g')
+ACTIVE_COUNT=0
+[ -n "$ACTIVE_IDS" ] && ACTIVE_COUNT=$(printf '%s\n' "$ACTIVE_IDS" | wc -l | tr -d ' ')
 DUPES=$(echo "$ACTIVE_IDS" | sort | uniq -d)
 if [ -n "$DUPES" ]; then
     echo "[ERROR] duplicate ID in active table: $(echo $DUPES | tr '\n' ' ')"
     PROBLEMS=$((PROBLEMS + 1))
 else
-    echo "[OK]   no duplicate IDs in active table ($(echo "$ACTIVE_IDS" | wc -l | tr -d ' ') unique)"
+    echo "[OK]   no duplicate IDs in active table ($ACTIVE_COUNT unique)"
 fi
-# Sequential: is TD-NNN numerically increasing?
-SORTED=$(echo "$ACTIVE_IDS" | sort -t- -k2 -n)
-if [ "$ACTIVE_IDS" = "$SORTED" ]; then
-    echo "[OK]   active table IDs numerically sequential"
+# ORDER, not consecutiveness: ids are allocated across active+paid, so two
+# active rows can legitimately be non-consecutive when a debt between them was
+# already paid. The message used to say "sequential", which reads as "must be
+# consecutive" and pointed a maintainer at a rule the check does not hold.
+if [ "$ACTIVE_COUNT" -le 1 ]; then
+    echo "[OK]   active table has $ACTIVE_COUNT row(s) — order check is vacuous"
 else
-    echo "[WARNING] active table IDs not sequential (expected ascending TD-NNN)"
-    PROBLEMS=$((PROBLEMS + 1))
+    SORTED=$(printf '%s\n' "$ACTIVE_IDS" | sort -t- -k2 -n)
+    if [ "$ACTIVE_IDS" = "$SORTED" ]; then
+        echo "[OK]   active table IDs are in ascending order"
+    else
+        echo "[WARNING] active table IDs are not in ascending TD-NNN order"
+        PROBLEMS=$((PROBLEMS + 1))
+    fi
 fi
 
 echo "== 3) Active P0 count hard limit (<= 5) =="
@@ -351,6 +394,151 @@ if grep -qE "$PLACEHOLDER_RE" "$TEMPLATE" 2>/dev/null; then
 else
     echo "[ERROR] templates/tech-debt.md carries no placeholder — it is a filled ledger, not a template"
     PROBLEMS=$((PROBLEMS + 1))
+fi
+
+echo "== 8) The metrics block agrees with the tables it summarizes =="
+# The reporting half used to be unread: §7 catches a placeholder, but a WRONG
+# number is not a placeholder. `Total active debt: 0` is a perfectly valid
+# sentence next to a full active table, and the trend table can stop at a
+# sprint that has since been superseded. Every claim below is derived from the
+# ledger's own rows, so the block cannot drift from what it summarizes.
+if [ -z "$PY" ]; then
+    echo "[ERROR] no python interpreter — the metrics cannot be derived"
+    PROBLEMS=$((PROBLEMS + 1))
+else
+    "$PY" - "$LIVE" "$PLUGIN_ROOT/docs/development" <<'PYEOF'
+import pathlib
+import re
+import sys
+
+live = pathlib.Path(sys.argv[1])
+sprint_dir = pathlib.Path(sys.argv[2])
+text = live.read_text(encoding="utf-8", errors="replace")
+problems: list[str] = []
+
+
+def section(start_pat: str, end_pat: str) -> str:
+    start = re.search(start_pat, text, re.MULTILINE)
+    if not start:
+        return ""
+    end = re.search(end_pat, text[start.end():], re.MULTILINE)
+    return text[start.end():start.end() + (end.start() if end else len(text))]
+
+
+# --- tables ---------------------------------------------------------------
+active = section(r"^## Active Technical Debts?\b|^## Aktif Teknik Borçlar",
+                 r"^## ")
+paid = section(r"^## Paid Debts\b|^## Ödenmiş Borçlar", r"^## ")
+
+active_rows = re.findall(r"^\| (TD-\d{3}) ", active, re.MULTILINE)
+priorities = {}
+for label, pat in (("P0", r"^### Critical Priority|^### Kritik Öncelik"),
+                   ("P1", r"^### High Priority|^### Yüksek Öncelik"),
+                   ("P2", r"^### Medium Priority|^### Orta Öncelik"),
+                   ("P3", r"^### Low Priority|^### Düşük Öncelik")):
+    chunk = section(pat, r"^### |^## ")
+    priorities[label] = len(re.findall(r"^\| TD-\d{3} ", chunk, re.MULTILINE))
+
+# --- claimed numbers ------------------------------------------------------
+def claimed_int(pattern: str, what: str) -> int | None:
+    m = re.search(pattern, text, re.MULTILINE)
+    if not m:
+        problems.append(f"metrics line missing: {what}")
+        return None
+    return int(m.group(1))
+
+
+total_claim = claimed_int(r"^- \*\*Total active debt:\*\* (\d+) items?", "Total active debt")
+prio_claims = {
+    "P0": claimed_int(r"^\s+- P0 \(Critical\): (\d+) items?", "P0 count"),
+    "P1": claimed_int(r"^\s+- P1 \(High\): (\d+) items?", "P1 count"),
+    "P2": claimed_int(r"^\s+- P2 \(Medium\): (\d+) items?", "P2 count"),
+    "P3": claimed_int(r"^\s+- P3 \(Low\): (\d+) items?", "P3 count"),
+}
+
+actual_total = len(active_rows)
+if total_claim is not None and total_claim != actual_total:
+    problems.append(f"Total active debt says {total_claim}, the active table has "
+                    f"{actual_total} row(s)")
+for key, claim in prio_claims.items():
+    if claim is not None and claim != priorities[key]:
+        problems.append(f"{key} says {claim}, its subsection has {priorities[key]} row(s)")
+if sum(priorities.values()) != actual_total:
+    problems.append(f"priority subsections total {sum(priorities.values())} but the "
+                    f"active table has {actual_total} row(s) "
+                    f"({priorities})")
+
+# --- sprint list and the trend table --------------------------------------
+sprints = sorted({p.stem for p in sprint_dir.glob("SP-*.md")
+                  if re.fullmatch(r"SP-\d{3,}", p.stem)})
+window = sprints[-3:]
+
+# Cells, not a greedy regex: a non-greedy `.*?` pair captures the SECOND and
+# THIRD columns (description, solution) and reports the sprint column as
+# "solution". The Paid table's shape is fixed by §1, so the id is cell 1 and
+# the sprint is the third-from-last cell.
+paid_sprints: list[tuple[str, str]] = []
+for line in paid.splitlines():
+    if not re.match(r"^\| TD-\d{3} ", line):
+        continue
+    cells = [c.strip() for c in line.strip().strip("|").split("|")]
+    if len(cells) < 5:
+        continue
+    paid_sprints.append((cells[0], cells[-2]))  # ID | desc | solution | date | SPRINT | PR/QR
+in_window = [tid for tid, sprint in paid_sprints if sprint in window]
+paid_claim = claimed_int(
+    r"^- \*\*Debt paid in the last 3 sprints:\*\* (\d+) items?", "paid in last 3")
+if paid_claim is not None and paid_claim != len(in_window):
+    problems.append(f"Debt paid in the last 3 sprints says {paid_claim}, the paid "
+                    f"table has {len(in_window)} in {window} ({in_window})")
+
+# A horizontal rule is a line of dashes and nothing else: the table's own
+# separator row also starts with `---`, so an unanchored `^---` ended the
+# section at the header and every row vanished.
+trend = section(r"^### Trend", r"^\*\*How to read|^-{3,}\s*$")
+rows = [ln for ln in trend.splitlines() if ln.count("|") >= 4]
+labels: list[str] = []
+for row in rows:
+    first = row.split("|", 1)[0].strip()
+    m = re.search(r"SP-\d{3,}", first)
+    if m:
+        labels.append(m.group(0))
+# Every RECORDED sprint must have a row. A row may also describe a sprint that
+# predates the record series (the trend is the ledger's whole history, and the
+# ledgers earliest sprints have no SP file), but never one the series has not
+# reached: a label beyond the last recorded sprint is a typo that would sit in
+# the table forever.
+def _num(label: str) -> int:
+    m = re.search(r"(\d+)", label)
+    return int(m.group(1)) if m else -1
+
+highest = max((_num(sp) for sp in sprints), default=-1)
+corroborated = set(sprints) | {sp for _tid, sp in paid_sprints if sp}
+missing = [sp for sp in sprints if sp not in labels]
+phantom = [sp for sp in labels
+           if sp not in corroborated and _num(sp) > highest]
+if missing:
+    problems.append(f"trend table has no row for {missing}")
+if phantom:
+    problems.append(f"trend table names {phantom}, which has no sprint record")
+if rows:
+    # The last row's Total Debt is the number a reader takes away.
+    tail = [c.strip() for c in rows[-1].strip().strip("|").split("|")]
+    if tail and tail[-1].isdigit() and int(tail[-1]) != actual_total:
+        problems.append(f"trend table's final Total Debt is {tail[-1]}, the active "
+                        f"table has {actual_total} row(s)")
+
+print(f"  active rows: {actual_total} {priorities} · sprints: {len(sprints)} "
+      f"· paid in {window or '[]'}: {len(in_window)}")
+for p in problems:
+    print(f"[ERROR] metrics: {p}")
+sys.exit(1 if problems else 0)
+PYEOF
+    if [ $? -eq 0 ]; then
+        echo "[OK]   metrics agree with the tables (counts, sprint window, trend tail)"
+    else
+        PROBLEMS=$((PROBLEMS + 1))
+    fi
 fi
 
 echo

@@ -3,7 +3,7 @@
 > This file tracks technical debt accumulated in the project and the repayment plan.
 > A time-box should be reserved for technical debt in every sprint.
 
-**Last updated:** 2026-11-06 (QR-031 — TD-017 paid: the ledger's shape is shared, its content is not)
+**Last updated:** 2026-11-13 (E-143 — §8 derives the metrics block from the tables, and SP-017 entered the trend)
 
 > **2026-11-06 — QR-031 (S-015 review, SP-016).** TD-017 paid by E-116. §1 of
 > `scripts/check-techdebt.sh` now compares the **shape** (heading sequence + every table's
@@ -166,9 +166,9 @@
 - **Estimated repayment time:** n/a — no active debt (TD-017 was repaid by E-116 in SP-016)
 
 ### Sprint Allocation
-- **Technical debt time-box per sprint:** 20% of capacity (1 point in a 5-point sprint). SP-016 carries 2 debt points — the sprint's entire load is TD-017's repayment
-- **Debt paid in the last 3 sprints:** 1 item (TD-017, SP-016; SP-014 and SP-015 repaid nothing)
-- **Debt added in the last 3 sprints:** 1 item (TD-017, SP-015)
+- **Technical debt time-box per sprint:** 20% of capacity (1 point in a 5-point sprint). The current sprint (SP-017) carries 0 debt points; SP-016 carried 2 — TD-017's repayment
+- **Debt paid in the last 3 sprints:** 1 item (TD-017, SP-016; SP-015 and SP-017 repaid nothing)
+- **Debt added in the last 3 sprints:** 1 item (TD-017, SP-015; SP-016 and SP-017 added none)
 - **Net debt change:** 1 - 1 = 0 (one item added in SP-015, the same item paid in SP-016)
 
 ### Trend
@@ -192,6 +192,7 @@ SP-013              | 0        | 0         | 0          | 0
 SP-014              | 0        | 0         | 0          | 0
 SP-015 (11-05)      | 1        | 0         | +1         | 1
 SP-016 (11-06)      | 0        | 1         | -1         | 0
+SP-017 (11-09)      | 0        | 0         | 0          | 0
 ```
 
 **How to read this table** (the derivation is part of the record, not left to the reader):
@@ -205,6 +206,9 @@ SP-016 (11-06)      | 0        | 1         | -1         | 0
   0 after SP-016 repaid it.
 - `Total Debt` is the active count at the sprint's end. It is cumulative only where a debt
   survives its sprint — SP-015 is the row where TD-017 entered, SP-016 the row where it left.
+- The table is not free prose: `check-techdebt.sh §8` derives the active counts, the paid-in-
+  the-last-3-sprints figure and this row set from the tables and the sprint records, and fails
+  when they disagree. Adding a sprint record without a row here is a red audit, not a habit.
 - No number here is estimated: every row traces to a `Sprint`, `Completion Date` or dated note
   in this file. TD-004 … TD-009 were never recorded, so their absence is not a gap in the table.
 

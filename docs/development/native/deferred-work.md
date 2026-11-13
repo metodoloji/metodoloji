@@ -9,7 +9,8 @@ Findings a review or a run acknowledged but deliberately did not fix now.
 origin: code review of S-001, 2026-11-03
 location: hooks/engine/modules/blackboard.py:109
 reason: a 17th watch silently evicts the oldest (`hooks/engine/modules/blackboard.py:109`, `blackboard_fold.py:230-231`). Pre-existing engine cap; today 14/16 used.
-status: open
+status: done 2026-11-13
+resolution: E-113 made the eviction announce itself (`_bounds_notice`, "bounds enforced — subscriptions N/cap, oldest expired"), and E-141 pinned the case that made it invisible: a second channel on one pattern is a NEW entry, so on a full plane it evicts the oldest and must say so (test_a_second_channel_is_a_new_entry_and_can_evict). The cap is announced and measured; only raising it is a design choice, not debt.
 
 ### DW-2: Channel-blind dedupe drops a second channel for the same (watcher, pattern)
 

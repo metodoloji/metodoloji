@@ -1,0 +1,7 @@
+{"check": "the checker carries a metrics section", "ok": true, "detail": "§8 present"}
+{"check": "a consistent ledger is healthy", "ok": true, "detail": "rc=0 healthy"}
+{"check": "a wrong active total is caught", "ok": true, "detail": "rc=1 caught"}
+{"check": "a wrong priority count is caught", "ok": true, "detail": "rc=1 caught"}
+{"check": "a sprint record with no trend row is caught", "ok": true, "detail": "rc=1 caught"}
+{"check": "a trend row beyond the series is caught", "ok": true, "detail": "rc=1 caught"}
+{"check": "a wrong paid-in-window figure is caught", "ok": true, "detail": "rc=1 caught"}

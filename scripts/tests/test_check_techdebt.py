@@ -38,6 +38,11 @@ def _fixture(tmp_path: Path) -> Path:
     shutil.copy(CHECK, root / "scripts" / "check-techdebt.sh")
     shutil.copy(TEMPLATE, root / "templates" / "tech-debt.md")
     shutil.copy(LIVE, root / "docs" / "development" / "tech-debt.md")
+    # §8 derives the metrics block from the sprint records, so the fixture needs
+    # them: a ledger whose trend table names sprints the fixture cannot see is
+    # indistinguishable from a stale one.
+    for sp in sorted((PLUGIN / "docs" / "development").glob("SP-*.md")):
+        shutil.copy(sp, root / "docs" / "development" / sp.name)
     return root
 
 
@@ -135,3 +140,84 @@ def test_template_without_placeholder_is_caught(tmp_path):
     r = _run(root)
     assert r.returncode == 1, r.stdout
     assert "not a template" in r.stdout
+
+
+# --- §8: the metrics block is derived, not trusted --------------------------
+# The reporting half used to be unread: §7 catches a template placeholder, but a
+# WRONG number is a perfectly well-formed sentence. `Total active debt: 0` next
+# to a full active table, or a trend table that stops at a sprint the record
+# series has since passed, both passed every check.
+
+def _ledger(root: Path) -> Path:
+    return root / "docs" / "development" / "tech-debt.md"
+
+
+def test_metrics_must_match_the_active_table(tmp_path):
+    root = _fixture(tmp_path)
+    live = _ledger(root)
+    live.write_text(
+        live.read_text(encoding="utf-8").replace(
+            "- **Total active debt:** 0 items", "- **Total active debt:** 3 items", 1),
+        encoding="utf-8")
+    r = _run(root)
+    assert r.returncode == 1, r.stdout
+    assert "Total active debt says 3" in r.stdout
+
+
+def test_metrics_priority_counts_must_match_their_subsections(tmp_path):
+    root = _fixture(tmp_path)
+    live = _ledger(root)
+    live.write_text(
+        live.read_text(encoding="utf-8").replace(
+            "  - P1 (High): 0 items", "  - P1 (High): 2 items", 1),
+        encoding="utf-8")
+    r = _run(root)
+    assert r.returncode == 1, r.stdout
+    assert "P1 says 2" in r.stdout
+
+
+def test_trend_table_must_carry_every_recorded_sprint(tmp_path):
+    root = _fixture(tmp_path)
+    live = _ledger(root)
+    text = live.read_text(encoding="utf-8")
+    # Drop the newest sprint's row: the record series has moved on.
+    rows = [ln for ln in text.splitlines() if not ln.startswith("SP-017 (")]
+    live.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    r = _run(root)
+    assert r.returncode == 1, r.stdout
+    assert "no row for" in r.stdout and "SP-017" in r.stdout
+
+
+def test_trend_table_rejects_a_sprint_the_series_has_not_reached(tmp_path):
+    root = _fixture(tmp_path)
+    live = _ledger(root)
+    text = live.read_text(encoding="utf-8").replace(
+        "SP-017 (11-09)      | 0        | 0         | 0          | 0",
+        "SP-017 (11-09)      | 0        | 0         | 0          | 0\n"
+        "SP-077 (12-01)      | 0        | 0         | 0          | 0", 1)
+    live.write_text(text, encoding="utf-8")
+    r = _run(root)
+    assert r.returncode == 1, r.stdout
+    assert "SP-077" in r.stdout
+
+
+def test_paid_in_last_three_sprints_is_derived(tmp_path):
+    """The window is the last three RECORDED sprints, not a hand-typed number."""
+    root = _fixture(tmp_path)
+    live = _ledger(root)
+    text = live.read_text(encoding="utf-8").replace(
+        "- **Debt paid in the last 3 sprints:** 1 item", 
+        "- **Debt paid in the last 3 sprints:** 4 items", 1)
+    live.write_text(text, encoding="utf-8")
+    r = _run(root)
+    assert r.returncode == 1, r.stdout
+    assert "Debt paid in the last 3 sprints says 4" in r.stdout
+
+
+def test_clean_fixture_reports_the_derivation(tmp_path):
+    root = _fixture(tmp_path)
+    (root / "hooks").mkdir()
+    (root / "hooks" / "app.py").write_text("x = 1\n", encoding="utf-8")
+    r = _run(root)
+    assert r.returncode == 0, r.stdout
+    assert "metrics agree with the tables" in r.stdout
