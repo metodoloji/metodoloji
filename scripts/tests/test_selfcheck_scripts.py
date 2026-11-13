@@ -984,15 +984,24 @@ def test_change_radar_bullet_matches_the_shipped_subscriptions():
     for md in sorted((PLUGIN / "skills").glob("*/SKILL.md")):
         for watcher, pat, chan in sub_re.findall(
                 md.read_text(encoding="utf-8", errors="replace")):
-            shipped.setdefault(watcher, set()).add((pat, chan))
+            # DW-4: a watch belongs to the skill whose SKILL.md ships it. The
+            # independent derivation must attribute the same way the bench does,
+            # or the two disagree about what "the radar" even is.
+            assert watcher == md.parent.name, (
+                f"skills/{md.parent.name}/SKILL.md subscribes as `{watcher}`")
+            shipped.setdefault(md.parent.name, set()).add((pat, chan))
     assert shipped, "no skill ships a subscribe line — the change radar vanished"
+    # DW-3: the channel is any name the plane accepts, not just session/stop.
     seg_re = re.compile(
-        r"`([a-z][\w-]+)`\s*(?:watches|→)\s*`([^`]+)`\s*\((session|stop)\)")
+        r"`([a-z][\w-]+)`\s*(?:watches|→)\s*`([^`]+)`\s*\(([a-z][\w.-]*)\)")
     for rel in ("GUIDE.md", "KILAVUZ.md"):
         text = (PLUGIN / rel).read_text(encoding="utf-8", errors="replace")
+        # DW-5: the bullet is the line that ENUMERATES the radar; a marker-only
+        # mention (a TOC entry, prose) is not it.
         bullet = next((ln for ln in text.splitlines()
-                       if "change radar" in ln or "değişim radarı" in ln), None)
-        assert bullet is not None, f"{rel}: no change-radar bullet found"
+                       if ("change radar" in ln or "değişim radarı" in ln)
+                       and seg_re.search(ln)), None)
+        assert bullet is not None, f"{rel}: no change-radar bullet enumerates it"
         claimed: dict[str, set] = {}
         for skill, pats, chan in seg_re.findall(bullet):
             claimed.setdefault(skill, set()).update(
@@ -1042,6 +1051,69 @@ def test_change_radar_contract_goes_red_on_every_drift(tmp_path):
                 declared=declared) is not None, root.name
     finally:
         bench.ROOT = previous
+
+
+def test_change_radar_documents_any_channel_the_plane_accepts():
+    """DW-3: the documented channel is not a `(session|stop)` alternation.
+
+    The old segment pattern made a custom channel undocumentable: its segment
+    failed to parse, so the bullet looked like it omitted the skill and the
+    radar could never describe a watch the engine happily stores.
+    """
+    bench = _load_bench()
+    bullet = ("`bmad-quality-record` watches `story.*` (release); "
+              "`bmad-spec` watches `architecture.*` (session)")
+    assert bench._RADAR_SEGMENT_RE.findall(bullet) == [
+        ("bmad-quality-record", "story.*", "release"),
+        ("bmad-spec", "architecture.*", "session"),
+    ]
+
+
+def test_change_radar_bullet_is_the_enumerating_line_not_a_mention():
+    """DW-5: a marker-only line must not stand in for the radar bullet.
+
+    `next(... if marker in line)` picked the first mention, so a table of
+    contents ("see the change radar section") became the bullet, the claimed
+    set parsed as empty, and every skill reported as omitted.
+    """
+    bench = _load_bench()
+    lines = ["- See the change radar section below.",
+             "- **Subscriptions (change radar):** "
+             "`bmad-spec` watches `prd.*` (session)"]
+    picked = next((ln for ln in lines
+                   if any(m in ln for m in bench._RADAR_MARKERS)
+                   and bench._RADAR_SEGMENT_RE.search(ln)), None)
+    assert picked is not None and "bmad-spec" in picked
+
+
+def test_change_radar_rejects_a_foreign_watcher_line(tmp_path):
+    """DW-4: a watch belongs to the skill whose SKILL.md ships it.
+
+    Attributing by the `--watcher` token let any mention of another skill's
+    command — a quoted example, a cross-reference — enter the radar under that
+    other skill, so the tree could satisfy the contract with a line the owning
+    skill never wrote. The handoff lint already calls that a rogue watcher.
+    """
+    bench = _load_bench()
+    root = tmp_path / "foreign"
+    skill = root / "skills" / "bmad-x" / "SKILL.md"
+    skill.parent.mkdir(parents=True)
+    skill.write_text(
+        'subscribe --watcher bmad-x --pattern "prd.*" --channel session\n'
+        '`python3 blackboard.py subscribe --watcher bmad-other '
+        '--pattern "smuggled.*" --channel session`\n', encoding="utf-8")
+    seg = "`bmad-x` watches `prd.*` (session)"
+    for rel, prefix in (("GUIDE.md", "- change radar: "),
+                        ("KILAVUZ.md", "- değişim radarı: ")):
+        (root / rel).write_text(prefix + seg + "\n", encoding="utf-8")
+    previous = bench.ROOT
+    try:
+        bench.ROOT = root
+        problem = bench._check_change_radar_contract_matches(
+            declared={"bmad-x": {("prd.*", "session")}})
+    finally:
+        bench.ROOT = previous
+    assert problem is not None and "foreign" in problem, problem
 
 
 def test_relay_graph_edges_match_the_declared_table():

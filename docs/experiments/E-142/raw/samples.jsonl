@@ -1,0 +1,5 @@
+{"check": "a custom channel is documentable", "ok": true, "detail": "parsed=[('bmad-quality-record', 'story.*', 'release')]"}
+{"check": "a marker-only line is not the radar bullet", "ok": true, "detail": "picked=- **Subscriptions (change radar):** `bmad-spec` "}
+{"check": "a foreign watcher is not charged to the radar", "ok": true, "detail": "attributed={'bmad-x': [('prd.*', 'session')]}"}
+{"check": "a foreign watcher fails the shipped check", "ok": true, "detail": "skills/bmad-x/SKILL.md: subscribes under a foreign watcher `bmad-other` — a watch belongs "}
+{"check": "the shipped tree still satisfies the contract", "ok": true, "detail": "clean on the shipped tree"}

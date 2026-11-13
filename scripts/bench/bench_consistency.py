@@ -3246,8 +3246,13 @@ _SUBSCRIBE_RE = re.compile(
 # A runbook's change-radar bullet, anchored by its marker phrase so the check
 # reads the radar line and not some unrelated `prd.*` mention elsewhere.
 _RADAR_MARKERS = ("change radar", "değişim radarı")
+# DW-3: the channel is whatever the plane accepts (`MAX_CHANNEL_LEN`, any
+# `[a-z][\w.-]*`), not a fixed `(session|stop)` list. The old alternation made a
+# custom channel undocumentable: its segment failed to parse, so the bullet
+# looked like it omitted the skill and the radar could never describe a watch
+# the engine happily stores.
 _RADAR_SEGMENT_RE = re.compile(
-    r"`([a-z][\w-]+)`\s*(?:watches|→)\s*`([^`]+)`\s*\((session|stop)\)")
+    r"`([a-z][\w-]+)`\s*(?:watches|→)\s*`([^`]+)`\s*\(([a-z][\w.-]*)\)")
 
 
 def _declared_subscriptions() -> dict[str, set]:
@@ -3297,15 +3302,37 @@ def _check_change_radar_contract_matches(
                 f"skills/{md.parent.name}/SKILL.md: unreadable "
                 f"({type(exc).__name__}) — the radar cannot be measured")
             continue
+        owner = md.parent.name
         for watcher, pat, chan in _SUBSCRIBE_RE.findall(txt):
-            shipped.setdefault(watcher, set()).add((pat, chan))
+            # DW-4: a subscription belongs to the skill whose SKILL.md ships it.
+            # Attributing by the `--watcher` token meant any mention of another
+            # skill's command — a quoted example, a cross-reference — entered
+            # the radar under that other skill, so the tree could satisfy the
+            # contract with a line the owning skill never wrote. The handoff
+            # lint already calls that a rogue watcher; the measurement now
+            # agrees with it instead of laundering the line into the table.
+            if watcher != owner:
+                problems.append(
+                    f"skills/{owner}/SKILL.md: subscribes under a foreign "
+                    f"watcher `{watcher}` — a watch belongs to its own skill")
+                continue
+            shipped.setdefault(owner, set()).add((pat, chan))
     if not shipped:
         return "no skill ships a subscribe line — the change radar vanished"
     for rel in ("GUIDE.md", "KILAVUZ.md"):
-        bullet = next((ln for ln in _read(rel).splitlines()
-                       if any(m in ln for m in _RADAR_MARKERS)), None)
+        # DW-5: the radar bullet is the line that actually ENUMERATES the
+        # radar. Picking the first line carrying the marker phrase let a table
+        # of contents ("See the change radar section") or a prose mention
+        # stand in for the bullet, so the check validated an empty set and
+        # reported every skill as omitted.
+        bullet = next(
+            (ln for ln in _read(rel).splitlines()
+             if any(m in ln for m in _RADAR_MARKERS)
+             and _RADAR_SEGMENT_RE.search(ln)),
+            None)
         if bullet is None:
-            problems.append(f"{rel}: no change-radar bullet found")
+            problems.append(f"{rel}: no change-radar bullet enumerates the "
+                            f"radar (a mention of the phrase is not the bullet)")
             continue
         claimed: dict[str, set] = {}
         for skill, pats, chan in _RADAR_SEGMENT_RE.findall(bullet):

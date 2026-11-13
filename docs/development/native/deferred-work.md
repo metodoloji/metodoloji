@@ -24,21 +24,24 @@ resolution: E-141 — the watch's identity is (watcher, pattern, channel) in bot
 origin: code review of S-001, 2026-11-03
 location: bench_consistency.py:3254-3255
 reason: `bench_consistency.py:3254-3255` Deliberate anchor recorded in E-043 Known Gaps; revisit when a skill ships a custom channel.
-status: open
+status: done 2026-11-13
+resolution: E-142 — the segment pattern accepts any channel the plane stores (`[a-z][\w.-]*`), so a custom channel is documentable instead of unparseable.
 
 ### DW-4: Bench charges any subscribe line to the radar regardless of owning skill
 
 origin: code review of S-001, 2026-11-03
 location: bench_consistency.py:3280-3281
 reason: `bench_consistency.py:3280-3281` The lint's rogue-watcher warning covers the same input today.
-status: open
+status: done 2026-11-13
+resolution: E-142 — a subscription is attributed to the skill whose SKILL.md ships it; a foreign watcher is a reported problem, so the tree can no longer satisfy the contract with a line the owning skill never wrote.
 
 ### DW-5: First "change radar" marker line wins
 
 origin: code review of S-001, 2026-11-03
 location: bench_consistency.py:3285-3286
 reason: (`bench_consistency.py:3285-3286`, `test_selfcheck_scripts.py:1021-1022`); a TOC mention earlier in the file would validate the wrong bullet.
-status: open
+status: done 2026-11-13
+resolution: E-142 — the bullet is the line that ENUMERATES the radar (marker plus at least one parseable segment), so a table-of-contents mention can no longer stand in for it.
 
 ## Migrated from: code review of SP-014, 2026-11-03
 
@@ -70,4 +73,14 @@ status: open
 origin: consistency repair, 2026-11-03
 location: n/a
 reason: a record opened with that word fails `test_check4_classifies_every_shipped_record` during its own gate measurement, so the record makes the suite red and rejects itself (E-110/E-112 evidence). The canonical pending form is `planned`; either teach CHECK4 the word or normalize the status at write time.
+status: open
+
+## Deferred from: change-radar hardening (2026-11-13)
+
+### DW-10: The ledger CLI cannot close an entry
+
+origin: E-142, 2026-11-13
+location: skills/bmad-code-review/scripts/deferred-work.py
+severity: low
+reason: `--check`, `--migrate` and `--add` are mechanical, but closing an entry is still a hand edit of `status:` plus a `resolution:` line. The format documents that shape and three entries were closed by hand in E-142, which is exactly the "an LLM must remember a shape" cost the CLI exists to remove.
 status: open
