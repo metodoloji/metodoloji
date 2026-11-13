@@ -1,6 +1,6 @@
 {"check": "the dispatcher, CLI and spec ship", "ok": true, "detail": "the dispatcher, CLI and spec all ship"}
 {"check": "docs/bmad is gone", "ok": true, "detail": "docs/bmad/ is gone"}
-{"check": "no live surface cites the retired tree", "ok": true, "detail": "no live surface cites the retired tree"}
+{"check": "no live surface cites the retired tree", "ok": false, "detail": "still cited by ['commands/init.md']"}
 {"check": "the chain spec validates", "ok": true, "detail": "spec validates with 7 stages"}
 {"check": "every stage is command evidence", "ok": true, "detail": "every stage is proven by a command"}
 {"check": "the documented CLI form works and placeholders expand", "ok": true, "detail": "documented form works; placeholders expand to real paths"}
@@ -10,5 +10,5 @@
 {"check": "out-of-order completion is refused", "ok": true, "detail": "out-of-order completion refused"}
 {"check": "one run cannot spend another's evidence", "ok": true, "detail": "S-002 refused while only S-001's evidence exists (rc=1)"}
 {"check": "tier 2 skips the upstream planning records", "ok": true, "detail": "tier=2 routes experiment → story"}
-{"check": "the three audits pass", "ok": true, "detail": "all three audits pass"}
+{"check": "the three audits pass", "ok": false, "detail": "check-plugin.sh: [OK]   freshness contract holds (single vocabulary, single derivation) /  / STATUS: 1 problems found; check-custom.sh: [WARNING] record step points at a dead owner (see above) /  / STATUS: 1 problems found"}
 {"check": "templates agree with the schema owner", "ok": true, "detail": "template words == the owners' words"}

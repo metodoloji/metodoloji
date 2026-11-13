@@ -15,7 +15,7 @@ probe further):
    Claude Code — do not depend on them, do not echo them to "verify".)
 2. Fixed checkout `~/.claude/plugins/marketplaces/metodoloji/`
 3. Versioned cache `~/.claude/plugins/cache/metodoloji/metodoloji/*`
-   (newest first; e.g. `.../0.2.76/` on Claude Code v2.1.x)
+   (newest first; e.g. `.../0.2.77/` on Claude Code v2.1.x)
 4. OpenHands install directory `~/.openhands/plugins/installed/metodoloji/`
 
 (An old `~/.claude/plugins/cache/yunusgungor/metodoloji/*` path appears in
@@ -133,13 +133,12 @@ status reports an incomplete skeleton.
     (Delete the marker, or run `/metodoloji:init --force`, to re-install the
     skeleton deliberately.)
 
-5. Manifestos are plugin-canonical — do NOT copy them into the project.
-   The three methodology manifestos (`research-methodology.md`,
-   `development-methodology.md`, `dev-skill-to-methodology-bridge.md`) live
-   under `{metodoloji-root}/docs/bmad/` and are read from there via the
-   `{metodoloji-root}` entries in `custom/*.toml` `persistent_facts`. Do not
-   create `docs/bmad/` in the target project. (A legacy copy left over from an
-   older init is harmless but stale — remove it to avoid confusion.)
+5. The methodology contract is plugin-canonical — do NOT copy it into the project.
+   `{metodoloji-root}/docs/methodology.md` names each rule's owner (the chain
+   spec, the templates, `create-record.py`) and is read from there via the
+   `{metodoloji-root}` entries in `*/customize.toml` `persistent_facts`. Do not
+   create a copy in the target project. (A legacy `docs/bmad/` copy left over
+   from an older init is stale — remove it to avoid confusion.)
 
 6. Gate key: NEVER probe it with shell (`ls`/`cat`/`echo` of any path
     containing `gate-key`, `gate-keys`, or `bmad_gate_key` is denied by the
