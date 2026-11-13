@@ -84,4 +84,5 @@ origin: E-142, 2026-11-13
 location: skills/bmad-code-review/scripts/deferred-work.py
 severity: low
 reason: `--check`, `--migrate` and `--add` are mechanical, but closing an entry is still a hand edit of `status:` plus a `resolution:` line. The format documents that shape and three entries were closed by hand in E-142, which is exactly the "an LLM must remember a shape" cost the CLI exists to remove.
-status: open
+status: done 2026-11-13
+resolution: E-144 — the CLI gained --close (status done + resolution in place, resolution required, re-close refused, keep-open decision refused), documented in the format owner and the template; 11 tests pin the shape

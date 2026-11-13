@@ -211,3 +211,128 @@ def test_cli_is_stdlib_only():
         "modules", "__future__",
     }
     assert not third_party, f"non-stdlib imports: {third_party}"
+
+
+# --- --close ---------------------------------------------------------------
+# DW-10: closing an entry was a hand edit of `status:` plus a `resolution:`
+# line — exactly the "an LLM must remember a shape" cost this CLI exists to
+# remove. The tests below pin the format's two rules: every close states an
+# outcome, and an entry is never rewound (a regression is a new entry).
+
+OPEN = """# Deferred work
+
+### DW-1: first finding
+origin: review, 2026-11-01
+location: src/a.py:1
+severity: high
+reason: later
+status: open
+
+### DW-2: second finding
+origin: review, 2026-11-02
+location: n/a
+reason: later
+status: open
+"""
+
+
+def _close(root, *extra):
+    return dw.main(["--close", "--project-root", str(root), *extra])
+
+
+def test_close_sets_done_and_records_the_resolution(tmp_path):
+    path = _ledger(tmp_path, OPEN)
+    assert _close(tmp_path, "--id", "DW-1", "--resolution", "paid by E-999",
+                  "--date", "2026-11-13") == 0
+    text = path.read_text(encoding="utf-8")
+    assert "status: done 2026-11-13" in text
+    assert "resolution: paid by E-999" in text
+    # The entry's own fields survive the rewrite.
+    assert "### DW-1: first finding" in text
+    assert "origin: review, 2026-11-01" in text
+    assert "severity: high" in text and "location: src/a.py:1" in text
+    # The untouched neighbour is still open.
+    assert text.count("status: open") == 1
+
+
+def test_close_moves_the_inventory_count(tmp_path):
+    _ledger(tmp_path, OPEN)
+    _close(tmp_path, "--id", "1", "--resolution", "fixed", "--date", "2026-11-13")
+    info = dw.state.deferred_work_inventory(tmp_path)
+    assert (info["total"], info["open"], info["done"]) == (2, 1, 1)
+    assert info["open_total"] == 1
+
+
+def test_close_accepts_a_bare_number(tmp_path):
+    path = _ledger(tmp_path, OPEN)
+    assert _close(tmp_path, "--id", "2", "--resolution", "fixed") == 0
+    assert "### DW-2: second finding" in path.read_text(encoding="utf-8")
+    assert dw.state.deferred_work_inventory(tmp_path)["done"] == 1
+
+
+def test_close_requires_a_resolution(tmp_path, capsys):
+    path = _ledger(tmp_path, OPEN)
+    before = path.read_text(encoding="utf-8")
+    assert _close(tmp_path, "--id", "DW-1") == 1
+    assert "needs --resolution" in capsys.readouterr().out
+    assert path.read_text(encoding="utf-8") == before   # nothing was written
+
+
+def test_close_unknown_entry_refuses(tmp_path, capsys):
+    _ledger(tmp_path, OPEN)
+    assert _close(tmp_path, "--id", "DW-9", "--resolution", "x") == 1
+    assert "not in the ledger" in capsys.readouterr().out
+
+
+def test_close_is_idempotent_only_for_the_same_resolution(tmp_path, capsys):
+    _ledger(tmp_path, OPEN)
+    assert _close(tmp_path, "--id", "DW-1", "--resolution", "fixed",
+                  "--date", "2026-11-13") == 0
+    capsys.readouterr()
+    assert _close(tmp_path, "--id", "DW-1", "--resolution", "fixed",
+                  "--date", "2026-11-13") == 0
+    assert "already closed with this resolution" in capsys.readouterr().out
+    # A different outcome is a rewind, refused.
+    assert _close(tmp_path, "--id", "DW-1", "--resolution", "something else") == 1
+    assert "not a rewind" in capsys.readouterr().out
+
+
+def test_close_refuses_a_contradictory_keep_open_decision(tmp_path, capsys):
+    """A `keep-open` decision annotates an OPEN entry; next to `done` it lies."""
+    path = _ledger(tmp_path, OPEN)
+    before = path.read_text(encoding="utf-8")
+    assert _close(tmp_path, "--id", "DW-1", "--resolution", "fixed",
+                  "--decision", "keep-open-until-next-sprint") == 1
+    assert "contradicts --close" in capsys.readouterr().out
+    assert path.read_text(encoding="utf-8") == before
+
+
+def test_close_records_a_decision_with_the_close(tmp_path):
+    path = _ledger(tmp_path, OPEN)
+    assert _close(tmp_path, "--id", "DW-1", "--resolution", "superseded",
+                  "--decision", "plan-b — chose the smaller rewrite",
+                  "--date", "2026-11-13") == 0
+    text = path.read_text(encoding="utf-8")
+    assert "decision: 2026-11-13 plan-b — chose the smaller rewrite" in text
+
+
+def test_close_repairs_a_status_less_entry(tmp_path):
+    """A malformed entry is closable — closing it IS the repair."""
+    path = _ledger(tmp_path, "# Deferred work\n\n### DW-1: no status\n"
+                             "origin: review\nreason: later\n")
+    assert _close(tmp_path, "--id", "DW-1", "--resolution", "fixed",
+                  "--date", "2026-11-13") == 0
+    info = dw.state.deferred_work_inventory(tmp_path)
+    assert info["malformed"] == 0 and info["done"] == 1
+
+
+def test_close_rejects_a_bad_id_and_a_bad_date(tmp_path, capsys):
+    _ledger(tmp_path, OPEN)
+    assert _close(tmp_path, "--id", "nope", "--resolution", "x") == 1
+    assert _close(tmp_path, "--id", "DW-1", "--resolution", "x",
+                  "--date", "13.11.2026") == 1
+
+
+def test_close_without_ledger_refuses(tmp_path, capsys):
+    assert _close(tmp_path, "--id", "DW-1", "--resolution", "x") == 1
+    assert "[ERROR]" in capsys.readouterr().out

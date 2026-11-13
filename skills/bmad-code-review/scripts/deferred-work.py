@@ -13,6 +13,8 @@ Usage:
     python3 deferred-work.py --migrate [--write] [--project-root R]
     python3 deferred-work.py --add --title T --origin O [--location L]
                              [--severity S] [--reason X] [--project-root R]
+    python3 deferred-work.py --close --id DW-N --resolution TEXT
+                             [--decision D] [--date YYYY-MM-DD] [--project-root R]
 
 `--check` prints the inventory and every problem it can prove: malformed
 entries, duplicate DW numbers, an unterminated fence, and un-migrated legacy
@@ -29,6 +31,11 @@ verbatim in `reason:` when the title is a prefix of it. Dry-run by default;
 `--add` appends one entry with the next free number and the documented dedupe
 check: an existing entry with the same normalized title gains a `seen-again:`
 line instead of a duplicate.
+
+`--close` rewrites one entry in place — `status: done <date>` plus the
+`resolution:` line the format requires — so closing is no longer a hand edit.
+It refuses to close without a resolution, and refuses to re-close an entry:
+a regression is a new entry, not a rewind.
 
 Read-only by default, stdlib only, no network.
 """
@@ -288,6 +295,98 @@ def add(project_root: pathlib.Path, title: str, origin: str, location: str,
     return 0
 
 
+def _entry_span(text: str, seq: int) -> tuple[int, int] | None:
+    """(start, end) of the entry whose number is `seq`, in RAW text offsets."""
+    blocks = list(state._DW_ENTRY_RE.finditer(text))
+    for index, match in enumerate(blocks):
+        if int(match.group(1)) != seq:
+            continue
+        end = blocks[index + 1].start() if index + 1 < len(blocks) else len(text)
+        return match.start(), end
+    return None
+
+
+def close(project_root: pathlib.Path, seq: int, resolution: str,
+          decision: str, date: str) -> int:
+    """Close one entry: `status: done <date>` plus the `resolution:` line.
+
+    DW-10: `--check`, `--migrate` and `--add` were mechanical, but closing an
+    entry was a hand edit of `status:` plus a `resolution:` line — exactly the
+    "an LLM must remember a shape" cost the CLI exists to remove. The format is
+    explicit that entries are never deleted, so a close is a rewrite in place:
+    the number, origin, location and reason survive untouched, and the two
+    annotations the format defines are what get added.
+
+    A `--resolution` is REQUIRED. A close without a stated outcome is the
+    "silently dropped" failure in its final form: the next reader cannot tell
+    whether the debt was fixed, superseded or waved away. Re-closing an entry
+    is refused (a regression is a NEW entry with `seen-again`, not a rewind)
+    unless the resolution is byte-identical, in which case the command is a
+    no-op so a re-run script stays safe.
+    """
+    path = state.deferred_work_path(project_root)
+    if path is None:
+        print("[ERROR] no ledger — run init, or create "
+              "docs/development/native/deferred-work.md from the template")
+        return 1
+    text = path.read_text(encoding="utf-8")
+    span = _entry_span(text, seq)
+    if span is None:
+        print(f"[ERROR] DW-{seq} is not in the ledger ({path})")
+        return 1
+    start, end = span
+    block = text[start:end]
+
+    resolution = " ".join(str(resolution or "").split())
+    if not resolution:
+        print("[ERROR] --close needs --resolution: a close without a stated "
+              "outcome cannot be told apart from a dropped entry")
+        return 1
+    decision = " ".join(str(decision or "").split())
+    if decision.lower().startswith("keep-open"):
+        # The format says a `keep-open` decision leaves the entry OPEN. Writing
+        # it next to `status: done` would produce a line that contradicts the
+        # status it annotates — the exact "record disagrees with itself" shape.
+        print("[ERROR] --decision keep-open contradicts --close: a keep-open "
+              "decision leaves the entry open, so record it without closing")
+        return 1
+
+    status = re.search(r"^status:[ \t]*(\S+)[^\n]*$", block, re.MULTILINE)
+    if status is None:
+        # A status-less entry is malformed; closing it is the repair, so the
+        # line is appended rather than refused.
+        insert_at = start + len(block.rstrip("\n"))
+        new_block = (block.rstrip("\n")
+                     + f"\nstatus: done {date}\nresolution: {resolution}\n")
+        new_block += "\n" if block.endswith("\n\n") else ""
+        text = text[:start] + new_block + text[end:]
+        path.write_text(text, encoding="utf-8")
+        print(f"[OK] closed DW-{seq} (added the missing status line)")
+        return 0
+
+    current = status.group(1).lower()
+    existing = re.search(r"^resolution:[ \t]*(.*)$", block, re.MULTILINE)
+    if current.startswith("done"):
+        if existing and existing.group(1).strip() == resolution:
+            print(f"[OK] DW-{seq} is already closed with this resolution — no change")
+            return 0
+        print(f"[ERROR] DW-{seq} is already closed ({status.group(0).strip()}); "
+              "a regression is a new entry (`--add` with a `seen-again` note), "
+              "not a rewind")
+        return 1
+
+    new_status = f"status: done {date}"
+    replacement = new_status + f"\nresolution: {resolution}"
+    if decision:
+        replacement += f"\ndecision: {date} {decision}"
+    new_block = block[:status.start()] + replacement + block[status.end():]
+    text = text[:start] + new_block + text[end:]
+    path.write_text(text, encoding="utf-8")
+    print(f"[OK] closed DW-{seq} — status: done {date}")
+    print(f"     resolution: {resolution[:100]}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         description="Check, migrate and append deferred-work ledger entries.")
@@ -297,6 +396,8 @@ def main(argv: list[str] | None = None) -> int:
     action.add_argument("--migrate", action="store_true",
                         help="convert legacy sections into canonical entries")
     action.add_argument("--add", action="store_true", help="append one entry")
+    action.add_argument("--close", action="store_true",
+                        help="close one entry: status done + resolution")
     ap.add_argument("--write", action="store_true",
                     help="--migrate: apply (default is a dry run)")
     ap.add_argument("--json", action="store_true", help="--check: JSON output")
@@ -310,6 +411,14 @@ def main(argv: list[str] | None = None) -> int:
                     help="--add: severity (optional)")
     ap.add_argument("--reason", default="",
                     help="--add: why it was deferred")
+    ap.add_argument("--id", default=None,
+                    help="--close: the entry to close (DW-<n> or <n>)")
+    ap.add_argument("--resolution", default="",
+                    help="--close: one line — what was built or why it closed")
+    ap.add_argument("--decision", default="",
+                    help="--close: optional human choice recorded with the close")
+    ap.add_argument("--date", default=None,
+                    help="--close: the closing date (default: today)")
     args = ap.parse_args(argv)
 
     root = pathlib.Path(args.project_root)
@@ -317,6 +426,22 @@ def main(argv: list[str] | None = None) -> int:
         return check(root, args.json)
     if args.migrate:
         return migrate(root, args.write)
+    if args.close:
+        if not args.id:
+            print("[ERROR] --close needs --id DW-<n>", file=sys.stderr)
+            return 1
+        match = re.fullmatch(r"(?:DW-)?(\d+)", str(args.id).strip(), re.IGNORECASE)
+        if not match:
+            print(f"[ERROR] --id must be DW-<n> or <n>, got {args.id!r}",
+                  file=sys.stderr)
+            return 1
+        date = args.date or _dt.date.today().isoformat()
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date):
+            print(f"[ERROR] --date must be YYYY-MM-DD, got {date!r}",
+                  file=sys.stderr)
+            return 1
+        return close(root, int(match.group(1)), args.resolution,
+                     args.decision, date)
     missing = [name for name in ("title", "origin")
                if not getattr(args, name)]
     if missing:

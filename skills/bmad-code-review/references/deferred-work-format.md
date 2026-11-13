@@ -47,7 +47,8 @@ likely user-visible problems, `medium` for quality and robustness gaps, `low`
 for polish and nice-to-haves.
 
 When a deferred item is later completed, set its `status:` to `done` with the
-date (e.g. `status: done 2026-06-20`) — do not delete the entry.
+date (e.g. `status: done 2026-06-20`) — do not delete the entry. `--close` does
+this mechanically and adds the `resolution:` line the format requires.
 
 Numbers are never reused: two `### DW-3:` blocks mean two different findings
 share one id and every cross-reference is ambiguous. `--check` reports it.
@@ -68,11 +69,26 @@ python3 {metodoloji-root}/skills/bmad-code-review/scripts/deferred-work.py --mig
 python3 {metodoloji-root}/skills/bmad-code-review/scripts/deferred-work.py \
   --add --title "<one line>" --origin "<workflow + artifact + date>" \
   [--location <file:line>] [--severity <level>] [--reason "<why>"]
+
+# close one entry: status done + the resolution line, in place
+python3 {metodoloji-root}/skills/bmad-code-review/scripts/deferred-work.py \
+  --close --id DW-<n> --resolution "<what was built or why it closed>" \
+  [--decision "<the choice recorded>"] [--date YYYY-MM-DD]
 ```
 
 `--check` reads the same parser every other surface reads
 (`hooks/engine/modules/state.py`), so the tool and the digest can never
 disagree about what the ledger contains.
+
+`--close` rewrites the entry in place: the number, origin, location, severity
+and reason survive, `status:` becomes `done <date>`, and `resolution:` follows
+it. It **requires** a resolution — a close with no stated outcome cannot be told
+apart from an entry that was quietly dropped — and it refuses to close an entry
+that is already closed, unless the resolution is byte-identical (a re-run script
+stays safe). A regression is a new entry carrying a `seen-again:` line, never a
+rewind. A `keep-open` decision is refused here by design: that decision leaves
+the entry open, so writing it next to `status: done` would contradict the status
+it annotates.
 
 ## Migrating a legacy ledger
 

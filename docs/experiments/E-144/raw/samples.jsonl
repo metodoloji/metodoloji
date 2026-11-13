@@ -1,0 +1,7 @@
+{"check": "the CLI has a closing surface", "ok": true, "detail": "close() exists and the CLI wires --close"}
+{"check": "a close writes status done and the resolution", "ok": true, "detail": "rc=0 open=1 done=1"}
+{"check": "the entry's own fields survive the close", "ok": true, "detail": "number/origin/location/severity/reason preserved"}
+{"check": "a close without a resolution is refused", "ok": true, "detail": "rc=1 file_unchanged=True"}
+{"check": "re-closing is refused unless identical", "ok": true, "detail": "same_rc=0 different_rc=1 file_unchanged=True"}
+{"check": "a keep-open decision is refused at close", "ok": true, "detail": "rc=1 file_unchanged=True"}
+{"check": "the closed ledger still parses clean", "ok": true, "detail": "malformed=0 open_total=1"}
