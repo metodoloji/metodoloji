@@ -29,11 +29,12 @@ Launch Blind Hunter without prior conversation context. If no subagents are avai
 Deduplicate all review findings. Three categories only:
 
 - **patch** — trivially fixable. Auto-fix immediately.
-- **defer** — pre-existing issue not caused by this change. Append one new entry to `{deferred_work_file}` using this format. Do not modify existing entries or look for duplicates.
-  ```markdown
-  - source_spec: `{spec_file}`
-    summary: <one sentence>
-    evidence: <why this is real>
+- **defer** — pre-existing issue not caused by this change. Record it with the ledger CLI (next `DW-N`, canonical fields, dedupe check — never hand-write the entry):
+  ```bash
+  python3 {metodoloji-root}/skills/bmad-code-review/scripts/deferred-work.py \
+    --add --title "<one line>" --origin "quick-dev oneshot, {date}" \
+    --location "<file>:<line>" --reason "<why this is real>" \
+    --project-root {project-root}
   ```
 - **reject** — noise. Drop silently.
 

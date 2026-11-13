@@ -68,11 +68,12 @@ Launch Blind Hunter and Edge Case Hunter in parallel without prior conversation 
    - **intent_gap** — Root cause is inside `<intent-contract>`. Revert code changes. Append the triage-log entry for this pass with `addressed_findings: none`, then HALT with status `blocked`, blocking condition `intent gap in intent contract`, and include the intent-gap findings.
    - **bad_spec** — Root cause is outside `<intent-contract>`. Do not modify content inside `<intent-contract>`. Before reverting code: extract KEEP instructions for positive preservation (what worked well and must survive re-derivation). Revert code changes. Read the `## Spec Change Log` in `{spec_file}` and strictly respect all logged constraints when amending the sections outside `<intent-contract>` that contain the root cause. Append a new change-log entry recording: the triggering finding, what was amended, the known-bad state avoided, and the KEEP instructions. Append the triage-log entry for this pass, listing every bad_spec finding that triggered the spec amendment and implementation loopback under `addressed_findings`. Read fully and follow `./step-03-implement.md` to re-derive the code, then this step will run again.
    - **patch** — Auto-fix. These are the only findings that survive loopbacks. After auto-fixing, append the triage-log entry for this pass, listing every patch fixed in this pass under `addressed_findings`.
-   - **defer** — Append one new entry to `{deferred_work_file}` using this format. Do not modify existing entries or look for duplicates.
-     ```markdown
-     - source_spec: `{spec_file}`
-       summary: <one sentence>
-       evidence: <why this is real>
+   - **defer** — Record it with the ledger CLI (next `DW-N`, canonical fields, dedupe check — never hand-write the entry):
+     ```bash
+     python3 {metodoloji-root}/skills/bmad-code-review/scripts/deferred-work.py \
+       --add --title "<one line>" --origin "dev-auto review, {date}" \
+       --location "<file>:<line>" --reason "<why this is real>" \
+       --project-root {project-root}
      ```
    - **reject** — Drop silently.
 

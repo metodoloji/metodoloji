@@ -82,11 +82,13 @@ If the spec is an epic story and `{sprint_status}` exists: find the `development
    - Present detected distinct goals as a bullet list.
    - Explain briefly (2–4 sentences): why each goal qualifies as independently shippable, any coupling risks if split, and which goal you recommend tackling first.
    - HALT and ask human: `[S] Split — pick first goal, defer the rest` | `[K] Keep all goals — accept the risks`
-   - On **S**: For each deferred goal, append one new entry to `{deferred_work_file}` using this format. Do not modify existing entries or look for duplicates. Narrow scope to the first-mentioned goal. Continue routing.
-     ```markdown
-     - source_spec: none
-       summary: <one sentence naming the deferred goal>
-       evidence: <why this was split from the current intent>
+   - On **S**: For each deferred goal, record it with the ledger CLI — never hand-write the entry or a `## Deferred from:` heading. The CLI assigns the next `DW-N`, writes the canonical fields, and applies the dedupe check. Narrow scope to the first-mentioned goal. Continue routing.
+     ```bash
+     python3 {metodoloji-root}/skills/bmad-code-review/scripts/deferred-work.py \
+       --add --title "<one sentence naming the deferred goal>" \
+       --origin "quick-dev split, {date}" --location n/a \
+       --reason "<why this was split from the current intent>" \
+       --project-root {project-root}
      ```
    - On **K**: Proceed as-is.
 5. Route — choose exactly one:

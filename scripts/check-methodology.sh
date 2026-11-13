@@ -733,15 +733,16 @@ else:
             pathlib.Path(sys.argv[1])).as_posix()
     except ValueError:
         rel = str(info["path"])
-    print("data|%s|%d|%d|%d|%d|%d|%d" % (
+    print("data|%s|%d|%d|%d|%d|%d|%d|%d" % (
         rel, info["open"], info["total"], info["done"],
-        info["malformed"], info["legacy_items"], 1 if info["legacy"] else 0))
+        info["malformed"], info["legacy_items"], 1 if info["legacy"] else 0,
+        info["open_total"]))
 PY
 ) || DW_LINE="error|the ledger could not be read"
     # A here-document, not a `<<<` herestring: this script is invoked as `sh`
     # (dash on Debian/Ubuntu), where a herestring is a syntax error that kills
     # CHECKs 9-10 and the summary after CHECK 8 (E-125).
-    IFS='|' read -r DW_KIND DW_REL DW_OPEN DW_TOTAL DW_DONE DW_BAD DW_LEGACY_ITEMS DW_LEGACY <<EOF
+    IFS='|' read -r DW_KIND DW_REL DW_OPEN DW_TOTAL DW_DONE DW_BAD DW_LEGACY_ITEMS DW_LEGACY DW_OPEN_ALL <<EOF
 $DW_LINE
 EOF
     case "$DW_KIND" in
@@ -751,11 +752,11 @@ EOF
             log_warn "deferred-work: could not read the ledger — $DW_REL" ;;
         *)
             if [ "${DW_LEGACY:-0}" = "1" ] || [ "${DW_LEGACY_ITEMS:-0}" -gt 0 ]; then
-                log_warn "deferred-work: legacy freeform content (${DW_LEGACY_ITEMS:-0} item(s)) — normalize to skills/bmad-code-review/references/deferred-work-format.md ($DW_REL)"
+                log_warn "deferred-work: ${DW_OPEN_ALL:-0} open (${DW_LEGACY_ITEMS:-0} un-migrated legacy item(s)) — migrate: python3 $METODOLOJI_ROOT/skills/bmad-code-review/scripts/deferred-work.py --migrate --write ($DW_REL)"
             elif [ "${DW_BAD:-0}" -gt 0 ]; then
-                log_warn "deferred-work: ${DW_OPEN:-0} open / ${DW_TOTAL:-0} total — ${DW_BAD} malformed entries (missing or unrecognized status) ($DW_REL)"
+                log_warn "deferred-work: ${DW_OPEN_ALL:-0} open / ${DW_TOTAL:-0} total — ${DW_BAD} malformed entries (missing or unrecognized status) ($DW_REL)"
             else
-                echo "  deferred-work: ${DW_OPEN:-0} open / ${DW_TOTAL:-0} total (${DW_DONE:-0} done) — $DW_REL"
+                echo "  deferred-work: ${DW_OPEN_ALL:-0} open / ${DW_TOTAL:-0} total (${DW_DONE:-0} done) — $DW_REL"
             fi ;;
     esac
 fi

@@ -29,7 +29,16 @@ If `{spec_file}` exists and contains a Tasks/Subtasks section, append a `### Rev
 3. **`defer`** findings (checked off, marked deferred):
    `- [x] [Review][Defer] <Title> [<file>:<line>] — deferred, pre-existing`
 
-Also append each `defer` finding to `{deferred_work_file}` under a heading `## Deferred from: code review ({date})`. If `{spec_file}` is set, include its basename in the heading (e.g., `code review of story-3.3 (2026-03-18)`). One bullet per finding with description. **Fallback:** If `{deferred_work_file}`'s parent directory does not exist, skip the deferred-work write and note to the user that deferred findings are only in the story file (or the conversation if no spec file was provided).
+Also record each `defer` finding with the ledger CLI — never hand-write the entry or a `## Deferred from:` heading. The CLI assigns the next `DW-N`, writes the canonical fields, and applies the dedupe check (a repeat of an existing finding adds a `seen-again:` line instead of a duplicate):
+
+```bash
+python3 {metodoloji-root}/skills/bmad-code-review/scripts/deferred-work.py \
+  --add --title "<one line>" --origin "code review of <spec basename>, {date}" \
+  --location "<file>:<line>" --reason "<why this is deferred>" \
+  --project-root {project-root}
+```
+
+**Fallback:** If `{deferred_work_file}`'s parent directory does not exist, skip the deferred-work write and note to the user that deferred findings are only in the story file (or the conversation if no spec file was provided).
 
 ### 3. Present summary
 

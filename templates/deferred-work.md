@@ -12,6 +12,9 @@ loop. The ledger is append-only and lives at
 - Canonical format and severity vocabulary:
   `{metodoloji-root}/skills/bmad-code-review/references/deferred-work-format.md`.
 - Writers: `bmad-code-review`, `bmad-quick-dev`, `bmad-dev-auto`. Triage/close: the maintainer.
+- Mechanical half (validate / migrate / append with the next free number):
+  `python3 {metodoloji-root}/skills/bmad-code-review/scripts/deferred-work.py --check`
+  (`--migrate --write` converts legacy sections, `--add` appends one entry).
 - Nothing blocks by default: the orient digest counts open entries, the audit
   parses the format, and the commit gate names open entries as an advisory.
 

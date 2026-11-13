@@ -195,6 +195,8 @@ experiment_refs:
 - Canonical entry format and severity vocabulary:
   `{metodoloji-root}/skills/bmad-code-review/references/deferred-work-format.md`.
 - Writers: `bmad-code-review`, `bmad-quick-dev`, `bmad-dev-auto`. Triage/close: the maintainer.
+- Mechanical half: `python3 {metodoloji-root}/skills/bmad-code-review/scripts/deferred-work.py --check` validates, `--migrate --write` converts legacy sections, `--add` appends one entry with the next free number and the dedupe check.
+- Un-migrated legacy bullets are **outstanding work**: the digest, the audit and the commit advisory all count them as open (`open_total`), never as history.
 - Core visibility is **advisory, not a gate**: init installs the ledger from `templates/deferred-work.md`, the orient digest counts open entries through `state.record_inventory` (`DW=<open> (newest DW-N)`), `check-methodology.sh` CHECK 9 parses the format, and the commit quality gate names open entries. Open deferrals never block a write or a commit by themselves.
 
 ---

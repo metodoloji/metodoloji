@@ -2,9 +2,10 @@
 
 docs/experiments/E-108.md (H-108: deferred_work_integration_accuracy >= 0.90).
 
-26 checks over the six surfaces a project can reach without a loop skill: the
-skeleton install, the shared digest inventory, `check-methodology.sh`, the
-commit advisory, the development manifesto, and the template/format pair.
+30 checks over the seven surfaces a project can reach without a loop skill:
+the skeleton install, the shared digest inventory, `check-methodology.sh`, the
+commit advisory, the development manifesto, the template/format pair, and the
+ledger CLI that validates and migrates the file.
 
 Each check runs the SHIPPED surface against a temporary project tree (or reads
 the repository's own files). `--broken` reports the pre-fix surface: no ledger
@@ -207,7 +208,7 @@ def _audit_out(project: pathlib.Path,
         return f"<audit failed: {exc}>", 1
 
 
-# --- the 26 checks -------------------------------------------------------------
+# --- the 30 checks -------------------------------------------------------------
 
 def _skeleton_checks(tmp: pathlib.Path,
                      broken: bool) -> list[tuple[str, bool, str]]:
@@ -357,6 +358,65 @@ def _advisory_checks(tmp: pathlib.Path,
     ]
 
 
+def _cli_checks(tmp: pathlib.Path,
+                broken: bool) -> list[tuple[str, bool, str]]:
+    """The format owner's mechanical half (E-139): validate, migrate, append.
+
+    Without it the remedy text on three shipped surfaces named a skill that no
+    longer exists, and the only way to turn a legacy ledger into the canonical
+    shape was for an LLM to hand-edit markdown. These checks run the shipped
+    CLI against fixture ledgers; the `--broken` arm asserts its absence from the
+    pre-fix tree rather than scoring a pasted number.
+    """
+    script = ROOT / "skills" / "bmad-code-review" / "scripts" / "deferred-work.py"
+    if broken:
+        return [
+            ("cli_exists", False, "pre-fix: no deferred-work CLI"),
+            ("cli_check_exits_zero_on_canonical", False,
+             "pre-fix: no deferred-work CLI"),
+            ("cli_check_fails_on_malformed", False,
+             "pre-fix: no deferred-work CLI"),
+            ("cli_migrate_is_idempotent_and_lossless", False,
+             "pre-fix: no deferred-work CLI"),
+        ]
+
+    cli = _load("bench_deferred_cli", script)
+    import contextlib
+    import io
+
+    def _quiet(fn, *args):
+        with contextlib.redirect_stdout(io.StringIO()):
+            return fn(*args)
+
+    canonical = _project(tmp / "cli_ok", WELL_FORMED)
+    malformed = _project(tmp / "cli_bad", MALFORMED)
+    legacy = _project(tmp / "cli_legacy", LEGACY)
+
+    ok_rc = _quiet(cli.check, canonical, False)
+    bad_rc = _quiet(cli.check, malformed, False)
+    _quiet(cli.migrate, legacy, True)
+    once = (legacy / LEDGER_REL).read_text(encoding="utf-8")
+    _quiet(cli.migrate, legacy, True)
+    twice = (legacy / LEDGER_REL).read_text(encoding="utf-8")
+
+    def _words(text: str) -> set[str]:
+        bodies = [m.group(1) for m in re.finditer(r"^\s*-\s+(\S.*)$", text, re.M)]
+        return set(re.findall(r"[A-Za-z0-9_.:/-]+", " ".join(bodies)))
+
+    migrated = _words(LEGACY)
+    kept = set(re.findall(r"[A-Za-z0-9_.:/-]+", twice))
+    dropped = sorted(migrated - kept)
+
+    return [
+        ("cli_exists", script.is_file(), str(script.relative_to(ROOT))),
+        ("cli_check_exits_zero_on_canonical", ok_rc == 0, f"rc={ok_rc}"),
+        ("cli_check_fails_on_malformed", bad_rc == 1, f"rc={bad_rc}"),
+        ("cli_migrate_is_idempotent_and_lossless",
+         once == twice and not dropped and "### DW-1:" in twice,
+         f"idempotent={once == twice} dropped={dropped[:3]}"),
+    ]
+
+
 def _doc_checks(broken: bool) -> list[tuple[str, bool, str]]:
     if broken:
         doc = _git_show("docs/bmad/development-methodology.md")
@@ -398,6 +458,7 @@ def _cases(tmp: pathlib.Path,
             + _inventory_checks(tmp, broken)
             + _audit_checks(tmp, broken)
             + _advisory_checks(tmp, broken)
+            + _cli_checks(tmp, broken)
             + _doc_checks(broken))
 
 

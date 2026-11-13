@@ -92,15 +92,18 @@ def record_inventory(project_root: str | pathlib.Path) -> dict:
     # exactly like no ledger (E-108). `count` is OPEN entries — the number a
     # reader acts on; `total`/`done`/`malformed` ride the same entry for JSON.
     dw = deferred_work_inventory(root)
-    if dw["path"] and (dw["total"] or dw["legacy"]):
+    if dw["path"] and (dw["total"] or dw["legacy"] or dw["legacy_items"]):
         inventory["DW"] = {
-            "count": dw["open"],
+            # The number a reader acts on: canonical open entries PLUS
+            # un-migrated legacy bullets, which are just as outstanding.
+            "count": dw["open_total"],
             "newest": ("legacy" if dw["legacy"]
                        else f"DW-{dw['newest_seq']}" if dw.get("newest_seq")
                        else "deferred-work.md"),
             "dirs": [dw["path"]],
             "total": dw["total"], "done": dw["done"],
             "malformed": dw["malformed"], "legacy": dw["legacy"],
+            "legacy_items": dw["legacy_items"],
         }
     return inventory
 
@@ -118,8 +121,15 @@ _DEFERRED_WORK_CANDIDATES = (
 )
 _DW_ENTRY_RE = re.compile(r"^###\s+DW-(\d+)\s*:", re.MULTILINE)
 _DW_STATUS_RE = re.compile(r"^status:[ \t]*(\S+)", re.MULTILINE | re.IGNORECASE)
+_DW_SEVERITY_RE = re.compile(r"^severity:[ \t]*(\S+)", re.MULTILINE | re.IGNORECASE)
 _DW_NEAR_MISS_RE = re.compile(r"^#{2,4}\s*DW-\d+\s*:", re.MULTILINE)
 _LEGACY_SECTION_RE = re.compile(r"^##\s+Deferred", re.MULTILINE)
+# Any heading of level 1-2 ends a legacy section: counting bullets to EOF made a
+# mixed ledger over-report (a later section's bullets, or a canonical entry's own
+# sub-list, were charged as un-migrated legacy work).
+_SECTION_END_RE = re.compile(r"^#{1,2}\s", re.MULTILINE)
+_LEGACY_BULLET_RE = re.compile(r"^\s*-\s+\S", re.MULTILINE)
+_DW_SEVERITIES = frozenset({"critical", "high", "medium", "low"})
 
 
 def _strip_fences(text: str) -> tuple[str, bool]:
@@ -164,15 +174,32 @@ def deferred_work_path(project_root: str | pathlib.Path) -> pathlib.Path | None:
 def deferred_work_inventory(project_root: str | pathlib.Path) -> dict:
     """Parse the deferred-work ledger (read-only, fail-open; E-108).
 
-    Returns {path, total, open, done, malformed, legacy, newest_seq}. An entry
-    is a `### DW-N:` block whose first `status:` line decides open/done; a block
-    with no status is malformed. Fenced blocks are documentation (the installed
-    template shows the shape inside a fence), not entries. A ledger with content
-    but no DW headings and a legacy `## Deferred ...` section is `legacy` — the
-    sweep's --migrate rewrites it. A missing ledger is zeros, never an error.
+    Returns {path, total, open, done, malformed, legacy, legacy_items,
+    open_total, newest_seq, duplicate_seq, severity_unspecified, error}.
+
+    An entry is a `### DW-N:` block whose first `status:` line decides
+    open/done; a block with no status (or an unrecognized one) is malformed.
+    Fenced blocks are documentation (the installed template shows the shape
+    inside a fence), not entries. A legacy `## Deferred from:` section is
+    un-migrated work: its bullets are counted inside that section only, so a
+    mixed ledger neither loses the leftovers nor charges a later section's
+    bullets to them. `open_total` is the number a reader acts on — canonical
+    open entries plus un-migrated legacy items — because a legacy bullet is
+    exactly as much outstanding work as a `status: open` entry.
+
+    `duplicate_seq` counts reused DW numbers (two `### DW-3:` blocks): the
+    format says entries are never renumbered, so a duplicate means two
+    different findings share one id and every cross-reference is ambiguous.
+    `severity_unspecified` counts entries with no severity or an unrecognized
+    one; the format makes the field optional, so this is a signal for writers,
+    never a malformation.
+
+    A missing ledger is zeros, never an error.
     """
     info = {"path": "", "total": 0, "open": 0, "done": 0,
-            "malformed": 0, "legacy": False, "legacy_items": 0, "error": ""}
+            "malformed": 0, "legacy": False, "legacy_items": 0,
+            "open_total": 0, "newest_seq": 0, "duplicate_seq": 0,
+            "severity_unspecified": 0, "error": ""}
     path = deferred_work_path(project_root)
     if path is None:
         return info
@@ -191,22 +218,23 @@ def deferred_work_inventory(project_root: str | pathlib.Path) -> dict:
         body = text
 
     starts = list(_DW_ENTRY_RE.finditer(body))
-    legacy_section = _LEGACY_SECTION_RE.search(body)
-    if legacy_section:
-        # Bullet count is the honest size of the un-migrated remainder. It is
-        # reported even when canonical entries exist, so a partial migration
-        # cannot drop the leftovers from every surface.
-        info["legacy_items"] = len(
-            re.findall(r"^\s*-\s+\S", body[legacy_section.start():], re.MULTILINE))
-        if not starts:
-            info["legacy"] = True
+    for section in _LEGACY_SECTION_RE.finditer(body):
+        end = _SECTION_END_RE.search(body, section.end())
+        chunk = body[section.start():end.start() if end else len(body)]
+        info["legacy_items"] += len(_LEGACY_BULLET_RE.findall(chunk))
+    if info["legacy_items"] and not starts:
+        info["legacy"] = True
+
     if not starts:
         info["malformed"] += len(_DW_NEAR_MISS_RE.findall(body))
+        info["open_total"] = info["open"] + info["legacy_items"]
         return info
     info["total"] = len(starts)
+    seen: set[int] = set()
     for index, match in enumerate(starts):
         end = starts[index + 1].start() if index + 1 < len(starts) else len(body)
-        status = _DW_STATUS_RE.search(body[match.end():end])
+        block = body[match.end():end]
+        status = _DW_STATUS_RE.search(block)
         if not status:
             info["malformed"] += 1
         elif status.group(1).lower().startswith("done"):
@@ -215,12 +243,19 @@ def deferred_work_inventory(project_root: str | pathlib.Path) -> dict:
             info["open"] += 1
         else:
             info["malformed"] += 1
+        severity = _DW_SEVERITY_RE.search(block)
+        if not severity or severity.group(1).lower() not in _DW_SEVERITIES:
+            info["severity_unspecified"] += 1
         try:
             sequence = int(match.group(1))
         except ValueError:  # >4300 digits: Python's int-string limit
             info["malformed"] += 1
             continue
-        info["newest_seq"] = max(info.get("newest_seq", 0), sequence)
+        if sequence in seen:
+            info["duplicate_seq"] += 1
+        seen.add(sequence)
+        info["newest_seq"] = max(info["newest_seq"], sequence)
+    info["open_total"] = info["open"] + info["legacy_items"]
     return info
 
 
