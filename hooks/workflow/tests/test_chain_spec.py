@@ -69,12 +69,13 @@ def test_pr_runs_only_when_deploy_is_declared(chain):
     assert edges[-1] == {"to": "done"}
 
 
-def _run_gate(root: Path, stage: str, slug: str) -> subprocess.CompletedProcess:
+def _run_gate(root: Path, stage: str, slug: str,
+              env: dict | None = None) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, str(GATE), "--stage", stage, "--slug", slug,
          "--project-root", str(root)],
         capture_output=True, text=True, encoding="utf-8", errors="replace",
-        timeout=120, stdin=subprocess.DEVNULL)
+        timeout=120, stdin=subprocess.DEVNULL, env=env)
 
 
 def test_stub_files_do_not_satisfy_any_stage(tmp_path):
@@ -136,3 +137,122 @@ def test_the_contract_page_names_the_specs_stages(chain):
     declared = [s["id"] for s in chain["stages"] if s.get("evidence")]
     assert named == declared, (
         f"docs/methodology.md lists {named}, the spec declares {declared}")
+
+
+def _write_minimal_chain(root: Path) -> dict:
+    """A conforming project whose E record is minted by the real gate.
+
+    The record is not hand-written: `run_experiment.py --run` signs it with a
+    throw-away key (`BMAD_GATE_KEY`) and `chain-gate.py --verify` checks that
+    signature under the same key. A hand-written "Decision: APPROVED" would be
+    refused as FORGED, which is the point — the fixture proves the chain can
+    close on evidence, not on a phrase.
+    """
+    import json as _json
+    import os
+
+    for rel in ("docs/experiments", "docs/development/stories", "docs/quality",
+                "scripts/bench"):
+        (root / rel).mkdir(parents=True, exist_ok=True)
+    (root / "scripts/bench/probe.py").write_text(
+        "import json, pathlib\n"
+        "raw = pathlib.Path('docs/experiments/E-001/raw')\n"
+        "raw.mkdir(parents=True, exist_ok=True)\n"
+        "with (raw / 'samples.jsonl').open('w') as fh:\n"
+        "    for i in range(20):\n"
+        "        fh.write(json.dumps({'i': i, 'ok': True}) + '\\n')\n"
+        "print('probe_rate=1.00 (20/20)')\n", encoding="utf-8")
+    (root / "scripts/bench/probe_broken.py").write_text(
+        "import json, pathlib\n"
+        "raw = pathlib.Path('docs/experiments/E-001/raw')\n"
+        "raw.mkdir(parents=True, exist_ok=True)\n"
+        "with (raw / 'samples.jsonl').open('w') as fh:\n"
+        "    for i in range(20):\n"
+        "        fh.write(json.dumps({'i': i, 'ok': False}) + '\\n')\n"
+        "print('probe_rate=0.00 (0/20)')\n", encoding="utf-8")
+    (root / "docs/experiments/E-001.md").write_text(
+        "## Experiment: E-001 — fixture\n\n"
+        "- **Date:** 2026-01-01\n- **Status:** planned\n"
+        "- **Record Kind:** contract\n"
+        "- **Theory:** a conforming chain must be able to close.\n"
+        "- **Hypothesis:** H-001: \"probe_rate == 1.0\"\n"
+        "- **Measurement Metrics:** probe_rate == 1.0\n"
+        "- **Experiment Design:** the fixture bench writes 20 samples.\n"
+        "- **Census:** The closed input set is the twenty samples the bench "
+        "writes; every case is enumerated, so no sampling inference applies.\n"
+        "- **Sample Size n:** 20\n"
+        "- **Code Scope:** scripts/bench/probe.py\n"
+        "- **Control Command:** python3 scripts/bench/probe_broken.py\n"
+        "- **Lineage:** none\n"
+        "- **Raw Samples:** docs/experiments/E-001/raw/samples.jsonl\n",
+        encoding="utf-8")
+
+    env = dict(os.environ, BMAD_GATE_KEY="00" * 32)
+    gate = _ROOT / "skills" / "bmad-research-experiment" / "scripts" / "run_experiment.py"
+    proc = subprocess.run(
+        [sys.executable, str(gate), "--record",
+         str(root / "docs/experiments/E-001.md"),
+         "--run", f"{sys.executable} scripts/bench/probe.py",
+         "--control", f"{sys.executable} scripts/bench/probe_broken.py",
+         "--project-root", str(root), "--no-blackboard"],
+        cwd=str(root), capture_output=True, text=True, encoding="utf-8",
+        errors="replace", timeout=300, stdin=subprocess.DEVNULL, env=env)
+    assert "DECISION: APPROVED" in proc.stdout, proc.stdout + proc.stderr
+
+    (root / "docs/development/IR-001.md").write_text(
+        "- **Status:** READY\n- **Decision:** READY\n- **Date:** 2026-01-01\n"
+        "- **Research inputs:** E-001\n"
+        "- **Success criteria:**\n  - probe — Metric: x; Source: y; Target: 1\n"
+        "- **Technical dependencies:**\n  - Libraries: none\n"
+        "- **Risk assessment:**\n  - Risk 1: none -> Mitigation: n/a\n",
+        encoding="utf-8")
+    (root / "docs/development/SP-001.md").write_text(
+        "- **Status:** planned\n- **Date:** 2026-01-01\n"
+        "- **Readiness input:** IR-001\n- **Sprint goal:** probe\n"
+        "- **Stories:**\n  - S-001: probe\n- **Technical debt:**\n  - none\n",
+        encoding="utf-8")
+    (root / "docs/development/stories/S-001.md").write_text(
+        "---\nstory_key: S-001\nexperiment_refs:\n  - id: E-001\n---\n"
+        "# Story: S-001 — probe\n\n"
+        "- **Status:** review\n- **Sprint:** SP-001\n- **Story key:** S-001\n\n"
+        "| Field | Value |\n|-------|-------|\n| Story | S-001 |\n"
+        "| Native Story | none — probe |\n| Experiment | E-001 |\n",
+        encoding="utf-8")
+    (root / "docs/quality/QR-001.md").write_text(
+        "| Field | Value |\n|-------|-------|\n| Story | S-001 |\n"
+        "| Status | APPROVED |\n\n- **Story:** S-001\n- **Status:** APPROVED\n",
+        encoding="utf-8")
+    return env
+
+
+@pytest.mark.parametrize("stage", ["experiment", "implementation-readiness",
+                                  "sprint-planning", "story", "quality-review"])
+def test_a_conforming_story_clears_its_stages(tmp_path, stage):
+    """The refusal probes prove severity; this proves the chain can CLOSE.
+
+    Six probes assert that bad records are refused. None of them would notice a
+    gate that refuses everything — a kernel stuck at stage 1 looks exactly like
+    a strict one. This fixture is the counterweight: a minimal project whose
+    records each owner accepts must clear every stage the story needs.
+    """
+    env = _write_minimal_chain(tmp_path)
+    proc = _run_gate(tmp_path, stage, "S-001", env)
+    assert proc.returncode == 0, (
+        f"stage '{stage}' refused a conforming record: {proc.stdout}")
+
+
+def test_a_conforming_chain_completes_end_to_end(tmp_path, monkeypatch):
+    """The kernel advances through every stage and reaches `completed`."""
+    _write_minimal_chain(tmp_path)
+    # The kernel spawns the dispatcher itself, so the throw-away key must be in
+    # this process's environment for the child to see it.
+    monkeypatch.setenv("BMAD_GATE_KEY", "00" * 32)
+    data = spec_mod.load(CHAIN)
+    engine.create(str(tmp_path), data, slug="S-001", flags={"tier": "3"})
+    for stage in ("experiment", "implementation-readiness", "sprint-planning",
+                  "story", "quality-review"):
+        res = engine.complete(str(tmp_path), "S-001", stage)
+        assert res["ok"], f"{stage} refused: {res.get('error')}"
+    state = engine.status(str(tmp_path), "S-001")
+    assert state["status"] == "completed"
+    assert state["current"] is None
