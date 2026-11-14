@@ -1,0 +1,4 @@
+{"check": "every eval adapter target ships", "ok": true, "detail": "2 repo-root target(s) across 2 adapter(s) resolve"}
+{"check": "every shell -m target ships", "ok": true, "detail": "0 -m target(s) across 7 script(s) resolve"}
+{"check": "every bench input ships", "ok": true, "detail": "30 declared bench input(s) resolve"}
+{"check": "every eval path a skill doc names ships", "ok": true, "detail": "1 eval path(s) named by 202 skill doc(s) resolve"}

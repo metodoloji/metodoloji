@@ -31,7 +31,7 @@ For trigger cases the shape is lighter: a `query` and a `should_trigger` boolean
 
 ## The deterministic grader (`grade_local.py`)
 
-The repo's installed eval suites (`<skill>/evals/cases.json`) pair each case with `checks` and grade them with a stdlib-only script kept beside the cases (`<skill>/evals/grade_local.py` — the five copies are byte-identical; treat one as canonical and keep the rest in sync):
+The repo's installed eval suites (`<skill>/evals/cases.json`) pair each case with `checks` and grade them with a stdlib-only script kept beside the cases (`<skill>/evals/grade_local.py` — the shipped copies are byte-identical; treat one as canonical and keep the rest in sync):
 
 ```
 python3 <skill>/evals/grade_local.py --cases <skill>/evals/cases.json --run-dir <run-dir>

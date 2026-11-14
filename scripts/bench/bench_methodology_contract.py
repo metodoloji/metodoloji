@@ -55,7 +55,6 @@ _TEST_ROOTS = (
     "scripts/tests",
     "hooks/scripts/tests",
     "hooks/workflow/tests",
-    "optimization/tests",
 )
 
 

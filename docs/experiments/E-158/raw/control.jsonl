@@ -1,0 +1,4 @@
+{"check": "every eval adapter target ships", "ok": false, "detail": "phantom adapter -> {repo-root}/skills/ghost-eval/evals/run_ghost.py"}
+{"check": "every shell -m target ships", "ok": false, "detail": "phantom script -> -m ghost_eval.cli"}
+{"check": "every bench input ships", "ok": false, "detail": "phantom bench -> ghost/input.jsonl"}
+{"check": "every eval path a skill doc names ships", "ok": false, "detail": "phantom doc -> skills/ghost-eval/evals/run_ghost.py"}

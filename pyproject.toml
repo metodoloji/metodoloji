@@ -1,6 +1,6 @@
 [project]
 name = "metodoloji"
-version = "0.2.93"
+version = "0.2.94"
 requires-python = ">=3.11"
 dependencies = [
 ]
