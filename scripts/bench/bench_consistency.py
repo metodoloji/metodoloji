@@ -2684,9 +2684,85 @@ def _check_cross_machine_marker_is_anchored() -> str | None:
     return "; ".join(problems) if problems else None
 
 
-def _run_pytest() -> str | None:
-    """The falsifier: the whole suite must stay green."""
-    proc = subprocess.run([sys.executable, "-m", "pytest", "-q"],
+# E-153: an interpreter that cannot import pytest is an ENVIRONMENT fact, not a
+# verdict. `python3 scripts/bench/bench_consistency.py` on a host whose dev
+# extras live in `.venv` used to run `sys.executable -m pytest` and report
+# "No module named pytest" as three failed checks (the falsifier, the
+# documented-count derivation and the registry isolation test) — measurements
+# that never ran, accusing the code. Resolve the interpreter that can actually
+# measure; when none exists, report SKIP with the environment named (E-090's
+# Known Gap).
+_PYTEST_PYTHON: list = []  # one slot: [] unresolved, [None | str] once resolved
+
+
+def _pytest_candidates() -> list[str]:
+    """Interpreters worth probing, best first: this one, the project venv, PATH.
+
+    `METODOLOJI_PYTEST_PYTHON` pins the answer: an operator override, and the
+    seam the E-153 bench drives to prove the unmeasurable path deterministically
+    (an empty value means "no interpreter is available").
+    """
+    override = os.environ.get("METODOLOJI_PYTEST_PYTHON")
+    if override is not None:
+        return [override] if override.strip() else []
+    candidates = [sys.executable]
+    for rel in (".venv/bin/python", ".venv/Scripts/python.exe"):
+        candidates.append(str(ROOT / rel))
+    for name in ("python3", "python"):
+        found = shutil.which(name)
+        if found:
+            candidates.append(found)
+    out, seen = [], set()
+    for candidate in candidates:
+        if not candidate or not pathlib.Path(candidate).is_file():
+            continue
+        try:
+            key = str(pathlib.Path(candidate).resolve())
+        except OSError:
+            continue
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(candidate)
+    return out
+
+
+def _pytest_interpreter() -> str | None:
+    """First candidate that can import pytest, or None (nothing measurable)."""
+    if _PYTEST_PYTHON:
+        return _PYTEST_PYTHON[0]
+    chosen = None
+    for candidate in _pytest_candidates():
+        try:
+            proc = subprocess.run([candidate, "-m", "pytest", "--version"],
+                                  capture_output=True, text=True, encoding="utf-8",
+                                  errors="replace", timeout=120,
+                                  stdin=subprocess.DEVNULL)
+        except (OSError, subprocess.SubprocessError):
+            continue
+        if proc.returncode == 0:
+            chosen = candidate
+            break
+    _PYTEST_PYTHON.append(chosen)
+    return chosen
+
+
+def _no_pytest(source: str) -> "_SkippedCheck":
+    return _SkippedCheck(
+        f"no interpreter with pytest is available ({source}); the check was not "
+        "measured — install the dev extras or set METODOLOJI_PYTEST_PYTHON")
+
+
+def _run_pytest() -> str | _SkippedCheck | None:
+    """The falsifier: the whole suite must stay green.
+
+    The suite runs under an interpreter that HAS pytest; a bare interpreter is
+    reported as a skip, never as a red suite (E-153).
+    """
+    python = _pytest_interpreter()
+    if python is None:
+        return _no_pytest("the falsifier needs pytest")
+    proc = subprocess.run([python, "-m", "pytest", "-q"],
                           cwd=ROOT, capture_output=True, text=True,
                           encoding="utf-8", errors="replace", timeout=900,
                           stdin=subprocess.DEVNULL)
@@ -2710,8 +2786,11 @@ def _run_registry_isolation() -> str | None:
     if not registry.is_dir():
         return "the external-context registry is missing"
     before = {path.relative_to(registry) for path in registry.glob("*/context.md")}
+    python = _pytest_interpreter()
+    if python is None:
+        return _no_pytest("the registry isolation test needs pytest")
     proc = subprocess.run(
-        [sys.executable, "-m", "pytest", "-q",
+        [python, "-m", "pytest", "-q",
          "hooks/engine/tests/test_hermes_runtime.py"
          "::test_commands_resolve_under_package_import"],
         cwd=ROOT, capture_output=True, text=True, encoding="utf-8",
@@ -3025,10 +3104,33 @@ def _run_opencode_tests() -> str | _SkippedCheck | None:
     proc = subprocess.run([node, "--test"], cwd=port, capture_output=True, text=True,
                           encoding="utf-8", errors="replace", timeout=180,
                           stdin=subprocess.DEVNULL, env={**os.environ, "NO_COLOR": "1"})
-    if proc.returncode != 0:
-        out = ((proc.stdout or "") + (proc.stderr or "")).strip().splitlines()[-4:]
-        return f"node --test exited {proc.returncode}: {' | '.join(out)}"
-    return None
+    return _opencode_verdict(port, proc.returncode,
+                             (proc.stdout or "") + (proc.stderr or ""))
+
+
+# E-153: the bridge suite imports its DECLARED dependency. A checkout without
+# `npm install` then fails with ERR_MODULE_NOT_FOUND before a single assertion
+# runs, and that read as "the OpenCode suite fails" — a claim about code the
+# suite never reached. A missing declared dependency is an unmeasured suite;
+# any other non-zero exit, including a missing module while the dependency IS
+# installed, is still a failure.
+_OPENCODE_DEPENDENCY = ("node_modules", "@opencode-ai", "plugin")
+
+
+def _opencode_verdict(port: pathlib.Path, returncode: int,
+                      output: str) -> str | _SkippedCheck | None:
+    """Verdict for one `node --test` run: pass, skip, or a named failure."""
+    if returncode == 0:
+        return None
+    installed = port.joinpath(*_OPENCODE_DEPENDENCY).is_dir()
+    if (not installed and "ERR_MODULE_NOT_FOUND" in output
+            and "@opencode-ai/plugin" in output):
+        return _SkippedCheck(
+            "the OpenCode suite's declared dependency @opencode-ai/plugin is "
+            "not installed (run `npm install` in opencode-plugin/); the suite "
+            "was not measured")
+    tail = output.strip().splitlines()[-4:]
+    return f"node --test exited {returncode}: {' | '.join(tail)}"
 
 
 def _check_tool_contract_names_the_real_harness_failures() -> str | None:
@@ -3790,7 +3892,10 @@ def _check_documented_test_count_is_honest() -> str | None:
     The count is DERIVED by collecting the suite (1.3s here), never copied from
     the docs, so the claim cannot outlive the tree it describes.
     """
-    proc = subprocess.run([sys.executable, "-m", "pytest", "--collect-only",
+    python = _pytest_interpreter()
+    if python is None:
+        return _no_pytest("the count is derived by collecting the suite")
+    proc = subprocess.run([python, "-m", "pytest", "--collect-only",
                            "-p", "no:cacheprovider"], cwd=ROOT, capture_output=True,
                           text=True, encoding="utf-8", errors="replace", timeout=600,
                           stdin=subprocess.DEVNULL)

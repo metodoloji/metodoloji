@@ -1,0 +1,12 @@
+{"check": "the pytest resolver ships", "ok": true, "detail": "the resolver ships (_pytest_candidates + _pytest_interpreter)"}
+{"check": "the resolver finds a pytest-capable interpreter", "ok": true, "detail": "resolved /root/workspace/metodoloji/.venv/bin/python"}
+{"check": "the falsifier measures under the resolved interpreter", "ok": true, "detail": "the falsifier: measures under the resolved interpreter"}
+{"check": "the documented-count check measures under the resolved interpreter", "ok": true, "detail": "the documented-count check: measures under the resolved interpreter"}
+{"check": "the registry-isolation check measures under the resolved interpreter", "ok": true, "detail": "the registry-isolation check: measures under the resolved interpreter"}
+{"check": "the falsifier skips when no interpreter has pytest", "ok": true, "detail": "the falsifier: skipped, and the reason names the environment"}
+{"check": "the documented-count check skips when no interpreter has pytest", "ok": true, "detail": "the documented-count check: skipped, and the reason names the environment"}
+{"check": "the registry-isolation check skips when no interpreter has pytest", "ok": true, "detail": "the registry-isolation check: skipped, and the reason names the environment"}
+{"check": "a genuinely red suite still reads as failed", "ok": true, "detail": "a red suite still reads as failed"}
+{"check": "a missing declared OpenCode dependency reads as skipped", "ok": true, "detail": "a missing declared dependency reads as skipped, with the remedy"}
+{"check": "a missing module with the dependency installed still reads as failed", "ok": true, "detail": "a missing module with the dependency installed still reads as failed"}
+{"check": "an OpenCode assertion failure still reads as failed", "ok": true, "detail": "an assertion failure still reads as failed"}
