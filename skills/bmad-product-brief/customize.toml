@@ -58,7 +58,7 @@ run_folder_pattern = "brief-{project_name}-{date}"
 #
 # Examples:
 #   "skill:bmad-editorial-review-prose"
-#   "file:{metodoloji-root}/bmad/style-guides/company-voice.md"
+#   "file:{project-root}/docs/style-guides/company-voice.md"
 #   "Convert all dates to ISO 8601 format."
 #
 # Suggested order (broader passes first, narrower last):

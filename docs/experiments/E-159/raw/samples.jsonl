@@ -1,0 +1,4 @@
+{"check": "every skills path resolves", "ok": true, "detail": "452 path(s) across 298 skills surface(s) resolve"}
+{"check": "every templates path resolves", "ok": true, "detail": "16 path(s) across 16 templates surface(s) resolve"}
+{"check": "every commands path resolves", "ok": true, "detail": "49 path(s) across 5 commands surface(s) resolve"}
+{"check": "every docs path resolves", "ok": true, "detail": "3 path(s) across 5 docs surface(s) resolve"}

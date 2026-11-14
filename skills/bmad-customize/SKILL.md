@@ -20,9 +20,8 @@ When the target's `customize.toml` doesn't expose what the user wants, say so pl
 
 ## Preflight
 
-- No `{metodoloji-root}/bmad/` → BMad isn't installed. Say so, stop.
 - `{metodoloji-root}/hooks/scripts/resolve_customization.py` missing → continue, but Step 6 verify falls back to manual merge.
-- Both present → proceed.
+- Present → proceed.
 
 ## Activation
 

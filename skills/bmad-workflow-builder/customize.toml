@@ -31,7 +31,7 @@ activation_steps_append = [
 # skill, or a `file:` path/glob whose contents load as facts. Use for house
 # conventions you want present but not hard-gated (for gates, see build_standards).
 #   "Name the output consumer in every skill's overview."
-#   "file:{metodoloji-root}/bmad/standards/skill-house-style.md"
+#   "file:{project-root}/docs/standards/skill-house-style.md"
 persistent_facts = [
   "file:{project-root}/**/project-context.md",
   "file:{metodoloji-root}/hooks/workflow/builtin/methodology-chain.json",

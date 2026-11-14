@@ -3,8 +3,8 @@
 # Workflow customization surface for bmad-product-brief.
 #
 # Override files (not edited here):
-#   {metodoloji-root}/custom/bmad-product-brief.toml         (team)
-#   {metodoloji-root}/custom/bmad-product-brief.user.toml    (personal)
+#   {project-root}/custom/bmad-product-brief.toml       (team)
+#   {project-root}/custom/bmad-product-brief.user.toml  (personal)
 
 [workflow]
 
@@ -24,7 +24,7 @@ activation_steps_append = []
 # Each entry is either a literal sentence, a skill prefixed with `skill:`, or a `file:`-prefixed path/glob
 # whose contents are loaded as facts.
 # Default is empty. Common opt-ins (set in your team/user override TOML):
-#   "file:{metodoloji-root}/bmad-output/planning-artifacts/project-context.md"  # bmad-generate-project-context output
+#   "file:{project-root}/docs/project-context.md"  # bmad-generate-project-context output
 #   "skill:acme-co:terms-and-conditions"                                      # a skill that contains some relevant info to the documents that may be generated
 #   "Elvis has left the building"                                             # generic agent instructions
 persistent_facts = []
@@ -50,7 +50,7 @@ output_folder_name = "brief-{project_name}-{date}"
 #
 # Examples:
 #   "skill:bmad-editorial-review-prose"
-#   "file:{metodoloji-root}/bmad/style-guides/company-voice.md"
+#   "file:{project-root}/docs/style-guides/company-voice.md"
 #   "Convert all dates to ISO 8601 format."
 #
 # Suggested order (broader passes first, narrower last):

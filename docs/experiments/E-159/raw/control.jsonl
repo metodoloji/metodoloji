@@ -1,0 +1,4 @@
+{"check": "every skills path resolves", "ok": false, "detail": "phantom skills -> {metodoloji-root}/ghost/skills.md"}
+{"check": "every templates path resolves", "ok": false, "detail": "phantom templates -> {metodoloji-root}/ghost/templates.md"}
+{"check": "every commands path resolves", "ok": false, "detail": "phantom commands -> {metodoloji-root}/ghost/commands.md"}
+{"check": "every docs path resolves", "ok": false, "detail": "phantom docs -> {metodoloji-root}/ghost/docs.md"}

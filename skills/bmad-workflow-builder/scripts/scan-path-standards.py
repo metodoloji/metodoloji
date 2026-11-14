@@ -166,7 +166,7 @@ def scan_file(filepath: Path, skip_fenced: bool = True) -> list[dict]:
             })
 
     # Bare _bmad check — more nuanced, need to avoid false positives
-    # inside {metodoloji-root}/bmad which is correct
+    # inside a {project-root}/_bmad/... reference, which is correct
     for match in BARE_BMAD_RE.finditer(content):
         pos = match.start()
         if skip_fenced and is_in_fenced_block(content, pos):

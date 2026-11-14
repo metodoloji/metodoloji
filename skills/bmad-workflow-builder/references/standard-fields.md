@@ -105,7 +105,7 @@ The convention is universal: bare paths from the skill root. Never use a `./` pr
 
 Use `{project-root}/...` for any path relative to the project root:
 
-- `{metodoloji-root}/bmad/planning/prd.md`
+- `{project-root}/docs/planning/prd.md`
 - `{project-root}/docs/report.md`
 
 ### Anti-patterns
@@ -114,7 +114,7 @@ These are wrong; the fences keep the path linter from firing on them:
 
 ```text
 {project-root}/{output_folder}/file.md   # WRONG, double-prefix; a config var already has {project-root}
-bmad/planning/prd.md                    # WRONG, bare _bmad needs a {project-root} prefix
+bmad/planning/prd.md                    # WRONG, a project path needs a {project-root} prefix
 ./references/foo.md                       # WRONG, never use ./ for a skill-internal path
 ./scripts/foo.py                          # WRONG, bare paths from skill root only
 ```
