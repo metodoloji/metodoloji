@@ -1,0 +1,7 @@
+{"check": "the audit family is derived from disk", "ok": true, "detail": "derived 6 audits from scripts/check-*"}
+{"check": "every shipped audit is reachable from a CI-run surface", "ok": true, "detail": "every shipped audit is named by the quality workflow or check-plugin.sh"}
+{"check": "every audit a runner names ships", "ok": true, "detail": "every one of the 6 named audits exists on disk"}
+{"check": "the retired auditor and its subject are gone", "ok": true, "detail": "the retired auditor and its subject are both gone"}
+{"check": "no shipped audit names the retired subject", "ok": true, "detail": "no shipped audit names the retired subject"}
+{"check": "the runner itself runs in CI", "ok": true, "detail": "scripts/check-plugin.sh runs in the quality workflow"}
+{"check": "this bench runs in CI", "ok": true, "detail": "scripts/bench/bench_audit_binding.py runs in the quality workflow"}

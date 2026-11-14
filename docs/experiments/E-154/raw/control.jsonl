@@ -1,0 +1,7 @@
+{"check": "the audit family is derived from disk", "ok": true, "detail": "derived 7 audits from scripts/check-*"}
+{"check": "every shipped audit is reachable from a CI-run surface", "ok": false, "detail": "['check-runtime-coverage.py'] ship but no surface CI runs names them — an audit nobody runs cannot catch its drift"}
+{"check": "every audit a runner names ships", "ok": true, "detail": "every one of the 6 named audits exists on disk"}
+{"check": "the retired auditor and its subject are gone", "ok": false, "detail": "scripts/check-runtime-coverage.py ships while its subject docs/runtime-security-coverage.md is retired — a half-dead pair that crashes when run"}
+{"check": "no shipped audit names the retired subject", "ok": true, "detail": "no shipped audit names the retired subject"}
+{"check": "the runner itself runs in CI", "ok": true, "detail": "scripts/check-plugin.sh runs in the quality workflow"}
+{"check": "this bench runs in CI", "ok": false, "detail": ".github/workflows/quality.yml does not run scripts/bench/bench_audit_binding.py — a binding rule nobody runs is the same defect one level up"}

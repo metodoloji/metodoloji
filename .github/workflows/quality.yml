@@ -37,6 +37,7 @@ jobs:
           sh scripts/check-custom.sh
           sh scripts/check-methodology.sh
           sh scripts/check-techdebt.sh
+          python scripts/bench/bench_audit_binding.py
           python scripts/check-handoff.py
           python scripts/check-triggers.py
           python scripts/external-context.py check --project-root . --strict
