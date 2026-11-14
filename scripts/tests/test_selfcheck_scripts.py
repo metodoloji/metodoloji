@@ -95,7 +95,6 @@ def test_external_context_finder_contract_is_falsifiable():
                 "skills/bmad-dev-story/SKILL.md",
                 "skills/bmad-code-review/steps/step-01-gather-context.md",
                 "skills/bmad-production-readiness/SKILL.md",
-                "docs/methodology.md",
                 "docs/research/external/README.md",
                 "templates/external-context-README.md")):
             dest = root / copy_rel
@@ -390,7 +389,7 @@ def test_external_context_workflows_reject_embedded_source_instructions(tmp_path
             "skills/bmad-check-implementation-readiness/steps/step-06-final-assessment.md",
             "skills/bmad-code-review/steps/step-01-gather-context.md",
             "skills/bmad-production-readiness/SKILL.md",
-            "docs/methodology.md", "docs/research/external/README.md",
+            "docs/research/external/README.md",
             "templates/external-context-README.md"):
         target = root / policy_file
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -814,7 +813,7 @@ def test_shipped_gate_invocations_resolve_where_they_ship():
     """
     roots = ("{metodoloji-root}", "{skill-root}", "$SYNCED",
              "METODOLOJI_SYNCED")
-    globs = ("GUIDE.md", "KILAVUZ.md", "docs/CLAUDE.md", "docs/methodology.md",
+    globs = ("GUIDE.md", "KILAVUZ.md", "docs/CLAUDE.md",
              "docs/experiments/_template.md", "commands/*.md",
              "skills/*/customize.toml", "templates/*.md", "skills/*/SKILL.md",
              "skills/bmad-research-experiment/plan.md",
@@ -1265,10 +1264,10 @@ def test_init_copied_docs_only_promise_paths_init_creates(tmp_path):
     # falsifier 2: a relative link to a plugin-canonical doc (init never copies it)
     root = _inventory_fixture(tmp_path / "links")
     _rewrite(root / "templates" / "README.md", lambda t: t.replace(
-        "`{metodoloji-root}/docs/methodology.md`",
-        "[Methodology](../bmad/methodology.md)"))
+        "`{metodoloji-root}/hooks/workflow/builtin/methodology-chain.json`",
+        "[Chain](../bmad/methodology-chain.json)"))
     problems = bench._installed_doc_path_problems(root)
-    assert any("../bmad/methodology.md" in p for p in problems), problems
+    assert any("../bmad/methodology-chain.json" in p for p in problems), problems
 
     # falsifier 3: the tree draws a directory init does not create
     root = _inventory_fixture(tmp_path / "dirs")

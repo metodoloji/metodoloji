@@ -6,12 +6,12 @@ triggers: ["bmad-review-edge-case-hunter", "/bmad-review-edge-case-hunter", "rev
 
 ## Metodoloji
 
-Bu yuzey arastirma metodolojisine baglidir: `{metodoloji-root}/docs/methodology.md` — Mod A+C (sayisal/tasarim) — sinir durum avi; E-id/D-id kaydi.
-Bu yuzey gelistirme kanadina da baglidir: `{metodoloji-root}/docs/methodology.md` — Kapi 3 (kalite) — sinir durum bulgulari QR kaydina kanit girer.
+Bu yuzey arastirma metodolojisine baglidir: `{metodoloji-root}/hooks/workflow/builtin/methodology-chain.json` — Mod A+C (sayisal/tasarim) — sinir durum avi; E-id/D-id kaydi.
+Bu yuzey gelistirme kanadina da baglidir: `{metodoloji-root}/hooks/workflow/builtin/methodology-chain.json` — Kapi 3 (kalite) — sinir durum bulgulari QR kaydina kanit girer.
 Belgesel karar kod yazma izni degildir; kod her durumda Mod A mekanik onayini ister
 (mekanik onay: {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --verify; onaysiz yazimi guard hook'u durdurur). Uydurma kanit/olcum sahtekarliktir.
 
-**Bridge:** This skill does not produce an independent methodology record; it adds the edge-case findings to the `Code review` section of the `docs/development/QR-<seq>.md` record produced by `bmad-code-review` ({metodoloji-root}/docs/methodology.md and {metodoloji-root}/templates/_template_QR.md). If there is no linked QR record (bmad-code-review has not run before), say to run it first; feed the findings into the QR, do not open a separate record. If there are findings, update the relevant QR record and add the `Methodology record: docs/development/QR-<seq>.md` reference to the native review output.
+**Bridge:** This skill does not produce an independent methodology record; it adds the edge-case findings to the `Code review` section of the `docs/development/QR-<seq>.md` record produced by `bmad-code-review` ({metodoloji-root}/hooks/workflow/builtin/methodology-chain.json and {metodoloji-root}/templates/_template_QR.md). If there is no linked QR record (bmad-code-review has not run before), say to run it first; feed the findings into the QR, do not open a separate record. If there are findings, update the relevant QR record and add the `Methodology record: docs/development/QR-<seq>.md` reference to the native review output.
 
 
 # Edge Case Hunter Review

@@ -5,9 +5,9 @@
 [workflow]
 persistent_facts = [
   "file:{project-root}/**/project-context.md",
-  "file:{metodoloji-root}/docs/methodology.md",
+  "file:{metodoloji-root}/hooks/workflow/builtin/methodology-chain.json",
 ]
 activation_steps_append = [
-  "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/methodology.md): the evidence type and record format of the output to be produced.",
+  "Before starting this work, verify the gate rules of the relevant stage in the chain spec ({metodoloji-root}/hooks/workflow/builtin/methodology-chain.json): the evidence type and record format of the output to be produced.",
   "Before finishing the work, verify that the record is complete: English field labels, decision rationale, uncertainty acknowledgment. A documentary decision is not permission to write code.",
 ]

@@ -6,8 +6,8 @@ triggers: ["metodoloji-verify", "/metodoloji-verify", "verify experiment record"
 
 # Metodoloji — verify a record
 
-Bound to `{metodoloji-root}/docs/methodology.md` — this surface
-reaches the verdict that manifesto makes mechanical; a verdict is a gate, not a
+Bound to `{metodoloji-root}/hooks/workflow/builtin/methodology-chain.json` — this surface
+reaches the verdict that chain makes mechanical; a verdict is a gate, not a
 preference.
 
 Canonical contract: `{metodoloji-root}/commands/verify.md`.

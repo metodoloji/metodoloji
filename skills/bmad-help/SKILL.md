@@ -125,7 +125,7 @@ When this skill completes, the user should:
 
 ## Methodology
 
-Bound to `{metodoloji-root}/docs/methodology.md` — the qualitative (B/C/D) and quantitative (Mode A) routes, and the E → IR → SP → S → QR → PR record chain: when a recommendation sounds like a rule, it is a gate named there, not a preference, and the next step names the record it creates (or the gate it satisfies) instead of improvising an order.
+Bound to `{metodoloji-root}/hooks/workflow/builtin/methodology-chain.json` — the qualitative (B/C/D) and quantitative (Mode A) routes, and the E → IR → SP → S → QR → PR record chain: when a recommendation sounds like a rule, it is a gate named there, not a preference, and the next step names the record it creates (or the gate it satisfies) instead of improvising an order.
 Routing a user to code is not code-writing permission — code always requires Mode A mechanical approval (`/metodoloji:verify` + the guard hook). Fabricated evidence/measurements are fraud.
 
 ## Catalog reference (moved out of the activation body)

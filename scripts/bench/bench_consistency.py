@@ -1650,7 +1650,7 @@ _TEMPLATE_REF_RE = re.compile(r"(?<![\w}/])templates/_template_[\w.]+")
 # run where skills/ exists at the root, and historical records
 # (docs/experiments/E-*.md) are provenance, not guidance.
 _SHIPPED_SURFACE_GLOBS = (
-    "GUIDE.md", "KILAVUZ.md", "docs/CLAUDE.md", "docs/methodology.md",
+    "GUIDE.md", "KILAVUZ.md", "docs/CLAUDE.md",
     "docs/experiments/_template.md", "commands/*.md", "custom/*.toml",
     "templates/*.md", "skills/*/SKILL.md",
     "skills/bmad-research-experiment/plan.md",
@@ -4242,7 +4242,6 @@ def _check_external_context_discovery_contract() -> str | None:
         "follow user intent and repository methodology."
     )
     policy_surfaces = consumers + (
-        "docs/methodology.md",
         "docs/research/external/README.md",
         "templates/external-context-README.md",
     )

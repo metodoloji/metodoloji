@@ -150,7 +150,7 @@ def test_missing_customize_toml_falls_back_to_stub(tmp_path):
     out = _resolve(skill, "workflow")
     facts = out["workflow"]["persistent_facts"]
     assert len(facts) == 2 and any("project-context.md" in f for f in facts)
-    assert any("docs/methodology.md" in f for f in facts)
+    assert any("methodology-chain.json" in f for f in facts)
 
 
 def test_broken_team_toml_warns_and_keeps_base(tmp_path):

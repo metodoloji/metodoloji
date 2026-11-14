@@ -114,10 +114,9 @@ log_ok() {
     fi
 }
 
-# The methodology contract is plugin-canonical: it lives under the plugin root
-# and is read from there (*/customize.toml persistent_facts use
-# {metodoloji-root}/docs/methodology.md). Resolve the plugin root the same way the
-# hook engine does; fall back to this repo (dogfooding: repo == plugin).
+# The plugin root is identified by the hook entry points every install ships
+# (*/customize.toml persistent_facts point at {metodoloji-root}/...). Resolve it
+# the same way run-hook.sh does; fall back to this repo (dogfooding: repo == plugin).
 #
 # Resolution happens OUTSIDE the CHECK blocks: later checks (deferred-work,
 # skip lines, template scope) read $METODOLOJI_ROOT, so a scoped `--only 7`
@@ -127,7 +126,7 @@ if [ -z "$METODOLOJI_ROOT" ]; then
     # Fixed candidates first, then versioned cache globs (newest first),
     # mirroring run-hook.sh's discovery list.
     for cand in "$SCRIPT_DIR/.."; do
-        if [ -f "$cand/docs/methodology.md" ]; then METODOLOJI_ROOT="$cand"; break; fi
+        if [ -f "$cand/hooks/scripts/hook-entry.sh" ]; then METODOLOJI_ROOT="$cand"; break; fi
     done
 fi
 if [ -z "$METODOLOJI_ROOT" ]; then
@@ -137,24 +136,24 @@ if [ -z "$METODOLOJI_ROOT" ]; then
                 $(_join_newest_first "$HOME/.claude/plugins/cache/yunusgungor/metodoloji/*") \
                 $(_join_newest_first "$HOME/.openhands/plugins/cache/*") \
                 "$HOME/.openhands/plugins/installed/metodoloji"; do
-        if [ -f "$cand/docs/methodology.md" ]; then METODOLOJI_ROOT="$cand"; break; fi
+        if [ -f "$cand/hooks/scripts/hook-entry.sh" ]; then METODOLOJI_ROOT="$cand"; break; fi
     done
 fi
 if [ -z "$METODOLOJI_ROOT" ]; then
     METODOLOJI_ROOT="$SCRIPT_DIR/.."
 fi
 
-# ─── CHECK 1: the methodology contract and chain spec exist (plugin-canonical) ───
+# ─── CHECK 1: the chain spec and its dispatcher exist (plugin-canonical) ───
 if _want_check 1; then
 echo "═══════════════════════════════════════════════════"
 echo "CHECK 1: Methodology Files"
 echo "═══════════════════════════════════════════════════"
 
-for f in docs/methodology.md hooks/workflow/builtin/methodology-chain.json hooks/scripts/chain-gate.py; do
+for f in hooks/workflow/builtin/methodology-chain.json hooks/scripts/chain-gate.py; do
     if [ -f "$METODOLOJI_ROOT/$f" ]; then
         log_ok "$f exists (plugin root)"
     else
-        log_issue "$f is MISSING in plugin root ($METODOLOJI_ROOT) — the methodology contract is broken"
+        log_issue "$f is MISSING in plugin root ($METODOLOJI_ROOT) — the record chain is broken"
     fi
 done
 fi

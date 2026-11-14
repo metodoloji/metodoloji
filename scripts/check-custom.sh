@@ -239,9 +239,9 @@ for _s in (sys.stdout, sys.stderr):
     except (AttributeError, ValueError): pass
 
 PLUGIN = os.environ.get("PLUGIN_ROOT") or "."
-# Development wing — those in this list must load the methodology contract
-# (docs/methodology.md) plus project-context. For those not in the list only
-# project-context.md is required.
+# Development wing — those in this list must load the chain spec
+# (hooks/workflow/builtin/methodology-chain.json) plus project-context. For
+# those not in the list only project-context.md is required.
 # Note: bmad-eval-runner / bmad-research-experiment / bmad-review-* are
 # deliberately not in the list — they "don't write code, they measure/audit".
 DEV_WING = {
@@ -272,13 +272,12 @@ for path in sorted(glob.glob(os.path.join(PLUGIN, "skills", "*", "customize.toml
     if not any("project-context.md" in x for x in facts):
         problems.append("%s: no project-context.md pointer" % name)
     if name in DEV_WING:
-        # One contract page replaced the two manifestos: the rule text moved to
-        # its owners (chain spec, templates, create-record.py) and the page only
-        # names them. A DEV-wing surface must load it, plugin-canonically.
-        if not any("docs/methodology.md" in x for x in facts):
-            problems.append("%s: no docs/methodology.md pointer (DEV wing)" % name)
-        elif not any("{metodoloji-root}/docs/methodology.md" in x for x in facts):
-            problems.append("%s: docs/methodology.md pointer not plugin-canonical ({metodoloji-root})" % name)
+        # The contract page is retired (E-151): the rule text lives in its owners
+        # (chain spec, templates, create-record.py), and the spec is the pointer.
+        if not any("methodology-chain.json" in x for x in facts):
+            problems.append("%s: no chain spec pointer (DEV wing)" % name)
+        elif not any("hooks/workflow/builtin/methodology-chain.json" in x for x in facts):
+            problems.append("%s: chain spec pointer not plugin-canonical ({metodoloji-root})" % name)
 
 print("  checked: %d" % checked)
 for p in problems:

@@ -427,7 +427,7 @@ def _doc_checks(broken: bool) -> list[tuple[str, bool, str]]:
         template_exists = bool(tpl)
     else:
         # The manifesto is retired; the deferred-work contract's live owner is
-        # the shipped format reference (docs/methodology.md points at it).
+        # the shipped format reference (the chain spec names no other).
         doc = (ROOT / "skills" / "bmad-code-review" / "references"
                / "deferred-work-format.md").read_text(
             encoding="utf-8", errors="replace")

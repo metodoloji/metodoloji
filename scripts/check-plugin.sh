@@ -613,12 +613,12 @@ PROJECT = os.environ.get("PROJECT_ROOT") or "."
 
 # Non-methodology tool surfaces — explicitly excluded from the audit (outside the
 # capability map). `bmad-customize`/`bmad-help` are NOT listed here: they ship no
-# customize.toml and are audited through their SKILL.md manifesto pointer instead
+# customize.toml and are audited through their SKILL.md chain-spec pointer instead
 # (the loop's else branch). "graft" was a stale name — no such skill was ever in
 # the tree (`graft/` is a guard-free DIRECTORY, not a skill).
 EXCLUDED = set()
 
-# Development wing surfaces (docs/methodology.md mapping + dev agents):
+# Development wing surfaces (chain-spec mapping + dev agents):
 DEV_WING = {
     "bmad-check-implementation-readiness", "bmad-prd", "bmad-ux",
     "bmad-create-architecture", "bmad-sprint-planning", "bmad-create-story",
@@ -670,8 +670,8 @@ for d in skills:
                 facts += data.get(sec, {}).get("persistent_facts", [])
         if not ok:
             continue
-        if not any("docs/methodology.md" in x for x in facts):
-            missing.append("%s (no methodology contract: root+team+user)" % name)
+        if not any("methodology-chain.json" in x for x in facts):
+            missing.append("%s (no chain spec pointer: root+team+user)" % name)
         elif not any("project-context.md" in x for x in facts):
             missing.append("%s (no project-context)" % name)
         # Consumption: facts must not just be configured — the surface must actually load them.
@@ -699,8 +699,8 @@ for d in skills:
         except Exception as e:
             missing.append("%s (unreadable: %s)" % (name, e))
             continue
-        if "docs/methodology.md" not in txt:
-            missing.append("%s (no SKILL.md methodology pointer)" % name)
+        if "methodology-chain.json" not in txt:
+            missing.append("%s (no SKILL.md chain-spec pointer)" % name)
 
 # Menu skill targets must exist (broken capability link class).
 for cp in sorted(glob.glob(os.path.join(PLUGIN, "skills", "*", "customize.toml"))):
@@ -716,12 +716,8 @@ for cp in sorted(glob.glob(os.path.join(PLUGIN, "skills", "*", "customize.toml")
             if s and not os.path.isdir(os.path.join(PLUGIN, "skills", s)):
                 missing.append("%s menu → %s (skill directory missing)" % (os.path.basename(cp), s))
 
-# The methodology contract is plugin-canonical ({metodoloji-root}/docs/methodology.md).
-# Its stage table is owned by the chain spec; a surface that cites the contract
-# must name a record target, and the spec must name the same stages.
-CONTRACT = os.path.join(PLUGIN, "docs", "methodology.md")
-if not os.path.isfile(CONTRACT):
-    missing.append("%s (methodology contract missing)" % CONTRACT)
+# The contract page is retired (E-151). The chain spec is the one pointer every
+# surface carries, and it owns the stage table itself.
 SPEC = os.path.join(PLUGIN, "hooks", "workflow", "builtin", "methodology-chain.json")
 if not os.path.isfile(SPEC):
     missing.append("%s (chain spec missing — the contract has no order)" % SPEC)
@@ -802,7 +798,7 @@ print("  problems: %d" % len(missing))
 raise SystemExit(1 if missing else 0)
 PY
 if [ $? -eq 0 ]; then
-    echo "[OK]   manifesto wired to all methodology surfaces"
+    echo "[OK]   chain spec wired to all methodology surfaces"
 else
     echo "[WARNING] wiring incomplete (see above)"
     PROBLEMS=$((PROBLEMS + 1))

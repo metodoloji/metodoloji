@@ -19,7 +19,7 @@ activation_steps_prepend = []
 # once the user has been acknowledged.
 
 activation_steps_append = [
-  "Before starting this work, verify the gate rules of the relevant module in the methodology manifesto ({metodoloji-root}/docs/methodology.md): the evidence type and record format of the output to be produced.",
+  "Before starting this work, verify the gate rules of the relevant stage in the chain spec ({metodoloji-root}/hooks/workflow/builtin/methodology-chain.json): the evidence type and record format of the output to be produced.",
   "Before finishing the work, verify that the record is complete: English field labels, decision rationale, uncertainty acknowledgment. A documentary decision is not permission to write code.",
   "KERNEL: Once the SP record exists, advance every open run it plans: `python3 {metodoloji-root}/hooks/scripts/workflow.py complete --slug S-<sira> --stage sprint-planning --project-root {project-root}` for each story in the sprint. The kernel re-checks the record itself; a refusal names its reason — fix that.",
   "BRIDGE: After producing the native sprint-status.yaml output (docs/development/native/sprint-status.yaml), create the methodology record docs/development/SP-<sira>.md from {metodoloji-root}/templates/_template_SP.md: fill the fields from the YAML with English labels (Date, Status: planned|active|completed|cancelled, Sprint goal: one sentence, Stories S-id list + priority + story points, Capacity: estimated points / team velocity, Blockers: known blockers + resolution plan, Dependencies: external team/system dependencies, Technical debt). Add the '# Methodology record: docs/development/SP-<sira>.md' comment reference to the native YAML as ONE LINE PER SPRINT RECORD, oldest first — add this sprint's line and keep the earlier ones (a single pointer stops naming sprint 1 the moment sprint 2 is planned). The Status field must be from the allowed values and the Date field must be present (scripts/check-methodology.sh CHECK 7 checks this). VERIFY: run 'grep -c \"# Methodology record:\" docs/development/native/sprint-status.yaml' — it must equal the number of docs/development/SP-*.md records, because CHECK 6 fails on a dangling, repeated or incomplete pointer list. This does not break the BMED native flow; it adds the methodology record alongside it and establishes the record chain (IR → SP → S). VERIFY: After creating the record, run 'ls -la docs/development/SP-<sira>.md' in the terminal. If the file is missing, error and recreate the record.",
@@ -38,7 +38,7 @@ activation_steps_append = [
 
 persistent_facts = [
   "file:{project-root}/**/project-context.md",
-  "file:{metodoloji-root}/docs/methodology.md",
+  "file:{metodoloji-root}/hooks/workflow/builtin/methodology-chain.json",
 ]
 
 # Scalar: executed when the workflow reaches its final step,

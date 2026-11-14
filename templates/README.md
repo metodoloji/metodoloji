@@ -320,13 +320,12 @@ D-023 (design: new onboarding flow)
 
 ## Related Documents
 
-The manifestos are **plugin-canonical**: they live in the plugin installation
-and are read from there — `init` deliberately does not copy them into the
-project, so a relative link to them would be dead in every project.
+The chain spec is **plugin-canonical**: it lives in the plugin installation
+and is read from there — `init` deliberately does not copy it into the
+project, so a relative link to it would be dead in every project.
 
-- `{metodoloji-root}/docs/methodology.md` — the methodology contract: the record chain, each rule's owner, and how the native dev skills write these records
+- `{metodoloji-root}/hooks/workflow/builtin/methodology-chain.json` — the record chain: stage order, each stage's goal and actions, and the gate that proves it
 - `project-context.md` in the project (produced by the `bmad-generate-project-context` skill) — Two-wing structure and integration
-- `{metodoloji-root}/GUIDE.md` — How to use both wings (the agent runbook)
 
 ---
 
@@ -334,5 +333,5 @@ project, so a relative link to them would be dead in every project.
 
 - Don't know which template to use? Look at the "When" sections above
 - Template missing? Every record template ships in `{metodoloji-root}/templates/` — the folder tree above lists this wing's ones
-- How does the Research ↔ Development transition work? The record chain and its stage owners are explained in `{metodoloji-root}/docs/methodology.md`
+- How does the Research ↔ Development transition work? The record chain and its stage owners are declared in `{metodoloji-root}/hooks/workflow/builtin/methodology-chain.json`
 - How is technical debt managed? Read the guide in the `tech-debt.md` file

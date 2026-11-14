@@ -15,7 +15,7 @@ probe further):
    Claude Code — do not depend on them, do not echo them to "verify".)
 2. Fixed checkout `~/.claude/plugins/marketplaces/metodoloji/`
 3. Versioned cache `~/.claude/plugins/cache/metodoloji/metodoloji/*`
-   (newest first; e.g. `.../0.2.87/` on Claude Code v2.1.x)
+   (newest first; e.g. `.../0.2.88/` on Claude Code v2.1.x)
 4. OpenHands install directory `~/.openhands/plugins/installed/metodoloji/`
 
 (An old `~/.claude/plugins/cache/yunusgungor/metodoloji/*` path appears in
@@ -133,12 +133,13 @@ status reports an incomplete skeleton.
     (Delete the marker, or run `/metodoloji:init --force`, to re-install the
     skeleton deliberately.)
 
-5. The methodology contract is plugin-canonical — do NOT copy it into the project.
-   `{metodoloji-root}/docs/methodology.md` names each rule's owner (the chain
-   spec, the templates, `create-record.py`) and is read from there via the
+5. The chain spec is plugin-canonical — do NOT copy it into the project.
+   `{metodoloji-root}/hooks/workflow/builtin/methodology-chain.json` owns the
+   stage order and each stage's evidence, and is read from there via the
    `{metodoloji-root}` entries in `*/customize.toml` `persistent_facts`. Do not
-   create a copy in the target project. (A legacy `docs/bmad/` copy left over
-   from an older init is stale — remove it to avoid confusion.)
+   create a copy in the target project. (Legacy `docs/bmad/` and
+   `docs/methodology.md` copies left over from an older init are stale — remove
+   them to avoid confusion.)
 
 6. Gate key: NEVER probe it with shell (`ls`/`cat`/`echo` of any path
     containing `gate-key`, `gate-keys`, or `bmad_gate_key` is denied by the

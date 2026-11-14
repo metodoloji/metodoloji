@@ -62,8 +62,8 @@ import another harness's schema:
 
 ## PREREQUISITES
 
-- **Restrict if the methodology manifesto is missing.** If `{metodoloji-root}/docs/methodology.md` is absent:
-  it must be created via `bmad-customize`; without it the skill can only offer to create the manifesto.
+- **Restrict if the chain spec is missing.** If `{metodoloji-root}/hooks/workflow/builtin/methodology-chain.json` is absent:
+  the installation is broken — say so and recommend `/metodoloji:init`; the spec ships with the plugin and is never created per project.
 - **Gate script is required.** If `{skill-root}/scripts/run_experiment.py` does not run, the approval gate cannot run — stop and do not continue until the script is fixed.
 - **A record file always exists.** The gate (`run_experiment.py`) takes a file path; there is no experiment without a record. No measurement can be made until the experiment record is created at `{project-root}/docs/experiments/<experiment-id>.md`.
 - **Records use English field labels.** The gate parses the `Theory`, `Hypothesis`, `Measurement Metrics`, `Experiment Design` labels. A record labeled in a different language is rejected as an incomplete draft — changing the language does not bypass the gate.
@@ -108,7 +108,7 @@ Execute each entry in `{workflow.activation_steps_prepend}` in order.
 
 ### Step 4: Load Persistent Facts
 
-Treat every entry in `{workflow.persistent_facts}` as foundational context. Entries prefixed `file:` are paths/globs under `{project-root}` — load the referenced contents as facts. The methodology manifesto (`{metodoloji-root}/docs/methodology.md`) is the most important fact of this skill: **read it fully before proceeding.**
+Treat every entry in `{workflow.persistent_facts}` as foundational context. Entries prefixed `file:` are paths/globs under `{project-root}` — load the referenced contents as facts. The chain spec (`{metodoloji-root}/hooks/workflow/builtin/methodology-chain.json`) is the most important fact of this skill: **read it fully before proceeding.**
 
 ### Step 5: Load Config
 
@@ -122,7 +122,7 @@ Greet `{user_name}` in `{communication_language}`.
 
 Execute each entry in `{workflow.activation_steps_append}` in order.
 
-Activation is complete. If prepend/append steps were non-empty, confirm every entry was executed in order before starting the experiment. **Do not begin the experiment until the manifesto is loaded.**
+Activation is complete. If prepend/append steps were non-empty, confirm every entry was executed in order before starting the experiment. **Do not begin the experiment until the chain spec is loaded.**
 
 ### Chain Handshake
 
@@ -383,7 +383,7 @@ python3 {skill-root}/scripts/run_experiment.py --verify --record {project-root}/
 
 ### Stage 6 — Result (Record & Delivery)
 
-- Write/update `docs/experiments/<experiment-id>.md` per `experiment-log.md` (the manifesto's mandatory format).
+- Write/update `docs/experiments/<experiment-id>.md` per `experiment-log.md` (the gate's mandatory format).
 - Record: theory, hypothesis + threshold, measurement metrics, design, raw results, decision + rationale, next step.
 - **Blackboard run close-out (mandatory — do not skip even when the gate already mirrored):**
   - The gate (`{skill-root}/scripts/run_experiment.py --run`, without `--no-blackboard`) already mirrors the decision onto the board automatically: `E-{experiment-id}` run key + (on APPROVED) the hand-off to `bmad-check-implementation-readiness`. Verify the mirror landed — if the gate ran with `--no-blackboard`, on another machine, or the mirror was skipped, bind it by hand:
@@ -422,7 +422,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
 
 5. **Update memory:** After committing, update the project memory file if one exists: add the new capability, bump the experiment count + latest commit hash, and record any new lesson learned.
 
-## Integrity Rules (from the manifesto — non-negotiable)
+## Integrity Rules (from the gate — non-negotiable)
 
 1. A rejected hypothesis stays rejected and is reported; it is never deleted, hidden, or relabeled.
 2. Raw data is stored as-is; never clean or filter it to change the verdict.

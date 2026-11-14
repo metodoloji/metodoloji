@@ -6,10 +6,10 @@ goal — `bmad-code-review`, `bmad-quick-dev`, `bmad-dev-auto` — and closed by
 whoever fixes the item (the maintainer, or the next story that pays it). The
 file is append-only: never rewrite or delete existing entries.
 
-This file is the format's single owner. The manifesto
-(this file) and the ledger
-template (`{metodoloji-root}/templates/deferred-work.md`) point here rather
-than restating it.
+This file is the format's single owner. The chain spec
+(`{metodoloji-root}/hooks/workflow/builtin/methodology-chain.json`) and the
+ledger template (`{metodoloji-root}/templates/deferred-work.md`) point here
+rather than restating it.
 
 ## Before appending: dedupe check
 

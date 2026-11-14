@@ -5,7 +5,7 @@ Copy this file for a new experiment: `docs/experiments/E-NNN.md`
 This template is for **Mode A (quantitative/empirical)** — the only legitimate path
 to code production. For documentary modes: Mode B (qualitative) and Mode D (contextual)
 → `docs/research/_template.md`; Mode C (design) → `docs/design/_template.md`.
-Manifesto: `{metodoloji-root}/docs/methodology.md` (plugin-canonical — read from the plugin installation root, not the project).
+Chain spec: `{metodoloji-root}/hooks/workflow/builtin/methodology-chain.json` (plugin-canonical — read from the plugin installation root, not the project).
 
 English field labels are **mandatory** — the gate (`run_experiment.py`) parses these
 labels. Do **not** hand-write the `Decision`, `Gate Evidence`, `Next Step`, `Status`

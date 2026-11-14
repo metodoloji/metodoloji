@@ -6,8 +6,8 @@ triggers: ["bmad-eval-runner", "/bmad-eval-runner", "eval-runner"]
 
 ## Methodology
 
-Bound to `{metodoloji-root}/docs/methodology.md` — Mode A (quantitative) — skill evaluation; measurements live in the run folder, opens no E-id record.
-Also bound to `{metodoloji-root}/docs/methodology.md` — Gate 3 (quality) — evaluation results feed the QR record as evidence.
+Bound to `{metodoloji-root}/hooks/workflow/builtin/methodology-chain.json` — Mode A (quantitative) — skill evaluation; measurements live in the run folder, opens no E-id record.
+Also bound to `{metodoloji-root}/hooks/workflow/builtin/methodology-chain.json` — Gate 3 (quality) — evaluation results feed the QR record as evidence.
 A documentary decision is not code-writing permission; code always requires Mode A mechanical approval
 (`/metodoloji:verify` + guard hook). Fabricated evidence/measurements are fraud.
 
@@ -116,4 +116,4 @@ skill `customize.toml` ← team `{project-root}/custom/<skill>.toml` ← persona
 
 Run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --project-root {project-root} --key workflow`
 
-Then honor the resolved lists: execute `{workflow.activation_steps_prepend}` before starting, load `{workflow.persistent_facts}`, and before finishing execute `{workflow.activation_steps_append}` — in particular the methodology-manifesto gate-rules verification and the QR Skill-Eval feed, which this procedure does not restate.
+Then honor the resolved lists: execute `{workflow.activation_steps_prepend}` before starting, load `{workflow.persistent_facts}`, and before finishing execute `{workflow.activation_steps_append}` — in particular the chain-spec gate-rules verification and the QR Skill-Eval feed, which this procedure does not restate.

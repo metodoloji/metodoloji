@@ -1933,7 +1933,7 @@ def main() -> int:
         return 2
 
     # Measurement: the gate runs the command ITSELF and parses the value from output.
-    # Operator declares no numbers — reality is mechanical (manifesto: --run is canonical).
+    # Operator declares no numbers — reality is mechanical (the gate: --run is canonical).
     # The claimed metric name steers which metric_* line binds the decision
     # (E-004): a multi-metric bench must not have its first line decide.
     claim_metric = claim_metric_name(claim)

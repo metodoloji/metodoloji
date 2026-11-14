@@ -230,7 +230,7 @@ def bfs(graph):
 
 ## Related Documents
 
-- Development Methodology — **plugin-canonical**, read `{metodoloji-root}/docs/methodology.md`
+- Record chain — **plugin-canonical**, read `{metodoloji-root}/hooks/workflow/builtin/methodology-chain.json`
   (it is never copied into the project, so a relative link would be dead)
 - [Quality Review Template](_template_QR.md)
 - [Sprint Template](_template_SP.md)

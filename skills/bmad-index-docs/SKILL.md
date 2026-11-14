@@ -6,7 +6,7 @@ triggers: ["bmad-index-docs", "/bmad-index-docs", "index-docs"]
 
 ## Metodoloji
 
-Bu yuzey arastirma metodolojisine baglidir: `{metodoloji-root}/docs/methodology.md` — Belgele (dokumantasyon).
+Bu yuzey arastirma metodolojisine baglidir: `{metodoloji-root}/hooks/workflow/builtin/methodology-chain.json` — Belgele (dokumantasyon).
 Uretilen dizin/dokuman bir iddiadir; belgesel kayitlar Turkce alan etiketleriyle tutulur.
 Belgesel karar kod yazma izni degildir; kod her durumda Mod A mekanik onayini ister.
 

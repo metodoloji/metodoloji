@@ -13,7 +13,7 @@
 # Overrides append. Use for pre-flight loads, compliance checks, etc.
 
 activation_steps_prepend = [
-  "Confirm the methodology contract is loaded: read {metodoloji-root}/docs/methodology.md if present. If it is missing, stop and tell the user this workflow requires it.",
+  "Confirm the chain spec is loaded: read {metodoloji-root}/hooks/workflow/builtin/methodology-chain.json if present. If it is missing, stop and tell the user this workflow requires it.",
 ]
 
 # Steps to run after greet but before the workflow begins.
@@ -36,7 +36,7 @@ activation_steps_append = [
 
 persistent_facts = [
   "file:{project-root}/**/project-context.md",
-  "file:{metodoloji-root}/docs/methodology.md",
+  "file:{metodoloji-root}/hooks/workflow/builtin/methodology-chain.json",
 ]
 
 # Scalar: executed when the workflow reaches Step 13 (Validation Report Complete) and

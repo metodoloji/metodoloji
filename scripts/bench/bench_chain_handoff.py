@@ -45,8 +45,12 @@ CLI_REL = "hooks/scripts/workflow.py"
 _LIVE_GLOBS = ("GUIDE.md", "KILAVUZ.md", "AGENT-GUIDE.md", "AGENT-GUIDE-TR.md",
                "commands/*.md", "templates/*.md", "skills/*/SKILL.md",
                "skills/*/customize.toml", "hooks/scripts/*.sh",
-               "hooks/scripts/*.py", "docs/CLAUDE.md", "docs/methodology.md")
+               "hooks/scripts/*.py", "docs/CLAUDE.md")
 _DEAD = re.compile(r"\{metodoloji-root\}/docs/bmad|docs/bmad/[A-Za-z0-9_-]+\.md")
+# E-151: the contract page is retired too. The pointer form is what an
+# agent follows; a bare mention of the legacy copy in init's cleanup note
+# is an instruction to DELETE it, not a pointer.
+_DEAD_CONTRACT = re.compile(r"\{metodoloji-root\}/docs/methodology\.md")
 
 
 def _root() -> pathlib.Path:
@@ -161,6 +165,33 @@ def _case_no_live_surface_cites_docs_bmad() -> tuple[bool, str]:
                 offenders.append(path.relative_to(tree).as_posix())
     return not offenders, ("no live surface cites the retired tree"
                            if not offenders else f"still cited by {offenders[:4]}")
+
+
+def _case_no_live_surface_cites_the_contract_page() -> tuple[bool, str]:
+    """E-151: the page is gone, so a pointer to it sends the reader nowhere."""
+    tree = _tree()
+    offenders = []
+    for pat in _LIVE_GLOBS:
+        for path in sorted(tree.glob(pat)):
+            try:
+                text = path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            if _DEAD_CONTRACT.search(text):
+                offenders.append(path.relative_to(tree).as_posix())
+    return not offenders, ("no live surface points at the retired contract page"
+                           if not offenders else f"still pointed at by {offenders[:4]}")
+
+
+def _case_repointed_targets_exist() -> tuple[bool, str]:
+    """A repoint that names a missing file is the same dead pointer, one hop later."""
+    tree = _tree()
+    targets = ("hooks/workflow/builtin/methodology-chain.json",
+               "hooks/scripts/chain-gate.py", "templates/_template_E.md",
+               "templates/_template_BD.md", "templates/_template_QR.md")
+    missing = [rel for rel in targets if not (tree / rel).is_file()]
+    return not missing, ("every repointed target ships" if not missing
+                         else f"missing: {missing}")
 
 
 def _case_spec_validates() -> tuple[bool, str]:
@@ -404,6 +435,9 @@ CASES = (
     ("the dispatcher, CLI and spec ship", _case_gate_and_cli_ship),
     ("docs/bmad is gone", _case_no_docs_bmad),
     ("no live surface cites the retired tree", _case_no_live_surface_cites_docs_bmad),
+    ("no live surface points at the retired contract page",
+     _case_no_live_surface_cites_the_contract_page),
+    ("every repointed target ships", _case_repointed_targets_exist),
     ("the chain spec validates", _case_spec_validates),
     ("every stage is command evidence", _case_every_stage_is_command_evidence),
     ("the documented CLI form works and placeholders expand",

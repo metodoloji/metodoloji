@@ -3,7 +3,7 @@
 This template covers Mode B (qualitative) and Mode D (contextual) research records.
 For Mode A (quantitative/empirical) → `docs/experiments/_template.md`
 For Mode C (design) → `docs/design/_template.md`
-Manifesto: `{metodoloji-root}/docs/methodology.md` (plugin-canonical — read from the plugin installation root, not the project).
+Chain spec: `{metodoloji-root}/hooks/workflow/builtin/methodology-chain.json` (plugin-canonical — read from the plugin installation root, not the project).
 
 ## Output Location
 

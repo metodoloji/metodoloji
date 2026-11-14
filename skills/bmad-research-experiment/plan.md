@@ -15,8 +15,8 @@
 | File | Purpose |
 |-------|------|
 | `SKILL.md` | Activation + 6-step flow (Theory→Hypothesis→Experiment→Measurement→Approval→Result) + honesty rules |
-| `customize.toml` | Surface: `persistent_facts` manifesto loading, `activation_steps_append` (manifesto + Stage-6 verification) |
-| `experiment-log.md` | Mandatory experiment record template (format from the manifesto) |
+| `customize.toml` | Surface: `persistent_facts` chain-spec loading, `activation_steps_append` (chain spec + Stage-6 verification) |
+| `experiment-log.md` | Mandatory experiment record template (format from the gate) |
 | `scripts/run_experiment.py` | Measurement runner: mechanical approval gate against the hypothesis threshold (assert-based) |
 
 ## Experiment record template (required fields)

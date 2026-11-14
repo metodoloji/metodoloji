@@ -245,7 +245,7 @@ def main():
     else:
         defaults = {"workflow": {"persistent_facts": [
             "file:{project-root}/**/project-context.md",
-            "file:{metodoloji-root}/docs/methodology.md",
+            "file:{metodoloji-root}/hooks/workflow/builtin/methodology-chain.json",
         ]}}
 
     # The skill lives inside the plugin, so deriving the project from the
