@@ -15,7 +15,7 @@ probe further):
    Claude Code — do not depend on them, do not echo them to "verify".)
 2. Fixed checkout `~/.claude/plugins/marketplaces/metodoloji/`
 3. Versioned cache `~/.claude/plugins/cache/metodoloji/metodoloji/*`
-   (newest first; e.g. `.../0.2.88/` on Claude Code v2.1.x)
+   (newest first; e.g. `.../0.2.89/` on Claude Code v2.1.x)
 4. OpenHands install directory `~/.openhands/plugins/installed/metodoloji/`
 
 (An old `~/.claude/plugins/cache/yunusgungor/metodoloji/*` path appears in
@@ -137,9 +137,7 @@ status reports an incomplete skeleton.
    `{metodoloji-root}/hooks/workflow/builtin/methodology-chain.json` owns the
    stage order and each stage's evidence, and is read from there via the
    `{metodoloji-root}` entries in `*/customize.toml` `persistent_facts`. Do not
-   create a copy in the target project. (Legacy `docs/bmad/` and
-   `docs/methodology.md` copies left over from an older init are stale — remove
-   them to avoid confusion.)
+   create a copy in the target project.
 
 6. Gate key: NEVER probe it with shell (`ls`/`cat`/`echo` of any path
     containing `gate-key`, `gate-keys`, or `bmad_gate_key` is denied by the

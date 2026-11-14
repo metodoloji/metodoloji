@@ -41,8 +41,10 @@ Mechanically audits the plugin's own integrity and the record discipline in the 
    - Identify the active host runtime from the current session/tool context. Do
      not infer that every installed adapter is active. If the runtime cannot be
      identified, report it as unknown.
-   - Read the matching row in
-     `{metodoloji-root}/docs/runtime-security-coverage.md` and report which
+   - Derive the runtime's coverage from the live gate declarations, not from
+     memory: the `PreToolUse` matchers in `{metodoloji-root}/hooks/hooks.json`
+     and the per-runtime tool lists in
+     `{metodoloji-root}/hooks/engine/modules/utils.py`. Report which
      write/shell calls are intercepted, which are warning-only, and which paths
      are outside the hook boundary. Never summarize this as “all writes are
      protected.”

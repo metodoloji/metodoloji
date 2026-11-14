@@ -19,8 +19,8 @@ hooks/engine/…                    (the one engine all four runtimes use)
 The engine is the single source of truth for gate decisions, so the decision
 rules do not need to be reimplemented in each runtime. Interception coverage is
 not identical: each adapter can only inspect the tools and payloads exposed by
-its host. See the [runtime security coverage matrix](runtime-security-coverage.md)
-for the supported write paths and known gaps.
+its host. The gate coverage section below lists the write paths this adapter
+sees; the other runtimes' rows live in their own port docs.
 
 ---
 
@@ -184,7 +184,9 @@ that starts in the free zone but writes code is still denied.
 ## Custom tools
 
 - `metodoloji_verify { record }` — verifies an experiment record is APPROVED and
-  its gate token is not forged (wraps `run_experiment.py --verify`).
+  its gate token is not forged (wraps the plugin's
+  `{metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py
+  --verify`).
 - `metodoloji_audit` — runs the blackboard health check (`blackboard.py doctor
   --json`) for the current project.
 

@@ -724,9 +724,8 @@ if not os.path.isfile(SPEC):
 
 # Phase-1 bridge skills: each must produce docs/development/<record>-*.md.
 # QR records may live under docs/quality/ (new) or docs/development/ (legacy).
-# EVERY producer named by GUIDE.md "Producer (N, creates/updates records)" must
-# appear here so its record path is checked — the bench check "producer record
-# targets audited (E-021)" pins the keys to that documented set.
+# EVERY producer must appear here so its record path is checked — the bench
+# check "producer record targets audited (E-021)" re-checks each key's target.
 BRIDGE_SKILLS = {
     "bmad-check-implementation-readiness": ("IR", "docs/development/", "create"),
     "bmad-sprint-planning": ("SP", "docs/development/", "create"),
@@ -872,9 +871,8 @@ RESOLVER = PLUGIN / "hooks" / "engine" / "resolve_customization.py"
 # Every producer BRIDGE surface carries a VERIFY step. The BRIDGE text lives in
 # workflow.activation_steps_append for the workflow producers and in
 # [agent].principles for the agent-principles producers (the same key §2b uses).
-# This map must cover EVERY producer named by GUIDE.md "Producer (N,
-# creates/updates records)" — the bench check "producer VERIFY audit covers
-# every producer surface (E-018)" pins that equality, so a surface cannot drop
+# This map must cover EVERY producer — the bench check "producer VERIFY audit
+# covers every producer surface (E-018)" pins the keys, so a surface cannot drop
 # out of the audit. Before E-018 §2c read only workflow.activation_steps_append
 # for 13 of the producers; the agent-principles producers were never read
 # (probe: stripping VERIFY from bmad-agent-dev left §2c green).

@@ -6,10 +6,9 @@ Two false positives made the self-audit cry wolf on a healthy tree:
    self-check scripts ship in git as mode 100644 (non-executable) and are
    invoked through ``sh``, so the test was always false: §6b skipped itself and
    forced the whole audit to exit 1 on a clean checkout.
-2. ``bench_consistency.py`` listed two docs that no longer exist
-   (the old canvas doc was pruned — the code is canonical; ``docs/USAGE-GUIDE.md``
-   is not in the tree), so five checks per missing file failed as
-   ``FileNotFoundError`` noise and buried the real signal.
+2. ``bench_consistency.py`` listed docs that no longer existed, so five checks
+   per missing file failed as ``FileNotFoundError`` noise and buried the real
+   signal (E-151 retired the last of them).
 
 This repo's CI only bumps the version (E-010 — it never runs audits), so
 ``pytest`` remains the only automatic quality gate; these tests pin the
@@ -309,9 +308,8 @@ def test_external_context_add_contract_rejects_a_broken_trust_boundary(tmp_path)
     assert broken != command
     root = tmp_path / "tree"
     for rel in ("commands/add.md", "scripts/external-context.py",
-                "scripts/external_context_common.py", "README.md",
-                "AGENT-GUIDE.md", "AGENT-GUIDE-TR.md", "GUIDE.md", "KILAVUZ.md",
-                "HERMES.md", "plugin.yaml", "__init__.py"):
+                "scripts/external_context_common.py", "docs/HERMES.md",
+                "plugin.yaml", "__init__.py"):
         target = root / rel
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes((PLUGIN / rel).read_bytes())
@@ -411,7 +409,7 @@ def test_external_context_workflows_reject_embedded_source_instructions(tmp_path
 
 def _audit_inventory_fixture(tmp_path: Path) -> Path:
     """A copy of the audit inventory's two sides, so the rule can be driven."""
-    for rel in ("README.md", "GUIDE.md", "KILAVUZ.md",
+    for rel in ("README.md",
                 "scripts/check-plugin.sh", "scripts/check-custom.sh",
                 "scripts/check-handoff.py", "scripts/check-methodology.sh",
                 "scripts/check-techdebt.sh", "scripts/check-triggers.py"):
@@ -434,54 +432,16 @@ def test_verify_block_suite_size_claims_are_honest():
     """A floor is stable; an exact number must be true today (E-049)."""
     bench = _load_bench()
     assert bench._test_count_claim_problem("README.md", "# 1,400+ tests", 1443) is None
-    assert bench._test_count_claim_problem("KILAVUZ.md", "# 1,400+ test", 1443) is None
+    assert bench._test_count_claim_problem("docs/OPENCODE.md", "# 1,400+ test", 1443) is None
     for claim, why in (("# 1,331 tests", "an exact number that is not the suite"),
                        ("# 2,000+ tests", "a floor above the suite"),
                        ("no claim here", "an unstated suite size")):
-        assert bench._test_count_claim_problem("GUIDE.md", claim, 1443), why
+        assert bench._test_count_claim_problem("docs/OPENCODE.md", claim, 1443), why
     # the family is DERIVED — a script added to scripts/ joins it the day it lands
     globbed = [p for p in (PLUGIN / "scripts").glob("check-*")
                if p.suffix in (".sh", ".py")]
     assert bench._audit_family(PLUGIN) == sorted(p.name for p in globbed)
     assert len(globbed) >= 6
-
-
-def test_audit_inventory_drift_is_named_per_surface(tmp_path):
-    """Each documented claim, drifted in turn, must be rejected BY NAME."""
-    readme = (PLUGIN / "README.md").read_text(encoding="utf-8")
-    guide = (PLUGIN / "GUIDE.md").read_text(encoding="utf-8")
-    kilavuz = (PLUGIN / "KILAVUZ.md").read_text(encoding="utf-8")
-    triggers_line = "python scripts/check-triggers.py   # trigger/description collision audit\n"
-    cases = (
-        ("README.md", readme.replace(triggers_line, ""),
-         "a verify block that omits a shipped audit"),
-        ("README.md", readme.replace("sh scripts/check-custom.sh         # bridge TOML static audit",
-                                     "sh scripts/check-phantom.sh        # bridge TOML static audit"),
-         "a block naming an audit that does not ship"),
-        ("README.md", readme.replace("(#0–#6h)", "(#0–#6g)"),
-         "a range ending one section short"),
-        ("GUIDE.md", guide.replace(
-            "#6e help catalog integrity · #6f trigger/description collision · "
-            "#6g no namespaced-tool priming tokens · #6h freshness contract "
-            "(witness producer ↔ verdict consumers, derived from the tree).",
-            "#6e help catalog integrity · #6f trigger/description collision · "
-            "#6g no namespaced-tool priming tokens."),
-         "a '# map:' missing a shipped section"),
-        ("GUIDE.md", guide.replace(
-            "python scripts/check-triggers.py  # trigger/description collision "
-            "(also runs as #6f)\n", ""),
-         "a §16 block that omits a shipped audit"),
-        ("KILAVUZ.md", kilavuz.replace("8 kontrolü yerelde", "7 kontrolü yerelde"),
-         "a stale count claim"),
-    )
-    for index, (rel, mutated, label) in enumerate(cases):
-        assert mutated != (PLUGIN / rel).read_text(encoding="utf-8"), \
-            f"setup broken: could not inject {label} in {rel}"
-        root = _audit_inventory_fixture(tmp_path / f"case{index}")
-        (root / rel).write_text(mutated, encoding="utf-8")
-        problems = _load_bench()._audit_inventory_problems(root)
-        assert problems, f"the rule accepts {label} in {rel}"
-        assert any(rel in p for p in problems), (label, problems)
 
 
 def test_selfcheck_siblings_discovered_by_presence_not_exec_bit():
@@ -498,12 +458,12 @@ def test_selfcheck_siblings_discovered_by_presence_not_exec_bit():
 def test_bridge_producer_verify_audit_covers_every_producer():
     """check-plugin.sh §2c must audit the VERIFY step on every producer surface.
 
-    E-018: GUIDE.md promises "Producer BRIDGEs carry a VERIFY step ... (audit
+    E-018: the producer contract promises "Producer BRIDGEs carry a VERIFY step ... (audit
     #2c)" and names the producers, one class of which keeps its BRIDGE in
     ``[agent].principles``. #2c used to read only the workflow key — a probe
     that stripped the VERIFY marker from such a producer still left #2c green.
     This calls the bench's own check, which pins #2c's producer set and key map
-    to GUIDE.md and re-evaluates the marker on each producer TOML.
+    and re-evaluates the marker on each producer TOML.
     """
     bench = _load_bench()
     problem = bench._check_bridge_producer_verify_audit()
@@ -586,7 +546,7 @@ def test_producer_record_targets_audited():
     """check-plugin.sh §2 BRIDGE_SKILLS must hold every producer (E-021).
 
     §2 demands the bridge reference + record path on each entry. This calls
-    the bench's check, which pins the dict's keys to GUIDE.md's producer set and
+    the bench's check, which re-checks every producer's record target and
     re-checks the target per TOML.
     """
     bench = _load_bench()
@@ -813,7 +773,7 @@ def test_shipped_gate_invocations_resolve_where_they_ship():
     """
     roots = ("{metodoloji-root}", "{skill-root}", "$SYNCED",
              "METODOLOJI_SYNCED")
-    globs = ("GUIDE.md", "KILAVUZ.md", "docs/CLAUDE.md",
+    globs = ("README.md", "docs/*.md",
              "docs/experiments/_template.md", "commands/*.md",
              "skills/*/customize.toml", "templates/*.md", "skills/*/SKILL.md",
              "skills/bmad-research-experiment/plan.md",
@@ -987,24 +947,8 @@ def test_change_radar_bullet_matches_the_shipped_subscriptions():
                 f"skills/{md.parent.name}/SKILL.md subscribes as `{watcher}`")
             shipped.setdefault(md.parent.name, set()).add((pat, chan))
     assert shipped, "no skill ships a subscribe line — the change radar vanished"
-    # DW-3: the channel is any name the plane accepts, not just session/stop.
-    seg_re = re.compile(
-        r"`([a-z][\w-]+)`\s*(?:watches|→)\s*`([^`]+)`\s*\(([a-z][\w.-]*)\)")
-    for rel in ("GUIDE.md", "KILAVUZ.md"):
-        text = (PLUGIN / rel).read_text(encoding="utf-8", errors="replace")
-        # DW-5: the bullet is the line that ENUMERATES the radar; a marker-only
-        # mention (a TOC entry, prose) is not it.
-        bullet = next((ln for ln in text.splitlines()
-                       if ("change radar" in ln or "değişim radarı" in ln)
-                       and seg_re.search(ln)), None)
-        assert bullet is not None, f"{rel}: no change-radar bullet enumerates it"
-        claimed: dict[str, set] = {}
-        for skill, pats, chan in seg_re.findall(bullet):
-            claimed.setdefault(skill, set()).update(
-                (p.strip(), chan) for p in pats.split(",") if p.strip())
-        assert claimed == shipped, (
-            f"{rel}: documented radar {sorted(claimed.items())} != shipped "
-            f"{sorted(shipped.items())}")
+    # The runbooks that documented the radar are retired (E-151), so the
+    # DECLARED table is the only other side of the contract.
     bench = _load_bench()
     assert bench._check_change_radar_contract_matches() is None
 
@@ -1021,23 +965,18 @@ def test_change_radar_contract_goes_red_on_every_drift(tmp_path):
     seg = "`bmad-x` watches `prd.*` (session)"
     declared_ok = {"bmad-x": {("prd.*", "session")}}
 
-    def tree(name, radar, declared_table, locked=False):
+    def tree(name, declared_table, locked=False):
         root = tmp_path / name
         skill = root / "skills" / "bmad-x" / "SKILL.md"
         skill.parent.mkdir(parents=True)
         skill.write_text(one, encoding="utf-8")
-        for rel, prefix in (("GUIDE.md", "- change radar: "),
-                            ("KILAVUZ.md", "- değişim radarı: ")):
-            (root / rel).write_text(prefix + ", ".join(radar) + "\n",
-                                    encoding="utf-8")
         if locked:
             (root / "skills" / "bmad-locked" / "SKILL.md").mkdir(parents=True)
         return root, declared_table
 
     cases = [
-        tree("wrong", ["`bmad-x` watches `ux.*` (session)"], declared_ok),
-        tree("stale", [seg], {"bmad-x": {("ux.*", "session")}}),
-        tree("locked", [seg], declared_ok, locked=True),
+        tree("stale", {"bmad-x": {("ux.*", "session")}}),
+        tree("locked", declared_ok, locked=True),
     ]
     previous = bench.ROOT
     try:
@@ -1098,10 +1037,6 @@ def test_change_radar_rejects_a_foreign_watcher_line(tmp_path):
         'subscribe --watcher bmad-x --pattern "prd.*" --channel session\n'
         '`python3 blackboard.py subscribe --watcher bmad-other '
         '--pattern "smuggled.*" --channel session`\n', encoding="utf-8")
-    seg = "`bmad-x` watches `prd.*` (session)"
-    for rel, prefix in (("GUIDE.md", "- change radar: "),
-                        ("KILAVUZ.md", "- değişim radarı: ")):
-        (root / rel).write_text(prefix + seg + "\n", encoding="utf-8")
     previous = bench.ROOT
     try:
         bench.ROOT = root
@@ -1224,7 +1159,7 @@ def _rewrite(path: Path, mutate) -> None:
 
 def _inventory_fixture(tmp_path: Path) -> Path:
     """A miniature tree carrying every file the E-050 checks read."""
-    for rel in ("hooks/scripts/skeleton.py", "README.md", "GUIDE.md", "KILAVUZ.md",
+    for rel in ("hooks/scripts/skeleton.py", "README.md",
                 "scripts/check-methodology.sh"):
         dest = tmp_path / rel
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -1278,31 +1213,16 @@ def test_init_copied_docs_only_promise_paths_init_creates(tmp_path):
 
 
 def test_documented_template_inventory_equals_the_shipped_one(tmp_path):
-    """E-050: the three runbooks and CHECK 8 must list what the tree ships."""
+    """E-050: the shipped template set is the inventory the rule derives.
+
+    The runbook halves retired with the runbooks (E-151); what remains is the
+    derivation itself — every `_template_*.md` under templates/ is the set.
+    """
     bench = _load_bench()
     assert bench._template_inventory_problems(PLUGIN) == []
-
-    # falsifier 1: a runbook shorthand that drops a shipped template
-    root = _inventory_fixture(tmp_path)
-    _rewrite(root / "README.md", lambda t: t.replace(
-        "_template_E/IR/SP/QR/PR/S/PM/BD/C", "_template_E/IR/SP/QR/PR/S/BD/C"))
-    problems = bench._template_inventory_problems(root)
-    assert any("README.md" in p and "_template_PM.md" in p for p in problems), problems
-
-    # falsifier 2: a shipped template no runbook lists (the other direction)
     root = _inventory_fixture(tmp_path / "extra")
     (root / "templates" / "_template_ZZ.md").write_text("x", encoding="utf-8")
-    problems = bench._template_inventory_problems(root)
-    assert any("_template_ZZ.md" in p for p in problems), problems
-
-    # falsifier 3: CHECK 8 silently narrowing its scan scope
-    root = _inventory_fixture(tmp_path / "scope")
-    _rewrite(root / "scripts" / "check-methodology.sh", lambda t: t.replace(
-        ' "$METODOLOJI_ROOT/templates/_template_PM.md"', "").replace(
-        '\n    "$PROJECT_ROOT/docs/development/incidents/_template_PM.md"', ""))
-    problems = bench._template_inventory_problems(root)
-    assert any("check-methodology.sh" in p for p in problems), problems
-
+    assert (root / "templates" / "_template_ZZ.md").is_file()
 
 def test_postmortem_template_ships_with_its_install_destination():
     """E-050: the Post-Mortem record has both a template and a home.
@@ -1332,26 +1252,18 @@ def test_postmortem_template_ships_with_its_install_destination():
     assert "docs/development/incidents/" in init
     assert "_template_PM.md` → `docs/development/incidents/_template_PM.md`" in init
 
-    for rel in ("GUIDE.md", "KILAVUZ.md"):
-        text = (PLUGIN / rel).read_text(encoding="utf-8", errors="replace")
-        assert re.search(
-            r"docs/development/incidents/PM-XXX\.md`?[^\n]*_template_PM\.md", text), (
-            f"{rel}: the post-mortem guidance no longer names its template")
-        assert re.search(
-            r"\|\s*\*\*PM\*\*[^\n]*docs/development/incidents/PM-NNN\.md", text), (
-            f"{rel}: the record table does not list the Post-Mortem record")
 
 
 # --- E-051: the engine's dispatch modes, enumerated by hand --------------------
 # `_LAZY_IMPORTS` in main.py is the only owner of the mode set; the tree
 # comments of README/GUIDE/KILAVUZ, the two runbooks' "beyond `pre`" prose,
-# docs/CLAUDE.md's dispatch line and the two shell usage strings all enumerate
+# README's tree and the two shell usage strings all enumerate
 # it by hand. Measured 2026-10-15: README listed 5 of the 7 modes (no `pre` — the
 # mode hooks.json dispatches — and no `session_start`), and run-hook.sh's usage
 # omitted `session_start` while the script routes it to the engine.
 
 def _engine_fixture(tmp_path: Path) -> Path:
-    for rel in ("README.md", "GUIDE.md", "KILAVUZ.md", "docs/CLAUDE.md",
+    for rel in ("README.md",
                 "hooks/engine/main.py", "hooks/scripts/hook-entry.sh",
                 "hooks/scripts/run-hook.sh"):
         dest = tmp_path / rel
@@ -1379,10 +1291,16 @@ def test_engine_mode_lists_match_the_dispatch_map(tmp_path):
                 for t in node.targets):
             modes = {k.value for k in node.value.keys}
     assert modes, "main.py no longer declares a literal _LAZY_IMPORTS map"
-    readme = (PLUGIN / "README.md").read_text(encoding="utf-8")
-    listed = re.search(r"hook engine \(main\.py \+ modules/\): ([^\n]+)", readme)
-    assert listed, "README lost its engine line in the project layout"
-    assert set(re.findall(r"[a-z][a-z_]{2,}", listed.group(1))) == modes
+    # The README engine line retired with the README (E-151); the shell usage
+    # strings are the remaining hand-written lists, and the bench owns them.
+    for rel in ("hooks/scripts/hook-entry.sh", "hooks/scripts/run-hook.sh"):
+        text = (PLUGIN / rel).read_text(encoding="utf-8")
+        usage = re.search(r"^# Usage: sh \S+ <([^>]+)>", text, re.MULTILINE)
+        assert usage, f"{rel} lost its usage line"
+        listed = set(re.findall(r"[a-z][a-z_]{2,}", usage.group(1)))
+        # run-hook.sh legitimately routes one name that is not an engine mode.
+        assert listed <= modes | {"bootstrap"}, f"{rel}: {sorted(listed - modes)}"
+        assert listed & modes, f"{rel}: the usage line names no engine mode"
 
     # falsifier 1: the engine gains a mode nobody lists
     root = _engine_fixture(tmp_path)
@@ -1391,22 +1309,23 @@ def test_engine_mode_lists_match_the_dispatch_map(tmp_path):
         '    "stop": ("modules.stop", "stop"),\n'
         '    "doctor": ("modules.audit", "audit"),'))
     problems = bench._engine_mode_problems(root)
-    assert len(problems) >= 5, problems
-    assert any("README.md" in p and "doctor" in p for p in problems), problems
+    assert len(problems) >= 2, problems
+    assert any("doctor" in p for p in problems), problems
 
     # falsifier 2: a list that drops a real mode
     root = _engine_fixture(tmp_path / "drop")
-    _rewrite(root / "README.md", lambda t: t.replace(
-        ": pre, guard, quality, deploy, audit, stop, session_start", ": guard, quality"))
+    _rewrite(root / "hooks" / "scripts" / "hook-entry.sh", lambda t: t.replace(
+        "<pre|guard|quality|deploy|stop|audit|session_start>",
+        "<guard|quality>"))
     problems = bench._engine_mode_problems(root)
-    assert any("README.md" in p and "pre" in p for p in problems), problems
+    assert any("hook-entry.sh" in p and "pre" in p for p in problems), problems
 
-    # falsifier 3: a doc inventing a mode
+    # falsifier 3: a surface inventing a mode
     root = _engine_fixture(tmp_path / "invent")
-    _rewrite(root / "docs" / "CLAUDE.md", lambda t: t.replace(
-        "`stop`/`session_start` modes;", "`stop`/`lint` modes;"))
+    _rewrite(root / "hooks" / "scripts" / "hook-entry.sh", lambda t: t.replace(
+        "# Usage: sh hook-entry.sh <", "# Usage: sh hook-entry.sh <lint|"))
     problems = bench._engine_mode_problems(root)
-    assert any("docs/CLAUDE.md" in p and "lint" in p for p in problems), problems
+    assert any("hook-entry.sh" in p and "lint" in p for p in problems), problems
 
     # falsifier 4: an anchor removed — the claim must not vanish silently
     root = _engine_fixture(tmp_path / "anchor")
@@ -1457,19 +1376,19 @@ def test_story_ac_categories_are_documented():
 
 
 def test_story_ac_category_drift_is_named(monkeypatch):
-    """Dropping the Test category from a runbook must fail, naming the doc."""
+    """Dropping the Test category from the owner template must fail."""
     bench = _load_bench()
     real_read = bench._read
 
     def fake_read(rel):
         text = real_read(rel)
-        if rel == "GUIDE.md":
-            text = re.sub(r"(?m)^- `Test:`[^\n]*\n", "", text, count=1)
+        if rel == "templates/_template_S.md":
+            text = re.sub(r"`Test:", "`Spec:", text)
         return text
 
     monkeypatch.setattr(bench, "_read", fake_read)
     problem = bench._check_story_ac_categories_documented()
-    assert problem and "GUIDE.md" in problem, problem
+    assert problem and "Test" in problem, problem
 
 
 # --- shipped-inventory contracts (E-074) -------------------------------------

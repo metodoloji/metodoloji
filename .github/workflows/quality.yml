@@ -39,7 +39,6 @@ jobs:
           sh scripts/check-techdebt.sh
           python scripts/check-handoff.py
           python scripts/check-triggers.py
-          python scripts/check-runtime-coverage.py
           python scripts/external-context.py check --project-root . --strict
 
   windows:

@@ -50,11 +50,11 @@ _CATALOGS = (
     "skills/skill-manifest.csv",
     "skills/bmad-help/references/bmad-help.csv",
 )
-_PROSE = ("GUIDE.md", "KILAVUZ.md", "README.md", "docs/CLAUDE.md")
+_PROSE = ("README.md", "docs/OPENCODE.md", "docs/HERMES.md")
 _COUNT_CLAIMS = (
-    "README.md", "CONTRIBUTING.md", "docs/CLAUDE.md", "GUIDE.md", "KILAVUZ.md",
-    "HERMES.md", "docs/OPENCODE.md", ".claude-plugin/plugin.json",
-    ".plugin/plugin.json", ".opencode-plugin/plugin.json", "plugin.yaml",
+    "README.md", "docs/OPENCODE.md", "docs/HERMES.md",
+    ".claude-plugin/plugin.json", ".plugin/plugin.json",
+    ".opencode-plugin/plugin.json", "plugin.yaml",
 )
 
 

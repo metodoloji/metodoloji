@@ -261,7 +261,7 @@ def test_a_rewritten_history_verifies_only_what_the_push_carried(tmp_path):
     found `before` outside the fetched range: falling back to `HEAD` verified
     the WHOLE history and red-flagged the documented retro era — trees written
     before the rule existed, whose tags name the position and whose mismatch
-    is listed honestly in docs/VERSION-HISTORY.md. The step must fall back to
+    is listed honestly in the E-012 record. The step must fall back to
     the newest tag (what the chain already accepted) and verify only what came
     after it, exactly like this push did.
     """

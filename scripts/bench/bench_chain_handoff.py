@@ -42,15 +42,33 @@ CLI_REL = "hooks/scripts/workflow.py"
 # Live surfaces: what an agent or operator reads where it ships. Historical
 # records (docs/experiments, docs/quality, stories), measurement fixtures and
 # this bench itself are provenance, not guidance.
-_LIVE_GLOBS = ("GUIDE.md", "KILAVUZ.md", "AGENT-GUIDE.md", "AGENT-GUIDE-TR.md",
+_LIVE_GLOBS = ("README.md", "docs/*.md",
                "commands/*.md", "templates/*.md", "skills/*/SKILL.md",
                "skills/*/customize.toml", "hooks/scripts/*.sh",
-               "hooks/scripts/*.py", "docs/CLAUDE.md")
+               "hooks/scripts/*.py")
 _DEAD = re.compile(r"\{metodoloji-root\}/docs/bmad|docs/bmad/[A-Za-z0-9_-]+\.md")
 # E-151: the contract page is retired too. The pointer form is what an
 # agent follows; a bare mention of the legacy copy in init's cleanup note
 # is an instruction to DELETE it, not a pointer.
 _DEAD_CONTRACT = re.compile(r"\{metodoloji-root\}/docs/methodology\.md")
+# E-152: the whole retired set, not one path at a time. Every root runbook and
+# every doc the concurrent removals deleted is listed here; a live surface that
+# names any of them sends a reader to a file that does not ship.
+_RETIRED_DOCS = (
+    "docs/bmad/", "docs/methodology.md", "GUIDE.md", "KILAVUZ.md",
+    "AGENT-GUIDE.md", "AGENT-GUIDE-TR.md", "CONTRIBUTING.md",
+    "docs/CLAUDE.md", "docs/architecture.md", "docs/VERSION-HISTORY.md",
+    "docs/STALE-CONTEXT-REMEDIATION.md", "docs/runtime-security-coverage.md",
+)
+# A root-relative pointer form only: `GUIDE.md` as a bare word is a different
+# thing (the target project's own file), so require a path prefix.
+_RETIRED_RE = re.compile(
+    r"\{metodoloji-root\}/(?:docs/(?:bmad|methodology|CLAUDE|architecture|"
+    r"VERSION-HISTORY|STALE-CONTEXT-REMEDIATION|runtime-security-coverage)"
+    r"(?:\.md)?/?)"
+    r"|\]\("
+    r"(?:\.\./)*"
+    r"(?:GUIDE|KILAVUZ|AGENT-GUIDE|AGENT-GUIDE-TR|CONTRIBUTING)\.md\)")
 
 
 def _root() -> pathlib.Path:
@@ -181,6 +199,28 @@ def _case_no_live_surface_cites_the_contract_page() -> tuple[bool, str]:
                 offenders.append(path.relative_to(tree).as_posix())
     return not offenders, ("no live surface points at the retired contract page"
                            if not offenders else f"still pointed at by {offenders[:4]}")
+
+
+def _case_no_live_surface_names_a_retired_doc() -> tuple[bool, str]:
+    """E-152: the retired set is closed, so no live surface may name any of it.
+
+    E-151 pinned one path at a time and left the general invariant open (its
+    Known Gap 5). This probe closes it for the set that was actually retired:
+    a markdown link to a root runbook, or a {metodoloji-root} pointer into a
+    deleted doc, is a dead instruction wherever it ships.
+    """
+    tree = _tree()
+    offenders = []
+    for pat in _LIVE_GLOBS:
+        for path in sorted(tree.glob(pat)):
+            try:
+                text = path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            if _RETIRED_RE.search(text):
+                offenders.append(path.relative_to(tree).as_posix())
+    return not offenders, ("no live surface names a retired doc"
+                           if not offenders else f"still named by {offenders[:4]}")
 
 
 def _case_repointed_targets_exist() -> tuple[bool, str]:
@@ -437,6 +477,7 @@ CASES = (
     ("no live surface cites the retired tree", _case_no_live_surface_cites_docs_bmad),
     ("no live surface points at the retired contract page",
      _case_no_live_surface_cites_the_contract_page),
+    ("no live surface names a retired doc", _case_no_live_surface_names_a_retired_doc),
     ("every repointed target ships", _case_repointed_targets_exist),
     ("the chain spec validates", _case_spec_validates),
     ("every stage is command evidence", _case_every_stage_is_command_evidence),

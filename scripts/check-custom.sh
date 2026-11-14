@@ -643,8 +643,9 @@ for path in SURFACES:
         continue
     checked += 1
     rel = os.path.relpath(path, PLUGIN).replace(os.sep, "/")
-    if re.search(r"\{metodoloji-root\}/docs/bmad|docs/bmad/[A-Za-z0-9_-]+\.md", text):
-        problems.append("%s: still points at the deleted docs/bmad/" % rel)
+    if re.search(r"\{metodoloji-root\}/(docs/bmad|docs/methodology\.md)"
+                 r"|docs/(bmad|methodology)[A-Za-z0-9_./-]*\.md", text):
+        problems.append("%s: still points at a retired methodology doc" % rel)
     for name in set(re.findall(r"_template_[A-Za-z0-9]+\.md", text)):
         if name not in shipped:
             problems.append("%s: names %s, which does not ship" % (rel, name))

@@ -39,13 +39,13 @@ _CATALOGS = (
 )
 
 # Files whose prose names the shipped tool surface.
-_PROSE = ("GUIDE.md", "KILAVUZ.md", "README.md", "docs/CLAUDE.md")
+_PROSE = ("README.md", "docs/OPENCODE.md", "docs/HERMES.md")
 
 # Files that must declare the surviving skill count.
 _COUNT_CLAIMS = (
-    "README.md", "CONTRIBUTING.md", "docs/CLAUDE.md", "GUIDE.md", "KILAVUZ.md",
-    "HERMES.md", "docs/OPENCODE.md", ".claude-plugin/plugin.json",
-    ".plugin/plugin.json", ".opencode-plugin/plugin.json", "plugin.yaml",
+    "README.md", "docs/OPENCODE.md", "docs/HERMES.md",
+    ".claude-plugin/plugin.json", ".plugin/plugin.json",
+    ".opencode-plugin/plugin.json", "plugin.yaml",
 )
 
 

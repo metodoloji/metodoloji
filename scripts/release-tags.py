@@ -21,7 +21,7 @@ instead: one tag per commit, named by the rule, on the commit the rule gives.
 What it is, honestly: the tags say "this commit is the Nth commit after
 v0.1.0", NOT "the manifests inside this tree say 0.1.N". For the trees written
 before the rule existed those two disagree (they were shipped saying 0.1.0),
-and that mismatch is documented in docs/VERSION-HISTORY.md rather than hidden.
+and that mismatch is recorded in docs/experiments/E-012.md rather than hidden.
 Deleting or moving an existing tag is a rewrite of published history, so it
 never happens without `--move-mismatched`.
 
@@ -147,7 +147,7 @@ def _print_plan(rows: list[dict], stray: list[str]) -> None:
         print(f"  UNPLACEABLE  {tag} — a release-looking tag the rule cannot place")
     print("note: these tags record the commit's position after the baseline "
           "(v0.1.0), not the version string inside those trees — see "
-          "docs/VERSION-HISTORY.md")
+          "docs/experiments/E-012.md")
 
 
 def apply_tags(root: pathlib.Path, rows: list[dict], move_mismatched: bool,

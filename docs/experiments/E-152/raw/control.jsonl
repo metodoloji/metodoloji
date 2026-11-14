@@ -1,0 +1,17 @@
+{"check": "the dispatcher, CLI and spec ship", "ok": false, "detail": "missing: ['hooks/scripts/chain-gate.py']"}
+{"check": "docs/bmad is gone", "ok": false, "detail": "docs/bmad/ still ships"}
+{"check": "no live surface cites the retired tree", "ok": false, "detail": "still cited by ['commands/init.md', 'templates/README.md', 'templates/_template_BD.md', 'templates/_template_C.md']"}
+{"check": "no live surface points at the retired contract page", "ok": true, "detail": "no live surface points at the retired contract page"}
+{"check": "no live surface names a retired doc", "ok": false, "detail": "still named by ['README.md', 'commands/audit.md', 'commands/init.md', 'templates/README.md']"}
+{"check": "every repointed target ships", "ok": false, "detail": "missing: ['hooks/scripts/chain-gate.py']"}
+{"check": "the chain spec validates", "ok": false, "detail": "validate failed: usage: workflow.py [-h] [--project-root PROJECT_ROOT]\n                   {validate,create,list,status,next,resume,complete,block,flag,history}\n                 "}
+{"check": "every stage is command evidence", "ok": false, "detail": "keyword evidence still in ['experiment', 'implementation-readiness', 'sprint-planning', 'story', 'quality-review', 'production-readiness']"}
+{"check": "the documented CLI form works and placeholders expand", "ok": false, "detail": "documented form refused: usage: workflow.py [-h] [--project-root PROJECT_ROOT]\n                   {validate,create,list,status,next,resume,complete,block,flag,history}\n                 "}
+{"check": "two story runs coexist", "ok": false, "detail": "S-001 create refused: "}
+{"check": "stub records satisfy no stage", "ok": false, "detail": "no hooks/scripts/chain-gate.py to refuse it"}
+{"check": "an unapproved record is refused", "ok": false, "detail": "no hooks/scripts/chain-gate.py to refuse it"}
+{"check": "out-of-order completion is refused", "ok": false, "detail": "accepted: "}
+{"check": "one run cannot spend another's evidence", "ok": false, "detail": "no hooks/scripts/chain-gate.py to refuse it"}
+{"check": "tier 2 skips the upstream planning records", "ok": false, "detail": "tier=2 computed: {}"}
+{"check": "the three audits pass", "ok": false, "detail": "check-plugin.sh: [OK]   freshness contract holds (single vocabulary, single derivation) /  / STATUS: 1 problems found"}
+{"check": "templates agree with the schema owner", "ok": false, "detail": "_template_IR.md says ['preparing', 'READY', 'INCOMPLETE'] != ['READY', 'NOT-READY', 'BLOCKED']; _template_SP.md says ['planned', 'in-progress', 'completed', 'cancelled'] != ['planned', 'active', 'completed', 'cancelled']; _template_PR.md says ['preparing', 'READY', 'WAITING'] != ['preparing', 'ready', 'deployed', 'rolled-back']"}

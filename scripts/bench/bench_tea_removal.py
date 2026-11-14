@@ -127,8 +127,7 @@ def _case_manifests_declare_the_surviving_count() -> tuple[bool, str]:
     actual = len(list((ROOT / "skills").glob("*/SKILL.md")))
     rx = re.compile(rf"(?<!\d){actual}(?=\s+(?:\*\*)?(?:BMAD\s+)?skills?\b)")
     misses = []
-    for rel in ("README.md", "CONTRIBUTING.md", "docs/CLAUDE.md", "GUIDE.md",
-                "KILAVUZ.md", "HERMES.md", "docs/OPENCODE.md",
+    for rel in ("README.md", "docs/OPENCODE.md", "docs/HERMES.md",
                 ".claude-plugin/plugin.json", ".plugin/plugin.json",
                 ".opencode-plugin/plugin.json", "plugin.yaml"):
         if not rx.search((ROOT / rel).read_text(encoding="utf-8")):

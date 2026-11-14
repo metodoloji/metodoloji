@@ -105,8 +105,8 @@ Bu hook'lar Hermes'in araç çağrılarına uygulanır; Metodoloji işletim sist
 seviyesinde bir sandbox değildir. `computer_use` varsayılan olarak dosya
 kapısının dışında kalır; çalışma-anında çözülemeyen `execute_code` yolları da
 ayar `deny` yapılmadıkça uyarı verip devam edebilir. Diğer runtime'larla ortak
-karar mantığı ve kapsama sınırları için
-[runtime güvenlik kapsamı tablosuna](docs/runtime-security-coverage.md) bakın.
+karar mantığı `hooks/engine/` içindedir; bu portun kendi kapsama sınırları
+aşağıdaki bölümde listelenir.
 
 - `pre` (guard + quality + deploy): motor yoksa, çökerse veya 12 saniyede
   yanıt vermezse çağrı **bloklanır**. Motorun kendi politikasıyla aynı.
@@ -119,7 +119,8 @@ karar mantığı ve kapsama sınırları için
 ```
 1) docs/experiments/E-00N.md taslağı     → docs/ serbest, yazılır
 2) scripts/bench/<ölçüm>.py              → "staging": karar verilmemiş kayıt varsa yazılır
-3) run_experiment.py --record … --run …  → APPROVED + GATE-OK token
+3) {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py
+   --record … --run …                    → APPROVED + GATE-OK token
 4) src/… yazımı                          → kapı açılır
 ```
 

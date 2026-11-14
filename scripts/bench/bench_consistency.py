@@ -51,29 +51,19 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 # Live prose docs (historical records excluded on purpose — see module docstring).
 # Every entry MUST exist, or it contributes only FileNotFoundError noise (five
 # "failures" per missing file) that hides the real signal — the exact shape of
-# the E-001 audit. The old canvas doc was pruned (the code is canonical —
-# KILAVUZ.md §14) and docs/USAGE-GUIDE.md is not in the tree; the live
-# reader-facing set is the README documentation table plus the engine summary.
+# the E-001 audit. The root runbooks (GUIDE/KILAVUZ/AGENT-GUIDE/CONTRIBUTING/
+# docs/CLAUDE/HERMES/docs/runtime-security-coverage) were retired and are not
+# coming back; the live reader-facing set is README plus the two runtime ports.
 # scripts/tests/test_selfcheck_scripts.py pins this list against the tree.
-# The two runtime ports are docs a READER follows (both are linked from the
-# README table) and they restate the public counts; leaving them out is how
-# `docs/OPENCODE.md` kept claiming 125 skills after the Hermes port took the
-# tree to 129 — the same hand-maintained-inventory class this rule exists for.
 DOC_FILES = (
     "README.md",
-    "CONTRIBUTING.md",
-    "docs/CLAUDE.md",
-    "AGENT-GUIDE.md",
-    "GUIDE.md",
-    "KILAVUZ.md",
-    "HERMES.md",
     "docs/OPENCODE.md",
-    "docs/runtime-security-coverage.md",
 )
-# The stop-semantics and canvas-feed claims live in the runbooks/guides, not
-# only in README.md; the old canvas home was pruned.
-STOP_DOCS = ("README.md", "docs/CLAUDE.md", "AGENT-GUIDE.md")
-CANVAS_DOCS = ("KILAVUZ.md", "GUIDE.md")
+# The stop-semantics claim lives in README and the OpenCode port, the two
+# surfaces a reader still follows.
+STOP_DOCS = ("docs/OPENCODE.md",)
+# No live doc restates the canvas feed; the code and its tests are the claim.
+CANVAS_DOCS = ()
 # Machine-readable manifests that repeat the same public counts.
 MANIFESTS = (
     ".plugin/plugin.json",
@@ -136,24 +126,15 @@ _REMOVED_REFS = ("run-promptfoo", "evals/promptfoo")
 # inventory of it (the runnable blocks, the `#0–#6N` ranges, the `# map:`, the
 # count sentences) lives in three docs. Those claims are hand-maintained and had
 # drifted in four independent ways when this rule was written.
-_AUDIT_INVENTORY_DOCS = ("README.md", "GUIDE.md", "KILAVUZ.md")
-_AUDIT_BLOCK_ANCHORS = (
-    ("README.md", "## Verify your install"),
-    ("GUIDE.md", "**Step 6 — Install verification"),
-    ("GUIDE.md", "## 16. Auditing"),
-    ("KILAVUZ.md", "**Adım 6 — Kurulum doğrulaması"),
-    ("KILAVUZ.md", "## 16. Denetim"),
-)
-_AUDIT_COUNT_CLAIMS = (("README.md", r"[Tt]he (\w+) checks\b"),
-                       ("GUIDE.md", r"the (\w+) checks locally"),
-                       ("KILAVUZ.md", r"(\d+) kontrolü yerelde"))
+# The reader-facing inventory lived in README, which ships empty (2064fa9).
+_AUDIT_INVENTORY_DOCS = ()
+_AUDIT_BLOCK_ANCHORS = ()
+_AUDIT_COUNT_CLAIMS = ()
 # The verify blocks also state how big the suite is. An EXACT number rots on
 # every test-adding commit (measured 2026-10-15: README claimed 1,331 while the
 # suite collected 1,443 — stale by 112 with nothing noticing), so the honest
 # form is a floor, and the floor is what gets measured.
-_AUDIT_TEST_COUNT_BLOCKS = (("README.md", "## Verify your install"),
-                            ("GUIDE.md", "**Step 6 — Install verification"),
-                            ("KILAVUZ.md", "**Adım 6 — Kurulum doğrulaması"))
+_AUDIT_TEST_COUNT_BLOCKS = ()
 _TEST_COUNT_RE = re.compile(r"#\s*([\d,]+)(\+?)\s+tests?\b")
 _AUDIT_COUNT_SPLIT_RE = re.compile(
     r"pytest \+ (\d+) static checks? \+ handoff lint|pytest \+ (\d+) statik check \+ handoff lint")
@@ -232,13 +213,10 @@ def _check_documented_commands(rel: str):
 
 
 # E-051: the engine's dispatch map (`_LAZY_IMPORTS`) is the only owner of the
-# mode set, and eight shipped surfaces enumerate it by hand: the project-layout
-# tree in README, the two runbooks' trees (which name main.py's entry), their
-# "beyond `pre`" prose, docs/CLAUDE.md's dispatch line and the two shell usage
-# strings. Measured 2026-10-15, before this rule: README's tree listed 5 of the
-# 7 modes (omitting `pre` — the mode hooks.json actually dispatches — and
-# `session_start`) and run-hook.sh's usage omitted `session_start` while the
-# script routes it straight to the engine; the only check near the claim
+# mode set, and the two shell usage strings enumerate it by hand (E-151 retired
+# the prose surfaces). Measured 2026-10-15, before this rule: run-hook.sh's
+# usage omitted `session_start` while the script routes it straight to the
+# engine; the only check near the claim
 # hard-coded the list inside this file and asked merely whether each name
 # appeared somewhere in main.py's source, so a new mode, a missing mode and a
 # renamed mode were all invisible.
@@ -247,18 +225,6 @@ def _check_documented_commands(rel: str):
 # sentences say "beyond `pre`", and the dispatcher routes one name that is not
 # an engine mode (`bootstrap` → bootstrap.sh).
 _MODE_LIST_SITES = (
-    ("README.md", r"hook engine \(main\.py \+ modules/\): ([^\n]+)",
-     frozenset(), frozenset()),
-    ("GUIDE.md", r"engine/main\.py\s+# entry \(([^)]+)\)",
-     frozenset(), frozenset()),
-    ("KILAVUZ.md", r"engine/main\.py\s+# giriş \(([^)]+)\)",
-     frozenset(), frozenset()),
-    ("GUIDE.md", r"Beyond `pre`, the modes are: ([^\n]+)",
-     frozenset(), frozenset({"pre"})),
-    ("KILAVUZ.md", r"`pre`'nin ötesinde modlar: ([^\n]+)",
-     frozenset(), frozenset({"pre"})),
-    ("docs/CLAUDE.md", r"`hooks/engine/main\.py` \(([^()]+?) modes;",
-     frozenset(), frozenset()),
     ("hooks/scripts/hook-entry.sh", r"^# Usage: sh hook-entry\.sh <([^>]+)>",
      frozenset(), frozenset()),
     ("hooks/scripts/run-hook.sh", r"^# Usage: sh run-hook\.sh <([^>]+)>",
@@ -419,22 +385,6 @@ def _check_stop_engine_never_denies() -> str | None:
     if "hook_gate_mode" in src:
         problems.append("stop.py reads a gate mode")
     return "; ".join(problems) if problems else None
-
-
-def _check_claude_toml_matches_config() -> str | None:
-    """The toml block docs/CLAUDE.md shows must equal config.toml [hooks]."""
-    text = _read("docs/CLAUDE.md")
-    fence = re.search(r"```toml\n(.*?)```", text, re.DOTALL)
-    if not fence:
-        return "docs/CLAUDE.md has no toml block"
-    documented = dict(re.findall(r"(\w+)\s*=\s*\"(soft|hard)\"", fence.group(1)))
-    try:
-        real = tomllib.loads(_read("config.toml")).get("hooks", {})
-    except tomllib.TOMLDecodeError as exc:  # pragma: no cover - guarded by CI too
-        return f"config.toml unparsable: {exc}"
-    bad = [f"{k}: doc={v} config={real.get(k)}"
-           for k, v in documented.items() if str(real.get(k)) != v]
-    return f"documented gate modes drift from config: {bad}" if bad else None
 
 
 def _check_config_comment_truthful() -> str | None:
@@ -883,11 +833,8 @@ def _check_version_ci_scope() -> str | None:
                       "--by", "[skip-version]"):
         if forbidden in code:
             problems.append(f"CI writes or commits: {forbidden}")
-    for rel, phrase in (("README.md", "no CI workflow in this repo"),
-                        ("GUIDE.md", "no CI workflow at the repo root"),
-                        ("KILAVUZ.md", "CI workflow'u yok"),
-                        ("scripts/tests/test_selfcheck_scripts.py",
-                         "This repo has no CI workflow")):
+    for rel, phrase in (("scripts/tests/test_selfcheck_scripts.py",
+                         "This repo has no CI workflow"),):
         if phrase in _read(rel):
             problems.append(f"{rel} still claims CI does not exist")
     return "; ".join(problems) if problems else None
@@ -940,11 +887,6 @@ def _check_version_ci_tag() -> str | None:
             problems.append("a re-run would re-tag a name that already exists")
         if "git rev-parse" not in text:
             problems.append("the tag step cannot resolve what it publishes")
-    for rel, phrase in (("README.md", "publishes `vX.Y.Z`"),
-                        ("GUIDE.md", "cuts the tags"),
-                        ("KILAVUZ.md", "etiketi keser")):
-        if phrase not in _read(rel):
-            problems.append(f"{rel} does not say CI publishes the tags")
     return "; ".join(problems) if problems else None
 
 
@@ -1054,7 +996,7 @@ def _check_release_numbering_rule() -> str | None:
     # The newest release point must be a tree that holds its own number: a
     # pointer to a tree claiming another version is the E-011 lie. (Older tags
     # may name a position whose tree still says the previous number — that
-    # convention is documented in docs/VERSION-HISTORY.md.)
+    # convention is documented in docs/experiments/E-012.md.)
     if newest:
         code, tree = _git_stdout("show", f"{newest[2]}:.plugin/plugin.json")
         if code != 0:
@@ -1062,36 +1004,6 @@ def _check_release_numbering_rule() -> str | None:
         elif f'"version": "{newest[1][1:]}"' not in tree:
             problems.append(f"the newest release {newest[1]} points at a tree whose "
                             f"manifests do not hold {newest[1][1:]}")
-    return "; ".join(problems) if problems else None
-
-
-def _check_release_history_documented() -> str | None:
-    """The repair must be readable by a stranger (E-012).
-
-    A retro-assigned tag chain that nobody wrote down is indistinguishable
-    from a fabricated one: the rule, the mismatch between those tags and the
-    version strings inside the old trees, and the re-pointed v0.1.5 all have
-    to be in docs/VERSION-HISTORY.md — and the live docs must point at it.
-    """
-    problems = []
-    rel = "docs/VERSION-HISTORY.md"
-    path = ROOT / rel
-    if not path.is_file():
-        return f"{rel} missing — the repair is undocumented"
-    text = _read(rel)
-    for phrase in ("commits since the first commit",   # the rule
-                   "retro-assigned",                   # how the tags got there
-                   "re-pointed",                       # the v0.1.5 correction
-                   "v0.1.0"):
-        if phrase not in text:
-            problems.append(f"{rel} does not state {phrase!r}")
-    for doc, phrase in (("README.md", "commits since the first commit"),
-                        ("GUIDE.md", "commits since the first commit"),
-                        ("KILAVUZ.md", "ilk commit'ten sonraki commit")):
-        if phrase not in _read(doc):
-            problems.append(f"{doc} does not state the numbering rule")
-    if rel not in _read("README.md"):
-        problems.append("README.md does not link the version history")
     return "; ".join(problems) if problems else None
 
 
@@ -1177,21 +1089,6 @@ def _check_release_line_boundaries() -> str | None:
         if code != 0 or not target.strip():
             problems.append(f"{current} claims the line {base} but v{base}.0 was "
                             "never declared")
-    return "; ".join(problems) if problems else None
-
-
-def _check_release_boundary_documented() -> str | None:
-    """The boundary rule must be readable without opening the code (E-013)."""
-    problems = []
-    for rel, phrases in (("docs/VERSION-HISTORY.md",
-                          ("position 100", "0.2.0", "[line X.Y.0]", "declared")),
-                         ("README.md", ("a new minor block opens every 100 commits",)),
-                         ("GUIDE.md", ("a new minor block opens every 100 commits",)),
-                         ("KILAVUZ.md", ("her 100 commit'te bir yeni minor blo\u011fu a\u00e7\u0131l\u0131r",))):
-        text = _read(rel)
-        for phrase in phrases:
-            if phrase not in text:
-                problems.append(f"{rel} does not state {phrase!r}")
     return "; ".join(problems) if problems else None
 
 
@@ -1306,7 +1203,7 @@ def _check_pipeline_verifies_and_tags_only() -> str | None:
 def _check_commit_time_flow_documented_and_tested() -> str | None:
     """E-014: the commit-time flow is readable in the docs and falsifiable.
 
-    The claim must survive without reading the code: VERSION-HISTORY names
+    The claim must survive without reading the code: the E-014 record names
     both hooks and the install line, the experiment record itself names the
     artifacts it touched (the workflow was renamed, the merge path runs
     through post-merge), and both test seams exist — the hooks proven against
@@ -1314,9 +1211,6 @@ def _check_commit_time_flow_documented_and_tested() -> str | None:
     for the pipeline to catch) and the pipeline run against its own shell.
     """
     problems = []
-    for phrase in (".githooks/pre-commit", "post-merge", "core.hooksPath"):
-        if phrase not in _read("docs/VERSION-HISTORY.md"):
-            problems.append(f"VERSION-HISTORY misses {phrase!r}")
     record = _read("docs/experiments/E-014.md")
     for phrase in (".githooks/post-merge", "release-numbers.yml",
                    "never creates a commit"):
@@ -1650,7 +1544,7 @@ _TEMPLATE_REF_RE = re.compile(r"(?<![\w}/])templates/_template_[\w.]+")
 # run where skills/ exists at the root, and historical records
 # (docs/experiments/E-*.md) are provenance, not guidance.
 _SHIPPED_SURFACE_GLOBS = (
-    "GUIDE.md", "KILAVUZ.md", "docs/CLAUDE.md",
+    "README.md", "docs/*.md",
     "docs/experiments/_template.md", "commands/*.md", "custom/*.toml",
     "templates/*.md", "skills/*/SKILL.md",
     "skills/bmad-research-experiment/plan.md",
@@ -1975,24 +1869,15 @@ def _check_engine_decode_refusals() -> str | None:
 def _check_bridge_producer_verify_audit() -> str | None:
     """E-018: the producer-VERIFY audit must read every producer BRIDGE surface.
 
-    GUIDE.md promises "Producer BRIDGEs carry a VERIFY step ... (automatic
-    anti-skip check; audit #2c)" and names the producers. Before E-018 #2c read
-    only ``workflow.activation_steps_append``, so a surface whose BRIDGE lived
-    elsewhere (``[agent].principles``) was never read and could drop the marker
-    silently. This check pins #2c's producer set *and* per-surface key to
-    GUIDE's documented set, then re-evaluates the verify-marker invariant on
+    Producer BRIDGEs carry a VERIFY step (automatic anti-skip check; audit #2c).
+    Before E-018 #2c read only ``workflow.activation_steps_append``, so a
+    surface whose BRIDGE lived elsewhere (``[agent].principles``) was never read
+    and could drop the marker silently. This check pins #2c's producer set *and*
+    per-surface key, then re-evaluates the verify-marker invariant on
     each producer TOML — so a surface cannot silently drop out of the audit
     (the "guard is only as wide as this tuple" class E-002/E-017 named).
     """
     problems: list[str] = []
-    guide = _read("GUIDE.md")
-    m = re.search(r"\*\*Producer \((\d+),[^)]*\):\*\*(.+?)\.\s*\n",
-                  guide, re.DOTALL)
-    if not m:
-        return "GUIDE.md no longer states a 'Producer (N, ...)' line"
-    documented = set(re.findall(r"`([^`]+)`", m.group(2)))
-    if len(documented) != int(m.group(1)):
-        problems.append(f"GUIDE.md producer count {m.group(1)} != {len(documented)} names")
     script = (ROOT / "scripts" / "check-plugin.sh").read_text(
         encoding="utf-8", errors="replace")
     blk = re.search(r"PRODUCER_KEY = \{(.*?)\}", script, re.DOTALL)
@@ -2001,10 +1886,6 @@ def _check_bridge_producer_verify_audit() -> str | None:
     audited = dict(re.findall(r'"([^"]+)"\s*:\s*"([^"]+)"', blk.group(1)))
     if not audited:
         return "check-plugin.sh §2c PRODUCER_KEY is empty"
-    if set(audited) != documented:
-        missing = sorted(documented - set(audited))
-        extra = sorted(set(audited) - documented)
-        problems.append(f"§2c producer set != GUIDE.md (missing {missing}, extra {extra})")
     agent_surfaces: set[str] = set()  # no agent-principles producer ships today
     for name, key in audited.items():
         want = "agent.principles" if name in agent_surfaces else "workflow.activation_steps_append"
@@ -2081,13 +1962,6 @@ def _check_bridge_verify_pattern_parity() -> str | None:
     # The runbooks' check-map must state §2c's real strength and width: E-018
     # widened §2c to 17 producers but the map kept saying "13 skills", so the
     # documented claim drifted from the wiring.
-    for rel in ("GUIDE.md", "KILAVUZ.md"):
-        map_m = re.search(r"#2c bridge VERIFY \((\d+) skill", _read(rel))
-        if not map_m:
-            problems.append(f"{rel} check-map no longer states a '#2c bridge VERIFY' count")
-        elif int(map_m.group(1)) != len(audited):
-            problems.append(f"{rel} check-map says #2c audits {map_m.group(1)} skills, "
-                            f"but §2c audits {len(audited)}")
     return "; ".join(problems) if problems else None
 
 
@@ -2177,17 +2051,10 @@ def _check_bridge_record_target_audit_covers_every_producer() -> str | None:
 
     §2's ``BRIDGE_SKILLS`` dict demands the bridge reference *and* the record
     path (``docs/development/stories/``, ``docs/quality/QR``, ...) on each
-    entry. This pins the dict's keys to GUIDE.md's documented producer set and
-    re-checks the bridge reference plus the record target on every producer
-    TOML.
+    entry. This re-checks the bridge reference plus the record target on every
+    producer TOML.
     """
     problems: list[str] = []
-    guide = _read("GUIDE.md")
-    m = re.search(r"\*\*Producer \((\d+),[^)]*\):\*\*(.+?)\.\s*\n",
-                  guide, re.DOTALL)
-    if not m:
-        return "GUIDE.md no longer states a 'Producer (N, ...)' line"
-    documented = set(re.findall(r"`([^`]+)`", m.group(2)))
     script = _read("scripts/check-plugin.sh")
     blk = re.search(r"BRIDGE_SKILLS = \{(.*?)\}", script, re.DOTALL)
     if not blk:
@@ -2195,10 +2062,6 @@ def _check_bridge_record_target_audit_covers_every_producer() -> str | None:
     entries = re.findall(r'"([^"\s]+)"\s*:\s*\(\s*"[^"]+"\s*,\s*"([^"]+)"',
                          blk.group(1))
     audited = dict(entries)
-    if set(audited) != documented:
-        missing = sorted(documented - set(audited))
-        extra = sorted(set(audited) - documented)
-        problems.append(f"§2 BRIDGE_SKILLS != GUIDE producers (missing {missing}, extra {extra})")
     for name, target in audited.items():
         path = ROOT / "skills" / name / "customize.toml"
         if not path.is_file():
@@ -2710,14 +2573,6 @@ def _check_negtest_stage_wiring() -> str | None:
     titles = re.findall(r'print\(f"\[\d+/\{total_stages\}\] ([^"]+)"\)', script)
     if not any("§3" in t for t in titles):
         problems.append("negtest has no §3 stage — the forged-token gate stays unproven")
-    for rel, word in (("GUIDE.md", "stages"), ("KILAVUZ.md", "aşama")):
-        claim = re.search(
-            rf"check-plugin\.sh --negtest\s+#\s*(\d+)\s+{word}", _read(rel))
-        if not claim:
-            problems.append(f"{rel}: no 'check-plugin.sh --negtest # N {word}' claim")
-        elif int(claim.group(1)) != declared:
-            problems.append(f"{rel} advertises {claim.group(1)} negtest {word}, "
-                            f"the script declares {declared}")
     # The script's OWN header states the count too — that is where §6g and §3
     # were added without anyone bumping it (and it pointed at a docs/ file that
     # is not in the tree at all).
@@ -2792,18 +2647,6 @@ def _check_all_negtest_counts_are_falsifiable() -> str | None:
         if "all {total_stages} negtest stages successful" not in script:
             problems.append(f"{rel}: closing line does not use the declared count")
     # The runbooks advertise the counts a reader trusts.
-    for rel, script_name, word in (("GUIDE.md", "check-custom.sh", "tests"),
-                                   ("KILAVUZ.md", "check-custom.sh", "test")):
-        claim = re.search(
-            rf"{re.escape(script_name)} --negtest\s+#\s*(\d+)\s+{word}\b", _read(rel))
-        if not claim:
-            problems.append(f"{rel}: no '{script_name} --negtest # N {word}' claim")
-            continue
-        declared = int(re.search(r"total_stages = (\d+)",
-                                 _read(f"scripts/{script_name}")).group(1))
-        if int(claim.group(1)) != declared:
-            problems.append(f"{rel} advertises {claim.group(1)} {script_name} "
-                            f"{word}, the script declares {declared}")
     return "; ".join(problems) if problems else None
 
 
@@ -3302,35 +3145,6 @@ def _check_change_radar_contract_matches(
             shipped.setdefault(owner, set()).add((pat, chan))
     if not shipped:
         return "no skill ships a subscribe line — the change radar vanished"
-    for rel in ("GUIDE.md", "KILAVUZ.md"):
-        # DW-5: the radar bullet is the line that actually ENUMERATES the
-        # radar. Picking the first line carrying the marker phrase let a table
-        # of contents ("See the change radar section") or a prose mention
-        # stand in for the bullet, so the check validated an empty set and
-        # reported every skill as omitted.
-        bullet = next(
-            (ln for ln in _read(rel).splitlines()
-             if any(m in ln for m in _RADAR_MARKERS)
-             and _RADAR_SEGMENT_RE.search(ln)),
-            None)
-        if bullet is None:
-            problems.append(f"{rel}: no change-radar bullet enumerates the "
-                            f"radar (a mention of the phrase is not the bullet)")
-            continue
-        claimed: dict[str, set] = {}
-        for skill, pats, chan in _RADAR_SEGMENT_RE.findall(bullet):
-            claimed.setdefault(skill, set()).update(
-                (p.strip(), chan) for p in pats.split(",") if p.strip())
-        for skill, want in sorted(shipped.items()):
-            got = claimed.get(skill)
-            if got is None:
-                problems.append(f"{rel}: change-radar bullet omits `{skill}`")
-            elif got != want:
-                problems.append(f"{rel}: `{skill}` radar says {sorted(got)} "
-                                f"but the skill ships {sorted(want)}")
-        for skill in sorted(set(claimed) - set(shipped)):
-            problems.append(f"{rel}: change-radar bullet claims `{skill}` "
-                            f"which ships no subscription")
     if declared is None:
         declared = _declared_subscriptions()
     for watcher in sorted(set(declared) | set(shipped)):
@@ -3418,14 +3232,6 @@ def _check_relay_graph_edges_match_declared() -> str | None:
             if r not in _RELATION_VOCAB:
                 problems.append(f"{surface}: relation '{r}' is outside the "
                                 f"documented {'|'.join(_RELATION_VOCAB)} vocabulary")
-    for rel in ("GUIDE.md", "KILAVUZ.md"):
-        bullet = next((ln for ln in _read(rel).splitlines()
-                       if any(m in ln for m in _GRAPH_DOC_MARKERS)), None)
-        if bullet is None:
-            problems.append(f"{rel}: no Graph (relay traceability) bullet found")
-        elif not all(v in bullet for v in _RELATION_VOCAB):
-            problems.append(f"{rel}: Graph bullet does not name every shipped "
-                            f"relation ({_RELATION_VOCAB})")
     return "; ".join(problems) if problems else None
 
 
@@ -4022,7 +3828,6 @@ def _check_audit_inventory_matches_the_shipped_one() -> str | None:
 # and two init-copied docs linked the manifestos as `../bmad/...` — a path init
 # deliberately refuses to build (one of them, `../bmad/usage-guide.md`, the
 # plugin never shipped at all). Nothing measured any of it.
-_SHORTHAND_DOCS = ("README.md", "GUIDE.md", "KILAVUZ.md")
 _TEMPLATE_SHORTHAND_RE = re.compile(
     r"_template_([A-Za-z]+(?:/[A-Za-z]+)*)\s*\+\s*([A-Za-z0-9_./-]+)")
 _TREE_DIR_RE = re.compile(r"[\u251c\u2514]\u2500\u2500\s+([A-Za-z0-9_.-]+)/")
@@ -4096,24 +3901,8 @@ def _template_inventory_problems(root: pathlib.Path) -> list[str]:
     shipped = {p.name for p in (root / "templates").glob("_template_*.md")}
     all_shipped = {p.name for p in (root / "templates").glob("*.md")}
     problems: list[str] = []
-    for rel in _SHORTHAND_DOCS:
-        text = _read_root(root, rel)
-        matches = _TEMPLATE_SHORTHAND_RE.findall(text)
-        if not matches:
-            problems.append(f"{rel}: the templates/ tree comment is gone — the "
-                            "inventory claim cannot be read")
-            continue
-        names: set[str] = set()
-        for families, tail in matches:
-            names |= {f"_template_{fam}.md" for fam in families.split("/")}
-            for token in tail.split("/"):
-                if not any(name.startswith(token) for name in all_shipped):
-                    problems.append(f"{rel}: the templates/ tree comment names "
-                                    f"{token}, which matches no shipped file")
-        if names != shipped:
-            problems.append(
-                f"{rel}: the templates/ tree comment lists {sorted(names)} but "
-                f"the tree ships {sorted(shipped)}")
+    if not shipped:
+        problems.append("templates/ ships no _template_*.md — the inventory is empty")
 
     # CHECK 8 is the only audit that scans templates at all: its scope is derived
     # from TEMPLATE_PAIRS — every `_template_*` pair landing under
@@ -4160,10 +3949,6 @@ def _check_template_inventory_matches_the_shipped_one() -> str | None:
 # runbooks still taught only `Experiment:`, so a writer reading the runbook
 # reached for the wrong home for a specification. Nothing measured the list.
 _AC_CATEGORY_RE = re.compile(r"`(Experiment|Test):")
-_AC_SECTION_ANCHORS = (
-    ("GUIDE.md", "**2. Acceptance Criteria", "**3. Technical Tasks"),
-    ("KILAVUZ.md", "**2. Acceptance Criteria", "**3. Technical Tasks"),
-)
 
 
 def _ac_categories(text: str) -> set[str]:
@@ -4187,22 +3972,6 @@ def _check_story_ac_categories_documented() -> str | None:
                         "expected ['Experiment', 'Test']")
     if "STRUCT" not in template:
         problems.append("the story template no longer names the structural variant (STRUCT)")
-    for rel, start, end in _AC_SECTION_ANCHORS:
-        text = _read(rel)
-        try:
-            section = text[text.index(start):text.index(end, text.index(start))]
-        except ValueError:
-            problems.append(f"{rel}: no acceptance-criteria section between "
-                            f"{start!r} and {end!r}")
-            continue
-        taught = _ac_categories(section)
-        missing, extra = sorted(owner - taught), sorted(taught - owner)
-        if missing or extra:
-            problems.append(f"{rel}: the AC sub-field list teaches {sorted(taught)}, "
-                            f"the template teaches {sorted(owner)}")
-        if "STRUCT" not in section:
-            problems.append(f"{rel}: the Experiment bullet never names the "
-                            "structural variant (STRUCT)")
     return "; ".join(problems) if problems else None
 
 
@@ -5014,8 +4783,7 @@ def _check_external_context_add_command() -> str | None:
                      "metodoloji:add", trust_policy):
         if required not in text:
             problems.append(f"commands/add.md misses {required!r}")
-    for rel in ("README.md", "AGENT-GUIDE.md", "AGENT-GUIDE-TR.md", "GUIDE.md",
-                "KILAVUZ.md", "HERMES.md"):
+    for rel in ("docs/HERMES.md",):
         surface = _read(rel)
         if "/metodoloji:add" not in surface and "/metodoloji-add" not in surface:
             problems.append(f"{rel} does not document the add command")
@@ -5215,7 +4983,6 @@ def build_checks() -> list[tuple[str, Callable[[], str | _SkippedCheck | None]]]
     for rel in STOP_DOCS:
         checks.append((f"Stop described as report-only: {rel}", _check_stop_report_only(rel)))
     checks.append(("stop.py has no deny path", _check_stop_engine_never_denies))
-    checks.append(("docs/CLAUDE.md toml matches config.toml", _check_claude_toml_matches_config))
     checks.append(("config.py comments truthful about stop", _check_config_comment_truthful))
     checks.append(("config.toml comments truthful about stop", _check_config_file_comments_truthful))
     checks.append(("stop_guard has no reader", _check_no_stop_guard_reader))
@@ -5256,14 +5023,10 @@ def build_checks() -> list[tuple[str, Callable[[], str | _SkippedCheck | None]]]
                    _check_version_tag_tests_covered))
     checks.append(("release numbering is absolute and the tag chain obeys it (E-012)",
                    _check_release_numbering_rule))
-    checks.append(("release-numbering repair documented (E-012)",
-                   _check_release_history_documented))
     checks.append(("release-numbering repair covered by tests (E-012)",
                    _check_release_repair_tests_covered))
     checks.append(("release-line boundaries are arithmetic and declarable (E-013)",
                    _check_release_line_boundaries))
-    checks.append(("release-line boundary documented (E-013)",
-                   _check_release_boundary_documented))
     checks.append(("release-line boundary covered by tests (E-013)",
                    _check_release_boundary_tests_covered))
     checks.append(("number written at commit time by committed hooks (E-014)",
@@ -5440,13 +5203,6 @@ def _replace_once(old: str, new: str):
     return mutate
 
 
-def _stale_suite_size():
-    """Replace the first '# N+ tests' floor with an exact, wrong count."""
-    def mutate(text: str) -> str:
-        return re.sub(r"#\s*[\d,]+\+\s+tests", "# 1,331 tests", text, count=1)
-    return mutate
-
-
 def _stale_hook_count():
     """Mutate the pre-commit comment's OWN count word (never a pasted one)."""
     def mutate(text: str) -> str:
@@ -5464,24 +5220,6 @@ def _drop_last_manifest_row():
         lines = text.splitlines(keepends=True)
         idx = max(i for i, line in enumerate(lines) if line.strip())
         return "".join(lines[:idx] + lines[idx + 1:])
-    return mutate
-
-
-def _drop_ac_test_bullet():
-    def mutate(text: str) -> str:
-        return re.sub(r"(?m)^- `Test:`[^\n]*\n", "", text, count=1)
-    return mutate
-
-
-def _drop_map_segment(segment: str):
-    def mutate(text: str) -> str:
-        return re.sub(rf" · {re.escape(segment)}[^\n]*", "", text, count=1)
-    return mutate
-
-
-def _append_ghost_command():
-    def mutate(text: str) -> str:
-        return text + "\n\n```bash\nsh scripts/check-ghost.py\n```\n"
     return mutate
 
 
@@ -5513,27 +5251,12 @@ def _broken_mutations() -> tuple[tuple[str, str, object], ...]:
     """
     stale_skills = _shift_skills_count()
     return (
-        ("README.md", "a stale public skill count", stale_skills),
-        ("CONTRIBUTING.md", "a stale count in the contributor guide", stale_skills),
-        ("docs/CLAUDE.md", "a stale count in the engine summary", stale_skills),
-        ("GUIDE.md", "a stale count in the runbook tree", stale_skills),
-        ("KILAVUZ.md", "a stale count in the Turkish tree", stale_skills),
-        ("HERMES.md", "a stale count in the Hermes port doc", stale_skills),
-        ("docs/OPENCODE.md", "a stale count in the OpenCode port doc", stale_skills),
+        ("docs/OPENCODE.md", "a stale public skill count", stale_skills),
         (".claude-plugin/plugin.json", "a stale count in a shipped manifest", stale_skills),
-        ("README.md", "an exact (stale) suite size", _stale_suite_size()),
-        ("AGENT-GUIDE.md", "a documented command that ships nowhere",
-         _append_ghost_command()),
-        ("GUIDE.md", "a '# map:' missing a shipped audit section",
-         _drop_map_segment("#6h")),
         (".githooks/pre-commit", "a stale count in the hook's own comment",
          _stale_hook_count()),
         ("scripts/check-plugin.sh", "the declaration audit being unhooked",
          _replace_once(" --audit-declarations", "")),
-        ("docs/CLAUDE.md", "a documented gate mode drifting from config",
-         _replace_once('code_guard = "hard"', 'code_guard = "soft"')),
-        ("GUIDE.md", "an AC sub-field list missing the Test category",
-         _drop_ac_test_bullet()),
         (".github/workflows/release-numbers.yml", "a CI step that writes a commit",
          _append_ci_commit()),
         ("skills/skill-manifest.csv", "a skill missing from the inventory",

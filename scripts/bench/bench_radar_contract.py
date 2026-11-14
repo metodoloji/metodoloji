@@ -125,10 +125,9 @@ def _case_foreign_watcher_fails_the_check() -> tuple[bool, str]:
             'subscribe --watcher bmad-x --pattern "prd.*" --channel session\n'
             '`subscribe --watcher bmad-other --pattern "smuggled.*" '
             '--channel session`\n', encoding="utf-8")
-        seg = "`bmad-x` watches `prd.*` (session)"
-        for rel, prefix in (("GUIDE.md", "- change radar: "),
-                            ("KILAVUZ.md", "- değişim radarı: ")):
-            (root / rel).write_text(prefix + seg + "\n", encoding="utf-8")
+        # The runbooks that carried the radar bullet are retired (E-151); the
+        # check now compares the shipped radar to the declared table, so this
+        # trial drives the foreign-watcher rule alone.
         previous = bench.ROOT
         try:
             bench.ROOT = root
