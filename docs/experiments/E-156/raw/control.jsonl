@@ -1,0 +1,3 @@
+{"check": "every shipped bench parses", "ok": true, "detail": "all 42 benches parse"}
+{"check": "every bench import resolves", "ok": false, "detail": "4 bench(es) import a module that does not ship (bench_gate_feasibility.py: ['optimization']; bench_optimization.py: ['optimization']; bench_promotion_integrity.py: ['optimization']…) — they die before measuring anything"}
+{"check": "every CLI bench answers --help", "ok": false, "detail": "bench_gate_feasibility.py: exit 1 (ModuleNotFoundError: No module named 'optimization'); bench_optimization.py: exit 1 (ModuleNotFoundError: No module named 'optimization'); bench_promotion_integrity.py: exit 1 (ModuleNotFoundError: No module named 'optimization')…"}

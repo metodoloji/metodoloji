@@ -116,25 +116,40 @@ def _versions_at(sha: str) -> dict[str, str] | None:
 # --- the probes ---------------------------------------------------------------
 
 def _case_positions(state: dict) -> tuple[bool, str]:
+    """The PUBLISHED run must be contiguous from 0; a shorter tail is legal.
+
+    The owner rule (bench_consistency._check_release_numbering_rule) says the
+    chain "may stop short of HEAD (tags are pushed separately); it may not skip
+    a number in between" (E-013). Requiring HEAD made this probe red on every
+    commit after approval, measuring the absence of a CI run rather than the
+    chain — the E-155 instrument's defect, corrected here (E-157).
+    """
+    published = [state["positions"][sha]
+                 for sha in _release_tags(state["tags"]).values()
+                 if sha in state["positions"]]
+    if not published:
+        return False, "no release tag resolves inside this history"
+    end = max(published)
     missing, misplaced = [], []
-    for position, sha in enumerate(state["shas"]):
+    for position in range(end + 1):
         name = _tag_for(position)
         at = state["tags"].get(name)
         if at is None:
             missing.append(name)
-        elif at != sha:
+        elif at != state["shas"][position]:
             misplaced.append((name, state["positions"].get(at), position))
     if missing or misplaced:
         bits = []
         if missing:
             shown = ", ".join(missing[:3]) + ("…" if len(missing) > 3 else "")
-            bits.append(f"{len(missing)} position(s) unpublished ({shown})")
+            bits.append(f"{len(missing)} gap(s) inside the published run ({shown})")
         if misplaced:
             shown = ", ".join(f"{n} at #{a} not #{w}" for n, a, w in misplaced[:3])
             bits.append(f"{len(misplaced)} misplaced ({shown}"
                         + ("…" if len(misplaced) > 3 else "") + ")")
         return False, "; ".join(bits)
-    return True, f"all {len(state['shas'])} positions carry their rule tag"
+    return True, (f"positions 0..{end} carry their rule tag "
+                  f"({end + 1} published; the tail is legal to leave unpublished)")
 
 
 def _case_containment(state: dict) -> tuple[bool, str]:
@@ -175,25 +190,11 @@ def _case_newest_tree(state: dict) -> tuple[bool, str]:
     return True, f"the newest release {name} holds its own number in all five files"
 
 
-def _case_reaches_head(state: dict) -> tuple[bool, str]:
-    head_position = len(state["shas"]) - 1
-    name = _tag_for(head_position)
-    if state["tags"].get(name) != state["shas"][head_position]:
-        placed = [(state["positions"][sha], n)
-                  for n, sha in _release_tags(state["tags"]).items()
-                  if sha in state["positions"]]
-        newest = max(placed)[1] if placed else "none"
-        return False, (f"the chain stops at {newest} while HEAD (position "
-                       f"{head_position}) owns {name}")
-    return True, f"the chain reaches HEAD at {name}"
-
-
 PROBES = (
-    ("every position carries its rule tag", _case_positions),
+    ("the published run is contiguous and correctly placed", _case_positions),
     ("no release tag points outside this history", _case_containment),
     ("every release tag name is producible by the rule", _case_producible),
     ("the newest release's tree holds its own number", _case_newest_tree),
-    ("the chain reaches HEAD", _case_reaches_head),
 )
 
 

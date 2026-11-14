@@ -22,10 +22,18 @@ def _state(shas, tags):
             "tags": tags}
 
 
-def test_a_position_gap_is_caught():
+def test_a_gap_inside_the_published_run_is_caught():
+    # v0.1.2 is published, so v0.1.1 may not be missing between 0 and 2.
+    state = _state(["a", "b", "c"], {"v0.1.0": "a", "v0.1.2": "c"})
+    ok, detail = bench._case_positions(state)
+    assert not ok and "v0.1.1" in detail
+
+
+def test_stopping_short_of_head_is_legal():
+    # The owner rule allows the chain to lag HEAD; only gaps are defects.
     state = _state(["a", "b", "c"], {"v0.1.0": "a", "v0.1.1": "b"})
     ok, detail = bench._case_positions(state)
-    assert not ok and "v0.1.2" in detail
+    assert ok and "0..1" in detail
 
 
 def test_a_misplaced_tag_is_caught():
@@ -56,12 +64,6 @@ def test_the_newest_release_must_hold_its_number(monkeypatch):
                         lambda sha: {"pyproject.toml": "0.1.1"})
     ok, _ = bench._case_newest_tree(state)
     assert ok
-
-
-def test_the_chain_must_reach_head():
-    state = _state(["a", "b"], {"v0.1.0": "a"})
-    ok, detail = bench._case_reaches_head(state)
-    assert not ok and "v0.1.1" in detail
 
 
 def test_the_live_chain_passes_every_probe():

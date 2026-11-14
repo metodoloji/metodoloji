@@ -1,0 +1,3 @@
+{"check": "every shipped bench parses", "ok": true, "detail": "all 40 benches parse"}
+{"check": "every bench import resolves", "ok": true, "detail": "every non-stdlib import of 40 benches resolves"}
+{"check": "every CLI bench answers --help", "ok": true, "detail": "all 34 CLI benches answer --help"}
