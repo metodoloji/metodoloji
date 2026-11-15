@@ -49,6 +49,13 @@ import tempfile
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BROKEN = False
 
+# This bench's measurement IS other benches' measurements: it runs the six
+# benches E-166 repaired, on the live tree and on the base commit's tree. The
+# runner runs those same six anyway, so it skips this one (E-167). The marker is
+# the declaration `run_all._reruns_other_surfaces` reads — a source-text guess
+# cannot tell a spawn from a docstring.
+META_BENCH = True
+
 _AGG_RE = re.compile(r"^(?P<label>[a-z_]+accuracy)=(?P<rate>[0-9.]+) "
                      r"\((?P<ok>\d+)/(?P<n>\d+)\)\s*$", re.MULTILINE)
 

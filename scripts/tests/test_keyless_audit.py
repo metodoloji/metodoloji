@@ -4,6 +4,11 @@ The defect these tests pin: CI runs `check-plugin.sh` on every PR, and that
 audit exited 1 on any machine without `~/.bmad/gate-key` — every fresh clone and
 every runner. Each probe drives the real script with HOME pointed at an empty
 directory, so the keyless condition is reproduced rather than described.
+
+The tests drive the BENCH's probes, never the audit directly: the audit costs
+~20 s and the bench already caches one run per distinct input (E-167). Spawning
+it here as well measured the same four inputs a second time and was 43% of the
+whole suite's wall clock.
 """
 
 from __future__ import annotations
@@ -24,14 +29,8 @@ AUDIT = pathlib.Path(__file__).resolve().parents[2] / "scripts" / "check-plugin.
 
 
 def _audit_without_key(*extra: str) -> subprocess.CompletedProcess:
-    home = tempfile.mkdtemp(prefix="keyless-test-")
-    env = {**os.environ, "HOME": home, "USERPROFILE": home}
-    env.pop("BMAD_GATE_KEY", None)
-    env.pop("BMAD_PEER_GATE_KEY", None)
-    return subprocess.run(["sh", str(AUDIT), *extra], cwd=str(AUDIT.parents[1]),
-                          capture_output=True, text=True, encoding="utf-8",
-                          errors="replace", timeout=900, stdin=subprocess.DEVNULL,
-                          env=env)
+    """One keyless audit run, shared with the bench's own cache."""
+    return bench._run_audit(bench._tree(), bench._home_without_keys(), *extra)
 
 
 def test_a_missing_key_is_a_warning_not_an_error():
@@ -66,5 +65,6 @@ def test_the_live_tree_passes_every_probe():
 def test_the_control_arm_scores_below_the_claim(monkeypatch):
     monkeypatch.setattr(bench, "BROKEN", True)
     monkeypatch.setattr(bench, "_PREFIX_CACHE", None)
+    monkeypatch.setattr(bench, "_AUDIT_CACHE", {})
     results = bench.run()
     assert sum(1 for r in results if r["ok"]) < len(results)

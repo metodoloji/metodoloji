@@ -59,7 +59,12 @@ jobs:
       - name: Install test runner
         run: python -m pip install --upgrade pip pytest
       - name: Run every shipped bench
-        run: python scripts/bench/run_all.py
+        # E-167: the benches job sits beside the test job, which already runs
+        # `pytest -q`. Two benches measure the whole suite as their own
+        # measurement, so running them here too made one PR run the suite three
+        # times. `--skip-full-suite` drops exactly those (derived from source,
+        # never listed) and the dedicated test job keeps them honest.
+        run: python scripts/bench/run_all.py --skip-full-suite
 
   windows:
     name: Windows Python 3.12 checks

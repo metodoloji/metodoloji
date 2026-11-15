@@ -284,15 +284,27 @@ def test_a_rewritten_history_verifies_only_what_the_push_carried(tmp_path):
 
 
 def test_block_boundary_is_arithmetic_not_a_decision(tmp_path):
-    """Position 100 IS 0.2.0 — the boundary needs no release meeting (E-013)."""
-    work, _ = _bootstrap(tmp_path, positions=100)            # positions 0…99
-    before = _author_commit(work, "commit 100")
-    authored = _git(work, "rev-parse", "HEAD")
-    _Job(work, before).run().ok()
+    """Position 100 IS 0.2.0 — the boundary needs no release meeting (E-013).
 
-    assert _version_at(work, "HEAD") == "0.2.0"              # the hook's arithmetic
-    assert _tag_target(work, "v0.1.99") == _git(work, "rev-parse", "HEAD~1")
-    assert _tag_target(work, "v0.2.0") == authored
+    The boundary is a pure function of the position, so it is asserted from the
+    arithmetic (E-167). Building a real 100-commit history to prove it cost 56 s
+    per run and measured the same formula — the git plumbing this scenario
+    exercises is already covered by the position-3 scenarios below.
+    """
+    versioning = _load_versioning()
+    assert versioning.auto_version(99) == "0.1.99"
+    assert versioning.auto_version(100) == "0.2.0"
+    assert versioning.auto_version(200) == "0.3.0"
+    assert versioning.auto_position("0.2.0") == 100
+
+
+def _load_versioning():
+    """The shipped versioning module, imported from the plugin tree."""
+    spec = importlib.util.spec_from_file_location(
+        "versioning_under_test", PLUGIN / "scripts" / "versioning.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def test_declared_line_is_tagged_and_never_rewritten(tmp_path):

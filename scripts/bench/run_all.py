@@ -69,6 +69,41 @@ def _accepts_samples(path: pathlib.Path) -> bool:
     return "--samples" in path.read_text(encoding="utf-8", errors="replace")
 
 
+def _reruns_other_surfaces(path: pathlib.Path) -> bool:
+    """Whether this bench's measurement is another surface's work.
+
+    Two shapes, both "re-measuring what something else already measured"
+    (E-167):
+
+      * the whole pytest suite — the dedicated test job runs it;
+      * another shipped bench — a meta-instrument that spawns `bench_*.py`
+        re-runs what this runner runs anyway.
+
+    The second shape is declared by the bench itself: a module-level
+    `META_BENCH = True` says "my measurement is other benches' measurements".
+    A source-text guess cannot tell a spawn from a docstring, and the one
+    hand-kept list this repo already rejected (E-039) would rot the same way.
+    The whole-suite shape is derived from source: an interpreter probe
+    (`--version`, `--collect-only`) exits before collection and measures
+    nothing, and a `pytest` with a file target is a scoped run.
+    """
+    text = path.read_text(encoding="utf-8", errors="replace")
+    if re.search(r"^META_BENCH\s*=\s*True\s*$", text, re.MULTILINE):
+        return True
+    for match in re.finditer(r'["\']-m["\'],\s*["\']pytest["\']', text):
+        tail = text[match.end():match.end() + 200]
+        literals = re.findall(r'["\']([^"\']*)["\']', tail)
+        if not literals:
+            continue
+        first = literals[0]
+        if not first.startswith("-"):
+            continue  # a file target was named: a scoped run
+        if first in ("--version", "--collect-only", "--help", "-h"):
+            continue  # an interpreter/collection probe, not a suite run
+        return True
+    return False
+
+
 def run_one(path: pathlib.Path, samples: pathlib.Path) -> dict:
     cmd = [sys.executable, str(path)]
     if _accepts_samples(path):
@@ -106,12 +141,17 @@ def main() -> int:
     ap.add_argument("--only", action="append", default=None,
                     help="run only these bench basenames (repeatable)")
     ap.add_argument("--json", default=None, help="write the per-bench results here")
+    ap.add_argument("--skip-full-suite", action="store_true",
+                    help="skip benches whose measurement is the whole pytest "
+                         "suite (CI's test job already ran it)")
     args = ap.parse_args()
 
     population = benches()
     if args.only:
         wanted = {name if name.endswith(".py") else f"{name}.py" for name in args.only}
         population = [p for p in population if p.name in wanted]
+    if args.skip_full_suite:
+        population = [p for p in population if not _reruns_other_surfaces(p)]
     if args.list:
         for path in population:
             print(path.relative_to(ROOT).as_posix())

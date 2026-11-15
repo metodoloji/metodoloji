@@ -51,6 +51,11 @@ PREFIX_REV = "e18a677"  # the tree this record repairs
 BROKEN = False
 
 _PREFIX_CACHE: pathlib.Path | None = None
+_HOME_CACHE: str | None = None
+# (tree, home, extra-args) -> the completed audit. The audit is a pure function
+# of those three; three probes measured the same keyless invocation, and the
+# pytest binding drove the bench twice more (E-167).
+_AUDIT_CACHE: dict[tuple[str, str, tuple[str, ...]], subprocess.CompletedProcess] = {}
 
 
 def _tree() -> pathlib.Path:
@@ -70,24 +75,47 @@ def _tree() -> pathlib.Path:
 
 
 def _home_without_keys() -> str:
-    """A HOME with no `.bmad` — exactly what a CI runner has."""
-    return tempfile.mkdtemp(prefix="keyless-home-")
+    """A HOME with no `.bmad` — exactly what a CI runner has.
+
+    One directory per process, not per call: every keyless probe measures the
+    SAME empty HOME, so a fresh tempdir per probe bought nothing and made the
+    probes un-cacheable (E-167).
+    """
+    global _HOME_CACHE
+    if _HOME_CACHE is None:
+        _HOME_CACHE = tempfile.mkdtemp(prefix="keyless-home-")
+    return _HOME_CACHE
 
 
 def _run_audit(tree: pathlib.Path, home: str, *extra: str) -> subprocess.CompletedProcess:
+    key = (str(tree), str(home), tuple(extra))
+    cached = _AUDIT_CACHE.get(key)
+    if cached is not None:
+        return cached
     env = {**os.environ, "HOME": home, "USERPROFILE": home}
     env.pop("BMAD_GATE_KEY", None)
     env.pop("BMAD_PEER_GATE_KEY", None)
-    return subprocess.run(["sh", str(tree / AUDIT_REL), *extra], cwd=str(tree),
+    proc = subprocess.run(["sh", str(tree / AUDIT_REL), *extra], cwd=str(tree),
                           capture_output=True, text=True, encoding="utf-8",
                           errors="replace", timeout=900, stdin=subprocess.DEVNULL,
                           env=env)
+    _AUDIT_CACHE[key] = proc
+    return proc
+
+
+def _keyless_audit() -> subprocess.CompletedProcess:
+    """The one keyless audit run three probes read.
+
+    Three probes measure different FACTS about the same invocation, so they
+    share one call site; the cache in `_run_audit` is a second line of defence,
+    not the only one (E-167).
+    """
+    return _run_audit(_tree(), _home_without_keys())
 
 
 def _case_missing_key_is_not_fatal_by_default() -> tuple[bool, str]:
     """A missing key warns; it does not count as a problem."""
-    tree = _tree()
-    proc = _run_audit(tree, _home_without_keys())
+    proc = _keyless_audit()
     out = (proc.stdout or "") + (proc.stderr or "")
     if "gate key MISSING" in out and "[ERROR] gate key MISSING" in out:
         return (False, "a missing gate key is still a hard ERROR by default")
@@ -99,8 +127,7 @@ def _case_missing_key_is_not_fatal_by_default() -> tuple[bool, str]:
 
 def _case_scope_coverage_is_skipped_without_a_key() -> tuple[bool, str]:
     """§3b reports itself unmeasured when no record can verify."""
-    tree = _tree()
-    proc = _run_audit(tree, _home_without_keys())
+    proc = _keyless_audit()
     out = (proc.stdout or "") + (proc.stderr or "")
     if "SKIPPED: no gate key" not in out:
         return (False, "§3b did not announce itself unmeasured without a key")
@@ -112,8 +139,7 @@ def _case_scope_coverage_is_skipped_without_a_key() -> tuple[bool, str]:
 
 def _case_the_audit_passes_with_no_key() -> tuple[bool, str]:
     """The CI condition: a fresh clone with no key must exit 0."""
-    tree = _tree()
-    proc = _run_audit(tree, _home_without_keys())
+    proc = _keyless_audit()
     if proc.returncode != 0:
         tail = " / ".join((proc.stdout or "").strip().splitlines()[-2:])
         return (False, f"exit={proc.returncode} on a keyless machine: {tail}")
