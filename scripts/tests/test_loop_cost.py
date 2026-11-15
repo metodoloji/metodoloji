@@ -42,3 +42,11 @@ def test_ci_does_not_run_the_suite_twice():
 def test_the_boundary_is_not_built_from_commits():
     ok, detail = bench._case_the_boundary_is_not_built_from_commits()
     assert ok, detail
+
+def test_the_control_arm_is_not_rerun_in_pytest():
+    ok, detail = bench._case_the_control_arm_is_not_rerun_in_pytest()
+    assert ok, detail
+
+def test_no_fixture_is_sized_from_an_unpatched_limit():
+    ok, detail = bench._case_no_fixture_is_sized_from_an_unpatched_limit()
+    assert ok, detail

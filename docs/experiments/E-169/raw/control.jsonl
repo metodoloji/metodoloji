@@ -1,0 +1,7 @@
+{"check": "the keyless audit reuses one run", "ok": false, "detail": "2 call sites, 1 distinct shapes"}
+{"check": "the test reuses the bench", "ok": false, "detail": "the test spawns the audit directly 4 time(s); it must call the bench's probes so one run is shared"}
+{"check": "no bench re-measures another surface", "ok": false, "detail": "--skip-full-suite still runs ['bench_consistency.py', 'bench_fixture_repair.py', 'bench_methodology_contract.py'], so the benches job re-runs what the test job or the runner already ran"}
+{"check": "CI does not run the suite twice", "ok": false, "detail": "the benches job does not pass --skip-full-suite, so it re-runs the suite the test job already ran"}
+{"check": "the boundary is not built from commits", "ok": false, "detail": "the boundary test builds a real 100-position history for a value that is a pure function of the position"}
+{"check": "the control arm is not rerun in pytest", "ok": false, "detail": "the pre-fix module drives the audit 7 times, not once"}
+{"check": "no fixture is sized from an unpatched limit", "ok": false, "detail": "2 fixture(s) sized from an unpatched limit: ['test_archive.py (ARCHIVE_MAX_MEMBERS)', 'test_guard.py (MAX_STORY_COUNT)']"}

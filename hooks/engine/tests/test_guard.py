@@ -1843,11 +1843,15 @@ def test_check_duplicate_record_ids_skips_non_record_filenames():
         td.cleanup()
 
 
-def test_validate_methodology_chain_bounds_limits_iterations():
+def test_validate_methodology_chain_bounds_limits_iterations(monkeypatch):
     """Test that _validate_methodology_chain respects MAX_STORY_COUNT bounds (MEDIUM #11)."""
     from modules.guard import _validate_methodology_chain
-    from modules.config import MAX_STORY_COUNT
-    
+    from modules import config
+
+    # The bound is what the test exercises, not its shipped size: patching it
+    # down keeps the same over-limit behaviour without writing 1,100 files.
+    monkeypatch.setattr(config, "MAX_STORY_COUNT", 5)
+
     td = tempfile.TemporaryDirectory()
     root = Path(td.name)
     try:
@@ -1857,8 +1861,8 @@ def test_validate_methodology_chain_bounds_limits_iterations():
         
         story_content = "# Story\nStatus: review\nSP-001"
         
-        # Create MAX_STORY_COUNT + 100 dummy stories (way over limit)
-        for i in range(MAX_STORY_COUNT + 100):
+        # Create MAX_STORY_COUNT + 5 dummy stories (way over the patched limit)
+        for i in range(config.MAX_STORY_COUNT + 5):
             (root / "docs/stories" / f"S-{i:04d}.md").write_text(
                 f"# Story {i}\n", encoding="utf-8")
         

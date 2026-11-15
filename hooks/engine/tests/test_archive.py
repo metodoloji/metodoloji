@@ -174,10 +174,18 @@ def test_tar_missing_archive_conservative():
     assert res == [] or res == ["/"]
 
 
-def test_tar_member_limit(tmp_path):
+def test_tar_member_limit(tmp_path, monkeypatch):
+    """Over the member limit, the scan falls back to the conservative dest.
+
+    The limit is patched to 5 rather than writing 200,005 members: the shipped
+    constant is a bound, and the behaviour under it is the same at any size.
+    Writing the real limit cost 27 s per run to assert one comparison (E-169).
+    """
+    from modules import archive as archive_mod
+    monkeypatch.setattr(archive_mod, "ARCHIVE_MAX_MEMBERS", 5)
     archive = tmp_path / "many.tar"
     with tarfile.open(archive, "w") as tf:
-        for i in range(ARCHIVE_MAX_MEMBERS + 5):
+        for i in range(10):
             info = tarfile.TarInfo(f"f{i}.py")
             info.size = 1
             tf.addfile(info, io.BytesIO(b"x"))

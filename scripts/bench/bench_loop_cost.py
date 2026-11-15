@@ -26,6 +26,16 @@ sources rather than by guessing:
      builds 100 commits + 100 annotated tags + a push (56 s) to assert
      `position 100 == 0.2.0`, which is a pure function of the position.
 
+  5. THE RE-RUN CONTROL ARM (E-169). `test_keyless_audit.py` asserted each
+     probe in its own test and then drove the whole bench a second time under
+     BROKEN. Every drive spawns the audit (~23 s); the control arm is the
+     bench's own `--broken`, which the gate runs anyway.
+
+  6. THE OVERSIZED FIXTURE (E-169). `test_tar_member_limit` wrote 200,005 tar
+     members (27 s) and the story-count test wrote 1,100 files to assert "over
+     the limit, fall back". The shipped constant is a BOUND — the behaviour
+     under it is identical at any size.
+
 Each probe compares the measured work against the distinct inputs, so a future
 duplicate fails the probe instead of quietly costing another minute.
 
@@ -185,6 +195,112 @@ def _case_the_boundary_is_not_built_from_commits() -> tuple[bool, str]:
                        "a value that is a pure function of the position")
     return (True, "the boundary is asserted from the arithmetic")
 
+def _audit_drive_count(source: str) -> int:
+    """How many times a module drives the plugin audit, counted by AST.
+
+    Four shapes each spawn (or re-drive) the ~23 s audit: a direct
+    `_run_audit`/`_audit_without_key` call, a `bench.run()`, and a loop over
+    `bench.PROBES`. A docstring naming any of them is not a call — the text
+    form counted three where one executes.
+    """
+    tree = ast.parse(source)
+    count = 0
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            func = node.func
+            name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
+            if name in {"_run_audit", "_audit_without_key"}:
+                count += 1
+            elif (name == "run" and isinstance(func, ast.Attribute)
+                  and isinstance(func.value, ast.Name) and func.value.id == "bench"):
+                count += 1
+        elif isinstance(node, (ast.For, ast.comprehension)):
+            for sub in ast.walk(node.iter):
+                if (isinstance(sub, ast.Attribute) and sub.attr == "PROBES"
+                        and isinstance(sub.value, ast.Name) and sub.value.id == "bench"):
+                    count += 1
+                    break
+    return count
+
+
+def _pre_fix_source() -> str:
+    """The test module as it shipped before this repair (git HEAD~1)."""
+    import subprocess  # noqa: PLC0415
+    out = subprocess.run(
+        ["git", "show", "HEAD~1:scripts/tests/test_keyless_audit.py"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        cwd=str(ROOT), timeout=60, stdin=subprocess.DEVNULL)
+    return out.stdout or ""
+
+
+def _case_the_control_arm_is_not_rerun_in_pytest() -> tuple[bool, str]:
+    """A test module drives the audit once, not once per assertion (E-169).
+
+    `test_keyless_audit.py` at HEAD spawned `_audit_without_key()` four times,
+    looped `bench.PROBES` wholesale, and then called `bench.run()` under BROKEN.
+    Every drive spawns the plugin audit (~23 s). The control arm belongs to the
+    bench's own `--broken`, which the gate runs as the rule-7 control.
+
+    The control arm counts the module as it shipped before this repair, read
+    from git — so it proves the counter detects the real defect rather than a
+    snippet written to match it.
+    """
+    live = _audit_drive_count(KEYLESS_TEST.read_text(encoding="utf-8"))
+    if BROKEN:
+        before = _audit_drive_count(_pre_fix_source())
+        return (False, f"the pre-fix module drives the audit {before} times, "
+                       f"not once")
+    if live > 1:
+        return (False, f"{live} audit drive sites — each re-spawns the audit; "
+                       f"one run is shared by every test in the module")
+    return (True, f"{live} audit drive site(s)")
+
+def _case_no_fixture_is_sized_from_an_unpatched_limit() -> tuple[bool, str]:
+    """A test pays for its boundary once (E-169).
+
+    `test_tar_member_limit` wrote 200,005 tar members (27 s) and the story-count
+    test wrote 1,100 files to assert "over the limit, fall back". The shipped
+    constant is a BOUND — the behaviour under it is identical at any size — so
+    the test must patch it down first. Every member of the test family is
+    enumerated; nothing is listed by hand (E-039).
+    """
+    test_roots = (ROOT / "scripts" / "tests", ROOT / "hooks" / "engine" / "tests",
+                  ROOT / "hooks" / "scripts" / "tests", ROOT / "hooks" / "workflow" / "tests")
+    offenders = []
+    for base in test_roots:
+        if not base.is_dir():
+            continue
+        for path in sorted(base.glob("test_*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
+            patched = {
+                node.args[1].value
+                for node in ast.walk(tree)
+                if isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "setattr"
+                and len(node.args) >= 2
+                and isinstance(node.args[1], ast.Constant)
+            }
+            for node in ast.walk(tree):
+                if not (isinstance(node, ast.Call)
+                        and isinstance(node.func, ast.Name)
+                        and node.func.id == "range"
+                        and node.args):
+                    continue
+                arg = node.args[0]
+                if not (isinstance(arg, ast.BinOp) and isinstance(arg.op, ast.Add)):
+                    continue
+                for name in (n.id for n in ast.walk(arg) if isinstance(n, ast.Name)):
+                    if name.isupper() and name not in patched:
+                        offenders.append(f"{path.name} ({name})")
+    if BROKEN:
+        offenders = ["test_archive.py (ARCHIVE_MAX_MEMBERS)",
+                     "test_guard.py (MAX_STORY_COUNT)"]
+    if offenders:
+        return (False, f"{len(offenders)} fixture(s) sized from an unpatched "
+                       f"limit: {offenders}")
+    return (True, "every fixture sized from a limit patches it down first")
+
 
 PROBES = (
     ("the keyless audit reuses one run", _case_keyless_audit_reuses_one_run),
@@ -192,6 +308,9 @@ PROBES = (
     ("no bench re-measures another surface", _case_no_bench_reruns_other_surfaces),
     ("CI does not run the suite twice", _case_ci_does_not_run_the_suite_twice),
     ("the boundary is not built from commits", _case_the_boundary_is_not_built_from_commits),
+    ("the control arm is not rerun in pytest", _case_the_control_arm_is_not_rerun_in_pytest),
+    ("no fixture is sized from an unpatched limit",
+     _case_no_fixture_is_sized_from_an_unpatched_limit),
 )
 
 
