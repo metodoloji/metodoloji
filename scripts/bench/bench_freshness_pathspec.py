@@ -32,7 +32,20 @@ import time
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 RAW = ROOT / "docs" / "experiments" / "E-134" / "raw"
-SAMPLES = pathlib.Path(os.environ.get("BENCH_SAMPLES", str(RAW / "samples.jsonl")))
+def _samples_path() -> pathlib.Path:
+    """`--samples <path>` wins, then BENCH_SAMPLES, then the record's own file.
+
+    Reading only the env var made the flag a lie: `run_all.py` passes a temp
+    path so a CI run never rewrites committed evidence, but the bench ignored
+    the value and overwrote its record's samples.jsonl on every sweep (E-168).
+    """
+    for i, arg in enumerate(sys.argv):
+        if arg == "--samples" and i + 1 < len(sys.argv):
+            return pathlib.Path(sys.argv[i + 1])
+        if arg.startswith("--samples="):
+            return pathlib.Path(arg.split("=", 1)[1])
+    return pathlib.Path(os.environ.get("BENCH_SAMPLES", str(RAW / "samples.jsonl")))
+
 
 GATE_DIR = ROOT / "skills" / "bmad-research-experiment" / "scripts"
 ENGINE_DIR = ROOT / "hooks" / "engine"
@@ -129,8 +142,8 @@ def main() -> int:
     rate = waste / n if n else 0.0
 
     if "--samples" in sys.argv and not widen:
-        SAMPLES.parent.mkdir(parents=True, exist_ok=True)
-        with SAMPLES.open("w", encoding="utf-8") as fh:
+        _samples_path().parent.mkdir(parents=True, exist_ok=True)
+        with _samples_path().open("w", encoding="utf-8") as fh:
             for label, _is_waste, _r, _w, _wn, _nn in cells:
                 # H-134 claims the waste: one sample per cell.
                 fh.write(json.dumps({"route": label, "ok": True}) + "\n")

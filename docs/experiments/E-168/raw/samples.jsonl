@@ -1,0 +1,2 @@
+{"check": "every declaring bench reads the value", "ok": true, "detail": "all 41 declaring bench(es) honour the path"}
+{"check": "the default never writes a record", "ok": true, "detail": "every record-writing bench can be redirected by --samples"}

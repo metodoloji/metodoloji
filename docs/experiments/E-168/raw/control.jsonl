@@ -1,0 +1,2 @@
+{"check": "every declaring bench reads the value", "ok": false, "detail": "3 bench(es) declare --samples but ignore its value: ['bench_freshness_pathspec.py', 'bench_freshness_cache.py', 'bench_freshness_budget.py']"}
+{"check": "the default never writes a record", "ok": false, "detail": "3 bench(es) can only write committed evidence: ['bench_freshness_pathspec.py', 'bench_freshness_cache.py', 'bench_freshness_budget.py']"}

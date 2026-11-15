@@ -42,6 +42,17 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 #: once here - a parity run replaced the four budget samples with 131 parity ones, and the
 #: record stopped matching its own declared sha256. BENCH_SAMPLES still overrides.
 def _samples_path(record: str) -> pathlib.Path:
+    """`--samples <path>` wins, then BENCH_SAMPLES, then the record's own file.
+
+    Reading only the env var made the flag a lie: `run_all.py` passes a temp
+    path so a CI run never rewrites committed evidence, but the bench ignored
+    the value and overwrote its record's samples.jsonl on every sweep (E-168).
+    """
+    for i, arg in enumerate(sys.argv):
+        if arg == "--samples" and i + 1 < len(sys.argv):
+            return pathlib.Path(sys.argv[i + 1])
+        if arg.startswith("--samples="):
+            return pathlib.Path(arg.split("=", 1)[1])
     override = os.environ.get("BENCH_SAMPLES")
     if override:
         return pathlib.Path(override)
