@@ -1,0 +1,4 @@
+{"check": "verify re-reads its own seal", "ok": false, "detail": "verify() does not consult evidence_seal — the seal is write-only"}
+{"check": "prose moves, verdicts hold", "ok": true, "detail": "prose edits hold the seal; a flipped verdict breaks it"}
+{"check": "missing evidence is reported", "ok": true, "detail": "a deleted evidence file is reported"}
+{"check": "the audit surfaces drift", "ok": false, "detail": "the audit never reads the drift message — it prints a bare VERIFIED"}

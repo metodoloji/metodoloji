@@ -149,9 +149,12 @@ def _write_minimal_chain(root: Path) -> dict:
         "print('probe_rate=1.00 (20/20)')\n", encoding="utf-8")
     (root / "scripts/bench/probe_broken.py").write_text(
         "import json, pathlib\n"
+        # The control arm must NOT write the measurement's evidence: the record
+        # seals that file's verdicts, so a control that clobbers it makes the
+        # seal describe the wrong run (E-170 caught exactly this in this fixture).
         "raw = pathlib.Path('docs/experiments/E-001/raw')\n"
         "raw.mkdir(parents=True, exist_ok=True)\n"
-        "with (raw / 'samples.jsonl').open('w') as fh:\n"
+        "with (raw / 'control.jsonl').open('w') as fh:\n"
         "    for i in range(20):\n"
         "        fh.write(json.dumps({'i': i, 'ok': False}) + '\\n')\n"
         "print('probe_rate=0.00 (0/20)')\n", encoding="utf-8")

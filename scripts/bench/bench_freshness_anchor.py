@@ -111,7 +111,10 @@ def _case_one_owner() -> tuple[bool, str]:
                 disagree.append(f"{key}: owner={owner} guard={consumer}")
     if disagree:
         return (False, "; ".join(disagree[:4]) + ("…" if len(disagree) > 4 else ""))
-    return (True, f"{len(_records())} record(s): the guard and the owner agree")
+    # The detail is part of the sealed evidence, so it must not embed a live
+    # corpus count: that moves on every new record and makes the seal
+    # unreproducible. State the fact, not the size.
+    return (True, "the guard and the owner agree on every record")
 
 
 def _case_no_born_stale() -> tuple[bool, str]:

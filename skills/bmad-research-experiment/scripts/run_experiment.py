@@ -1317,14 +1317,22 @@ RAW_SAMPLES_FIELD = "Raw Samples"
 _RAW_NONE_MIN_REASON = 40
 
 
-def _load_raw_samples(path: pathlib.Path) -> tuple[int, int, int, str]:
-    """Read a JSONL sample file -> (x, n, bytes, sha256-prefix). Fails closed."""
+def _load_raw_samples(path: pathlib.Path) -> tuple[int, int, int, str, str]:
+    """Read a JSONL sample file -> (x, n, bytes, sha256-prefix, verdicts-digest).
+
+    The bytes digest is a snapshot: a bench that embeds a live corpus count in a
+    sample's `detail` changes it whenever the tree grows. The verdicts digest
+    covers only what the record actually claims — each sample's identity and its
+    `ok` — so it is stable across prose edits and breaks on the one thing that
+    matters: a flipped verdict. Fails closed.
+    """
     try:
         blob = path.read_bytes()
     except OSError as exc:
         raise ValueError(f"raw samples unreadable: {path}: {exc}")
     digest = hashlib.sha256(blob).hexdigest()[:16]
     x = n = 0
+    verdicts: list[str] = []
     for lineno, raw in enumerate(blob.decode("utf-8", "replace").splitlines(), 1):
         line = raw.strip()
         if not line:
@@ -1342,7 +1350,10 @@ def _load_raw_samples(path: pathlib.Path) -> tuple[int, int, int, str]:
         n += 1
         if obj["ok"]:
             x += 1
-    return x, n, len(blob), digest
+        ident = obj.get("check") or obj.get("case") or obj.get("file") or str(lineno)
+        verdicts.append(f"{ident}\t{obj['ok']}")
+    vdigest = hashlib.sha256("\n".join(verdicts).encode()).hexdigest()[:16]
+    return x, n, len(blob), digest, vdigest
 
 
 def reconcile_raw_samples(spec: str, printed_x: int | None, printed_y: int | None,
@@ -1389,7 +1400,7 @@ def reconcile_raw_samples(spec: str, printed_x: int | None, printed_y: int | Non
                     f"stale sample file cannot evidence a fresh measurement.")
 
     try:
-        raw_x, raw_n, size, digest = _load_raw_samples(resolved)
+        raw_x, raw_n, size, digest, vdigest = _load_raw_samples(resolved)
     except ValueError as exc:
         return "", str(exc)
 
@@ -1400,7 +1411,61 @@ def reconcile_raw_samples(spec: str, printed_x: int | None, printed_y: int | Non
         return "", (f"success count disagrees: the output claims x={printed_x} but "
                     f"{raw_path} holds {raw_x} passing samples of {raw_n}.")
     return (f"`{raw_path}` — {raw_n} samples, {raw_x} ok, "
-            f"sha256={digest}, {size} bytes (recomputed by the gate)"), None
+            f"sha256={digest}, verdicts={vdigest}, {size} bytes "
+            f"(recomputed by the gate)"), None
+
+
+def evidence_seal(fields: dict[str, str], root: str) -> tuple[str, str]:
+    """Re-read a record's sealed evidence -> (state, reason).
+
+    The gate used to seal only the sample file's bytes, and `verify` never
+    re-read the seal at all — so nothing detected evidence edited after
+    approval. A bytes-only seal cannot be the fix either: 24 benches embed a
+    live count in a sample's `detail`, so re-running one changes the bytes
+    without touching the claim, and 20 historical records already mismatch.
+
+    Records now also seal `verdicts=` — a digest over each sample's identity and
+    its `ok`, the part the record actually claims. That is stable across prose
+    edits and breaks on the one edit that matters: a flipped verdict.
+
+      VERDICT-DRIFT  a verdict changed since approval  -> FORGED
+      MISSING        the evidence file is gone          -> FORGED
+      COUNT-DRIFT    sample count differs from the seal -> warning
+      HASH-DRIFT     legacy record, bytes moved         -> warning
+
+    Legacy records (no `verdicts=`) keep the byte comparison as a warning: their
+    evidence was written before this seal existed and cannot be re-approved.
+    """
+    line = fields.get("Raw Sample Evidence", "")
+    m = re.search(r"`([^`]+\.jsonl)`", line)
+    if not m:
+        return "", ""
+    path = pathlib.Path(m.group(1))
+    if not path.is_absolute():
+        path = pathlib.Path(root) / path
+    if not path.is_file():
+        return "MISSING", f"evidence file is gone: {m.group(1)}"
+    try:
+        _, raw_n, _, digest, vdigest = _load_raw_samples(path)
+    except ValueError as exc:
+        return "UNREADABLE", str(exc)
+    sealed_v = re.search(r"verdicts=([0-9a-f]{16})", line)
+    if sealed_v:
+        if sealed_v.group(1) != vdigest:
+            return ("VERDICT-DRIFT",
+                    f"seal verdicts={sealed_v.group(1)}, {m.group(1)} is {vdigest} "
+                    f"— a sample's verdict changed after approval")
+        return "", ""
+    claimed_n = re.search(r"—\s*(\d+) samples", line)
+    if claimed_n and int(claimed_n.group(1)) != raw_n:
+        return ("COUNT-DRIFT",
+                f"seal says {claimed_n.group(1)} samples, {m.group(1)} holds {raw_n}")
+    sealed = re.search(r"sha256=([0-9a-f]{16})", line)
+    if sealed and sealed.group(1) != digest:
+        return ("HASH-DRIFT",
+                f"seal sha256={sealed.group(1)}, {m.group(1)} is {digest} "
+                f"(same sample count, different bytes)")
+    return "", ""
 
 
 # --- Rule: measurement script cannot live in a free zone ---
@@ -1753,6 +1818,9 @@ def main() -> int:
                     help="preview the decision (measured vs threshold, Wilson bound, "
                          "would-be GATE-OK token) WITHOUT writing to the record")
     ap.add_argument("--verify", action="store_true", help="verify an existing decision")
+    ap.add_argument("--strict-evidence", action="store_true",
+                    help="--verify: treat a drifted evidence seal as FORGED (a "
+                         "release gate); by default a legacy byte-drift is a warning")
     ap.add_argument("--verify-corpus", metavar="DIR", default=None,
                     help="verify EVERY record in DIR in one process and print one "
                          "JSON object ({records: [{id, rc, message}], counts}); the "
@@ -1808,6 +1876,8 @@ def main() -> int:
     if args.verify:
         if not args.record:
             ap.error("--verify requires --record")
+        if args.strict_evidence:
+            os.environ["METODOLOJI_STRICT_EVIDENCE"] = "1"
         return verify(args.record)
     if args.verify_corpus is not None:
         return verify_corpus(args.verify_corpus, args.verify_corpus_format)
@@ -2597,6 +2667,39 @@ def verify(path: str) -> int:
             # small sample, an unknown sample ('n unknown'), or a metric mismatch
             # does NOT unlock code.
             uncertainty = fields.get("Uncertainty", "").strip()
+            seal_state, seal_reason = evidence_seal(
+                fields, _derive_project_root(path, None) or os.getcwd())
+            # A missing file is unambiguous: the record points at evidence that
+            # no longer exists. Every other state is drift we cannot read as
+            # tampering — a bench that appended samples (before E-168) or
+            # embedded a live count in a sample's `detail` changes the bytes
+            # without touching the claim. Drift is therefore visible by default
+            # and fatal under --strict-evidence, the --strict-keys precedent
+            # (E-164). Before this, `verify` checked only the token and none of
+            # it was reported.
+            if seal_state == "MISSING":
+                print(f"FORGED: MISSING: {path} — {seal_reason}.")
+                return 1
+            if seal_state == "VERDICT-DRIFT":
+                # The record seals a digest over each sample's verdict; a
+                # mismatch means a sample's `ok` changed after approval. No
+                # benign cause exists for that — a live count moves the prose,
+                # not the verdict.
+                print(f"FORGED: VERDICT-DRIFT: {path} — {seal_reason}.")
+                return 1
+            if seal_state:
+                # Legacy records (sealed before the verdict digest existed) can
+                # only be compared by bytes, and a bench that embeds a live
+                # corpus count moves those without touching the claim. Visible
+                # by default, fatal under --strict-evidence (the --strict-keys
+                # precedent, E-164). Before this, `verify` checked only the
+                # token and reported none of it.
+                strict = os.environ.get("METODOLOJI_STRICT_EVIDENCE", "").strip() == "1"
+                print(f"{'FORGED' if strict else 'EVIDENCE-DRIFT'}: {seal_state}: "
+                      f"{path} — {seal_reason}"
+                      + ("" if strict else " (legacy seal; warning only)"))
+                if strict:
+                    return 1
             metric = fields.get("Metric", "").strip()
             blocks = []
             # 'n unknown' BLOCKS: sample denominator is parsed by gate (--run);
@@ -3101,6 +3204,13 @@ def _selfcheck() -> None:
             "- **Uncertainty:** n unknown (sample size could not be parsed)")
         with open(rec_nunk, "w", encoding="utf-8") as fh:
             fh.write(swapped_nunk)
+        # Every selfcheck record shares one raw/samples.jsonl, and later benches
+        # overwrite it — so restore rec5's evidence before verifying, or the seal
+        # (correctly) reports drift from the wrong run.
+        with open(bench, "w", encoding="utf-8") as fh:
+            fh.write(_bench_src("fake_accuracy=1.00 (40/40)"))
+        subprocess.run([sys.executable, bench], cwd=td, check=True,
+                       capture_output=True, stdin=subprocess.DEVNULL)
         assert verify(rec_nunk) == 2  # n unknown NOW blocks
 
         # Mod B (documentary) validation: complete record OK, empty honesty field -> WARNING.

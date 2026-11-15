@@ -1071,6 +1071,19 @@ if [ "$FOUND" -eq 0 ]; then
     echo "[WARNING] no approved experiment — guard keeps code writing closed. Start with bmad-research-experiment."
     echo "        scratch/ can be used for exploration/experimentation code."
 fi
+# E-170: `verify` re-reads the evidence seal and reports drift in its message,
+# but the loop above reads only `rc` — so a record whose samples changed after
+# approval still printed a bare "[OK] VERIFIED". Surface the drift once, from
+# the pass already in memory. Legacy records (sealed before the verdict digest)
+# can drift by bytes alone when a bench embeds a live corpus count, so this is
+# a warning; --strict-keys promotes it, matching every other provenance class.
+EVIDENCE_DRIFT=$(printf '%s\n' "$CORPUS_TSV" | awk -F'\t' '$3 ~ /EVIDENCE-DRIFT|VERDICT-DRIFT/ {print $1}')
+if [ -n "$EVIDENCE_DRIFT" ]; then
+    _n=$(printf '%s\n' "$EVIDENCE_DRIFT" | wc -l | tr -d ' ')
+    echo "[WARNING] $_n record(s) carry evidence that moved after approval: $(echo $EVIDENCE_DRIFT)"
+    echo "        A verdict change is FORGED on its own; a legacy byte-drift means the bench"
+    echo "        embeds a live count. Re-measure the record, or run --strict-evidence."
+fi
 
 echo "== 3b) Code-scope coverage (did every edited file sit inside an approved scope?) =="
 # E-162: the union below is built from records that VERIFY under this machine's
