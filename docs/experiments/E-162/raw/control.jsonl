@@ -1,0 +1,3 @@
+{"check": "CI runs the bench runner", "ok": false, "detail": ".github/workflows/quality.yml does not run scripts/bench/run_all.py — a red bench reaches no job"}
+{"check": "the runner enumerates every bench", "ok": false, "detail": "scripts/bench/run_all.py does not ship"}
+{"check": "a red bench is reported red", "ok": false, "detail": "scripts/bench/run_all.py does not ship"}

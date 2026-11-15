@@ -42,6 +42,25 @@ jobs:
           python scripts/check-triggers.py
           python scripts/external-context.py check --project-root . --strict
 
+  benches:
+    # E-162: 43 benches shipped and this workflow ran exactly one of them, so
+    # four benches stayed red for days after commit 2064fa9 emptied README,
+    # LICENSE and SECURITY. An instrument nobody runs cannot report anything.
+    # The population is derived by glob inside run_all.py, never listed here —
+    # a new bench joins the gate by existing.
+    name: Measurement benches
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install test runner
+        run: python -m pip install --upgrade pip pytest
+      - name: Run every shipped bench
+        run: python scripts/bench/run_all.py
+
   windows:
     name: Windows Python 3.12 checks
     runs-on: windows-latest

@@ -49,6 +49,7 @@ _REPO = pathlib.Path(__file__).resolve().parents[2]
 ROOT = _REPO
 BASELINE = _REPO / "scripts" / "bench" / "fixtures" / "bmad-fold-baseline.json"
 PREFIX_REV = "2a20300"  # the E-148 commit: the last tree that shipped bmad/
+MOVE_REV = "47177ae"    # E-149 itself: the tree on the far side of the move
 
 def _scripts_home() -> pathlib.Path:
     return ROOT / "hooks" / "scripts"          # post-move home
@@ -257,19 +258,70 @@ def _case_no_bmad_tree() -> tuple[bool, str]:
     ok = not (ROOT / "bmad").exists()
     return (ok, "bmad/ is gone" if ok else "bmad/ still exists")
 
+def _archive(rev: str) -> pathlib.Path:
+    """Extract one commit's tree into a temp dir, for a boundary comparison."""
+    import io
+    import tarfile  # noqa: PLC0415 — boundary comparison only
+
+    out = subprocess.run(["git", "-C", str(_REPO), "archive", "--format=tar", rev],
+                         capture_output=True, stdin=subprocess.DEVNULL)
+    if out.returncode != 0:
+        raise RuntimeError(f"cannot archive {rev}: {out.stderr[:200]!r}")
+    dest = pathlib.Path(tempfile.mkdtemp(prefix=f"bmad-{rev[:7]}-"))
+    with tarfile.open(fileobj=io.BytesIO(out.stdout)) as tar:
+        tar.extractall(dest)  # noqa: S202 — our own commit's archive
+    return dest
+
+
+def _capture_in(tree: pathlib.Path) -> dict:
+    """`_capture()` against an arbitrary tree, with its own root normalized.
+
+    The tree lives at a fresh temp path per run, so every digest field that
+    prints the plugin root would differ for a reason that is not the move.
+    """
+    global ROOT
+    was = ROOT
+    ROOT = tree
+    try:
+        data = _capture()
+    finally:
+        ROOT = was
+    text = json.dumps(data, ensure_ascii=False).replace(str(tree), "<root>")
+    return json.loads(text)
+
+
+def _boundary_drift() -> tuple[list[str], list[str], int, int]:
+    """Compare the pre-move reader against the post-move reader, each in its own tree.
+
+    The baseline fixture was captured from PREFIX_REV, so every later commit
+    that legitimately edits a skill (E-150 repointed the activation text at the
+    chain spec) reads as move drift — the instrument rots while measuring
+    nothing. E-149's claim is about the MOVE, and the move happened once,
+    between two commits. Comparing reader-vs-reader on that boundary measures
+    the claim instead of the tree's later history.
+    """
+    pre_tree, post_tree = _archive(PREFIX_REV), _archive(MOVE_REV)
+    before, after = _capture_in(pre_tree), _capture_in(post_tree)
+    _scrub_release_state(before)
+    _scrub_release_state(after)
+    cli_keys = ("orient", "resolve_config_full", "resolve_config_keys",
+                "skeleton_status", "blackboard_doctor", "workflow_list",
+                "workflow_validate")
+    cli_drift = [k for k in cli_keys if before.get(k) != after.get(k)]
+    skills = sorted(set(before.get("skills", {})) & set(after.get("skills", {})))
+    skill_drift = [n for n in skills
+                   if before["skills"][n] != after["skills"][n]]
+    return cli_drift, skill_drift, len(skills), len(cli_keys)
+
+
 def _case_clis_unchanged() -> tuple[bool, str]:
-    """Every CLI reproduces its pre-move output."""
-    want = json.loads(BASELINE.read_text(encoding="utf-8"))
-    _scrub_release_state(want)
-    got = _capture()
-    drift = [k for k in ("orient", "resolve_config_full", "resolve_config_keys",
-                         "skeleton_status", "blackboard_doctor", "workflow_list",
-                         "workflow_validate")
-             if got.get(k) != want.get(k)]
-    skill_drift = [n for n in want["skills"] if got["skills"].get(n) != want["skills"][n]]
-    if drift or skill_drift:
-        return (False, f"CLI drift {drift}; skill drift {skill_drift[:6]}")
-    return (True, f"{len(want['skills'])} skills + 7 CLI surfaces identical")
+    """Every CLI reproduces its pre-move output, measured at the move's boundary."""
+    if BROKEN:
+        return (False, "control does not discriminate: this arm IS the pre-move tree")
+    cli_drift, skill_drift, n_skills, n_cli = _boundary_drift()
+    if cli_drift or skill_drift:
+        return (False, f"CLI drift {cli_drift}; skill drift {skill_drift[:6]}")
+    return (True, f"{n_skills} skills + {n_cli} CLI surfaces identical across the move")
 
 def _case_catalog_path_exists() -> tuple[bool, str]:
     """The digest names the catalog it actually read, and that file exists."""
@@ -305,18 +357,35 @@ def _case_kernel_imports() -> tuple[bool, str]:
     return (True, "hooks.workflow imports; both hook call sites re-pointed")
 
 def _case_shim_resolves() -> tuple[bool, str]:
-    """The engine-side shim reaches the moved canonical resolver, for every skill."""
-    want = json.loads(BASELINE.read_text(encoding="utf-8"))
-    _scrub_release_state(want)
-    shim = ROOT / "hooks" / "engine" / "resolve_customization.py"
-    proj = _project()
-    drift = []
-    for name in want["skills"]:
-        got = _json(shim, "--skill", str(ROOT / "skills" / name),
-                    "--project-root", str(proj), "--key", "workflow")
-        if got != want["skills"][name]:
-            drift.append(name)
-    return (not drift, f"shim resolves all {len(want['skills'])} skills"
+    """The engine-side shim reaches the moved canonical resolver, for every skill.
+
+    Measured at the move's boundary like `_case_clis_unchanged`: the pre-move
+    tree's own reader against the post-move tree's shim, so a later commit that
+    edits a skill's defaults is not counted as move drift.
+    """
+    if BROKEN:
+        return (False, "control does not discriminate: this arm IS the pre-move tree")
+    pre_tree, post_tree = _archive(PREFIX_REV), _archive(MOVE_REV)
+    global ROOT
+    was = ROOT
+    try:
+        ROOT = pre_tree
+        pre = _capture()
+        shim = post_tree / "hooks" / "engine" / "resolve_customization.py"
+        proj = _project()
+        drift = []
+        for name in sorted(pre.get("skills", {})):
+            skill = post_tree / "skills" / name
+            if not (skill / "SKILL.md").is_file():
+                drift.append(f"{name} (gone)")
+                continue
+            got = _json(shim, "--skill", str(skill),
+                        "--project-root", str(proj), "--key", "workflow")
+            if got != pre["skills"][name]:
+                drift.append(name)
+    finally:
+        ROOT = was
+    return (not drift, f"shim resolves all {len(pre.get('skills', {}))} skills"
             if not drift else f"drift via shim: {drift[:6]}")
 
 def _case_tests_moved() -> tuple[bool, str]:

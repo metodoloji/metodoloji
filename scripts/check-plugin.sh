@@ -389,10 +389,22 @@ fi
 echo "== 0) Is the gate key installed? =="
 if "$PY" "$GATE" --check-secret >/dev/null 2>&1; then
     echo "[OK]   gate key present (HMAC — tokens can be produced)"
-else
+elif [ "$STRICT_KEYS" -eq 1 ]; then
     echo "[ERROR] gate key MISSING. Run: $PY $GATE --init-secret"
     echo "       (writes ~/.bmad/gate-key outside the repo; without a key no approval/token can be produced)"
     PROBLEMS=$((PROBLEMS + 1))
+else
+    # E-162: the key lives outside the repo, so a fresh clone — every CI
+    # runner — has none. Without it every approved record reads UNVERIFIABLE,
+    # which this audit already treats as a WARNING (see the STRICT_KEYS note at
+    # the top). Failing hard here made the CI audit step unconditionally red on
+    # a machine that could not have the key, which is the E-157 defect one
+    # surface over: the job measured the absence of an operator secret, not the
+    # plugin. Structure is still audited; only provenance needs the key.
+    echo "[WARN] gate key not installed — tokens cannot be re-derived here, so"
+    echo "       approved records read UNVERIFIABLE (warning by default). The"
+    echo "       structure audits below still run. Install one with:"
+    echo "       $PY $GATE --init-secret   (or --strict-keys to make this fatal)"
 fi
 
 echo "== 0b) Plugin base config carries no project-name leak =="
@@ -987,20 +999,46 @@ $rec_id
             # declared the re-measurement record via the plain 'Re-Measured-By:'
             # marker; that record must verify under this machine's trust ring
             # (own key + imported peer keys — run_experiment.py --import-key).
-            remeasured=$(grep -oE "$RE_MEASURED_MARKER" "$rec" | head -1 | grep -oE 'E-[0-9][0-9]*')
-            rmrec="$PROJECT_ROOT/docs/experiments/$remeasured.md"
+            # A record may be re-measured more than once — once per machine that
+            # lacks the approving key, which is the normal shape in a team. Only
+            # the FIRST marker was read before, so a second re-measurement was
+            # dead text and the record stayed red forever (E-163). Every
+            # declared marker is tried; the record is cured when ANY of them
+            # verifies here, and only an all-unverifiable set is an error.
+            remeasured=""
             rmvrc=3
-            # The re-measurement record is in the SAME corpus pass — no second
-            # spawn, and no second reading of the same file.
-            if [ -n "$remeasured" ] && [ -f "$rmrec" ]; then
-                rmvrc=$(corpus_rc "$remeasured")
-                [ -n "$rmvrc" ] || rmvrc=3
-            fi
+            for _cand in $(grep -oE "$RE_MEASURED_MARKER" "$rec" | grep -oE 'E-[0-9][0-9]*' | sort -u); do
+                _candrec="$PROJECT_ROOT/docs/experiments/$_cand.md"
+                _candrc=3
+                # The re-measurement record is in the SAME corpus pass — no
+                # second spawn, and no second reading of the same file.
+                if [ -f "$_candrec" ]; then
+                    _candrc=$(corpus_rc "$_cand")
+                    [ -n "$_candrc" ] || _candrc=3
+                fi
+                remeasured="$remeasured${remeasured:+, }$_cand"
+                if [ "$_candrc" -eq 0 ] || [ "$_candrc" -eq 2 ]; then
+                    rmvrc=$_candrc
+                    break
+                fi
+                [ "$_candrc" -eq 1 ] && rmvrc=1  # a forged pair stays an error
+            done
             # exit 0 = VERIFIED, exit 2 = ADVISORY-BLOCK (token genuine, small sample —
             # provenance needs genuineness, not code unlock, so both count).
             if [ "$rmvrc" -eq 0 ] || [ "$rmvrc" -eq 2 ]; then
                 echo "[WARN] $rec -> CROSS-MACHINE: approved under a key outside this machine's trust ring (keys live outside the repo, tokens are not re-derivable here by design)."
                 echo "       Re-measured by $remeasured -> VERIFIED under this machine's trust ring. Gate fields untouched. (Key-free alternative: import the approving machine's key, run_experiment.py --import-key.)"
+            elif [ "$STRICT_KEYS" -eq 0 ] && [ "$rmvrc" -ne 1 ] && [ -n "$remeasured" ]; then
+                # E-162: on a machine with no gate key — a fresh clone, every CI
+                # runner — NO token re-derives, so a declared re-measurement
+                # reads UNVERIFIABLE (rc 3) for the same reason the record it
+                # cures does. That is the cross-machine class this audit calls a
+                # WARNING by default; escalating it to an error made the corpus
+                # fail on exactly the machines that cannot hold the key, while
+                # --strict-keys still catches a genuinely broken pair. A missing
+                # or FORGED (rc 1) re-measurement record stays an error.
+                echo "[WARN] $rec -> CROSS-MACHINE: approved under a key outside this machine's trust ring."
+                echo "       Declared re-measurement $remeasured is itself UNVERIFIABLE here (no key in this ring) — the same class, not a new fault. Install the approving key or use --strict-keys."
             else
                 echo "[ERROR] $rec -> CROSS-MACHINE but re-measurement missing/unverified: $remeasured."
                 echo "        Two cures: import the approving machine's key (run_experiment.py --import-key;"
@@ -1035,6 +1073,19 @@ if [ "$FOUND" -eq 0 ]; then
 fi
 
 echo "== 3b) Code-scope coverage (did every edited file sit inside an approved scope?) =="
+# E-162: the union below is built from records that VERIFY under this machine's
+# key ring. On a machine with no key at all — a fresh clone, every CI runner —
+# no record verifies, so the union is empty and every genuinely-approved file
+# reads as a MISS: the check would report the absence of an operator secret as a
+# scope violation. There is no scope claim to audit without provenance, so the
+# section reports itself unmeasured instead of inventing 1..N problems. With a
+# key present (the operator's machine, --strict-keys in a release job) it runs
+# exactly as before.
+if ! "$PY" "$GATE" --check-secret >/dev/null 2>&1 && [ "$STRICT_KEYS" -eq 0 ]; then
+    echo "  SKIPPED: no gate key in this ring — no record can verify, so no"
+    echo "           approved scope is in force to measure against. The section"
+    echo "           runs on any machine holding the key (or under --strict-keys)."
+else
 # Paths ride ARGV (bash converts MSYS /c/... to Windows paths for native
 # python — heredoc TEXT gets no such conversion, so in-script $PROJECT_ROOT
 # would resolve to a nonexistent /c/... directory).
@@ -1224,9 +1275,18 @@ with (_fr.batch() if _fr is not None else contextlib.nullcontext()):
 # dogfood's first real run of this check produced 34 MISS lines that were
 # mostly not code. Mirror the guard; a non-code target is out of scope.
 noncode = 0
+deleted = 0
 for f in edited:
     checked += 1
     norm = f.replace("\\", "/")
+    # A DELETED file is not a write: the diff-since-adoption set includes every
+    # path a removal touched, and asking a deletion to sit inside an approved
+    # scope is a claim the guard never makes (it gates writes, and a deletion
+    # removes the target). E-149's bmad/ retirement left six such paths in this
+    # section forever, which is what kept CI's audit red on a clean tree (E-162).
+    if not (PLUGIN / norm).exists():
+        deleted += 1
+        continue
     covered = any(gate.scope_matches(sv, norm) for _rid, sv in scopes)
     if covered:
         continue
@@ -1239,7 +1299,8 @@ for f in edited:
 
 print(f"  baseline: {_baseline}")
 print(f"  free-surface doctrine: {_FREE_SRC}")
-print(f"  edited files checked: {checked} ({noncode} non-code target(s) skipped)")
+print(f"  edited files checked: {checked} ({noncode} non-code target(s) skipped, "
+      f"{deleted} deleted path(s) skipped)")
 print(f"  approved scopes in force: {len(scopes)}")
 for rid, why in stale_scopes[:10]:
     print(f"  [STALE] {rid} — {why}; its scope "
@@ -1261,6 +1322,7 @@ else
     echo "[WARNING] scope coverage: edited files outside every approved Code Scope (see MISS lines)"
     PROBLEMS=$((PROBLEMS + 1))
 fi
+fi  # end of the gate-key guard (E-162)
 
 echo "== 4) Documentary (B/C/D) record completeness =="
 DOCPROBLEMS=0

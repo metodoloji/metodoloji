@@ -1,0 +1,4 @@
+{"check": "a missing key is not fatal by default", "ok": true, "detail": "a missing key warns and does not fail the audit"}
+{"check": "scope coverage skips without a key", "ok": true, "detail": "§3b reports itself unmeasured and names no MISS"}
+{"check": "the audit passes with no key", "ok": true, "detail": "the audit exits 0 with no gate key"}
+{"check": "the audit still passes with a key", "ok": true, "detail": "the audit exits 0 with a key and §3b still runs"}

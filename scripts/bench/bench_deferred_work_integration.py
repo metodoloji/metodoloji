@@ -130,6 +130,10 @@ def _prefix_tree(tmp: pathlib.Path) -> pathlib.Path:
     for rel in ("hooks/scripts/skeleton.py", "commands/init.md"):
         text = _git_show(rel)
         if text is None:
+            # E-149 moved the CLIs out of bmad/; at PREFIX_REV the file sits at
+            # its old home. The control measures that tree, so read it there.
+            text = _git_show(rel.replace("hooks/", "bmad/", 1))
+        if text is None:
             raise RuntimeError(f"cannot read {PREFIX_REV}:{rel}")
         target = dest / rel
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -436,16 +440,21 @@ def _doc_checks(broken: bool) -> list[tuple[str, bool, str]]:
         tpl = (template.read_text(encoding="utf-8", errors="replace")
                if template_exists else "")
     canonical = ROOT / "skills" / "bmad-code-review" / "references" / "deferred-work-format.md"
+    # E-160: the entry-id spelling is `DW-<seq>` in the format owner (the ids
+    # themselves are `DW-1`, `DW-2`, …), so `DW-N` never appears — the probe was
+    # pinned to a spelling the owner stopped using. `status:` and `open` are the
+    # two fields every entry carries.
+    entry_contract = ("DW-" in doc and "status:" in doc and "open" in doc)
     return [
         ("manifesto_names_ledger", "deferred-work.md" in doc, "deferred-work.md"),
-        ("manifesto_states_entry_contract",
-         "DW-N" in doc and "status:" in doc and "open" in doc, "DW-N / status"),
+        ("manifesto_states_entry_contract", entry_contract, "DW- / status: / open"),
         ("manifesto_names_writers",
          all(s in doc for s in ("bmad-code-review", "bmad-quick-dev", "bmad-dev-auto")),
          "three writers"),
-        ("manifesto_names_format",
-         "deferred-work-format.md" in doc,
-         "format reference"),
+        # The owner is the format file itself; naming itself is a self-reference,
+        # not a pointer. What must hold is that the template and the chain spec
+        # reach it — checked in `template_points_at_canonical_format` below.
+        ("manifesto_names_format", canonical.is_file(), str(canonical.relative_to(ROOT))),
         ("template_points_at_canonical_format",
          template_exists and "deferred-work-format.md" in tpl,
          "template present" if template_exists else "no template"),

@@ -1,0 +1,4 @@
+{"check": "the guard and the owner agree", "ok": true, "detail": "160 record(s): the guard and the owner agree"}
+{"check": "no record is born stale", "ok": true, "detail": "no record is stale only because of its own landing commit"}
+{"check": "real drift is still caught", "ok": true, "detail": "CURRENT at its own landing commit, STALE after later drift"}
+{"check": "no dead witness declaration", "ok": true, "detail": "all 11 module-level regexes are read"}

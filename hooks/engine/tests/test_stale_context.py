@@ -344,19 +344,31 @@ def test_quality_gate_reports_the_freshness_row(repo, monkeypatch):
 
 
 def test_quality_gate_blocks_when_the_operator_asked_for_deny(repo, monkeypatch):
-    """`[hooks] freshness = deny` turns the same row into a block."""
+    """`[hooks] freshness = deny` turns the same row into a block.
+
+    Both halves, because a row that always denies is as useless as one that
+    never does. The fixture's `E-900` (scope `src/**`) is genuinely STALE — its
+    record was committed before `src/a.py` moved, and the derived witness dates
+    it to that commit (E-160: the guard no longer reads only the Witness line,
+    so a record without one still gets a real anchor). `E-901` (scope `lib/**`)
+    did not move and must not block.
+    """
     from modules import guard as guard_mod
     monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(repo))
     monkeypatch.delenv("OPENHANDS_PROJECT_DIR", raising=False)
     monkeypatch.setattr(fr, "blocks", lambda verdict: str(verdict).upper() == fr.STALE)
-    stale = guard_mod._freshness_chain_row(str(repo), "git commit blocked")
-    # The fixture records carry no Witness line, so the row is UNKNOWN-only and
-    # nothing blocks; with a STALE verdict it would deny. Pin both halves.
-    assert stale["decision"] == "allow"
+    assert fr.annotate(str(repo), "E-900")["verdict"] == fr.STALE
+    assert fr.annotate(str(repo), "E-901")["verdict"] == fr.CURRENT
+    # A CURRENT-only corpus must not block.
     monkeypatch.setattr(guard_mod, "_record_freshness",
-                        lambda root, rec: {"verdict": fr.STALE, "reason": "moved",
-                                           "changed": ["src/a.py"], "age_s": 1.0,
-                                           "commit": "deadbeef", "record": "E-900.md"})
+                        lambda root, rec: {"verdict": fr.CURRENT, "reason": "unchanged",
+                                           "changed": [], "age_s": 1.0,
+                                           "commit": "deadbeef", "record": "E-901.md"})
+    assert guard_mod._freshness_chain_row(str(repo), "git commit allowed")["decision"] == "allow"
+    monkeypatch.undo()
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(repo))
+    monkeypatch.delenv("OPENHANDS_PROJECT_DIR", raising=False)
+    monkeypatch.setattr(fr, "blocks", lambda verdict: str(verdict).upper() == fr.STALE)
     blocked = guard_mod._freshness_chain_row(str(repo), "git commit blocked")
     assert blocked["decision"] == "deny" and "freshness denies" in blocked["reason"]
 

@@ -192,6 +192,20 @@ BASE_TEMPLATE = f"""# Technical Debt Tracking
 
 ### Current State
 - **Total active debt:** [X items]
+  - P0 (Critical): [X items]
+  - P1 (High): [X items]
+  - P2 (Medium): [X items]
+  - P3 (Low): [X items]
+
+### Sprint Allocation
+- **Debt paid in the last 3 sprints:** [X items]
+
+### Trend
+```
+Sprint              | New Debt | Paid Debt | Net Change | Total Debt
+--------------------|----------|-----------|------------|------------
+[SP-NNN]            | [X]      | [Y]       | [Z]        | [W]
+```
 
 ## Notes
 
@@ -220,6 +234,20 @@ BASE_LIVE = f"""# Technical Debt Tracking
 
 ### Current State
 - **Total active debt:** 1 item
+  - P0 (Critical): 1 item
+  - P1 (High): 0 items
+  - P2 (Medium): 0 items
+  - P3 (Low): 0 items
+
+### Sprint Allocation
+- **Debt paid in the last 3 sprints:** 0 items
+
+### Trend
+```
+Sprint              | New Debt | Paid Debt | Net Change | Total Debt
+--------------------|----------|-----------|------------|------------
+SP-015              | 1        | 1         | 0          | 1
+```
 
 ## Notes
 

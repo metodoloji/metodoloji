@@ -127,14 +127,18 @@ _REMOVED_REFS = ("run-promptfoo", "evals/promptfoo")
 # count sentences) lives in three docs. Those claims are hand-maintained and had
 # drifted in four independent ways when this rule was written.
 # The reader-facing inventory lived in README, which ships empty (2064fa9).
-_AUDIT_INVENTORY_DOCS = ()
-_AUDIT_BLOCK_ANCHORS = ()
-_AUDIT_COUNT_CLAIMS = ()
+# E-160 restored README (and LICENSE/SECURITY) and re-armed these tuples: E-152
+# had emptied them to match the emptied file, so the audit inventory was checked
+# against nothing and the four red removal benches went unseen. The retired
+# runbooks (GUIDE/KILAVUZ) stay out by design — README is the one live surface.
+_AUDIT_INVENTORY_DOCS = ("README.md",)
+_AUDIT_BLOCK_ANCHORS = (("README.md", "## Verify your install"),)
+_AUDIT_COUNT_CLAIMS = (("README.md", r"[Tt]he (\w+) checks\b"),)
 # The verify blocks also state how big the suite is. An EXACT number rots on
 # every test-adding commit (measured 2026-10-15: README claimed 1,331 while the
 # suite collected 1,443 — stale by 112 with nothing noticing), so the honest
 # form is a floor, and the floor is what gets measured.
-_AUDIT_TEST_COUNT_BLOCKS = ()
+_AUDIT_TEST_COUNT_BLOCKS = (("README.md", "## Verify your install"),)
 _TEST_COUNT_RE = re.compile(r"#\s*([\d,]+)(\+?)\s+tests?\b")
 _AUDIT_COUNT_SPLIT_RE = re.compile(
     r"pytest \+ (\d+) static checks? \+ handoff lint|pytest \+ (\d+) statik check \+ handoff lint")

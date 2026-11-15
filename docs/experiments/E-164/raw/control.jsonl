@@ -1,0 +1,4 @@
+{"check": "a missing key is not fatal by default", "ok": false, "detail": "a missing gate key is still a hard ERROR by default"}
+{"check": "scope coverage skips without a key", "ok": false, "detail": "§3b did not announce itself unmeasured without a key"}
+{"check": "the audit passes with no key", "ok": false, "detail": "exit=1 on a keyless machine:  / STATUS: 28 problems found"}
+{"check": "the audit still passes with a key", "ok": false, "detail": "exit=1 on the keyed machine:  / STATUS: 2 problems found"}

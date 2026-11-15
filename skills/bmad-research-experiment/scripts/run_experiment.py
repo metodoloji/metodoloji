@@ -740,8 +740,6 @@ def hypothesis_claim(hypothesis: str) -> tuple[str, str]:
 # forgery, exactly like editing the measurement command.
 WITNESS_FIELD = "Witness"
 WITNESS_COMMIT_RE = re.compile(r"commit=([0-9a-f]{7,40}|none)")
-WITNESS_TREE_RE = re.compile(r"tree=([0-9a-f]{4,64}|none)")
-WITNESS_SCOPE_RE = re.compile(r"scope=([0-9a-f]{4,64}|none)")
 
 
 def _freshness_module():

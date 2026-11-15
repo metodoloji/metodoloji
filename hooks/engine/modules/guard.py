@@ -683,28 +683,27 @@ def _record_freshness(root: str, rec_path: str) -> dict | None:
     second answer from the record's own Witness commit + Code Scope (and from a
     Re-Measured-By declaration, which is a supersede). Returns None when the
     plane is switched off or the gate is unreachable — fail-open, never block.
+
+    The anchor is decided by `freshness.annotate` — the plane's ONE owner of
+    "what dates this claim" (E-160). This used to re-implement it by hand from
+    the Witness line alone, which disagreed with the owner on 41 of 155 shipped
+    records and counted each record's own landing commit as drift, so every
+    record read STALE at birth and `freshness = deny` could never be enabled.
     """
     try:
         from . import freshness as fr
-        if not fr.enabled() or not _load_gate() or gate is None:
+        if not fr.enabled():
             return None
         path = pathlib.Path(rec_path)
-        text = path.read_text(encoding="utf-8", errors="replace")
-        try:
-            commit = gate.witness_commit(text)
-        except Exception:
-            commit = ""
-        verdict, detail = fr.classify(root, commit=commit,
-                                      scope=record_scope_cached(rec_path),
-                                      run_key=path.stem)
+        ann = fr.annotate(root, path.stem)
         age_s = None
         try:
             age_s = max(0.0, time.time() - path.stat().st_mtime)
         except OSError:
             pass
-        return {"verdict": verdict, "reason": detail.get("reason", ""),
-                "changed": detail.get("changed", []), "age_s": age_s,
-                "commit": commit, "record": path.name}
+        return {"verdict": ann["verdict"], "reason": ann["reason"],
+                "changed": ann["changed"], "age_s": age_s,
+                "commit": ann.get("commit", ""), "record": path.name}
     except Exception:
         return None
 

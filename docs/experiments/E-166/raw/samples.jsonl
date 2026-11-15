@@ -1,0 +1,3 @@
+{"check": "the population is intact", "ok": true, "detail": "all 6 members ship and were repaired"}
+{"check": "every repaired bench is green", "ok": true, "detail": "all 6 repaired bench(es) read 1.00"}
+{"check": "the pre-repair source was red", "ok": true, "detail": "6 of 6 were red before the repair: ['bench_bmad_fold.py (bmad_retirement_accuracy=0.78 (7/9))', 'bench_bridge_fold.py (bridge_fold_accuracy=0.75 (3/4))', 'bench_config_consolidation.py (config_equivalence_accuracy=0.50 (3/6))', 'bench_deferred_work_integration.py (deferred_work_integration_accuracy=0.93 (28/30))', 'bench_loop_removal.py (loop_removal_accuracy=0.82 (9/11))', 'bench_techdebt_reporting.py (techdebt_reporting_accuracy=0.57 (4/7))']"}

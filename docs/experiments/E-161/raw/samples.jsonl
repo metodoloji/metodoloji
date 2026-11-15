@@ -1,0 +1,4 @@
+{"check": "reader-facing files carry content", "ok": true, "detail": "3 reader-facing file(s) carry content"}
+{"check": "a license claim matches LICENSE", "ok": true, "detail": "4 license claim(s) agree with LICENSE"}
+{"check": "no shipped check is vacuously satisfiable", "ok": true, "detail": "4 audit tuple(s) name 4 document(s), all shipped"}
+{"check": "the live tree passes every probe", "ok": true, "detail": "3 reader-facing file(s) carry content; 4 audit tuple(s) name 4 document(s), all shipped"}

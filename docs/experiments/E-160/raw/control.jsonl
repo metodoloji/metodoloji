@@ -1,0 +1,4 @@
+{"check": "the guard and the owner agree", "ok": false, "detail": "E-001: owner=STALE guard=UNKNOWN; E-002: owner=STALE guard=UNKNOWN; E-003: owner=STALE guard=UNKNOWN; E-004: owner=STALE guard=UNKNOWN…"}
+{"check": "no record is born stale", "ok": false, "detail": "4 record(s) stale with nothing moved after their own landing commit: ['E-133', 'E-156', 'E-157', 'E-159']"}
+{"check": "real drift is still caught", "ok": true, "detail": "CURRENT at its own landing commit, STALE after later drift"}
+{"check": "no dead witness declaration", "ok": true, "detail": "all 11 module-level regexes are read"}

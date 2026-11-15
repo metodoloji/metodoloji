@@ -34,6 +34,8 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 RESOLVER = ROOT / "hooks" / "scripts" / "resolve_customization.py"
 BASELINE = ROOT / "scripts" / "bench" / "fixtures" / "bridge-fold-baseline.json"
 PREFIX_REV = "a3a9891"  # the E-147 commit: the last tree that shipped custom/
+PRE_FOLD_REV = "a3a9891"  # the tree BEFORE the E-148 fold
+FOLD_REV = "2a20300"     # the commit that landed the fold (E-148)
 
 BROKEN = False
 
@@ -53,6 +55,19 @@ def _resolve(script: pathlib.Path, skill: pathlib.Path, *extra: str) -> dict | N
         return json.loads(r.stdout)
     except json.JSONDecodeError:
         return None
+
+def _resolve_at(script: pathlib.Path, skill: pathlib.Path, cwd: pathlib.Path) -> dict | None:
+    """Resolve inside a tree, so the reader sees THAT tree's skills and config."""
+    r = subprocess.run(
+        [sys.executable, str(script), "--skill", str(skill)],
+        capture_output=True, text=True, encoding="utf-8", stdin=subprocess.DEVNULL,
+        timeout=60, cwd=str(cwd))
+    if r.returncode != 0:
+        return {"__error__": r.returncode, "stderr": r.stderr[:200]}
+    try:
+        return json.loads(r.stdout)
+    except json.JSONDecodeError:
+        return {"__error__": "not JSON", "stdout": r.stdout[:200]}
 
 
 def _prefix_resolver() -> pathlib.Path:
@@ -75,22 +90,45 @@ def _case_no_custom_dir() -> tuple[bool, str]:
 
 
 def _case_every_skill_unchanged() -> tuple[bool, str]:
-    """Every skill resolves to exactly its pre-fold output."""
-    script = _prefix_resolver() if BROKEN else RESOLVER
-    want = _baseline()["skills"]
-    drift = []
-    for name, expected in sorted(want.items()):
-        got = _resolve(script, ROOT / "skills" / name)
-        if got != expected:
-            drift.append(name)
+    """Every skill resolves to exactly its pre-fold output.
+
+    The comparison is reader-vs-reader ON THE FOLD'S OWN BOUNDARY: the pre-fold
+    resolver against the pre-fold tree, the post-fold resolver against the
+    post-fold tree. A frozen fixture would instead compare today's tree against
+    today's readers, so every later commit that legitimately edits a skill
+    (E-150/E-151 repointed the activation text at the chain spec) reads as fold
+    drift — the instrument would rot while measuring nothing. The claim E-148
+    made is about the fold, and the fold happened once, between two commits.
+    """
     if BROKEN:
         # Not discriminating by design: the fold is value-preserving, so the old
         # reader (which reads the same skill defaults) reproduces it exactly. The
         # control bites in cases 1 and 4; this case is asserted here only so the
         # control arm cannot claim a pass it did not measure.
         return (False, "control does not discriminate: the fold is value-preserving")
+    with tempfile.TemporaryDirectory() as td:
+        base = pathlib.Path(td)
+        pre, post = base / "pre", base / "post"
+        for dest, rev in ((pre, PRE_FOLD_REV), (post, FOLD_REV)):
+            dest.mkdir(parents=True, exist_ok=True)
+            out = subprocess.run(["git", "-C", str(ROOT), "archive", rev],
+                                 capture_output=True, stdin=subprocess.DEVNULL)
+            if out.returncode != 0:
+                return (False, f"cannot archive {rev}: {out.stderr[:120]!r}")
+            subprocess.run(["tar", "-x", "-C", str(dest)], input=out.stdout, check=True)
+        old_reader = base / "pre_fold_resolver.py"
+        # One line on purpose: the retired-tree probe strips `git … "show"` lines,
+        # so the historical path must sit on the same line as the invocation.
+        old_reader.write_text(subprocess.run(["git", "-C", str(ROOT), "show", f"{PRE_FOLD_REV}:bmad/scripts/resolve_customization.py"], capture_output=True, text=True, encoding="utf-8", stdin=subprocess.DEVNULL).stdout, encoding="utf-8")
+        new_reader = post / "hooks" / "engine" / "resolve_customization.py"
+        drift = []
+        for skill in sorted(p for p in (pre / "skills").iterdir() if p.is_dir()):
+            before = _resolve_at(old_reader, pre / "skills" / skill.name, pre)
+            after = _resolve_at(new_reader, post / "skills" / skill.name, post)
+            if before != after:
+                drift.append(skill.name)
     ok = not drift
-    return (ok, f"{len(want)} skills identical" if ok
+    return (ok, "every skill identical across the fold" if ok
             else f"{len(drift)} skill(s) drifted: {drift[:6]}")
 
 

@@ -136,8 +136,18 @@ def main() -> int:
         rc = 0
         output = ""
     else:
+        # The suite must run under an interpreter that HAS pytest: this bench is
+        # often started by a bare `python3` (the CI runner, the gate), and a
+        # missing module would read as 0/83 rather than as "not measurable"
+        # (E-162). `bench_consistency` already owns that resolution.
+        try:
+            sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+            from bench_consistency import _pytest_interpreter  # noqa: PLC0415
+            python = _pytest_interpreter() or sys.executable
+        except Exception:
+            python = sys.executable
         proc = subprocess.run(
-            [sys.executable, "-m", "pytest", "-q", "--tb=no", "-p", "no:cacheprovider"],
+            [python, "-m", "pytest", "-q", "--tb=no", "-p", "no:cacheprovider"],
             cwd=str(ROOT), capture_output=True, text=True, encoding="utf-8",
             errors="replace", timeout=measurement_timeout(),
             stdin=subprocess.DEVNULL,

@@ -674,7 +674,7 @@ def annotate(root: str, run_key: str, *, stored: dict | None = None,
     return {"verdict": verdict, "reason": detail.get("reason", ""),
             "age_s": age_s, "changed": detail.get("changed", []),
             "changed_count": len(detail.get("changed", [])),
-            "run_key": run_key, "anchor": anchor,
+            "run_key": run_key, "anchor": anchor, "commit": commit,
             "superseded_by": detail.get("superseded_by")}
 
 

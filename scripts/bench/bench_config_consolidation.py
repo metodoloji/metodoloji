@@ -201,8 +201,13 @@ def _case_retired_files_are_inert() -> tuple[bool, str]:
         hostile = ('[core]\nproject_name = "retired-probe"\n'
                    '[hooks]\ncode_guard = "soft"\nquality_gate = "soft"\n')
         for rel in RETIRED_PATHS:
-            (plugin / rel).write_text(hostile, encoding="utf-8")
-            (project / rel).write_text(hostile, encoding="utf-8")
+            # The retired trees are gone from the live repo, so the probe has to
+            # create their parents before planting the hostile copy — a bare
+            # write_text raised FileNotFoundError and read as a failed check
+            # rather than as the plant it is (E-160).
+            for root in (plugin, project):
+                (root / rel).parent.mkdir(parents=True, exist_ok=True)
+                (root / rel).write_text(hostile, encoding="utf-8")
         (plugin / "config.toml").write_text(
             '[core]\nproject_name = "owner-probe"\n[hooks]\ncode_guard = "hard"\n',
             encoding="utf-8")

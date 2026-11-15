@@ -1,0 +1,4 @@
+{"check": "reader-facing files carry content", "ok": false, "detail": "zero-byte or missing: ['README.md', 'LICENSE', 'SECURITY.md']"}
+{"check": "a license claim matches LICENSE", "ok": false, "detail": ".claude-plugin/plugin.json declares 'MIT', LICENSE does not say it; .plugin/plugin.json declares 'MIT', LICENSE does not say it; .opencode-plugin/plugin.json declares 'MIT', LICENSE does not say it"}
+{"check": "no shipped check is vacuously satisfiable", "ok": false, "detail": "empty population (checks nothing): ['_AUDIT_INVENTORY_DOCS', '_AUDIT_BLOCK_ANCHORS', '_AUDIT_COUNT_CLAIMS', '_AUDIT_TEST_COUNT_BLOCKS']"}
+{"check": "the live tree passes every probe", "ok": true, "detail": "3 reader-facing file(s) carry content; 4 audit tuple(s) name 4 document(s), all shipped"}

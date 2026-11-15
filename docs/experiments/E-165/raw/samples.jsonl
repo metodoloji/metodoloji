@@ -1,0 +1,2 @@
+{"check": "every consumed key is produced", "ok": true, "detail": "every key the consumers index (9 produced) is returned"}
+{"check": "the live annotate carries the contract", "ok": true, "detail": "annotate(E-001) carries all 4 consumed key(s)"}

@@ -38,13 +38,18 @@ _PHANTOM = ROOT / "skills" / "bmad-loop-sweep" / "SKILL.md"
 # The format's new owner, and every surface that must point at it.
 FORMAT = ROOT / "skills" / "bmad-code-review" / "references" / "deferred-work-format.md"
 FORMAT_REL = "skills/bmad-code-review/references/deferred-work-format.md"
+# E-139 made the remedy actionable: the commit gate and the methodology audit
+# name the OWNER'S CLI (`deferred-work.py --migrate`) rather than the doc path,
+# because a reader acts on the script and only cites the doc. Either spelling
+# resolves to the one owner, so either satisfies the probe. The format file
+# itself is not a pointer to itself — listing it was a vacuous self-reference.
 POINTERS = (
     "templates/deferred-work.md",
-    "skills/bmad-code-review/references/deferred-work-format.md",
     "hooks/engine/modules/quality_gate.py",
     "scripts/check-methodology.sh",
     "scripts/bench/bench_deferred_work_integration.py",
 )
+_OWNER_SPELLINGS = ("deferred-work-format.md", "deferred-work.py")
 
 _CATALOGS = (
     "skills/skill-manifest.csv",
@@ -138,7 +143,7 @@ def _case_pointers_agree() -> tuple[bool, str]:
     misses = []
     for rel in POINTERS:
         text = (ROOT / rel).read_text(encoding="utf-8")
-        if FORMAT_REL not in text and "deferred-work-format.md" not in text:
+        if not any(spelling in text for spelling in _OWNER_SPELLINGS):
             misses.append(rel)
     return (not misses, f"pointers missing: {misses}" if misses else f"{len(POINTERS)} pointers agree")
 

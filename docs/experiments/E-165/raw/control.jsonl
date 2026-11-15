@@ -1,0 +1,2 @@
+{"check": "every consumed key is produced", "ok": false, "detail": "a consumer indexes a key annotate does not return: 'commit' read by scope_gate.py:fresh['commit']"}
+{"check": "the live annotate carries the contract", "ok": false, "detail": "annotate(E-001) omits ['commit']"}
