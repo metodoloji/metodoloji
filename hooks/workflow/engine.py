@@ -326,10 +326,19 @@ def history(project_root: str, slug: str, limit: int = 50) -> dict:
 # --- mutation -----------------------------------------------------------------
 
 def flag(project_root: str, slug: str, key: str, value: str) -> dict:
-    """Set a branch flag a conditional edge reads (e.g. regressed=true)."""
+    """Set a branch flag a conditional edge reads (e.g. regressed=true).
+
+    A finished run has no edge left to read one, so accepting the write would
+    report success for a value nothing consumes — the silent half of the
+    deploy-branch defect (the other half was `resume` on a completed run).
+    """
     state, _ = load(project_root, slug)
     if not state:
         return _missing_or_corrupt(project_root, slug)
+    if state.get("status") == "completed":
+        return _fail(f"workflow '{slug}' is completed — '{key}' would be read by "
+                     f"no transition; set a branch flag before the stage that "
+                     f"reads it")
     flags = dict(state.get("flags", {}))
     flags[key] = str(value)
     state["flags"] = flags
@@ -346,6 +355,13 @@ def complete(project_root: str, slug: str, stage_id: str, *,
         return _missing_or_corrupt(project_root, slug)
     if not spec:
         return _fail(f"spec for '{slug}' is missing — cannot advance")
+    if state.get("status") == "completed":
+        # `resume` cannot help here: a finished run has no current stage, and the
+        # old "resume/force first" advice sent the operator to a command that
+        # returned `current: None`. Name the remedy that exists.
+        return _fail(f"workflow '{slug}' is completed — a finished run has no "
+                     f"stage to advance; the next run is opened with `create`, "
+                     f"or `create --force` re-opens this one")
     if state.get("status") != "active":
         return _fail(f"workflow '{slug}' is {state.get('status')}; resume/force first")
 
@@ -472,9 +488,22 @@ def block(project_root: str, slug: str, reason: str) -> dict:
 
 
 def resume(project_root: str, slug: str) -> dict:
+    """Lift a block — and nothing else.
+
+    A `completed` run has no current stage to return to, so "resuming" it left
+    `current: None` and every later `complete` refused with "not the current
+    stage 'None'". That was the shape a run reached by finishing without a
+    branch flag it should have carried (`deploy` set after quality-review), and
+    the refusal it produced named an escape hatch that did not work. A
+    finished run is a finished run: the operator starts the next one, or
+    `create --force` re-opens this one.
+    """
     state, _ = load(project_root, slug)
     if not state:
         return _missing_or_corrupt(project_root, slug)
+    if state.get("status") == "completed":
+        return _fail(f"workflow '{slug}' is completed — start a new run, or "
+                     f"`create --force` to re-open this one")
     state["status"] = "active"
     state["blocked"] = None
     state.setdefault("history", []).append(

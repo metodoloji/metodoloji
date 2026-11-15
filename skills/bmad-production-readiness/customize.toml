@@ -23,7 +23,7 @@ persistent_facts = [
 
 # Post-activation steps (run after main workflow)
 activation_steps_append = [
-  "KERNEL: Declare the deploy branch before the release (`python3 {metodoloji-root}/hooks/scripts/workflow.py flag --slug S-<sira> --key deploy --value true --project-root {project-root}`), and after the PR record reaches ready/deployed advance it (`complete --stage production-readiness`). Without the flag the run ends at quality-review.",
+  "KERNEL: The deploy branch is declared BEFORE quality-review completes — by bmad-quality-record / bmad-code-review, from the QR's Next step. Check where the run stands: `python3 {metodoloji-root}/hooks/scripts/workflow.py status --slug S-<sira> --project-root {project-root}`. At stage `production-readiness`, advance it once the PR record is ready/deployed: `python3 {metodoloji-root}/hooks/scripts/workflow.py complete --slug S-<sira> --stage production-readiness --project-root {project-root}`. A run already `completed` means the branch was never declared: say so plainly — the PR record still stands on its own, but the kernel run did not pass through this stage, and it cannot be reopened from here (re-drive it with `create --force` only if the chain itself must be re-proven).",
   "Link every PR item to its quality record (QR-XXX) under docs/quality-records/ whose status is APPROVED. Quality claims without an approved, measured QR are marked as unverified — do not certify them as production-ready.",
 ]
 

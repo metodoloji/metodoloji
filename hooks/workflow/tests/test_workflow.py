@@ -2011,3 +2011,42 @@ def test_create_refuses_a_declared_artifact_outside_the_root(tmp_path):
     assert not list((root / ".metodoloji" / "workflow" / "specs").glob("*.json"))
     # ... and an in-root pointer is still accepted (no over-refusal).
     assert engine.create(str(root), _artifact_field_spec("docs/notes.md"))["ok"] is True
+
+
+# --- a finished run cannot be steered ---------------------------------------
+
+def _drive_to_completion(root: str) -> None:
+    engine.create(root, _spec())
+    _write(Path(root) / "log.md", "A1\n")
+    engine.complete(root, "demo", "a")
+    engine.complete(root, "demo", "b", note="b")
+    engine.complete(root, "demo", "c", note="c")
+
+def test_flag_on_a_completed_run_is_refused(tmp_path):
+    """A flag written after the run ended would change an edge already taken.
+
+    This is the shape the deploy branch reached: quality-review completes, the
+    run goes to `done`, and the PR stage's producer then sets `deploy=true` —
+    accepted, reported `ok`, and read by nothing.
+    """
+    root = str(tmp_path)
+    _drive_to_completion(root)
+    got = engine.flag(root, "demo", "deploy", "true")
+    assert got["ok"] is False
+    assert "completed" in got["error"] and "deploy" in got["error"]
+
+def test_resume_on_a_completed_run_is_refused(tmp_path):
+    """`resume` lifts a block; a finished run has no current stage to return to."""
+    root = str(tmp_path)
+    _drive_to_completion(root)
+    got = engine.resume(root, "demo")
+    assert got["ok"] is False and "completed" in got["error"]
+    assert engine.status(root, "demo")["status"] == "completed"
+
+def test_complete_on_a_completed_run_names_a_working_remedy(tmp_path):
+    """The old message said "resume/force first" — and `resume` did not work."""
+    root = str(tmp_path)
+    _drive_to_completion(root)
+    got = engine.complete(root, "demo", "c", note="again")
+    assert got["ok"] is False and "completed" in got["error"]
+    assert "resume/force first" not in got["error"]

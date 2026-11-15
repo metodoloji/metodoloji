@@ -244,3 +244,58 @@ def test_a_conforming_chain_completes_end_to_end(tmp_path, monkeypatch):
     state = engine.status(str(tmp_path), "S-001")
     assert state["status"] == "completed"
     assert state["current"] is None
+
+
+# --- the tier policy and the chain must agree -------------------------------
+
+def _tier_story(root: Path, tier: int) -> None:
+    """The smallest story record the gate's identity lookup accepts."""
+    (root / "docs" / "development" / "stories").mkdir(parents=True, exist_ok=True)
+    (root / "docs" / "experiments").mkdir(parents=True, exist_ok=True)
+    (root / "docs" / "development" / "stories" / "S-001.md").write_text(
+        "---\nstory_key: S-001\n---\n\n# Story: S-001 — probe\n\n"
+        f"- **Status:** review\n- **Rigor Tier:** {tier}\n",
+        encoding="utf-8")
+
+def test_a_tier_1_story_clears_the_experiment_stage_without_refs(tmp_path):
+    """Tier 1 is the documented no-measurement path (trivial/doc/hotfix).
+
+    The chain's first stage used to demand `experiment_refs` from every story,
+    so a story declaring Tier 1 — which the guard's orphan rule and the README's
+    tier table both exempt — could never open a run: the kernel asked for the
+    record the policy says it does not need.
+    """
+    _tier_story(tmp_path, 1)
+    proc = _run_gate(tmp_path, "experiment", "S-001")
+    assert proc.returncode == 0, proc.stdout
+    assert "Tier 1" in proc.stdout
+
+def test_a_tier_2_story_still_needs_its_experiment(tmp_path):
+    """The exemption is Tier 1 only — the tier is read from the story itself."""
+    _tier_story(tmp_path, 2)
+    proc = _run_gate(tmp_path, "experiment", "S-001")
+    assert proc.returncode == 1
+    assert "no experiment_refs" in proc.stdout
+
+def test_a_tier_1_release_completes_without_an_experiment_or_a_pr(tmp_path):
+    """The whole Tier 1 path closes: E stage on the tier, PR stage on the tier.
+
+    Both gates used to demand a record the policy exempts, so a Tier 1 release
+    that declared `deploy=true` stopped at the first stage and, had it passed,
+    again at production readiness. This walks the documented Tier 1 order
+    (experiment → story → quality-review → production-readiness) to `completed`.
+    """
+    _tier_story(tmp_path, 1)
+    (tmp_path / "docs" / "quality").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "docs" / "quality" / "QR-001.md").write_text(
+        "| Field | Value |\n|-------|-------|\n| Story | S-001 |\n"
+        "| Status | APPROVED |\n\n- **Story:** S-001\n- **Status:** APPROVED\n",
+        encoding="utf-8")
+    for stage in ("experiment", "story", "quality-review"):
+        proc = _run_gate(tmp_path, stage, "S-001")
+        assert proc.returncode == 0, f"{stage}: {proc.stdout}"
+    # `_run_gate` calls the gate directly; the PR stage's tier branch is what
+    # this asserts, so the kernel is not needed to reach it.
+    proc = _run_gate(tmp_path, "production-readiness", "S-001")
+    assert proc.returncode == 0, proc.stdout
+    assert "Tier 1" in proc.stdout

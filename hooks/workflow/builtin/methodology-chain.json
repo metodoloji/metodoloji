@@ -9,10 +9,11 @@
     {
       "id": "experiment",
       "title": "E: Research Experiment",
-      "goal": "The story's experiment references verify on this machine's trust ring.",
+      "goal": "The story's experiment references verify on this machine's trust ring. A story declaring Rigor Tier 1 has no measured basis by policy, so its record alone proves this stage.",
       "actions": [
         "Create docs/experiments/E-*.md and run the measurement gate",
-        "Reference the approved ids from the story's experiment_refs"
+        "Reference the approved ids from the story's experiment_refs",
+        "Rigor Tier 1 (trivial/doc/hotfix): no experiment reference is required"
       ],
       "evidence": {
         "kind": "command",
@@ -107,8 +108,9 @@
       "id": "production-readiness",
       "title": "PR: Production Readiness",
       "requires": ["quality-review"],
-      "goal": "The PR record naming this story passes the schema check.",
-      "actions": [ "Create docs/development/PR-*.md and confirm rollback" ],
+      "goal": "The PR record naming this story passes the schema check. Tier 1/2 stories skip the PR record by policy (the deploy guard's min_tier=3), so their tier declaration alone proves this stage.",
+      "actions": [ "Create docs/development/PR-*.md and confirm rollback",
+                   "Tier 1/2: no PR record is required — the story's tier proves this stage" ],
       "evidence": {
         "kind": "command",
         "argv": ["{python}", "{metodoloji-root}/hooks/scripts/chain-gate.py",

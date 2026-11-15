@@ -1132,8 +1132,9 @@ def test_activation_compliance_rule_is_wired_and_audited():
     assert "2b) activation_steps_append compliance frame" in text, (
         "check-custom.sh lost its §2b activation compliance-frame audit"
     )
-    assert re.search(r"total_stages = 4", text), (
-        "check-custom.sh must declare 4 negtest stages (incl. the §2b stage)"
+    assert re.search(r"total_stages = 7", text), (
+        "check-custom.sh must declare 7 negtest stages (incl. the §2b stage, the "
+        "kernel pointer, the unrunnable placeholder and the undeclared branch)"
     )
     assert "bare workflow step" in text, (
         "§2b no longer names the violation it reports"

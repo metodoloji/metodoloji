@@ -56,7 +56,7 @@ toml = PLUGIN / "skills" / "bmad-dev-story" / "customize.toml"
 KEYWORDS = ("APPROVED", "REJECTED", "FORGED", "VERIFIED", "ONAYLANDI", "REDDEDİLDİ")
 # Single source of truth for the stage count (E-026): the three banners and the
 # closing line below all read it, and the bench pins it to the stages that exist.
-total_stages = 4
+total_stages = 7
 
 orig_toml = toml.read_text(encoding="utf-8")
 
@@ -176,6 +176,92 @@ if not has_bare_activation_error(injected_bmb):
     print("[ERROR] negative test 4 failed: §2b logic did not catch a bare activation step")
     sys.exit(1)
 print(f"[OK]   negative test 4/{total_stages}: bare workflow step injected → §2b MISS caught → TOML restored")
+
+# ---- Test 5: §1 a run-owning surface that lost its kernel pointer ----
+# The chain spec declares the ORDER; workflow.py is what opens and advances a
+# run. A surface that names only the spec describes the chain and never drives
+# it, so the stage can look owned and stay unreachable.
+cr = PLUGIN / "skills" / "bmad-code-review" / "customize.toml"
+orig_cr = cr.read_text(encoding="utf-8")
+
+def has_no_kernel_error(text: str) -> bool:
+    cr.write_text(text, encoding="utf-8")
+    try:
+        r = subprocess.run(
+            ["sh", str(PLUGIN / "scripts" / "check-custom.sh")],
+            capture_output=True, text=True, encoding="utf-8", timeout=30)
+        return any("never names the kernel" in line for line in r.stdout.splitlines())
+    finally:
+        cr.write_text(orig_cr, encoding="utf-8")
+
+if has_no_kernel_error(orig_cr):
+    print("[ERROR] kernel-pointer error visible even in the intact TOML — test setup broken")
+    sys.exit(1)
+broken_cr = orig_cr.replace("hooks/scripts/workflow.py", "hooks/scripts/not-the-kernel.py")
+if broken_cr == orig_cr:
+    print("[ERROR] could not break the kernel pointer — test setup broken")
+    sys.exit(1)
+if not has_no_kernel_error(broken_cr):
+    print("[ERROR] negative test 5 failed: §1 did not catch a run owner without the kernel")
+    sys.exit(1)
+print(f"[OK]   negative test 5/{total_stages}: kernel pointer removed → §1 MISS caught → TOML restored")
+
+# ---- Test 6: §7 a shipped command the shell cannot run ----
+# `--flag tier=<1|2|3>` is a redirect and a pipe to sh: the copy runs three
+# commands or none, and the run is created with a tier no edge matches.
+def has_unrunnable_placeholder_error(text: str) -> bool:
+    toml.write_text(text, encoding="utf-8")
+    try:
+        r = subprocess.run(
+            ["sh", str(PLUGIN / "scripts" / "check-custom.sh")],
+            capture_output=True, text=True, encoding="utf-8", timeout=30)
+        return any("shell cannot run" in line for line in r.stdout.splitlines())
+    finally:
+        toml.write_text(orig_toml, encoding="utf-8")
+
+if has_unrunnable_placeholder_error(orig_toml):
+    print("[ERROR] placeholder error visible even in the intact TOML — test setup broken")
+    sys.exit(1)
+broken_toml = orig_toml.replace(
+    "activation_steps_append = [",
+    'activation_steps_append = [\n  "Run workflow.py create --flag tier=<1|2|3> '
+    '--slug S-001 --project-root {project-root}.",', 1)
+if broken_toml == orig_toml:
+    print("[ERROR] could not inject a placeholder flag — test setup broken")
+    sys.exit(1)
+if not has_unrunnable_placeholder_error(broken_toml):
+    print("[ERROR] negative test 6 failed: §7 did not catch an unrunnable placeholder")
+    sys.exit(1)
+print(f"[OK]   negative test 6/{total_stages}: shell placeholder injected → §7 MISS caught → TOML restored")
+
+# ---- Test 7: §7 a branch declared by a surface that cannot reach it ----
+# The deploy edge is read when quality-review completes; a producer that
+# advances that stage without naming the flag sends the run to `done`.
+qr = PLUGIN / "skills" / "bmad-quality-record" / "customize.toml"
+orig_qr = qr.read_text(encoding="utf-8")
+
+def has_undeclared_branch_error(text: str) -> bool:
+    qr.write_text(text, encoding="utf-8")
+    try:
+        r = subprocess.run(
+            ["sh", str(PLUGIN / "scripts" / "check-custom.sh")],
+            capture_output=True, text=True, encoding="utf-8", timeout=30)
+        return any("without declaring the 'deploy' branch" in line
+                   for line in r.stdout.splitlines())
+    finally:
+        qr.write_text(orig_qr, encoding="utf-8")
+
+if has_undeclared_branch_error(orig_qr):
+    print("[ERROR] branch error visible even in the intact TOML — test setup broken")
+    sys.exit(1)
+broken_qr = orig_qr.replace("--key deploy --value true", "--key other --value true")
+if broken_qr == orig_qr:
+    print("[ERROR] could not drop the deploy declaration — test setup broken")
+    sys.exit(1)
+if not has_undeclared_branch_error(broken_qr):
+    print("[ERROR] negative test 7 failed: §7 did not catch an undeclared branch")
+    sys.exit(1)
+print(f"[OK]   negative test 7/{total_stages}: deploy declaration dropped → §7 MISS caught → TOML restored")
 print(f"[OK]   all {total_stages} negtest stages successful")
 sys.exit(0)
 PY
@@ -254,6 +340,17 @@ DEV_WING = {
     "bmad-retrospective", "bmad-correct-course", "bmad-sprint-status",
 }
 
+# Surfaces that own a methodology-chain stage. The chain spec declares the
+# ORDER; `workflow.py` is the only thing that opens or advances a run. A surface
+# that names the spec but never the kernel can describe the chain and never
+# drive it — the gap this list closes, measured instead of remembered.
+RUN_OWNERS = {
+    "bmad-create-story", "bmad-dev-story", "bmad-dev-auto", "bmad-quick-dev",
+    "bmad-code-review", "bmad-quality-record", "bmad-sprint-planning",
+    "bmad-check-implementation-readiness", "bmad-production-readiness",
+    "bmad-workflow",
+}
+
 problems = []
 checked = 0
 for path in sorted(glob.glob(os.path.join(PLUGIN, "skills", "*", "customize.toml"))):
@@ -278,6 +375,18 @@ for path in sorted(glob.glob(os.path.join(PLUGIN, "skills", "*", "customize.toml
             problems.append("%s: no chain spec pointer (DEV wing)" % name)
         elif not any("hooks/workflow/builtin/methodology-chain.json" in x for x in facts):
             problems.append("%s: chain spec pointer not plugin-canonical ({metodoloji-root})" % name)
+    if name in RUN_OWNERS:
+        # The spec declares the order; the kernel is what opens and advances a
+        # run. A surface that reads only the spec describes the chain and never
+        # drives it, so a stage can look owned and stay unreachable.
+        text = ""
+        for rel in ("customize.toml", "SKILL.md"):
+            f = os.path.join(os.path.dirname(path), rel)
+            if os.path.isfile(f):
+                text += open(f, encoding="utf-8").read()
+        if "hooks/scripts/workflow.py" not in text:
+            problems.append("%s: owns a chain stage but never names the kernel "
+                            "(hooks/scripts/workflow.py)" % name)
 
 print("  checked: %d" % checked)
 for p in problems:
@@ -624,7 +733,13 @@ if not os.path.isfile(SPEC):
     print("  [ERROR] chain spec missing: %s" % SPEC)
     sys.exit(1)
 with open(SPEC, encoding="utf-8") as f:
-    stage_ids = {st["id"] for st in json.load(f)["stages"]}
+    _spec = json.load(f)
+stage_ids = {st["id"] for st in _spec["stages"]}
+# Every conditional edge is a branch the producing surface must declare BEFORE
+# the source stage completes: the edge consumes the flag, so a flag set after
+# the transition is read by nothing (the deploy branch reached exactly this).
+branch_keys = {st["id"]: {e["when"]["key"] for e in st.get("next", []) if e.get("when")}
+               for st in _spec["stages"]}
 shipped = {os.path.basename(p) for p in
            glob.glob(os.path.join(PLUGIN, "templates", "_template_*.md"))}
 
@@ -639,10 +754,24 @@ for path in SURFACES:
             text = f.read()
     except OSError:
         continue
+    rel = os.path.relpath(path, PLUGIN).replace(os.sep, "/")
+    # A conditional edge consumes its flag when it is taken, so the surface that
+    # advances the source stage must declare the branch first. Naming the stage
+    # and not the flag is how the deploy branch became unreachable: quality-review
+    # completed, the run went to `done`, and the PR producer's flag arrived after
+    # the only edge that reads it. Checked before the record filter below: a
+    # KERNEL line need not mention a record path to own a stage.
+    for stage in set(re.findall(r"--stage\s+([a-z-]+)", text)):
+        for key in branch_keys.get(stage, ()):
+            # A branch is declared at create (`--flag tier=1`) or later
+            # (`--key deploy --value true`); both spellings put the key in the text.
+            if not re.search(r"--(?:key|flag)\s+%s\b" % re.escape(key), text):
+                problems.append("%s: advances '%s' without declaring the '%s' "
+                                "branch its conditional edge reads"
+                                % (rel, stage, key))
     if "docs/development/" not in text and "docs/quality/QR" not in text:
         continue
     checked += 1
-    rel = os.path.relpath(path, PLUGIN).replace(os.sep, "/")
     if re.search(r"\{metodoloji-root\}/(docs/bmad|docs/methodology\.md)"
                  r"|docs/(bmad|methodology)[A-Za-z0-9_./-]*\.md", text):
         problems.append("%s: still points at a retired methodology doc" % rel)
@@ -652,6 +781,14 @@ for path in SURFACES:
     for stage in set(re.findall(r"--stage\s+([a-z-]+)", text)):
         if stage not in stage_ids:
             problems.append("%s: names stage '%s', not in the chain spec" % (rel, stage))
+    # A shipped command is copied, not read: an alternation or angle-bracket
+    # placeholder inside a `--flag`/`--stage` value is a pipe and a redirect to
+    # the shell, so the copy runs three commands or none (the observed failure:
+    # `--flag tier=<1|2|3>` created a run whose tier no edge matched).
+    if re.search(r"--flag\s+\w+=[^\s`\"']*[<>|]", text) or \
+       re.search(r"--stage\s+[a-z-]+\|", text):
+        problems.append("%s: a --flag/--stage example carries a placeholder the "
+                        "shell cannot run (alternation or angle brackets)" % rel)
 
 print("  checked record surfaces: %d" % checked)
 for p in problems:

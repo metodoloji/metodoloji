@@ -108,7 +108,7 @@ Execute each entry in `{workflow.activation_steps_prepend}` in order.
 
 ### Step 4: Load Persistent Facts
 
-Treat every entry in `{workflow.persistent_facts}` as foundational context. Entries prefixed `file:` are paths/globs under `{project-root}` — load the referenced contents as facts. The chain spec (`{metodoloji-root}/hooks/workflow/builtin/methodology-chain.json`) is the most important fact of this skill: **read it fully before proceeding.**
+Treat every entry in `{workflow.persistent_facts}` as foundational context. Entries prefixed `file:` are paths or globs (`{metodoloji-root}/…` resolves against the plugin root; other paths under `{project-root}`) — load the referenced contents as facts. The chain spec (`{metodoloji-root}/hooks/workflow/builtin/methodology-chain.json`) is the most important fact of this skill: **read it fully before proceeding.**
 
 ### Step 5: Load Config
 

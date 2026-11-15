@@ -134,14 +134,30 @@ def _sprint(root: pathlib.Path) -> pathlib.Path | None:
 # --- stage gates --------------------------------------------------------------
 
 def _gate_experiment(root: pathlib.Path) -> int:
-    """Every experiment the story's ACs claim must verify on this trust ring."""
+    """Every experiment the story's ACs claim must verify on this trust ring.
+
+    Tier 1 is the one documented exception: a trivial/doc/hotfix story has no
+    measured basis by policy (`config.story_rigor_tier`, README "Rigor tiers"),
+    and the write guard already allows a Tier 1 orphan story. Demanding
+    `experiment_refs` here made the policy unreachable — the chain's first stage
+    asked for the record the tier says it does not need. The tier is read from
+    the story itself, the same source `story_quality` and the guard read, so a
+    run's `--flag tier=1` cannot loosen a Tier 3 story's gate. The code guard is
+    untouched: Tier 1 exempts the RECORD, never the approval a code write needs.
+    """
     from hooks.engine.modules import story_records
+    from hooks.engine.modules.config import story_rigor_tier
     story = _story(root)
     if story is None:
         return _cannot(f"no story record for '{_SLUG}' — the run has no identity")
+    text = _read(story)
     ids = sorted({str(r.get("id", "")).strip()
-                  for r in story_records._parse_experiment_refs(_read(story))} - {""})
+                  for r in story_records._parse_experiment_refs(text)} - {""})
     if not ids:
+        if story_rigor_tier(text) == 1:
+            print(f"experiment: {story.name} declares Rigor Tier 1 — no "
+                  f"experiment reference required")
+            return 0
         return _say(f"{story.name} declares no experiment_refs — a story with no "
                     f"measured basis has no chain to enter")
     verifier = (_ROOT / "skills" / "bmad-research-experiment" / "scripts"
@@ -251,9 +267,23 @@ def _gate_qr(root: pathlib.Path) -> int:
 
 
 def _gate_pr(root: pathlib.Path) -> int:
+    """A PR record names this story — or the story is Tier 1/2.
+
+    The deploy guard skips the PR requirement for Tier 1/2
+    (`story_quality._find_done_stories_without_pr`, `min_tier=3`), so demanding
+    it here made the same policy unreachable the experiment stage did: a Tier 1
+    release that declared `deploy=true` reached this stage and could not clear
+    it without a record the tier says it does not need.
+    """
+    from hooks.engine.modules.config import story_rigor_tier
     story = _story(root)
     if story is None:
         return _cannot(f"no story record for '{_SLUG}'")
+    tier = story_rigor_tier(_read(story))
+    if tier < 3:
+        print(f"production-readiness: {story.name} declares Rigor Tier {tier} — "
+              f"no PR record required")
+        return 0
     for path in sorted((root / "docs" / "development").glob("PR-*.md")):
         if story.stem in _read(path):
             return _check(root, "pr", [path])
