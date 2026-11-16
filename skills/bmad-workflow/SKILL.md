@@ -74,8 +74,8 @@ replace-then-append, other arrays append. Missing files are skipped.
 ### Step 3: Prepend, Facts, Config, Greet, Append
 
 Execute `{workflow.activation_steps_prepend}` in order, load every `{workflow.persistent_facts}`
-entry (`file:`-prefixed entries are loaded as facts), take config from the digest (only read
-`{metodoloji-root}/config.toml` + `config.user.toml` if it could not run), greet
+entry (`file:`-prefixed entries are loaded as facts), take config from the digest (only
+`python3 {metodoloji-root}/hooks/scripts/resolve_config.py --project-root {project-root} --key core.user_name --key core.communication_language` if it could not run — the resolver merges the project layer, so the project's values win), greet
 `{user_name}`, then execute `{workflow.activation_steps_append}` in order.
 
 ### Step 4: Read the Run State — before choosing a mode

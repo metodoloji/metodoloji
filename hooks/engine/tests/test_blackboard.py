@@ -558,8 +558,9 @@ def test_session_start_leaves_board_untouched(tmp_path, monkeypatch):
     before = bb.read_board(str(tmp_path))
     out = audit_mod.session_start({"cwd": str(tmp_path)})
     # The sentence lives as one exported constant (audit.FIXED_SESSION_CONTEXT):
-    # the chain reminder plus the shell-state discipline clause.
-    assert out["additionalContext"] == audit_mod.FIXED_SESSION_CONTEXT
+    # the chain reminder plus the shell-state discipline clause. The resolved
+    # languages follow it on the same edge (E-173), so it is the prefix.
+    assert out["additionalContext"].startswith(audit_mod.FIXED_SESSION_CONTEXT)
     after = bb.read_board(str(tmp_path))
     assert after["keys"] == before["keys"]
     assert after["tags"] == before["tags"]

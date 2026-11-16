@@ -1,0 +1,8 @@
+{"check": "both languages configured", "ok": true, "detail": "answer='Turkish' document='Turkish'"}
+{"check": "Turkish conversation, English documents", "ok": true, "detail": "answer='Turkish' document='English'"}
+{"check": "only the conversation language is set", "ok": true, "detail": "answer='Turkish' document='English'"}
+{"check": "the project layer outranks the plugin layer", "ok": true, "detail": "answer='Turkish' document='Turkish'"}
+{"check": "a corrupt project layer keeps the context", "ok": true, "detail": "answer='English' document='English'"}
+{"check": "a project with no config still gets the sentence", "ok": true, "detail": "answer='English' document='English'"}
+{"check": "a config value cannot inject a context line", "ok": true, "detail": "answer='' document='Turkish'"}
+{"check": "no skill sources the language from a plugin config", "ok": true, "detail": "no skill among 48 sources a language key from a plugin config"}

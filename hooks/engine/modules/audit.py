@@ -218,6 +218,56 @@ FIXED_SESSION_CONTEXT = (
     "the target exists before running a `path/*` command."
 )
 
+# The configured languages, on the session edge (E-173). `communication_language`
+# and `document_output_language` were reachable only through orient.py, which
+# runs when a SKILL loads — a plain conversation runs no skill, so a project
+# configured Turkish answered in English until the first skill opened
+# (2026-11-16 session: "the config has no effect"). Every runtime injects THIS
+# handler's context (bootstrap.sh, Hermes session_context, OpenCode), so the
+# sentence belongs here, once.
+#
+# Both values are PROJECT data that lands in a prompt: a language name is a few
+# words, so anything longer or carrying a newline is not one and is dropped —
+# docs/config.toml must not be able to add a context line.
+_LANGUAGE_VALUE_MAX = 40
+_LANGUAGE_VALUE_WORDS = 3
+_LANGUAGE_VALUE_RE = re.compile(r"[\w ()-]+", re.UNICODE)
+def _core_config(root: str) -> dict:
+    """The project's resolved `core` table, through the ONE merge.
+
+    resolve_config.py owns the layer order (plugin team/user < project
+    docs/team/user). Reading a config file here directly would be a second
+    opinion about what the user configured — the defect E-146/E-147 closed.
+    Loaded lazily: the audit hot path never pays for this import.
+    """
+    import importlib.util
+    path = (pathlib.Path(__file__).resolve().parents[2]
+            / "scripts" / "resolve_config.py")  # <root>/hooks/scripts/
+    spec = importlib.util.spec_from_file_location("audit_resolve_config", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return (module.resolve(root) or {}).get("core") or {}
+
+def _language_sentence(root: str) -> str:
+    """`Language: answer the user in X; write every document in Y.` or "".
+
+    Fail-open: a config that cannot be read leaves the fixed sentence alone,
+    exactly as an absent one does. Bounded: see the caps above.
+    """
+    try:
+        core = _core_config(root)
+    except Exception:
+        return ""
+    clauses = []
+    for label, key in (("answer the user in", "communication_language"),
+                       ("write every document in", "document_output_language")):
+        value = " ".join(str(core.get(key) or "").split())
+        if (value and len(value) <= _LANGUAGE_VALUE_MAX
+                and len(value.split()) <= _LANGUAGE_VALUE_WORDS
+                and _LANGUAGE_VALUE_RE.fullmatch(value)):
+            clauses.append(f"{label} {value}")
+    return "Language: " + "; ".join(clauses) + "." if clauses else ""
+
 # Preview caps for the audit trail: bodies never land whole in the log.
 _INPUT_PREVIEW_LEN = 300
 _OUTPUT_PREVIEW_LEN = 500
@@ -361,6 +411,12 @@ def session_start(json_in: dict) -> dict:
         pass
 
     context = FIXED_SESSION_CONTEXT
+    # The configured languages ride the same edge (E-173): the sentence is
+    # derived from the resolved config, so a project that says Turkish is
+    # answered in Turkish from the first turn, before any skill loads.
+    language = _language_sentence(root)
+    if language:
+        context += " " + language
     # Project state, one bounded sentence (state.py — the same source orient.py
     # reports from): the mailjs session (2026-09-23, OpenHands) opened with zero
     # progress signal, grounded in the model's memory instead of the board

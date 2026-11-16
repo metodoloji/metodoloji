@@ -1,0 +1,8 @@
+{"check": "both languages configured", "ok": false, "detail": "context does not 'answer the user in Turkish'"}
+{"check": "Turkish conversation, English documents", "ok": false, "detail": "context does not 'answer the user in Turkish'"}
+{"check": "only the conversation language is set", "ok": false, "detail": "context does not 'answer the user in Turkish'"}
+{"check": "the project layer outranks the plugin layer", "ok": false, "detail": "context does not 'answer the user in Turkish'"}
+{"check": "a corrupt project layer keeps the context", "ok": false, "detail": "context does not 'write every document in English'"}
+{"check": "a project with no config still gets the sentence", "ok": false, "detail": "context does not 'write every document in English'"}
+{"check": "a config value cannot inject a context line", "ok": false, "detail": "context does not 'write every document in Turkish'"}
+{"check": "no skill sources the language from a plugin config", "ok": false, "detail": "skills still name a plugin config as the source: bmad-research-experiment: Config comes from the digest (Step 1). Only when it could not run, read `{metodo"}

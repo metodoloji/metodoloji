@@ -26,7 +26,7 @@ triggers: ["bmad-research-experiment", "/bmad-research-experiment", "research-ex
 - `{gate-script}` = `{skill-root}/scripts/run_experiment.py`.
 - `{production-root}` = `{project-root}/lib/graph/` (production modules).
 - `{bench-root}` = `{project-root}/scripts/bench/` (measurement benches — protected area required by gate).
-- `{user_name}` and `{communication_language}` come from `config.user.toml`; `{document_output_language}` from `config.toml`.
+- `{user_name}`, `{communication_language}` and `{document_output_language}` come from the resolved project config (the digest below; `python3 {metodoloji-root}/hooks/scripts/resolve_config.py --project-root {project-root} --key core.<name>` when it could not run).
 
 ## Tool Contract (all harnesses — critical)
 
@@ -112,7 +112,7 @@ Treat every entry in `{workflow.persistent_facts}` as foundational context. Entr
 
 ### Step 5: Load Config
 
-Config comes from the digest (Step 1). Only when it could not run, read `{metodoloji-root}/config.toml` and `{metodoloji-root}/config.user.toml` directly — the targeted shape survives the transport, a full merged dump does not. Use `{user_name}`, `{communication_language}`, `{document_output_language}`, and `{project-root}`.
+Config comes from the digest (Step 1). Only when it could not run, resolve the keys you need: `python3 {metodoloji-root}/hooks/scripts/resolve_config.py --project-root {project-root} --key core.user_name --key core.communication_language --key core.document_output_language` — the targeted shape survives the transport, a full merged dump does not. Use `{user_name}`, `{communication_language}`, `{document_output_language}`, and `{project-root}`.
 
 ### Step 6: Greet the User
 

@@ -25,7 +25,7 @@ When the target's `customize.toml` doesn't expose what the user wants, say so pl
 
 ## Activation
 
-Load `config.toml` and `config.user.toml` from `{metodoloji-root}` (the plugin installation — configuration is source material, never a project file) for `user_name` (default `BMad`) and `communication_language` (default `English`). Greet. If the user's invocation already names a target skill AND a specific change, jump to Step 3.
+Resolve `user_name` (default `BMad`) and `communication_language` (default `English`) with one targeted read — `python3 {metodoloji-root}/hooks/scripts/resolve_config.py --project-root {project-root} --key core.user_name --key core.communication_language` — the resolver merges the project layer, so the project's values win. Greet. If the user's invocation already names a target skill AND a specific change, jump to Step 3.
 
 ## Step 1: Classify intent
 

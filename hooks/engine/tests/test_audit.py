@@ -438,8 +438,9 @@ def test_session_start_fixed_sentence_without_waiting_handoffs(tmp_path, monkeyp
     # chain reminder, shell-state discipline (2026-10-01 graph-engineering-arge
     # session: `M=...` in one call, `$M` in the next — a fresh shell each call,
     # hit twice in one session), forward-slash paths (B-004 S2), dialect match,
-    # and the B-003 unmatched-glob rule.
-    assert res["additionalContext"] == FIXED_SESSION_CONTEXT
+    # and the B-003 unmatched-glob rule. The resolved languages ride after it
+    # (E-173), so the sentence is the PREFIX of an otherwise-empty inject.
+    assert res["additionalContext"].startswith(FIXED_SESSION_CONTEXT)
     # Pin the substance too, so the constant cannot be gutted silently.
     assert "Record chain" in FIXED_SESSION_CONTEXT
     assert "self-contained" in FIXED_SESSION_CONTEXT
@@ -519,7 +520,7 @@ def test_session_start_has_no_workflow_line_for_an_empty_project(tmp_path, monke
     monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
 
     res = session_start({"cwd": str(root)})
-    assert res["additionalContext"] == FIXED_SESSION_CONTEXT
+    assert res["additionalContext"].startswith(FIXED_SESSION_CONTEXT)
     assert "WORKFLOW" not in res["additionalContext"]
 
 
