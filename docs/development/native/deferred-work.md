@@ -87,3 +87,11 @@ severity: low
 reason: `--check`, `--migrate` and `--add` are mechanical, but closing an entry is still a hand edit of `status:` plus a `resolution:` line. The format documents that shape and three entries were closed by hand in E-142, which is exactly the "an LLM must remember a shape" cost the CLI exists to remove.
 status: done 2026-11-13
 resolution: E-144 — the CLI gained --close (status done + resolution in place, resolution required, re-close refused, keep-open decision refused), documented in the format owner and the template; 11 tests pin the shape
+
+### DW-11: create-record --field duplicates an auto-filled scalar instead of overriding it
+
+origin: E-171 gate run, 2026-11-16
+location: scripts/create-record.py (main.put)
+severity: low
+reason: put() appends every --field value after the auto-seeded Date/Status/Lineage defaults, so a caller who supplies them explicitly gets TWO Date lines, TWO Status lines and a 'Lineage: none' followed by the real lineage. E-171's generated draft carried all three and still passed --check: the schema has no duplicate-field rule. Two Status lines read differently by _status() (first match) and by check-methodology CHECK4 (line scan), and validate_text cannot refuse the shape. The repair is a precedence rule (an explicit --field overrides the CLI default) plus duplicate detection in validate_text, measured by a closed-set bench; E-171's record was cleaned by hand in the same change.
+status: open

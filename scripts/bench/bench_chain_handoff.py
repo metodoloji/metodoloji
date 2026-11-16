@@ -151,12 +151,23 @@ def _json(proc: subprocess.CompletedProcess) -> dict:
 def _story(project: pathlib.Path, sid: str = "S-001", *,
            refs: tuple[str, ...] = (), status: str = "review",
            body: str = "") -> pathlib.Path:
+    """A story in the SHIPPED dialect: refs live in YAML frontmatter.
+
+    `story_records._parse_experiment_refs` reads the frontmatter block only, so
+    a fixture that writes `experiment_refs:` as bare body text declares nothing.
+    The gate then reads the story as having no measured basis and, for a Tier 1
+    story, opens the run anyway — which is how the two refusal probes below used
+    to pass while measuring the tier exemption instead of the refusal they name
+    (E-171). The fixture writes the shape the parser reads.
+    """
     d = project / "docs" / "development" / "stories"
     d.mkdir(parents=True, exist_ok=True)
-    lines = ["- **Rigor Tier:** 1", f"- **Status:** {status}"]
+    lines: list[str] = []
     if refs:
-        lines.append("experiment_refs:")
+        lines += ["---", f"story_key: {sid}", "experiment_refs:"]
         lines += [f"  - id: {r}" for r in refs]
+        lines += ["---", ""]
+    lines += [f"- **Rigor Tier:** 1", f"- **Status:** {status}"]
     path = d / f"{sid}.md"
     path.write_text("\n".join(lines) + "\n" + body, encoding="utf-8")
     return path
@@ -337,9 +348,17 @@ def _case_unapproved_wording_fails() -> tuple[bool, str]:
         exp.parent.mkdir(parents=True, exist_ok=True)
         exp.write_text("- **Status:** completed\nDecision: NOT approved\n"
                        "The claim did not hold.\n", encoding="utf-8")
-        rc = _gate(tree, proj, "experiment", "S-001").returncode
-        return rc != 0, (f"the experiment gate refuses it (rc={rc})" if rc != 0
-                         else "the gate accepted a NOT-approved record")
+        proc = _gate(tree, proj, "experiment", "S-001")
+        out = (proc.stdout or "") + (proc.stderr or "")
+        # The refusal must name the cited record. A refusal that comes from an
+        # unread ref block (no refs at all) would score a parser miss as a gate
+        # decision — exactly the vacuous pass this probe exists to prevent.
+        ok = proc.returncode != 0 and "E-001" in out and "not verified" in out
+        if ok:
+            return True, f"the gate refuses E-001 by name (rc={proc.returncode})"
+        if proc.returncode == 0:
+            return False, "the gate accepted a NOT-approved record"
+        return False, f"refused without naming E-001: {out.strip()[:160]}"
 
 
 def _case_out_of_order_refused() -> tuple[bool, str]:
@@ -373,9 +392,18 @@ def _case_runs_do_not_share_evidence() -> tuple[bool, str]:
         exp = proj / "docs" / "experiments" / "E-001.md"
         exp.parent.mkdir(parents=True, exist_ok=True)
         exp.write_text("- **Status:** completed\n", encoding="utf-8")
-        rc = _gate(tree, proj, "experiment", "S-002").returncode
-        return rc != 0, (f"S-002 refused while only S-001's evidence exists (rc={rc})"
-                         if rc != 0 else "S-002 borrowed S-001's evidence")
+        proc = _gate(tree, proj, "experiment", "S-002")
+        out = (proc.stdout or "") + (proc.stderr or "")
+        # Same reason discipline as the probe above: S-002 must be refused for
+        # the missing E-002, not because its refs failed to parse — the Tier 1
+        # exemption would wave that through as "no measured basis".
+        ok = proc.returncode != 0 and "E-002" in out and "not found" in out
+        if ok:
+            return True, (f"S-002 refused for the missing E-002 "
+                          f"(rc={proc.returncode})")
+        if proc.returncode == 0:
+            return False, "S-002 borrowed S-001's evidence"
+        return False, f"refused without naming E-002: {out.strip()[:160]}"
 
 
 def _case_tier_skips_upstream() -> tuple[bool, str]:
