@@ -1,0 +1,13 @@
+{"check": "an explicit Date wins over the seed", "ok": true, "detail": "one Date line, the explicit '2020-01-02'"}
+{"check": "an explicit Status wins over the seed", "ok": true, "detail": "one Status line, the explicit 'completed'"}
+{"check": "an explicit Lineage replaces 'none'", "ok": true, "detail": "one Lineage line, the explicit 'E-001'"}
+{"check": "a contract Status override wins", "ok": true, "detail": "one Status line, the explicit 'completed'"}
+{"check": "an IR Status override wins", "ok": true, "detail": "one Status line, the explicit 'READY'"}
+{"check": "an SP Status override wins", "ok": true, "detail": "one Status line, the explicit 'active'"}
+{"check": "a PR Status override wins", "ok": true, "detail": "one Status line, the explicit 'ready'"}
+{"check": "a convenience flag and --field conflict is refused", "ok": true, "detail": "the conflict is refused by name (rc=2)"}
+{"check": "a repeated --field is refused", "ok": true, "detail": "the repeat is refused by name (rc=2)"}
+{"check": "--check refuses a duplicate schema field", "ok": true, "detail": "the duplicate is refused by name"}
+{"check": "--check keeps append-only history labels", "ok": true, "detail": "append-only history labels are not policed"}
+{"check": "a multi-line --field value survives", "ok": true, "detail": "a multi-line value still renders as continuation bullets"}
+{"check": "a custom --field value round-trips", "ok": true, "detail": "a --field value lands once, unchanged"}

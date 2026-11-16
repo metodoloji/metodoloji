@@ -94,4 +94,5 @@ origin: E-171 gate run, 2026-11-16
 location: scripts/create-record.py (main.put)
 severity: low
 reason: put() appends every --field value after the auto-seeded Date/Status/Lineage defaults, so a caller who supplies them explicitly gets TWO Date lines, TWO Status lines and a 'Lineage: none' followed by the real lineage. E-171's generated draft carried all three and still passed --check: the schema has no duplicate-field rule. Two Status lines read differently by _status() (first match) and by check-methodology CHECK4 (line scan), and validate_text cannot refuse the shape. The repair is a precedence rule (an explicit --field overrides the CLI default) plus duplicate detection in validate_text, measured by a closed-set bench; E-171's record was cleaned by hand in the same change.
-status: open
+status: done 2026-11-16
+resolution: E-172 — an explicit --field (or --date/--lineage) now OWNS its label instead of being appended after the seed, a second explicit value is refused by name (rc 2, no draft written), and validate_text refuses a duplicated schema field while leaving the append-only history labels (Re-Measured-By, Final Plan Hash) that E-128/E-158/E-159 legitimately repeat. bench_record_generation measures 13/13 against a 0.23 pre-fix control; four pytest pins hold the shape.

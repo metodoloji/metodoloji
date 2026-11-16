@@ -1,0 +1,13 @@
+{"check": "an explicit Date wins over the seed", "ok": false, "detail": "Date carries ['2026-11-16', '2020-01-02'], expected ['2020-01-02']"}
+{"check": "an explicit Status wins over the seed", "ok": false, "detail": "Status carries ['planned', 'completed'], expected ['completed']"}
+{"check": "an explicit Lineage replaces 'none'", "ok": false, "detail": "Lineage carries ['none', 'E-001'], expected ['E-001']"}
+{"check": "a contract Status override wins", "ok": false, "detail": "Status carries ['planned', 'completed'], expected ['completed']"}
+{"check": "an IR Status override wins", "ok": false, "detail": "Status carries ['NOT-READY', 'READY'], expected ['READY']"}
+{"check": "an SP Status override wins", "ok": false, "detail": "Status carries ['planned', 'active'], expected ['active']"}
+{"check": "a PR Status override wins", "ok": false, "detail": "Status carries ['preparing', 'ready'], expected ['ready']"}
+{"check": "a convenience flag and --field conflict is refused", "ok": false, "detail": "two explicit Dates accepted, record says ['2020-01-02', '2020-01-03']"}
+{"check": "a repeated --field is refused", "ok": false, "detail": "a second --field Date was absorbed: ['2026-11-16', '2020-01-02', '2020-01-03']"}
+{"check": "--check refuses a duplicate schema field", "ok": false, "detail": "a record with two Status lines validates"}
+{"check": "--check keeps append-only history labels", "ok": true, "detail": "append-only history labels are not policed"}
+{"check": "a multi-line --field value survives", "ok": true, "detail": "a multi-line value still renders as continuation bullets"}
+{"check": "a custom --field value round-trips", "ok": true, "detail": "a --field value lands once, unchanged"}

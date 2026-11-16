@@ -156,11 +156,32 @@ def _one(fields: dict[str, list[str]], key: str) -> str:
     return values[0].strip() if values else ""
 
 
+# Labels that legitimately carry more than one line: a re-measurement names
+# every later record that measured the same claim (E-128) and an amended plan
+# keeps the hash it superseded (E-158, E-159). Everything else is one label,
+# one value — two `- **Status:**` lines are read differently by `_one()` (first
+# match) and by a line scan such as check-methodology CHECK 4 (E-171, DW-11).
+_APPEND_ONLY_LABELS = frozenset({"Re-Measured-By", "Final Plan Hash"})
+
+
+def _duplicate_labels(kind: str, fields: dict[str, list[str]]) -> list[str]:
+    """Schema-owned labels that carry more than one value."""
+    spec = _SCHEMAS[kind]
+    owned = set(spec["required"]) | set(spec["optional"]) | {SCHEMA_FIELD}
+    return sorted(label for label in owned - _APPEND_ONLY_LABELS
+                  if len(fields.get(label) or []) > 1)
+
+
 def validate_text(kind: str, text: str) -> list[str]:
     """Schema issues for a rendered record (empty list = valid)."""
     spec = _SCHEMAS[kind]
     fields = _parse_fields(text)
     issues: list[str] = []
+    for label in _duplicate_labels(kind, fields):
+        count = len(fields[label])
+        issues.append(f"duplicate field '{label}' ({count} values) — one label "
+                      f"carries one value; use an indented continuation line "
+                      f"for a multi-line value")
     for need in spec["required"]:
         value = _one(fields, need)
         if not value or _PLACEHOLDER_RE.match(value):
@@ -332,22 +353,52 @@ def main() -> int:
         return 2
 
     values: dict[str, list[str]] = {}
+    explicit: set[str] = set()
+    conflicts: list[str] = []
+
+    def seed(label: str, value: str) -> None:
+        """The CLI's own default for a label the caller did not supply."""
+        if value and value.strip() and label not in values:
+            values[label] = [value.strip()]
+
     def put(label: str, value: str) -> None:
-        if value and value.strip():
-            values.setdefault(label, []).append(value.strip())
+        """A caller-supplied value: it OWNS its label.
+
+        `--field Date=2020-01-02` used to be APPENDED after the auto-seeded
+        Date, so the record carried two Date lines, two Status lines and a
+        `Lineage: none` ahead of the real lineage — and passed --check, because
+        the schema had no duplicate rule (E-171's generated draft, DW-11).
+        An explicit value now replaces the seed, and a second explicit value
+        for the same label is refused instead of silently dropped: keeping
+        either one would be the same ambiguity under a quieter rule.
+        """
+        label = label.strip()
+        if not (value and value.strip()):
+            return
+        if label in explicit:
+            conflicts.append(label)
+            return
+        values[label] = [value.strip()]
+        explicit.add(label)
 
     from datetime import date
-    put("Date", args.date or date.today().isoformat())
+    if args.date:
+        put("Date", args.date)
+    else:
+        seed("Date", date.today().isoformat())
     default_status = {"experiment": "planned", "contract": "planned",
                       "ir": "NOT-READY", "sp": "planned", "pr": "preparing"}[kind]
-    put("Status", default_status)
+    seed("Status", default_status)
     if kind in ("experiment", "contract"):
         put("Theory", args.theory)
         put("Hypothesis", args.hypothesis)
         put("Measurement Metrics", args.metrics)
         put("Experiment Design", args.design)
         put("Code Scope", args.scope)
-        put("Lineage", args.lineage or "none")
+        if args.lineage:
+            put("Lineage", args.lineage)
+        else:
+            seed("Lineage", "none")
         put("Raw Samples", args.raw_samples)
         put("Census", args.census)
         put("Control Command", args.control)
@@ -356,7 +407,14 @@ def main() -> int:
             print(f"ERROR: --field must be NAME=VALUE, got {raw!r}", file=sys.stderr)
             return 2
         name, value = raw.split("=", 1)
-        put(name.strip(), value.strip())
+        put(name, value)
+
+    if conflicts:
+        for label in dict.fromkeys(conflicts):
+            print(f"ERROR: field '{label}' was supplied more than once "
+                  f"(--field and/or a convenience flag); a record carries one "
+                  f"value per field", file=sys.stderr)
+        return 2
 
     text = render(kind, rid, args.title.strip(), values)
     issues = validate_text(kind, text)
