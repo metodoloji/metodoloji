@@ -108,6 +108,23 @@ log_warn() {
     echo "⚠️  WARN: $1"
 }
 
+# _dup_fields FILE LABEL...
+# Prints each LABEL that appears more than once at the start of a bullet
+# (`- **Label:** …`). A record regenerated in place keeps the old block and
+# appends the new one, so the file ends up carrying two Sprint goals, two
+# capacities, two block lists — and every single-value reader silently picks
+# the first (real Agently session, 2026-11-16: SP-001 was written three times
+# and its Blockers block said "34 files" in one copy and "7 files" in the
+# other; nothing flagged it). One field, one owner.
+_dup_fields() {
+    _df_file=$1; shift
+    for _df_label in "$@"; do
+        _df_n=$(grep -cE "^[[:space:]]*-[[:space:]]*\*\*${_df_label}:\*\*" "$_df_file" 2>/dev/null || true)
+        [ "${_df_n:-0}" -gt 1 ] && printf '%s (%s×)\n' "$_df_label" "$_df_n"
+    done
+    return 0
+}
+
 log_ok() {
     if [ "$VERBOSE" = true ]; then
         echo "✅ OK: $1"
@@ -601,6 +618,28 @@ for sp_file in "$PROJECT_ROOT"/docs/development/SP-*.md; do
     fi
     if ! grep -qE '\*\*(Sprint goal|Sprint hedefi):\*\*' "$sp_file" 2>/dev/null; then
         log_issue "$sp_base -> no 'Sprint goal' field — Gate 2 needs a single-sentence goal"
+    fi
+    # A regenerated record that kept the previous block passes every
+    # single-value check above while carrying two answers to the same
+    # question. Name the duplicated fields instead of reading whichever
+    # copy `grep -m1` happened to hit first.
+    sp_dups=$(_dup_fields "$sp_file" "Date" "Status" "Readiness input" "Sprint goal" \
+                "Capacity" "Technical debt" "Blockers" "Dependencies")
+    if [ -n "$sp_dups" ]; then
+        log_issue "$sp_base -> duplicated field(s): $(printf '%s' "$sp_dups" | tr '\n' ' ')— a record has one value per field; merge the copies"
+    fi
+    # The stories block is the sprint's scope: the same S-id twice inflates the
+    # point total and makes the completion rate unreadable. Only the `Stories:`
+    # block counts — the Sprint Review section names every story again
+    # (`S-001: ✗ NOT COMPLETED`), which is a verdict, not a second scope entry.
+    sp_dup_stories=$(awk '
+        /^[[:space:]]*-[[:space:]]*\*\*Stories:\*\*/ {c=1; next}
+        c && /^[[:space:]]*-[[:space:]]*\*\*(Capacity|Technical debt|Blockers|Dependencies|Date|Status|Sprint goal|Readiness input):\*\*/ {c=0}
+        c' "$sp_file" 2>/dev/null \
+        | grep -oE '^[[:space:]]*-[[:space:]]*S-[0-9]+:' \
+        | sed -E 's/.*(S-[0-9]+):.*/\1/' | sort | uniq -d | tr '\n' ' ')
+    if [ -n "$sp_dup_stories" ]; then
+        log_issue "$sp_base -> story listed twice: $sp_dup_stories— one line per story in the sprint"
     fi
 done
 # PR — Gate 4: status vocabulary (the template's `preparing` included), date,

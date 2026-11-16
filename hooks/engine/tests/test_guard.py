@@ -531,7 +531,7 @@ def test_validate_story_metadata_hypothesis_skips_experiment():
 
 
 _HYP_STORY = """## Story: S-002
-- **Status:** done
+- **Status:** review
 
 ## Acceptance Criteria
 - [AC-001] Given X When Y Then Z
@@ -2778,3 +2778,65 @@ def test_pre_asks_the_user_at_a_forced_completion(tmp_path, monkeypatch):
     out = guard_mod.pre(payload)
     assert out["decision"] == "allow"
     assert any("ask the user" in w for w in out["methodology_warnings"])
+
+
+# --- a 'done' story must have measured something ---------------------------
+
+_DONE_UNMEASURED = """# Story: S-900 — Done but never measured
+- **Status:** done
+
+## Acceptance Criteria
+- [AC-001] Given X When Y Then Z
+  - Experiment: —
+  - Type: agent-verifiable
+  - Measured: false
+  - Verify: ls -d apps
+  - [HYPOTHESIS]
+- [AC-002] Given X When Y Then Z
+  - Experiment: —
+  - Type: agent-verifiable
+  - Measured: false
+  - Verify: pnpm build
+  - [HYPOTHESIS]
+
+## Technical Tasks
+- [ ] Task 1 (AC: AC-001)
+"""
+
+def test_done_story_with_no_measured_ac_is_rejected():
+    """The [HYPOTHESIS] opt-out is for work in progress, not for closing.
+
+    Real Agently session (2026-11-16): S-001 reached `ready-for-dev` with six
+    ACs, every one `Experiment: —` / `Measured: false` / [HYPOTHESIS], and the
+    chain read green. Nothing stopped that story from being flipped to `done`
+    with nothing measured — the gate checked that the tag was PRESENT, never
+    that the story had measured anything.
+    """
+    from modules.guard import _validate_story_metadata
+    valid, reason = _validate_story_metadata(_DONE_UNMEASURED)
+    assert valid is False, "an all-hypothesis story must not close as done"
+    assert "no acceptance criterion is measured" in reason, reason
+
+def test_unmeasured_hypotheses_are_fine_while_the_story_is_open():
+    """The same story at review/in-progress stays legal — the tag is the point."""
+    from modules.guard import _validate_story_metadata
+    for status in ("ready-for-dev", "in-progress", "review"):
+        valid, reason = _validate_story_metadata(
+            _DONE_UNMEASURED.replace("- **Status:** done",
+                                     f"- **Status:** {status}"))
+        assert valid is True, (status, reason)
+
+def test_one_measured_ac_is_enough_to_close():
+    from modules.guard import _validate_story_metadata
+    valid, reason = _validate_story_metadata(
+        _DONE_UNMEASURED.replace("  - Measured: false\n  - Verify: ls -d apps",
+                                 "  - Measured: true\n  - Verify: ls -d apps"))
+    assert valid is True, reason
+
+def test_tier_1_done_story_needs_no_measured_basis():
+    """Tier 1 (trivial/doc/hotfix) is exempt by policy."""
+    from modules.guard import _validate_story_metadata
+    valid, reason = _validate_story_metadata(
+        _DONE_UNMEASURED.replace("- **Status:** done",
+                                 "- **Status:** done\n- **Rigor Tier:** 1"))
+    assert valid is True, reason

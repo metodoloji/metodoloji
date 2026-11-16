@@ -664,3 +664,93 @@ def test_separator_bearing_unknown_extension_keeps_the_gate():
     targets, _dropped = extract_bash_targets_ex(
         "python3 -c \"open('src/gen.widget','w').write('x')\"")
     assert targets == ["src/gen.widget"]
+
+
+# --- command position: a subcommand word is not the command ----------------
+
+def test_canvas_touch_subcommand_is_not_touch_1():
+    """The documented canvas-touch call must not be read as `touch(1)`.
+
+    Real Agently session (2026-11-16): `blackboard.py canvas touch --path P
+    --tool bmad-create-story` was denied with "No approved experiment record
+    for bmad-create-story" — `touch` fired touch(1)'s branch on the
+    SUBCOMMAND, and the flag VALUE after `--tool` became the target. The
+    call is documented in bmad-create-story's own SKILL.md, so the gate was
+    refusing its own instruction.
+    """
+    for tool in ("bmad-create-story", "bmad-dev-story", "watch"):
+        cmd = (f"python3 hooks/scripts/blackboard.py canvas touch "
+               f"--path docs/x.md --tool {tool} --project-root .")
+        assert extract_bash_targets(cmd) == [], cmd
+
+
+def test_verb_as_a_flag_value_is_not_a_write():
+    assert extract_bash_targets(
+        "python3 blackboard.py canvas set --name n --cell c "
+        "--content 'touch src/a.py'") == []
+    assert extract_bash_targets("python3 blackboard.py link a b --relation touch") == []
+
+
+def test_command_position_still_catches_the_real_verb():
+    """Narrowing must not blind the gate: the verb in command position writes."""
+    assert extract_bash_targets("touch src/a.py") == ["src/a.py"]
+    assert extract_bash_targets("tee out.txt") == ["out.txt"]
+    assert extract_bash_targets("cp a.py b.py") == ["b.py"]
+
+
+def test_prefixed_write_commands_are_still_caught():
+    """A wrapper before the verb must not hide the write.
+
+    The old cp/mv branch scanned `seg[0] == tok`, so every prefixed call
+    extracted NOTHING — `sudo cp a.py src/b.py` reached the gate as a
+    read-only command (found while fixing the canvas-touch false positive,
+    2026-11-16).
+    """
+    assert extract_bash_targets("sudo cp a.py src/b.py") == ["src/b.py"]
+    assert extract_bash_targets("nohup cp a.py src/b.py") == ["src/b.py"]
+    assert extract_bash_targets("env X=1 mv a.py b.py") == ["b.py"]
+    assert extract_bash_targets("sudo touch src/a.py") == ["src/a.py"]
+    assert extract_bash_targets("timeout 30 touch src/a.py") == ["src/a.py"]
+    assert extract_bash_targets("nice -n 5 touch src/a.py") == ["src/a.py"]
+    assert extract_bash_targets("xargs touch src/a.py") == ["src/a.py"]
+
+
+def test_find_exec_command_word_is_recognized():
+    """`find … -exec touch f` runs touch, so its operand is a target."""
+    assert "src/a.py" in extract_bash_targets("find . -exec touch src/a.py ;")
+
+
+# --- a literal-only print cannot be a write --------------------------------
+
+def test_print_of_a_literal_is_not_a_write():
+    """A read-only probe that SHOWS a path must not be gated as writing it.
+
+    Real session (2026-11-16): `python3 -c "print('apps/web/index.ts')"` was
+    denied with "No approved experiment record for apps/web/index.ts" while
+    only inspecting a tree. A single-argument print of one quoted literal has
+    no write shape at all.
+    """
+    assert extract_bash_targets("""python3 -c "print('src/app.py')\"""") == []
+    assert extract_bash_targets("""python3 -c 'print("apps/web/index.ts")'""") == []
+    assert extract_bash_targets("node -e \"console.log('src/app.js')\"") == []
+
+
+def test_print_of_a_literal_on_stdin_is_not_a_write():
+    assert extract_bash_targets("python3 - <<'PY'\nprint('src/app.py')\nPY") == []
+
+
+def test_print_only_narrowing_keeps_every_writer_fail_closed():
+    """The narrowing must not open the dynamic-writer hole it sits beside."""
+    assert extract_bash_targets("""python3 -c "run('scripts/gen.py')\"""") == [
+        "scripts/gen.py"]
+    assert extract_bash_targets(
+        """python3 -c "open('src/gen.ts','w').write('x')\"""") == ["src/gen.ts"]
+    # destination built at runtime: still an unresolved write
+    assert extract_bash_targets_ex(
+        """python3 -c "p='out'; open(p+'.py','w').write('x')\"""")[1] is True
+    # a print WRAPPING a call is not literal-only
+    assert extract_bash_targets("""python3 -c "print(open('src/a.py').read())\"""") == []
+    # a loop that builds strings is not literal-only
+    assert extract_bash_targets(
+        "python3 - <<'PY'\nfor c in ['sudo touch src/a.py']:\n    print(c)\nPY"
+    ) == ["sudo touch src/a.py"]

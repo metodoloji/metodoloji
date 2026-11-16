@@ -830,3 +830,71 @@ def test_a_proposed_record_classifies_before_its_gate_runs():
     """The E-110 shape: a draft word must not block the record's own measurement."""
     assert _branch(CHECK4, "- **Status:** proposed") == 2
     assert _branch(CHECK4, "- **Status:** draft") == 2
+
+
+# --- CHECK 7: a record has one value per field -------------------------------
+
+def _run_check7(root):
+    return _run_script(["--only", "7"], root)
+
+def test_check7_flags_a_duplicated_field(tmp_path):
+    """A regenerated record that keeps the old block must not pass.
+
+    Real Agently session (2026-11-16): SP-001 was written three times in one
+    session and every section ended up twice — two Sprint goals, two capacity
+    blocks, two Blockers blocks whose file counts disagreed ("34 files" vs
+    "7 files"). Every single-value reader takes the first copy, so the record
+    said two different things and the checker reported 0 issues.
+    """
+    sp = tmp_path / "docs" / "development" / "SP-001.md"
+    sp.parent.mkdir(parents=True)
+    sp.write_text(
+        "# Sprint: SP-001 — X\n\n"
+        "- **Date:** Start: 2026-11-16 — End: 2026-11-30\n"
+        "- **Status:** planned\n"
+        "- **Sprint goal:** first goal\n"
+        "- **Sprint goal:** second goal\n",
+        encoding="utf-8")
+    rc, out = _run_check7(tmp_path)
+    assert rc == 1, out
+    assert "duplicated field" in out, out
+    assert "Sprint goal" in out, out
+
+def test_check7_flags_a_story_listed_twice(tmp_path):
+    sp = tmp_path / "docs" / "development" / "SP-001.md"
+    sp.parent.mkdir(parents=True)
+    sp.write_text(
+        "# Sprint: SP-001 — X\n\n"
+        "- **Date:** Start: 2026-11-16 — End: 2026-11-30\n"
+        "- **Status:** planned\n"
+        "- **Sprint goal:** one goal\n"
+        "- **Stories:**\n"
+        "  - S-001: A — Priority: High — 5 story points\n"
+        "  - S-001: A — Priority: High — 5 story points\n",
+        encoding="utf-8")
+    rc, out = _run_check7(tmp_path)
+    assert rc == 1, out
+    assert "story listed twice" in out, out
+
+def test_check7_does_not_mistake_the_review_for_scope(tmp_path):
+    """The Sprint Review names every story again — that is a verdict, not scope."""
+    sp = tmp_path / "docs" / "development" / "SP-001.md"
+    sp.parent.mkdir(parents=True)
+    sp.write_text(
+        "# Sprint: SP-001 — X\n\n"
+        "- **Date:** Start: 2026-11-16 — End: 2026-11-30\n"
+        "- **Status:** planned\n"
+        "- **Sprint goal:** one goal\n"
+        "- **Stories:**\n"
+        "  - S-001: A — Priority: High — 5 story points\n"
+        "- **Capacity:**\n"
+        "  - Team velocity: none\n"
+        "\n---\n\n"
+        "## Sprint Review (End of Sprint)\n\n"
+        "- **Completed stories:**\n"
+        "  - S-001: ✗ NOT COMPLETED (reason)\n"
+        "- **Reasons (for incomplete):**\n"
+        "  - S-001: the QR record is the open link\n",
+        encoding="utf-8")
+    rc, out = _run_check7(tmp_path)
+    assert "story listed twice" not in out, out

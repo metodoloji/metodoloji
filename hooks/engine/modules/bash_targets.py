@@ -221,6 +221,59 @@ _INLINE_CODE_EXT_RE = re.compile(
     r"|pl|pm|tcl|awk|bat|cmd)$"
 )
 
+# A path literal passed straight to `print`/`echo`/`console.log` is DATA being
+# shown, never a destination — a pure-print inline program cannot write it.
+# This is the narrow, provable half of the read-only problem: the broad
+# `_INLINE_READ_RE` path needs a file-read shape, so `python3 -c
+# "print('apps/web/index.ts')"` was denied with "No approved experiment record
+# for apps/web/index.ts" (real session, 2026-11-16 — a read-only probe). Only a
+# SINGLE-ARGUMENT call whose argument is exactly one quoted literal qualifies;
+# `run("scripts/gen.py")` and `print(open(p).read())` keep the broad path, so
+# the dynamic-writer fail-closed guarantee is untouched.
+_INLINE_PRINT_ONLY_RE = re.compile(
+    r"""(?ix)
+        \b(?:print|console\.log|alert)\s*\(\s*
+        (['"])(?:(?!\1).)*\1\s*\)
+      | \becho\s+(['"])[^'"]+\2\s*$
+    """
+)
+# The code text of an inline eval: the argument after the eval flag, or a
+# heredoc body. Extracted so the print check reads CODE, not the wrapper.
+_EVAL_CODE_RE = re.compile(
+    r"""(?:^|\s)(?:-[cEer]+|--eval=?)\s*(?P<q>['"])(?P<code>.*)(?P=q)\s*$""", re.S)
+_HEREDOC_CODE_RE = re.compile(
+    r"""<<-?\s*(['"]?)(?P<tag>[A-Za-z_][A-Za-z0-9_]*)\1\s*\n(?P<code>.*?)\n\s*(?P=tag)\s*$""",
+    re.S)
+
+
+def _inline_program(command: str) -> str | None:
+    """The inline code an interpreter evaluates, or None when not extractable."""
+    m = _EVAL_CODE_RE.search(command)
+    if m:
+        return m.group("code")
+    m = _HEREDOC_CODE_RE.search(command)
+    if m:
+        return m.group("code")
+    return None
+
+
+def _inline_prints_only(command: str) -> bool:
+    """True when the inline program is nothing but literal-only prints.
+
+    Requires every statement to be a print of a single quoted literal. Anything
+    else (a call, an import, an assignment) returns False and the caller keeps
+    the fail-closed path.
+    """
+    if _INLINE_WRITE_RE.search(command):
+        return False
+    code = _inline_program(command)
+    if code is None:
+        return False
+    stmts = [s.strip() for s in re.split(r"[;\n]+", code) if s.strip()]
+    if not stmts:
+        return False
+    return all(_INLINE_PRINT_ONLY_RE.fullmatch(s) for s in stmts)
+
 
 def _inline_readonly(command: str) -> bool:
     """True only when inline code is recognizably a pure file read.
@@ -574,6 +627,12 @@ def _extract_powershell_targets(
 
 _OP_TOKENS = frozenset({">", ">>", "<", "|"})
 
+# The command words whose branches below are position-sensitive.
+_WRITE_CMD_WORDS = frozenset({
+    "tee", "sed", "cp", "mv", "install", "curl", "wget", "sort", "touch",
+    "truncate", "perl", "ruby", "git", "patch", "tar", "unzip",
+})
+
 
 def _attached_value(tok: str, short: str, longs: tuple) -> str | None:
     """Value carried INSIDE one token (`-oX`, `--output=X`), else None.
@@ -715,10 +774,78 @@ def _inplace_edit_targets(args: list[str]) -> list[str]:
     return _operand_targets(args[k + 1:])
 
 
+# A bare command word is only a command when it sits in COMMAND POSITION.
+# `blackboard.py canvas touch --path P --tool bmad-dev-story` has `touch` as a
+# subcommand and `bmad-dev-story` as a flag VALUE, yet the token walk fired the
+# touch branch on the word `touch` and gated the value as a write path — the
+# documented canvas-touch call was denied with "No approved experiment record
+# for bmad-dev-story" (real Agently session, 2026-11-16). Position is the
+# missing guard, not a list of known flags: the same walk also missed the real
+# write in `sudo cp a.py src/b.py` (cp was never at index 0).
+#
+# An unrecognizable prefix chain returns None and the caller keeps the OLD
+# behavior for that segment, so an unknown shape can never turn into a
+# fail-open.
+_ENV_ASSIGN_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+_CMD_PREFIXES = frozenset({
+    "sudo", "doas", "env", "nohup", "time", "timeout", "nice", "ionice",
+    "stdbuf", "command", "builtin", "exec", "xargs",
+})
+# Prefix flags that take a separate value (`sudo -u root`, `env -u X`).
+# Bundled spellings (`xargs -n1`) are not listed and need no skip.
+_PREFIX_VALUE_FLAGS = frozenset({
+    "-u", "-g", "-p", "-C", "-T", "-U", "-n", "-c", "-o", "-e", "-i",
+    "-s", "-r", "-t", "-P", "-L", "-I", "-d", "-a", "-D", "-S",
+})
+_DURATION_RE = re.compile(r"^\d+(?:\.\d+)?[smhd]?$")
+
+
+def _command_word_index(seg: list[str]) -> int | None:
+    """Index of the command word in one segment, or None when unsure.
+
+    `blackboard.py canvas touch --path P --tool T` has `touch` as a
+    SUBCOMMAND and `T` as a flag value, yet the token walk fired touch(1)'s
+    branch on the word `touch` and gated the value as a write path — the
+    documented canvas-touch call was denied with "No approved experiment
+    record for bmad-create-story" (real Agently session, 2026-11-16).
+
+    Prefix wrappers are walked (`sudo`, `env VAR=1`, `timeout 5`, `xargs`),
+    so `sudo cp a.py b.py` still names `cp` and its real destination — a
+    case the old `seg[0] == cmd` rule silently missed. None means "cannot
+    tell": the caller then keeps the OLD, broader reading for that segment,
+    so an unrecognized shape never becomes fail-open.
+    """
+    i = 0
+    saw_timeout = False
+    while i < len(seg):
+        t = seg[i]
+        if _ENV_ASSIGN_RE.match(t):
+            i += 1
+            continue
+        if t in _CMD_PREFIXES:
+            saw_timeout = saw_timeout or t in ("timeout", "nice", "ionice")
+            i += 1
+            while i < len(seg) and seg[i].startswith("-") and seg[i] != "-":
+                if seg[i] in _PREFIX_VALUE_FLAGS and i + 1 < len(seg):
+                    i += 2
+                else:
+                    i += 1
+            if saw_timeout and i < len(seg) and _DURATION_RE.match(seg[i]):
+                i += 1
+            continue
+        if t.startswith("-"):
+            return None  # an option we cannot place — stay fail-closed
+        return i
+    return None
+
+
 def _extract_raw(command: str) -> tuple[list[str], bool]:
     if not command:
         return [], False
     targets: list[str] = []
+    # Keep the ORIGINAL text: _space_out_redirects folds newlines into ` ; `,
+    # which would destroy the heredoc shape the inline-program reader needs.
+    original_command = command
     command = _space_out_redirects(command)
     try:
         # No comments=True: `#` comments are already stripped line-wise in
@@ -735,16 +862,37 @@ def _extract_raw(command: str) -> tuple[list[str], bool]:
     # hook denied on the phantom `&&`).
     _SHELL_OPS = ("&&", "||", ";", "|", "&")
     seg_tokens: list[list[str]] = []
+    seg_index: list[list[int]] = []  # global token index per segment token
     _cur: list[str] = []
-    for _t in tokens:
+    _cur_idx: list[int] = []
+    for _n, _t in enumerate(tokens):
         if _t in _SHELL_OPS:
             if _cur:
                 seg_tokens.append(_cur)
-                _cur = []
+                seg_index.append(_cur_idx)
+                _cur, _cur_idx = [], []
         else:
             _cur.append(_t)
+            _cur_idx.append(_n)
     if _cur:
         seg_tokens.append(_cur)
+        seg_index.append(_cur_idx)
+
+    # Indices allowed to act as a command word (see _command_word_index).
+    # A segment whose prefix chain could not be placed contributes EVERY
+    # index, so an unknown shape keeps the old, broader reading.
+    cmd_allowed: set[int] = set()
+    for _seg, _idxs in zip(seg_tokens, seg_index):
+        _k = _command_word_index(_seg)
+        if _k is None:
+            cmd_allowed.update(_idxs)
+        else:
+            cmd_allowed.add(_idxs[_k])
+        # `find … -exec touch f` runs touch too: the token after -exec is a
+        # command word even though it is not the segment's first.
+        for _j, _t in enumerate(_seg):
+            if _t in ("-exec", "-execdir", "-ok") and _j + 1 < len(_seg):
+                cmd_allowed.add(_idxs[_j + 1])
 
     def _seg_after(idx: int) -> list[str]:
         """Tokens after idx up to the next shell operator (this segment only)."""
@@ -758,6 +906,13 @@ def _extract_raw(command: str) -> tuple[list[str], bool]:
 
     for i, tok in enumerate(tokens):
         if tok in _SHELL_OPS:
+            continue
+        # A command word only acts when it IS the command word: `canvas touch`
+        # names a subcommand, so the word `touch` must not fire touch(1)'s
+        # branch on the subcommand's flags. Arg-keyed branches (`of=`,
+        # redirects) are position-independent and stay outside this guard.
+        if i not in cmd_allowed and (tok in _WRITE_CMD_WORDS
+                                     or tok.startswith("python")):
             continue
         if tok in (">", ">>"):
             # `>>` arrives as ONE token (the spacing pass keeps it whole); the
@@ -821,17 +976,13 @@ def _extract_raw(command: str) -> tuple[list[str], bool]:
                     j += 1
                 targets.extend(files)
         elif tok in ("cp", "mv", "install"):
-            for st in seg_tokens:
-                if st and st[0] == tok:
-                    # Destination = last operand BEFORE a redirect: the flat
-                    # "last non-flag token" rule made `cp a.py b.py >
-                    # /dev/null` report /dev/null as the destination, so the
-                    # real copy target never reached the guard (probe,
-                    # 2026-10-04 — an E-063-class write blindness).
-                    operands = _write_operands(st[1:])
-                    if operands:
-                        targets.append(operands[-1])
-                    break
+            # Operands come from THIS segment, not from `st[0] == tok`: a
+            # prefixed call (`sudo cp a.py src/b.py`, `env X=1 mv a b`) never
+            # has the verb at index 0, so the old scan reported nothing and
+            # the copy destination escaped the gate (real session, 2026-11-16).
+            operands = _write_operands(_seg_after(i))
+            if operands:
+                targets.append(operands[-1])
         elif tok == "curl":
             targets.extend(_output_flag_targets(_seg_after(i), ("-o", "--output"), "-o"))
         elif tok == "wget":
@@ -934,7 +1085,12 @@ def _extract_raw(command: str) -> tuple[list[str], bool]:
     # likely write destination. The invoked script operand itself is never a
     # candidate here: eval mode requires the flag BEFORE the operand.
     opaque_inline_write = False
-    if any(_interpreter_eval_hit(seg) for seg in seg_tokens) and not _inline_readonly(command):
+    _inline_is_eval = any(_interpreter_eval_hit(seg) for seg in seg_tokens)
+    _prints_only = _inline_is_eval and _inline_prints_only(original_command)
+    # A print-only program is the narrower twin of the read-only case below:
+    # the heredoc shape (`python3 - <<'PY' … PY`) is already an eval hit, so the
+    # gate has to be applied to the branch itself, not only to `-c`.
+    if _inline_is_eval and not _prints_only and not _inline_readonly(command):
         before_inline = len(targets)
         for m in re.finditer(r"""['"]([^'"]+\.[A-Za-z0-9]+)['"]""", command):
             token = m.group(1)

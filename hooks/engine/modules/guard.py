@@ -472,6 +472,24 @@ def _validate_story_metadata(content: str) -> tuple[bool, str]:
 
     # 2. Validate Task↔AC mapping
     tasks = _parse_task_ac_refs(content)
+
+    # A `done` story must have measured SOMETHING. The [HYPOTHESIS] opt-out is
+    # for a story still being written, and nothing else closes it: every AC
+    # unmeasured, status flipped to done, and the chain reads green — the
+    # exact shape a real session shipped (Agently S-001, 2026-11-16: six ACs,
+    # all `Experiment: —` / `Measured: false` / [HYPOTHESIS], story "hazır").
+    # Tier 1 is exempt by policy (trivial/doc/hotfix needs no measured basis).
+    if current_status == "done" and acs:
+        from .config import story_rigor_tier
+        if story_rigor_tier(content) >= 2 and not any(
+                ac["measured"] == "true"
+                or ac["experiment"] not in ("", "—", "-") for ac in acs):
+            issues.append(
+                "Story is 'done' but no acceptance criterion is measured "
+                "(every AC is Measured: false / Experiment: —). Set "
+                "`Measured: true` on the ACs the verification actually "
+                "satisfied, or keep the story at review until one is measured.")
+
     ac_ids = {ac["id"] for ac in acs}
     for task in tasks:
         if not task["ac_refs"]:
