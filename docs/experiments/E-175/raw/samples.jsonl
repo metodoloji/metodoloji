@@ -1,0 +1,12 @@
+{"broken": false, "probe": "session_position", "ok": true, "detail": "systemMessage=\"Methodology chain — WORKFLOW 'demo' is active; stage 1/7 'experiment' (E: Research Experiment); completes with command `/root/workspace/metodoloji/.venv/bin/python /root/workspace/metodoloji/hooks/scripts/chain-gate.py --stage` (rc=0); then the kernel computes 'implementation-readiness'; tracked in…\""}
+{"broken": false, "probe": "session_idle", "ok": true, "detail": "systemMessage=''"}
+{"broken": false, "probe": "turn_mutation", "ok": true, "detail": "systemMessage=\"Chain — WORKFLOW 'demo' is active; stage 1/7 'experiment' (E: Research Experiment); completes with command `/root/workspace/metodoloji/.venv/bin/python /root/workspace/metodoloji/hooks/scripts/chain-gate.py --stage` (rc=0); then the kernel computes 'implementation-readiness'; tracked in docs/develo…\""}
+{"broken": false, "probe": "turn_unrelated", "ok": true, "detail": "systemMessage=None"}
+{"broken": false, "probe": "stop_position", "ok": true, "detail": "systemMessage=\"Chain status — WORKFLOW 'demo' is active; stage 1/7 'experiment' (E: Research Experiment); completes with command `/root/workspace/metodoloji/.venv/bin/python /root/workspace/metodoloji/hooks/scripts/chain-gate.py --stage` (rc=0); then the kernel computes 'implementation-readiness'; tracked in docs…\""}
+{"broken": false, "probe": "stop_idle", "ok": true, "detail": "systemMessage=None"}
+{"broken": false, "probe": "ask_force", "ok": true, "detail": "permissionDecision='ask'"}
+{"broken": false, "probe": "allow_plain_complete", "ok": true, "detail": "permissionDecision='allow'"}
+{"broken": false, "probe": "ask_block", "ok": true, "detail": "permissionDecision='ask'"}
+{"broken": false, "probe": "ask_create", "ok": true, "detail": "permissionDecision='ask'"}
+{"broken": false, "probe": "relay_other_runtime", "ok": true, "detail": "decision='allow' context='Workflow threshold — forcing a stage completion (`--force`): ask the user to confirm before continuing.'"}
+{"broken": false, "probe": "bounded_line", "ok": true, "detail": "len=300 newline=False"}

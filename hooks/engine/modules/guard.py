@@ -1472,6 +1472,41 @@ def _check_gate_records(root: str, blocked_action: str, include_pr: bool = False
         guard_module=sys.modules[__name__],
     )
 
+# Workflow thresholds that deserve a human rather than an automatic step
+# (E-175): forcing a completion, blocking a run, and declaring one. Ordinary
+# `complete` calls flow, because `bmad-dev-auto` is deliberately unattended.
+_WORKFLOW_THRESHOLDS = {
+    "complete": "forcing a stage completion (`--force`)",
+    "block": "blocking the run",
+    "create": "declaring a workflow run",
+}
+
+
+def _workflow_threshold(command: str) -> str:
+    """The confirm-worthy kernel step INVOKED in `command`, or "".
+
+    Token-based, not a text search: a quoted sentence that merely names
+    `workflow.py complete` is not an invocation (the lesson of E-174's deploy
+    edge). Only `workflow.py <verb>` as adjacent shell tokens counts.
+    """
+    import shlex
+    try:
+        tokens = shlex.split(command, posix=True)
+    except ValueError:
+        return ""
+    for i, token in enumerate(tokens[:-1]):
+        if not token.endswith("workflow.py"):
+            continue
+        verb = tokens[i + 1]
+        if verb not in _WORKFLOW_THRESHOLDS:
+            continue
+        if verb == "complete" and not any(
+                t == "--force" or t.startswith("--force=") for t in tokens):
+            continue
+        return _WORKFLOW_THRESHOLDS[verb]
+    return ""
+
+
 def pre(json_in: dict) -> dict:
     """Combined PreToolUse gate: guard + quality + deploy in ONE process.
 
@@ -1523,6 +1558,21 @@ def pre(json_in: dict) -> dict:
                 out["methodology_warnings"] = warnings + prior
             return out
         warnings.extend(r.get("methodology_warnings") or [])
+
+    # A workflow threshold is the user's decision, so ask the user (E-175).
+    # Claude Code has an "ask" decision; every other runtime gets a warning the
+    # model must relay — an unattended loop is never silently blocked.
+    try:
+        threshold = _workflow_threshold(
+            str(normalize_hook_input(json_in)["tool_input"].get("command") or ""))
+    except Exception:
+        threshold = ""
+    if threshold:
+        if os.environ.get("METODOLOJI_RUNTIME", "claude") == "claude":
+            return {"decision": "ask",
+                    "reason": f"Workflow threshold — {threshold}. Confirm to proceed."}
+        warnings.append(
+            f"Workflow threshold — {threshold}: ask the user to confirm before continuing.")
 
     if warnings:
         return {"decision": "allow", "methodology_warnings": warnings}

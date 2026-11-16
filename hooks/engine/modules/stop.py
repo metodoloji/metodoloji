@@ -500,14 +500,19 @@ def stop(json_in: dict) -> dict:
         pass
 
     # Workflow progress (informational): active or blocked workflow runs from advisory
+    workflow_notice = ""
     try:
         plugin_root = str(pathlib.Path(__file__).resolve().parents[3])
         if plugin_root not in sys.path:
             sys.path.insert(0, plugin_root)
-        from hooks.workflow import advisory
+        from hooks.workflow import advisory, notice
         wf_peek = advisory.peek(root)
         if wf_peek:
             notes.append(f"active workflow: {wf_peek}.")
+            # The same position, for the person at the keyboard (E-175). The
+            # session edge shows it at open; this shows it at close, so a run
+            # never ends without the human seeing where it stands.
+            workflow_notice = notice.stop_line(root)
     except Exception:
         pass
 
@@ -519,5 +524,8 @@ def stop(json_in: dict) -> dict:
         except Exception:
             pass
         _record_stop_report(root, session_key)
-        return {"decision": "allow", "reason": "Stop report — " + " ".join(notes)}
+        report = {"decision": "allow", "reason": "Stop report — " + " ".join(notes)}
+        if workflow_notice:
+            report["user_message"] = workflow_notice
+        return report
     return {"decision": "allow"}

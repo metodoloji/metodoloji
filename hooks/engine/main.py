@@ -157,6 +157,21 @@ def _report_unknown_runtime(hook_type: str, runtime: str) -> None:
     print(json.dumps({"hookSpecificOutput": hso}, ensure_ascii=False))
 
 
+def _emit(hso: dict, result: dict) -> None:
+    """Print the envelope, carrying the HUMAN channel when a handler set one.
+
+    `systemMessage` is the field the harness renders to the person at the
+    keyboard; `additionalContext` is the field it injects into the model. The
+    workflow kernel used to report only the latter, so a run advanced in
+    silence (E-175).
+    """
+    out = {"hookSpecificOutput": hso}
+    message = result.get("user_message")
+    if message:
+        out["systemMessage"] = str(message)
+    print(json.dumps(out, ensure_ascii=False))
+
+
 def main():
     """Main entry point for hook execution."""
     # Resolve the hook type BEFORE importing any gate module — only the
@@ -279,7 +294,7 @@ def main():
         hso = {"hookEventName": "Stop"}
         if reason:
             hso["additionalContext"] = reason
-        print(json.dumps({"hookSpecificOutput": hso}, ensure_ascii=False))
+        _emit(hso, result)
         return
     elif hook_type == "session_start":
         # SessionStart: context injection only, never blocks.
@@ -292,7 +307,7 @@ def main():
         _deny_unknown_hook_type()
         return
 
-    print(json.dumps({"hookSpecificOutput": hso}, ensure_ascii=False))
+    _emit(hso, result)
 
 
 if __name__ == "__main__":

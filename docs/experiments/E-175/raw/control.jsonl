@@ -1,0 +1,12 @@
+{"broken": true, "probe": "session_position", "ok": false, "detail": "systemMessage=''"}
+{"broken": true, "probe": "session_idle", "ok": true, "detail": "systemMessage=''"}
+{"broken": true, "probe": "turn_mutation", "ok": false, "detail": "systemMessage=''"}
+{"broken": true, "probe": "turn_unrelated", "ok": true, "detail": "systemMessage=None"}
+{"broken": true, "probe": "stop_position", "ok": false, "detail": "systemMessage=''"}
+{"broken": true, "probe": "stop_idle", "ok": true, "detail": "systemMessage=None"}
+{"broken": true, "probe": "ask_force", "ok": false, "detail": "permissionDecision='allow'"}
+{"broken": true, "probe": "allow_plain_complete", "ok": true, "detail": "permissionDecision='allow'"}
+{"broken": true, "probe": "ask_block", "ok": false, "detail": "permissionDecision='allow'"}
+{"broken": true, "probe": "ask_create", "ok": false, "detail": "permissionDecision='allow'"}
+{"broken": true, "probe": "relay_other_runtime", "ok": false, "detail": "decision='allow' context=''"}
+{"broken": true, "probe": "bounded_line", "ok": false, "detail": "len=0 newline=False"}

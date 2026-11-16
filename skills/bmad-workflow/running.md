@@ -132,6 +132,13 @@ only when the condition is genuinely true; never set one to steer the run somewh
 
 ## Reporting to the user
 
+- The hook layer already puts the computed position on the user's screen
+  (`systemMessage`) at session open, after every kernel mutation, and at close. Do not
+  repeat it verbatim, and never contradict it.
+- At three thresholds the harness asks the user directly instead of letting the chain
+  decide: `complete --force`, `block`, and `create`. On a runtime without an "ask"
+  decision the hook returns a warning instead — you must ask the user yourself and wait
+  for the answer before continuing.
 - Name the run, the stage just completed, and the stage the kernel computed next.
 - Keep the artifact (`artifact` in the spec) as the human-readable record; the user should be
   able to read the process's whole history there, in order.

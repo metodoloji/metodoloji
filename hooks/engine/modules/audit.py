@@ -36,6 +36,11 @@ from .utils import dod_issues, has_dod_content, repo_root, scan_dod_items
 # below mirror guard._is_git_commit / guard._DEPLOY_CMD_RE — commit/deploy
 # commands are ALWAYS logged even when they resolve no file target.
 _AUDIT_COMMIT_RE = re.compile(r"\bgit\b.*\bcommit\b")
+# A kernel mutation writes workflow state, so it is never a "read-only" call —
+# the fast exit would swallow the one turn the human channel exists to show
+# (E-175). The verb must follow the script as a shell token, not sit in prose.
+_AUDIT_WORKFLOW_RE = re.compile(
+    r"workflow\.py\s+(?:complete|block|resume|flag|create)\b")
 _AUDIT_DEPLOY_RE = re.compile(
     r"(?i)(?:"
     r"\bterraform\s+(?:apply|destroy|plan)\b|"
@@ -159,7 +164,8 @@ def is_readonly_call(
         cmd = str((tool_input or {}).get("command", "") or "")
         if not cmd.strip():
             return True
-        if _AUDIT_COMMIT_RE.search(cmd) or _AUDIT_DEPLOY_RE.search(cmd):
+        if (_AUDIT_COMMIT_RE.search(cmd) or _AUDIT_DEPLOY_RE.search(cmd)
+                or _AUDIT_WORKFLOW_RE.search(cmd)):
             return False
         try:
             from .bash_targets import extract_bash_targets_ex
@@ -387,6 +393,29 @@ def _workflow_peek(root: str) -> str:
         return ""
 
 
+def _workflow_notice(root: str, kind: str) -> str:
+    """One user-facing workflow line ("session" | "turn" | "stop"), or "".
+
+    `_workflow_peek` feeds the MODEL; this feeds the HUMAN through the
+    harness's `systemMessage`, which is the only channel the person at the
+    keyboard reads (E-175). Same lazy kernel import, same fail-open contract.
+    """
+    try:
+        plugin_root = str(pathlib.Path(__file__).resolve().parents[3])
+        if plugin_root not in sys.path:
+            sys.path.insert(0, plugin_root)
+        from hooks.workflow import notice
+        return getattr(notice, f"{kind}_line")(root)
+    except Exception:
+        return ""
+
+
+# A kernel mutation is the only turn worth announcing: reads (`status`, `next`,
+# `list`, `history`) and enquiries must not spam the human channel (E-175).
+_WORKFLOW_MUTATION_RE = re.compile(
+    r"workflow\.py\s+(?:complete|block|resume|flag|create)\b")
+
+
 def session_start(json_in: dict) -> dict:
     """SessionStart: stamp a session_start marker into the audit trail.
 
@@ -594,10 +623,16 @@ def session_start(json_in: dict) -> dict:
     except Exception:
         pass
 
-    return {
+    result: dict[str, Any] = {
         "decision": "allow",
         "additionalContext": context,
     }
+    # The human channel (E-175): the same position `_workflow_peek` gives the
+    # model, rendered for the person at the keyboard. Silent when idle.
+    user_message = _workflow_notice(root, "session")
+    if user_message:
+        result["user_message"] = user_message
+    return result
 
 
 def audit(json_in: dict) -> dict:
@@ -676,4 +711,12 @@ def audit(json_in: dict) -> dict:
     result: dict[str, Any] = {"decision": "allow"}
     if warnings:
         result["methodology_warnings"] = warnings
+    # Announce the advance to the HUMAN, not only to the trail: a run that
+    # moves stage by stage in silence is the complaint this answers (E-175).
+    # A refused `complete` did not advance, so `failure` keeps it quiet.
+    if failure is None and _WORKFLOW_MUTATION_RE.search(
+            str(tool_input.get("command") or "")):
+        user_message = _workflow_notice(root, "turn")
+        if user_message:
+            result["user_message"] = user_message
     return result

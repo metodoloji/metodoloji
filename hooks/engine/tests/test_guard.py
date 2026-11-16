@@ -2748,3 +2748,33 @@ def test_attempt_count_matches_the_target_as_a_token(tmp_path):
         '{"tool":"Bash","input":{"command":"echo src/app.ts"}}\n', encoding="utf-8")
     assert guard_mod._prior_attempts(str(tmp_path), "src/app.ts") == 1
     assert guard_mod._prior_attempts(str(tmp_path), "src/app.tsx") == 0
+
+
+def test_workflow_threshold_only_matches_an_invocation():
+    """A quoted sentence naming the command is not the command (E-174 lesson)."""
+    from modules import guard as guard_mod
+    forced = "python3 /x/workflow.py complete --slug demo --stage one --force"
+    assert guard_mod._workflow_threshold(forced)
+    assert guard_mod._workflow_threshold(
+        "python3 /x/workflow.py complete --slug demo --stage one") == ""
+    assert guard_mod._workflow_threshold(
+        'echo "workflow.py complete --force"') == ""
+
+
+def test_pre_asks_the_user_at_a_forced_completion(tmp_path, monkeypatch):
+    """Claude Code gets an `ask`; an unattended runtime gets a relay warning."""
+    from modules import guard as guard_mod
+    cli = str(Path(__file__).resolve().parents[3] / "hooks" / "scripts" / "workflow.py")
+    payload = {
+        "cwd": str(tmp_path),
+        "tool_name": "Bash",
+        "tool_input": {"command": f"python3 {cli} complete --slug demo "
+                                  "--stage one --force"},
+    }
+    monkeypatch.setenv("METODOLOJI_RUNTIME", "claude")
+    assert guard_mod.pre(payload)["decision"] == "ask"
+
+    monkeypatch.setenv("METODOLOJI_RUNTIME", "openhands")
+    out = guard_mod.pre(payload)
+    assert out["decision"] == "allow"
+    assert any("ask the user" in w for w in out["methodology_warnings"])
