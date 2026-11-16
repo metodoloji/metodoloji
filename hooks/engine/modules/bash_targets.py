@@ -208,6 +208,20 @@ _INLINE_READ_RE = re.compile(
 )
 
 
+# A quoted token with no path separator and an extension nobody lists is a
+# dotted IDENTIFIER (a board key like `epics.agently`, `record.field`), not a
+# write path. Treating it as a candidate denied read-only inline code with
+# "No approved experiment record for epics.agently" (E-174, 2026-11-16). Only
+# separator-bearing or known-code-extension tokens are candidates; a real
+# write to an unknown extension still trips the opaque-write fail-closed path.
+_INLINE_CODE_EXT_RE = re.compile(
+    r"(?i)\.(?:py|pyi|pyx|ts|tsx|mts|cts|js|jsx|mjs|cjs|go|rs|java|kt|kts|cs|fs"
+    r"|rb|php|sh|bash|zsh|fish|ps1|psm1|sql|c|h|cc|cpp|cxx|hpp|hh|swift|scala"
+    r"|ex|exs|erl|lua|r|jl|dart|vue|svelte|astro|nim|zig|hs|ml|clj|cljs|groovy"
+    r"|pl|pm|tcl|awk|bat|cmd)$"
+)
+
+
 def _inline_readonly(command: str) -> bool:
     """True only when inline code is recognizably a pure file read.
 
@@ -231,6 +245,12 @@ def _interpreter_eval_hit(seg: list[str]) -> bool:
         if not _INTERPRETER_BASENAME_RE.match(base):
             continue
         for opt in seg[i + 1:]:
+            if opt == "-":
+                # `python3 -` / `node -` read the program from stdin (a
+                # heredoc or a pipe): that IS inline eval, and it used to be
+                # scanned as ordinary arguments, so a board key read through a
+                # heredoc was denied as a write (E-174, 2026-11-16).
+                return True
             if opt.startswith("-"):
                 if _EVAL_OPTION_RE.match(opt):
                     return True
@@ -917,8 +937,12 @@ def _extract_raw(command: str) -> tuple[list[str], bool]:
     if any(_interpreter_eval_hit(seg) for seg in seg_tokens) and not _inline_readonly(command):
         before_inline = len(targets)
         for m in re.finditer(r"""['"]([^'"]+\.[A-Za-z0-9]+)['"]""", command):
-            if is_code_target(m.group(1)):
-                targets.append(m.group(1))
+            token = m.group(1)
+            if ("/" not in token and "\\" not in token
+                    and not _INLINE_CODE_EXT_RE.search(token)):
+                continue  # a dotted identifier, not a path (E-174)
+            if is_code_target(token):
+                targets.append(token)
         for m in re.finditer(r"""['"](?=([^'"]*)['"])""", command):
             s = m.group(1)
             if not s or re.search(r"\.[A-Za-z0-9]+$", s):

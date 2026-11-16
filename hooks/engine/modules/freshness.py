@@ -595,8 +595,23 @@ def classify(root: str, *, commit: str = "", scope: str = "",
         # work tree, and the stored tree digest answers that exactly.
         now_tree = tree_digest(root)
         if now_tree and now_tree != tree:
-            moved = [p for p in (dirty_files(root) or [])
-                     if not scope or scope_matches(scope, p)]
+            # Free zones (runtime state under .metodoloji/, scratch/, tmp/) are
+            # never code and never need approval, so their churn cannot stale a
+            # claim. Without this filter a tracked hook-audit.log — rewritten by
+            # every hook — left every unscoped claim permanently STALE (E-174).
+            from .utils import is_free  # local: freshness stays import-light
+            dirty = [p for p in (dirty_files(root) or []) if not is_free(p)]
+            if not scope or scope.strip().lower() == "none":
+                # A record that declares no code scope authorizes no code, so a
+                # dirty tree cannot stale it (same doctrine as the commit-moved
+                # branch below). A claim with NO record still leans on the
+                # stored witness' tree digest, which is the only anchor it has.
+                if run_key and record_path(root, run_key) is not None:
+                    return CURRENT, {**detail,
+                                     "reason": "the claim declares no code scope — nothing to stale"}
+                moved = dirty
+            else:
+                moved = [p for p in dirty if scope_matches(scope, p)]
             if moved:
                 return STALE, {**detail, "changed": moved,
                                "reason": "uncommitted edits inside the claim's scope"}

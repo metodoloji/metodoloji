@@ -2716,3 +2716,35 @@ def test_approved_record_unlocks_write_without_a_nameerror(monkeypatch, tmp_path
 
     result = guard_mod.guard(payload)
     assert result["decision"] == "allow", result
+
+
+# --- E-174: the gate's own edges stop lying -------------------------------------
+def test_a_deploy_path_in_a_read_only_command_is_not_a_deploy():
+    """Only a deploy COMMAND is a deploy; naming deploy/ is not (E-174)."""
+    from modules.deploy_gate import DEPLOY_CMD_RE
+
+    assert not DEPLOY_CMD_RE.search(
+        "python3 -c \"print('deploy/docker-compose.yml')\"")
+    assert DEPLOY_CMD_RE.search("./deploy.sh")
+    assert DEPLOY_CMD_RE.search("npm run deploy")
+
+
+def test_short_target_earns_no_attempt_count(tmp_path):
+    """A 1-char needle matched half the trail and reported 'attempt #59'."""
+    from modules import guard as guard_mod
+    log_dir = tmp_path / ".metodoloji" / "logs"
+    log_dir.mkdir(parents=True)
+    (log_dir / "hook-audit.log").write_text(
+        '{"tool":"Bash","input":{"command":"echo x"}}\n', encoding="utf-8")
+    assert guard_mod._prior_attempts(str(tmp_path), "x") == 0
+
+
+def test_attempt_count_matches_the_target_as_a_token(tmp_path):
+    """Substring hits on a longer path must not inflate the count."""
+    from modules import guard as guard_mod
+    log_dir = tmp_path / ".metodoloji" / "logs"
+    log_dir.mkdir(parents=True)
+    (log_dir / "hook-audit.log").write_text(
+        '{"tool":"Bash","input":{"command":"echo src/app.ts"}}\n', encoding="utf-8")
+    assert guard_mod._prior_attempts(str(tmp_path), "src/app.ts") == 1
+    assert guard_mod._prior_attempts(str(tmp_path), "src/app.tsx") == 0

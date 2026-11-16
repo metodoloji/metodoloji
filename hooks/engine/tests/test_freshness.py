@@ -387,3 +387,40 @@ def test_verify_cache_has_no_dead_invalidator():
     assert "def invalidate_verify_cache" not in source
     assert "_VERIFY_CACHE_VERSION" not in source
     assert not hasattr(guard_mod, "invalidate_verify_cache")
+
+
+# --- E-174: an unscoped claim has nothing to stale ------------------------------
+def test_unscoped_record_ignores_a_dirty_runtime_log(repo):
+    """A record with no Code Scope must not STALE on a tracked runtime log.
+
+    `.metodoloji/logs/hook-audit.log` is rewritten by every hook; counting it
+    against every unscoped claim left SP-001 permanently STALE (2026-11-16).
+    """
+    _record(repo, "E-901", "none")
+    log = repo / ".metodoloji" / "logs" / "hook-audit.log"
+    log.parent.mkdir(parents=True)
+    log.write_text("", encoding="utf-8")
+    _commit(repo, "log fixture")
+    head = fr.head(str(repo))
+    tree = fr.tree_digest(str(repo))
+    log.write_text('{"tool": "Bash"}\n', encoding="utf-8")
+
+    verdict, detail = fr.classify(str(repo), commit=head, scope="",
+                                  tree=tree, run_key="E-901")
+    assert verdict == fr.CURRENT, detail
+
+
+def test_unscoped_claim_without_a_record_leans_on_its_witness(repo):
+    """With no record, the stored tree digest is the only anchor a claim has."""
+    head = fr.head(str(repo))
+    tree = fr.tree_digest(str(repo))
+    (repo / "lib" / "b.py").write_text("# moved\n", encoding="utf-8")
+
+    verdict, detail = fr.classify(str(repo), commit=head, scope="",
+                                  tree=tree, run_key="E-998")
+    assert verdict == fr.STALE, detail
+
+    # No record and no witness: nothing to judge against, so never CURRENT.
+    verdict, detail = fr.classify(str(repo), commit="", scope="",
+                                  tree="", run_key="E-998")
+    assert verdict == fr.UNKNOWN, detail

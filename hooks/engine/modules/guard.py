@@ -1200,7 +1200,10 @@ def _prior_attempts(root: str, rel: str) -> int:
     nothing; the trail holds writes only (read-only calls are skipped), so
     every hit is a genuine attempt.
     """
-    if not rel:
+    if not rel or len(rel) < 4:
+        # A 1–3 char needle ("x", "E", "1") matches half the trail, so it
+        # reported "attempt #59" on a first denial (E-174). No real target is
+        # that short.
         return 0
     try:
         from .config import log_file
@@ -1214,8 +1217,13 @@ def _prior_attempts(root: str, rel: str) -> int:
         return 0
     n = 0
     needle = rel.replace("\\", "/").lstrip("/")
+    # Boundary-delimited match: the target must appear as a token, not as a
+    # substring of a longer word or command (`src/app.ts` inside
+    # `src/app.tsx`, or `x` inside every line that contains an x).
+    token = re.compile(r"""(?:^|["'\s/(\\])""" + re.escape(needle)
+                       + r"""(?:$|["'\s)/\\])""")
     for line in tail.splitlines():
-        if needle and needle in line.replace("\\", "/"):
+        if needle and token.search(line.replace("\\", "/")):
             n += 1
     return n
 

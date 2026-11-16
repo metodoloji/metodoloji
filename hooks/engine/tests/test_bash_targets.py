@@ -635,3 +635,32 @@ def test_resolved_inline_write_is_not_reported_unresolved():
         "python3 -c \"open('src/new_module.py','w').write('x')\"")
     assert targets == ["src/new_module.py"]
     assert dropped is False
+
+
+def test_dotted_identifier_is_not_a_write_path():
+    """A board key read is not an inline write (E-174).
+
+    `b['epics.agently']` used to become a target because its extension was
+    unknown and the tail is fail-closed, so a read-only board query was denied
+    as "No approved experiment record for epics.agently" (2026-11-16).
+    """
+    targets, dropped = extract_bash_targets_ex(
+        "python3 -c \"import sqlite3; b=sqlite3.connect('.m/x.sqlite')"
+        ".execute('q').fetchone(); print(b['epics.agently'])\"")
+    assert targets == []
+    assert dropped is False
+
+
+def test_dotted_identifier_read_on_stdin_is_not_a_write():
+    """`python3 -` reads stdin: same rule, same false positive (E-174)."""
+    targets, dropped = extract_bash_targets_ex(
+        "python3 - <<'PY'\nprint(b['epics.agently'])\nPY")
+    assert targets == []
+    assert dropped is False
+
+
+def test_separator_bearing_unknown_extension_keeps_the_gate():
+    """The narrowing is for bare identifiers only, not real paths."""
+    targets, _dropped = extract_bash_targets_ex(
+        "python3 -c \"open('src/gen.widget','w').write('x')\"")
+    assert targets == ["src/gen.widget"]

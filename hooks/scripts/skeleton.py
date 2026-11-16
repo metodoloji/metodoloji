@@ -397,6 +397,7 @@ def install(project_root: pathlib.Path, *, force: bool = False) -> dict:
         except OSError as exc:
             print(f"skeleton: cannot copy {dest_rel}: {exc}", file=sys.stderr)
             return {"ok": False, "error": f"copy {dest_rel}: {exc}"}
+    gitignore_written = _ensure_gitignore(project_root)
     # The marker records the FIRST init, so a redundant install must not
     # churn initialized_at (only --force rewrites it).
     marker = read_marker(project_root)
@@ -408,7 +409,37 @@ def install(project_root: pathlib.Path, *, force: bool = False) -> dict:
             "directories_created": created_dirs, "templates_copied": copied,
             "templates_skipped": skipped, "marker": marker,
             "marker_written": marker_written,
+            "gitignore_written": gitignore_written,
             "next_step": "/metodoloji:audit (health check)"}
+
+
+# .metodoloji/ holds runtime state — the blackboard (sqlite, WAL), the append-
+# only event and hook-audit logs, locks and the relay note. Committing it
+# churns a binary blob on every session, conflicts on every lock, and makes a
+# tracked log dirty the work tree, which is enough to STALE unscoped claims
+# (E-174, observed in Agently 2026-11-16). The marker is runtime too: a fresh
+# clone re-runs the idempotent install.
+_GITIGNORE_LINE = ".metodoloji/"
+
+
+def _ensure_gitignore(project_root: pathlib.Path) -> bool:
+    """Append .metodoloji/ to .gitignore once. Never rewrites existing lines."""
+    path = project_root / ".gitignore"
+    try:
+        current = path.read_text(encoding="utf-8") if path.is_file() else ""
+    except OSError:
+        return False
+    if any(line.strip().rstrip("/") == ".metodoloji"
+           for line in current.splitlines()):
+        return False
+    try:
+        sep = "" if not current or current.endswith("\n") else "\n"
+        with path.open("a", encoding="utf-8") as fh:
+            fh.write(f"{sep}{_GITIGNORE_LINE}\n")
+    except OSError as exc:
+        print(f"skeleton: cannot write .gitignore: {exc}", file=sys.stderr)
+        return False
+    return True
 
 
 def _print_status(state: dict) -> None:

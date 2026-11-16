@@ -1,0 +1,17 @@
+{"check": "deploy_readonly", "ok": false, "detail": "command='python3 -c \"print(\\'deploy/docker-compose.yml\\')\"' detected=True want=False"}
+{"check": "deploy_shell", "ok": true, "detail": "command='./deploy.sh' detected=True want=True"}
+{"check": "deploy_npm", "ok": true, "detail": "command='npm run deploy' detected=True want=True"}
+{"check": "deploy_git", "ok": true, "detail": "command='git push origin main' detected=True want=True"}
+{"check": "inline_key", "ok": false, "detail": "targets=['epics.agently'] dropped=False"}
+{"check": "inline_stdin", "ok": true, "detail": "targets=[] dropped=False"}
+{"check": "inline_write", "ok": true, "detail": "targets=['src/gen.ts']"}
+{"check": "inline_opaque", "ok": true, "detail": "targets=[] dropped=True"}
+{"check": "freshness_unscoped", "ok": false, "detail": "verdict=STALE want=CURRENT reason=uncommitted edits inside the claim's scope"}
+{"check": "freshness_scoped", "ok": true, "detail": "verdict=STALE want=STALE reason=uncommitted edits inside the claim's scope"}
+{"check": "freshness_outside", "ok": true, "detail": "verdict=CURRENT want=CURRENT reason=work tree moved, but outside the claim's scope"}
+{"check": "freshness_no_record", "ok": true, "detail": "verdict=UNKNOWN want=UNKNOWN reason=no code-state anchor (no witness commit)"}
+{"check": "attempt_short", "ok": false, "detail": "prior(x)=1 want=0"}
+{"check": "attempt_exact", "ok": true, "detail": "prior(src/app.ts)=1 want=1"}
+{"check": "skeleton_gitignore", "ok": false, "detail": "gitignore=''"}
+{"check": "skeleton_idempotent", "ok": false, "detail": "gitignore=''"}
+{"check": "skeleton_preserves", "ok": false, "detail": "gitignore='node_modules/\\n'"}

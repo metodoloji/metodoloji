@@ -14,8 +14,14 @@ DEPLOY_CMD_RE = re.compile(
     r"\bdocker\s+(?:compose\s+)?(?:up|deploy)\b|"
     r"\bansible\s+(?:playbook|deploy)\b|"
     r"\bgit\s+push\s+(?:origin|upstream)\s+(?:main|master|production|prod)\b|"
+    r"\b(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?deploy\b|"
+    r"\bmake\s+deploy\b|"
     r"\b部署\b|"
-    r"\bdeploy\b"
+    # A bare `deploy` is a deploy only when it is the COMMAND being run. The
+    # word used to match anywhere in the command text, so a read-only command
+    # that merely named a path like `deploy/docker-compose.yml` was blocked
+    # with "Deploy blocked" (E-174, observed 2026-11-16).
+    r"(?:^|[;&|]\s*)(?:\S*/)?deploy(?:\.sh)?(?:\s|$)"
     r")"
 )
 
