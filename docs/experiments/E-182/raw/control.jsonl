@@ -1,0 +1,12 @@
+{"check": "single_line_glob", "ok": false, "detail": "written=glob_nomatch replayed=None want=glob_nomatch"}
+{"check": "multiline_glob", "ok": false, "detail": "written=glob_nomatch replayed=None want=glob_nomatch"}
+{"check": "multiline_command_not_found", "ok": false, "detail": "written=command_not_found replayed=None want=command_not_found"}
+{"check": "multiline_backslash", "ok": false, "detail": "written=backslash_path replayed=None want=backslash_path"}
+{"check": "stderr_only_glob", "ok": false, "detail": "written=glob_nomatch replayed=None want=glob_nomatch"}
+{"check": "nested_envelope_glob", "ok": false, "detail": "written=glob_nomatch replayed=None want=glob_nomatch"}
+{"check": "long_head_glob", "ok": false, "detail": "written=glob_nomatch replayed=None want=glob_nomatch"}
+{"check": "long_tail_sed", "ok": false, "detail": "written=bsd_sed replayed=None want=bsd_sed"}
+{"check": "silent_long_ok", "ok": true, "detail": "written=None replayed=None want=None"}
+{"check": "silent_multiline_ok", "ok": true, "detail": "written=None replayed=None want=None"}
+{"check": "no_output", "ok": true, "detail": "written=None replayed=None want=None"}
+{"check": "file_editor_body_bounded", "ok": true, "detail": "written=None replayed=None want=None"}

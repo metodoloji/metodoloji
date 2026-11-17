@@ -227,6 +227,22 @@ def command_output_text(tool_output) -> str:
     return "\n".join(_collect_output(tool_output))
 
 
+# The one view of an output that BOTH the classifier and the trail use (E-182).
+# Every signature is anchored to a line start, so a repr (escaped `\n`) has no
+# anchor and a head-only cut loses a tail traceback: either one left a stored
+# row unable to reproduce the class it recorded.
+_OUTPUT_WINDOW = 4000
+
+
+def _output_window(text: str, limit: int = _OUTPUT_WINDOW) -> str:
+    """Head+tail of `text`, so a diagnostic at either end survives the cut."""
+    if len(text) <= limit:
+        return text
+    half = limit // 2
+    return (text[:half] + f"\n…[{len(text) - limit} chars omitted]…\n"
+            + text[-half:])
+
+
 def command_failure(tool_name: str, tool_output) -> tuple[str, str] | None:
     """(kind, bounded correction) when a terminal output shows a known
     cross-platform failure; None otherwise.
@@ -240,7 +256,7 @@ def command_failure(tool_name: str, tool_output) -> tuple[str, str] | None:
     s = command_output_text(tool_output)
     if not s:
         return None
-    hay = s if len(s) <= 4000 else s[:2000] + "\n" + s[-2000:]
+    hay = _output_window(s)
     for kind, rx, hint in _COMMAND_FAILURES:
         if rx.search(hay):
             return kind, hint
@@ -726,6 +742,25 @@ def session_start(json_in: dict) -> dict:
     return result
 
 
+def _trail_output(tool_name: str, tool_output, failed: bool) -> str | None:
+    """The row's own text: real output, in the window the classifier read.
+
+    A failing terminal call keeps the whole window, so a later session can
+    re-derive the class from the row and nothing else; a silent one keeps a
+    short preview, because a subset of text that matched nothing cannot match
+    anything. Other tools keep the bounded preview of the response: their
+    payload is an edit body, not command output.
+    """
+    if not tool_output:
+        return None
+    if tool_name == "terminal":
+        text = command_output_text(tool_output)
+        if text:
+            return _output_window(
+                text, _OUTPUT_WINDOW if failed else _OUTPUT_PREVIEW_LEN)
+    return str(tool_output)[:_OUTPUT_PREVIEW_LEN]
+
+
 def audit(json_in: dict) -> dict:
     """PostToolUse audit: append one redacted JSON line, return.
 
@@ -769,7 +804,7 @@ def audit(json_in: dict) -> dict:
         "timestamp": time.time(),
         "tool": tool_name,
         "input": _redacted_input(tool_input),
-        "output_summary": str(tool_output)[:_OUTPUT_PREVIEW_LEN] if tool_output else None,
+        "output_summary": _trail_output(tool_name, tool_output, failure is not None),
     }
     if failure:
         # Machine-countable class for the trail (failures per session per OS

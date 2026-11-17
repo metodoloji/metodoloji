@@ -885,6 +885,73 @@ def test_nested_command_not_found_is_classified_and_logged(tmp_path, monkeypatch
     assert any("never resolved" in w for w in res.get("methodology_warnings", []))
 
 
+# --- E-182: a row must re-classify to the class it recorded -----------------
+# The trail exists so a LATER session can count failures per class, which needs
+# the row to reproduce its own verdict. `str(tool_response)[:500]` could not:
+# every signature is anchored to a real line start and a repr has none.
+
+
+def _trail_row(tmp_path, monkeypatch, tool_name, tool_input, tool_response):
+    import json
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+    monkeypatch.delenv("OPENHANDS_PROJECT_DIR", raising=False)
+    payload = {"tool_name": tool_name, "tool_input": tool_input}
+    if tool_response is not None:
+        payload["tool_response"] = tool_response
+    audit(payload)
+    log = tmp_path / ".metodoloji/logs/hook-audit.log"
+    if not log.is_file():
+        return None
+    return json.loads(log.read_text(encoding="utf-8").splitlines()[-1])
+
+
+def test_stored_row_replays_to_its_recorded_class(tmp_path, monkeypatch):
+    for response, want in (
+        ({"stdout": "running\nchecking\nexecuting…\n"
+                    "zsh: no matches found: docs/*.md\n"}, "glob_nomatch"),
+        ({"stdout": "build\n", "stderr": "bash: line 3: rg: command not found\n"},
+         "command_not_found"),
+        ({"stdout": "step\n",
+          "stderr": "cat: cannot access 'C:Usersx': No such file\n"}, "backslash_path"),
+    ):
+        row = _trail_row(tmp_path, monkeypatch, "Bash",
+                        {"command": "git commit -m 'x'"}, response)
+        assert row and row.get("command_failed") == want, row
+        got = command_failure("terminal", {"stdout": row["output_summary"]})
+        assert got and got[0] == want, row["output_summary"][:200]
+
+
+def test_tail_diagnostic_survives_the_cut(tmp_path, monkeypatch):
+    filler = "".join(f"   checking module {i:03d} … ok\n" for i in range(200))
+    row = _trail_row(tmp_path, monkeypatch, "Bash",
+                     {"command": "git commit -m 'x'"},
+                     {"stdout": filler + 'sed: 1: "f.py": invalid command code 1\n'})
+    assert row["command_failed"] == "bsd_sed"
+    got = command_failure("terminal", {"stdout": row["output_summary"]})
+    assert got and got[0] == "bsd_sed"
+    assert "chars omitted" in row["output_summary"]
+
+
+def test_silent_row_keeps_a_short_preview(tmp_path, monkeypatch):
+    filler = "x" * 5000
+    row = _trail_row(tmp_path, monkeypatch, "Bash",
+                     {"command": "git commit -m 'x'"}, {"stdout": filler})
+    assert "command_failed" not in row
+    assert len(row["output_summary"]) <= 600
+    assert command_failure("terminal", {"stdout": row["output_summary"]}) is None
+
+
+def test_editor_row_stays_a_bounded_preview(tmp_path, monkeypatch):
+    # An edit body is not command output: it stays a bounded preview (the
+    # module's promise is "preview + length only", never the body whole).
+    row = _trail_row(tmp_path, monkeypatch, "file_editor",
+                     {"command": "str_replace", "path": "x.py",
+                      "old_str": "a", "new_str": "b"},
+                     {"content": "BODY " * 2000, "output": "edited"})
+    assert row is not None
+    assert len(row["output_summary"]) <= 600
+
+
 # --- E-181: the collapsed path is the tool's diagnostic --------------------
 # `backslash_path` matched any text naming the message, so reading this test
 # file (the thing an agent does all session) bought a forward-slash correction
