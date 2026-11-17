@@ -51,7 +51,8 @@ resolution: E-142 — the bullet is the line that ENUMERATES the radar (marker p
 origin: code review of SP-014, 2026-11-03
 location: n/a
 reason: `eval` defaults to `scripted` unless the operator repeats `--runner` (`optimization/cli.py:39-42,249-256`). Design change, not a wiring fix.
-status: open
+status: done 2026-11-17
+resolution: obsolete — the optimization subsystem this entry describes (optimization/cli.py, its eval --runner default) was removed in 2064fa9; there is no runner default left to persist
 
 ### DW-7: DoD-001…004 in S-011/S-012/S-013 omit the canonical `Evidence:` field
 

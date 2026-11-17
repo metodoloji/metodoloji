@@ -106,36 +106,125 @@ def _has_write_payload(tool_input: dict) -> bool:
 #   B-004 S2  a native `C:\…` path collapses inside a POSIX shell
 #   B-004 S1  PowerShell is a different vocabulary (no grep/sed; PS 5.1 no `&&`)
 #   macOS     GNU-style `sed -i 's/…/'` under BSD sed → invalid command code
+# The signature below is a SHELL diagnostic, not the words "no matches".
+# E-177: the pre-fix pattern matched the harness's own label
+# (`returnCodeInterpretation: "No matches found"`) on a grep that simply
+# found nothing, so the agent was told a glob abort had happened.
 _COMMAND_FAILURES = (
     ("glob_nomatch",
-     re.compile(r"(?i)no matches found|\bnomatch\b"),
+     re.compile(r"(?im)(?:^|[\n;])\s*(?:zsh|bash|dash|sh|fish):\s*no match(?:es)?\b"),
      "Command aborted by an unmatched glob — zsh (macOS) cancels the whole "
      "line when a pattern matches nothing: confirm the target exists before "
      "a `path/*` command, and never let a glob decide whether the rest runs."),
+    # E-181: the FILESYSTEM TOOL prints this, with its name at line start. A
+    # bare phrase matched any file naming it — the module's own tests and the
+    # shipped bench both did, so reading them bought a forward-slash correction.
+    # Only the COLLAPSED drive form is a backslash problem: `C:/Users/x` reached
+    # the tool intact, and `'notes:draft.md'` is a filename, not a drive.
     ("backslash_path",
-     re.compile(r"(?i)cannot access ['\"]?[a-z]:[^/\\]"),
+     re.compile(r"(?im)^\s*(?:ls|cat|cp|mv|rm|stat|file|find|cd|dir|type|test|"
+                r"touch|mkdir|chmod)\s*:\s*cannot access\s+['\"]?[a-z]:[^/\\]"),
      "A native backslash path collapsed inside the POSIX shell — rewrite it "
      "with forward slashes (`C:/Users/...` works in Bash, PowerShell and "
      "Python alike)."),
+    # E-180: these are PROGRAM diagnostics, not phrases. This module's own
+    # failure table names them, so reading the table must stay silent. PowerShell
+    # quotes the term it could not resolve and names the error id; cmd.exe quotes
+    # the command it could not find; the token message quotes the token.
     ("powershell_dialect",
-     re.compile(r"(?i)CommandNotFoundException|not recognized as the name of "
-                r"a cmdlet|is not recognized as an internal or external "
-                r"command|is not a valid statement separator"),
+     re.compile(r"(?im)(?:^\s*\S+\s*:\s*The term ['\"][^'\"\n]+['\"] is not "
+                r"recognized as the name of a cmdlet"
+                r"|\bFullyQualifiedErrorId\s*:\s*CommandNotFoundException\b"
+                r"|['\"][^'\"\n]+['\"] is not recognized as an internal or "
+                r"external command"
+                r"|\bThe token ['\"][^'\"\n]+['\"] is not a valid statement "
+                r"separator\b)"),
      "Shell dialect mismatch — PowerShell has no grep/sed/ls flags and PS 5.1 "
      "has no `&&`: run POSIX pipelines in the Bash tool or use the cmdlet "
      "equivalents (Bash = POSIX sh; PowerShell = PowerShell)."),
+    # E-180: `sed` prefixes its own diagnostic (`sed: 1: "file": invalid command
+    # code f`). The bare phrase also appears in this module's table and in docs.
     ("bsd_sed",
-     re.compile(r"(?i)invalid command code"),
+     re.compile(r"(?im)^\s*sed:\s*[^\n]{0,80}?\binvalid command code\b"),
      "GNU-style `sed -i 's/…/'` fails under BSD sed (macOS) — use "
      "`sed -i.bak 's/…/' file`, which works on both, or `sed -i '' …` on "
      "macOS only."),
+    # E-179: the phrase alone is not a diagnostic — this module's own source
+    # and any `grep -rn "command not found"` contain it. A shell names the
+    # word that failed and then says the phrase on the SAME line:
+    #   bash: line 1: rg: command not found      zsh: command not found: rg
+    #   sh: 1: foo: command not found            /bin/bash: line 7: x: ...
+    # fish uses different words (`fish: Unknown command: rg`) and is left
+    # silent rather than guessed at.
     ("command_not_found",
-     re.compile(r"(?i)command not found"),
+     re.compile(r"(?im)^\s*(?:\S*/)?(?:zsh|bash|dash|sh|fish|ksh)\s*:\s*"
+                r"(?:(?:line\s+)?\d+\s*:\s*)?(?:[^\n:]{1,60}:\s*)?"
+                r"command not found\b"),
      "The command never resolved — check the tool exists in THIS shell and "
      "that nothing relies on a shell variable from an earlier tool call "
      "(every call is a fresh shell: run commands self-contained with literal "
      "paths)."),
 )
+
+
+# `tool_response` is a MAPPING in every harness that sends one, and the mapping
+# is not always flat: Claude Code carries `stdout`, `stderr`, `interrupted` and
+# `returnCodeInterpretation` at the top level, while another adapter wraps the
+# same thing one level down (`{'output': {'exit': 0, 'output': '...'}}`,
+# observed in this checkout's trail 2026-11-17). Only output-bearing values are
+# process output; an interpretation of the exit code is the harness's summary
+# of the CALL. Stringifying the envelope let that label be scanned as command
+# text (E-177), and a flat extractor then read `status: ok` while dropping the
+# nested command-not-found (E-178).
+_OUTPUT_FIELDS = frozenset({
+    "stdout", "stderr", "output", "content", "text", "result", "log", "logs",
+})
+_NON_OUTPUT_FIELDS = frozenset({
+    "returncodeinterpretation", "returncode", "exitcode", "exit", "code",
+    "status", "success", "ok", "interrupted", "isimage",
+    "nooutputexpected", "truncated", "duration", "elapsed", "cwd", "command",
+    "metadata",
+})
+# Past this depth the envelope stops yielding output. A harness nesting deeper
+# than this gets silence, never a guessed failure class (one bounded walk).
+_MAX_OUTPUT_DEPTH = 4
+
+
+def _collect_output(value, depth: int = 0) -> list[str]:
+    """Text values that are command output, walking a harness envelope."""
+    if isinstance(value, str):
+        return [value] if value else []
+    if depth >= _MAX_OUTPUT_DEPTH:
+        return []
+    if isinstance(value, dict):
+        keys = [key for key in value if str(key).lower() in _OUTPUT_FIELDS]
+        if not keys:
+            # No named output field at this level: descend only into nested
+            # containers. A bare string under an unknown key (a status word)
+            # is not output, and must not be read as it.
+            keys = [key for key, item in value.items()
+                    if str(key).lower() not in _NON_OUTPUT_FIELDS
+                    and isinstance(item, (dict, list, tuple))]
+        parts: list[str] = []
+        for key in keys:
+            parts.extend(_collect_output(value[key], depth + 1))
+        return parts
+    if isinstance(value, (list, tuple)):
+        parts = []
+        for item in value:
+            parts.extend(_collect_output(item, depth + 1))
+        return parts
+    return []
+
+
+def command_output_text(tool_output) -> str:
+    """The command's own output from a harness envelope, never its metadata.
+
+    Walks nested mappings and lists, reads only output-bearing fields (or the
+    containers they live in), and stops at a bounded depth. Metadata fields and
+    scalars (`status`, `exit`, flags) never contribute.
+    """
+    return "\n".join(_collect_output(tool_output))
 
 
 def command_failure(tool_name: str, tool_output) -> tuple[str, str] | None:
@@ -148,7 +237,9 @@ def command_failure(tool_name: str, tool_output) -> tuple[str, str] | None:
     """
     if tool_name != "terminal" or not tool_output:
         return None
-    s = str(tool_output)
+    s = command_output_text(tool_output)
+    if not s:
+        return None
     hay = s if len(s) <= 4000 else s[:2000] + "\n" + s[-2000:]
     for kind, rx, hint in _COMMAND_FAILURES:
         if rx.search(hay):

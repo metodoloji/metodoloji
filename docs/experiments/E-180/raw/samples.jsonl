@@ -1,0 +1,12 @@
+{"check": "ps_term_sentence", "ok": true, "detail": "kind=powershell_dialect want=powershell_dialect"}
+{"check": "ps_error_id", "ok": true, "detail": "kind=powershell_dialect want=powershell_dialect"}
+{"check": "cmd_quoted", "ok": true, "detail": "kind=powershell_dialect want=powershell_dialect"}
+{"check": "ps_token_separator", "ok": true, "detail": "kind=powershell_dialect want=powershell_dialect"}
+{"check": "bsd_sed_flat", "ok": true, "detail": "kind=bsd_sed want=bsd_sed"}
+{"check": "bsd_sed_stderr", "ok": true, "detail": "kind=bsd_sed want=bsd_sed"}
+{"check": "glob_still_routed", "ok": true, "detail": "kind=glob_nomatch want=glob_nomatch"}
+{"check": "table_sed_comment", "ok": true, "detail": "kind=None want=None"}
+{"check": "table_powershell_regex", "ok": true, "detail": "kind=None want=None"}
+{"check": "module_source", "ok": true, "detail": "kind=None want=None"}
+{"check": "doc_naming_both", "ok": true, "detail": "kind=None want=None"}
+{"check": "audit_prose_silent", "ok": true, "detail": "rows=0 warnings=[]"}

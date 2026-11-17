@@ -16,6 +16,8 @@ from modules.audit import (  # noqa: E402
     _check_kopru_consumption,
     _redacted_input,
     audit,
+    command_failure,
+    command_output_text,
     is_readonly_call,
 )
 
@@ -795,3 +797,244 @@ def test_session_start_handoff_nudge_names_a_runnable_command(tmp_path, monkeypa
     root = Path(__file__).resolve().parents[3]
     assert str(root / "hooks" / "scripts" / "blackboard.py") + " handoffs" in ctx
     assert "--skill bmad-quality-record" in ctx
+
+
+# --- E-177: the harness envelope is not command output ----------------------
+# A real Claude Code session (2026-11-16) sent `tool_response` as a mapping:
+# `{'stdout': '', 'stderr': '', 'returnCodeInterpretation': 'No matches
+# found', ...}`. The classifier stringified the whole mapping, so a `grep`
+# that found nothing was recorded as a zsh glob abort and the agent was told
+# to check a glob it never used. 13 of the 23 glob_nomatch rows in this
+# checkout's own trail carry that exact shape.
+
+_HARNESS_LABEL = {
+    "stdout": "",
+    "stderr": "",
+    "returnCodeInterpretation": "No matches found",
+    "interrupted": False,
+    "isImage": False,
+    "noOutputExpected": False,
+}
+
+
+def test_command_output_text_ignores_harness_metadata():
+    assert command_output_text(_HARNESS_LABEL) == ""
+    assert command_output_text("zsh: no matches found: x") == "zsh: no matches found: x"
+    # Real streams are still read, whichever field a harness uses.
+    assert "abort" in command_output_text(
+        {"stdout": "abort", "returnCodeInterpretation": "x"})
+    assert "traceback" in command_output_text(
+        {"output": "traceback", "returnCodeInterpretation": "x"})
+
+
+def test_glob_signature_requires_a_shell_diagnostic():
+    assert command_failure("terminal", "zsh: no matches found: docs/*.md")[0] == "glob_nomatch"
+    assert command_failure("terminal", "bash: no match: docs/*.md")[0] == "glob_nomatch"
+    assert command_failure("terminal", {
+        "stdout": "", "stderr": "zsh: no matches found: docs/*.md"})[0] == "glob_nomatch"
+    # The harness's interpretation of an exit code is not a diagnostic.
+    assert command_failure("terminal", _HARNESS_LABEL) is None
+    # Nor is a program's own prose about its own search.
+    assert command_failure("terminal", {
+        "stdout": "No matches found for query 'retired'.", "stderr": ""}) is None
+
+
+def test_failed_grep_with_harness_label_writes_no_trail_row(tmp_path, monkeypatch):
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+    monkeypatch.delenv("OPENHANDS_PROJECT_DIR", raising=False)
+    res = audit({"tool_name": "Bash",
+                 "tool_input": {"command": 'grep -rn "Measured: true" skills/x/SKILL.md'},
+                 "tool_response": dict(_HARNESS_LABEL)})
+    log = tmp_path / ".metodoloji/logs/hook-audit.log"
+    assert not log.exists(), "a grep with no matches is not a failure class"
+    assert not res.get("methodology_warnings"), res
+
+
+# --- E-178: the envelope is walked, not assumed flat -------------------------
+# This checkout's own trail carries a real `terminal` row shaped
+# `{'output': {'exit': 0, 'output': '/bin/bash: line 1: rg: command not found'},
+# 'status': 'ok'}`. A flat extractor read the `status` word and dropped the
+# failure; the envelope must be walked, with metadata skipped at every level.
+
+_OPENCODE_FAIL = {
+    "output": {"exit": 1, "truncated": False,
+               "output": "/bin/bash: line 1: rg: command not found\n"},
+    "status": "ok",
+}
+
+
+def test_command_output_text_walks_a_nested_envelope():
+    assert "command not found" in command_output_text(_OPENCODE_FAIL)
+    assert command_output_text({"output": {"exit": 0, "output": "total 8"}}) == "total 8"
+    assert command_output_text({"result": {"stdout": "abort", "stderr": ""}}) == "abort"
+    # A status word and a flag are not output.
+    assert command_output_text({"output": {"exit": 1, "status": "failed"}}) == ""
+    assert command_output_text({"output": ["ok", "done"]}) == "ok\ndone"
+
+
+def test_nested_command_not_found_is_classified_and_logged(tmp_path, monkeypatch):
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+    monkeypatch.delenv("OPENHANDS_PROJECT_DIR", raising=False)
+    res = audit({"tool_name": "Bash",
+                 "tool_input": {"command": "grep -rn x hooks"},
+                 "tool_response": dict(_OPENCODE_FAIL)})
+    log = tmp_path / ".metodoloji/logs/hook-audit.log"
+    import json
+    recs = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
+    assert recs[-1]["command_failed"] == "command_not_found"
+    assert any("never resolved" in w for w in res.get("methodology_warnings", []))
+
+
+# --- E-181: the collapsed path is the tool's diagnostic --------------------
+# `backslash_path` matched any text naming the message, so reading this test
+# file (the thing an agent does all session) bought a forward-slash correction
+# while nothing had failed. In 800 recorded terminal calls it never fired on a
+# real failure.
+
+
+def test_filesystem_diagnostics_are_classified():
+    for payload in (
+        "ls: cannot access 'C:Usersx': No such file or directory",
+        {"stdout": "", "stderr": "ls: cannot access 'C:Usersx': No such file or directory\n"},
+        {"stdout": "cat: cannot access c:tempnotes.txt: No such file\n"},
+    ):
+        got = command_failure("terminal", payload)
+        assert got and got[0] == "backslash_path", payload
+
+
+def test_intact_and_unrelated_paths_are_not_a_collapse():
+    for payload in (
+        "ls: cannot access 'C:/Users/x': No such file or directory",
+        "ls: cannot access 'notes:draft.md': No such file",
+        "sed -n '750,765p' hooks/engine/tests/test_audit.py\n"
+        '        "ls: cannot access \'C:Usersx\': No such file or directory": "backslash_path",\n',
+    ):
+        assert command_failure("terminal", payload) is None, payload
+
+
+def test_reading_the_tests_writes_no_trail_row(tmp_path, monkeypatch):
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+    monkeypatch.delenv("OPENHANDS_PROJECT_DIR", raising=False)
+    res = audit({"tool_name": "Bash",
+                 "tool_input": {"command": "sed -n '751,765p' hooks/engine/tests/test_audit.py"},
+                 "tool_response": {"stdout": "        \"ls: cannot access 'C:Usersx': ...\"\n",
+                                   "stderr": ""}})
+    log = tmp_path / ".metodoloji/logs/hook-audit.log"
+    assert not log.is_file() or not log.read_text(encoding="utf-8").strip()
+    assert not res.get("methodology_warnings")
+
+
+# --- E-180: dialect classes are program diagnostics -----------------------
+# This module's own failure table names `invalid command code` and
+# `CommandNotFoundException`, so reading the table used to be reported as the
+# failure it documents (sed -n 104,112p -> bsd_sed; 120,135p -> powershell).
+
+
+def test_program_diagnostics_are_classified():
+    for payload, kind in (
+        ({"stdout": "grep : The term 'grep' is not recognized as the name of a cmdlet"},
+         "powershell_dialect"),
+        ({"stdout": "    + FullyQualifiedErrorId : CommandNotFoundException"},
+         "powershell_dialect"),
+        ({"stdout": "'grep' is not recognized as an internal or external command, "
+                    "operable program or batch file."}, "powershell_dialect"),
+        ({"stdout": "The token '&&' is not a valid statement separator in this version."},
+         "powershell_dialect"),
+        ('sed: 1: "notes.md": invalid command code n', "bsd_sed"),
+        ({"stdout": "", "stderr": 'sed: 1: "notes.md": invalid command code n\n'},
+         "bsd_sed"),
+    ):
+        got = command_failure("terminal", payload)
+        assert got and got[0] == kind, (payload, got)
+
+
+def test_reading_the_failure_table_is_not_a_failure():
+    source = pathlib.Path(__file__).resolve().parents[1] / "modules" / "audit.py"
+    lines = source.read_text(encoding="utf-8").splitlines()
+    table = "\n".join(lines[100:145])
+    assert "invalid command code" in table and "CommandNotFoundException" in table
+    assert command_failure("terminal", {"stdout": table}) is None
+    assert command_failure("terminal", {"stdout": 'macOS sed prints "invalid command '
+                                                     'code"; PowerShell prints '
+                                                     '"CommandNotFoundException".'}) is None
+
+
+def test_reading_the_table_writes_no_trail_row(tmp_path, monkeypatch):
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+    monkeypatch.delenv("OPENHANDS_PROJECT_DIR", raising=False)
+    res = audit({"tool_name": "Bash",
+                 "tool_input": {"command": "sed -n '104,112p' hooks/engine/modules/audit.py"},
+                 "tool_response": {"stdout": "#   macOS     ... -> invalid command code\n",
+                                   "stderr": ""}})
+    log = tmp_path / ".metodoloji/logs/hook-audit.log"
+    assert not log.is_file() or not log.read_text(encoding="utf-8").strip()
+    assert not res.get("methodology_warnings")
+
+
+# --- E-179: the phrase is not the diagnostic ------------------------------
+# This module's own source, any `grep -rn "command not found"`, and any file
+# that documents the class contain the words without a shell saying them. Only
+# the shape a shell prints — shell name, the failing word, the phrase on one
+# line — is what names a failure.
+
+
+def test_shell_diagnostic_shapes_are_classified():
+    for payload in (
+        "bash: line 1: rg: command not found",
+        "zsh: command not found: rg",
+        "sh: 1: foo: command not found",
+        "/bin/bash: line 7: _prints_only: command not found",
+        {"stdout": "total 8\nbash: foo: command not found\n"},
+    ):
+        got = command_failure("terminal", payload)
+        assert got and got[0] == "command_not_found", payload
+
+
+def test_prose_that_mentions_the_phrase_is_not_a_failure():
+    source = pathlib.Path(__file__).resolve().parents[1] / "modules" / "audit.py"
+    for payload in (
+        {"stdout": source.read_text(encoding="utf-8")},
+        {"stdout": '104:   B-002 S1 expands empty → command not found\n'},
+        {"stdout": "the hint ends with command not found; that is documentation"},
+        {"stdout": "", "returnCodeInterpretation": "command not found"},
+        {"stdout": "fish: Unknown command: rg"},
+    ):
+        assert command_failure("terminal", payload) is None, payload
+
+
+def test_successful_grep_for_the_phrase_writes_no_trail_row(tmp_path, monkeypatch):
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+    monkeypatch.delenv("OPENHANDS_PROJECT_DIR", raising=False)
+    res = audit({"tool_name": "Bash",
+                 "tool_input": {"command": 'grep -rn "command not found" hooks'},
+                 "tool_response": {"stdout": '137:re.compile(r"(?i)command not found")',
+                                   "stderr": ""}})
+    log = tmp_path / ".metodoloji/logs/hook-audit.log"
+    assert not log.is_file() or not log.read_text(encoding="utf-8").strip()
+    assert not res.get("methodology_warnings")
+
+
+def test_envelope_read_stops_at_a_bounded_depth():
+    payload = {"output": {"output": {"output": {"output": {
+        "output": "zsh: no matches found: docs/*.md"}}}}}
+    assert command_output_text(payload) == ""
+    assert command_failure("terminal", payload) is None
+
+
+def test_real_abort_inside_harness_mapping_still_warns(tmp_path, monkeypatch):
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+    monkeypatch.delenv("OPENHANDS_PROJECT_DIR", raising=False)
+    res = audit({"tool_name": "Bash",
+                 "tool_input": {"command": "ls docs/*.md"},
+                 "tool_response": {
+                     "stdout": "",
+                     "stderr": "zsh: no matches found: docs/*.md",
+                     "interrupted": False,
+                     "isImage": False,
+                     "noOutputExpected": False,
+                 }})
+    log = tmp_path / ".metodoloji/logs/hook-audit.log"
+    import json
+    recs = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
+    assert recs[-1]["command_failed"] == "glob_nomatch"
+    assert any("unmatched glob" in w for w in res.get("methodology_warnings", []))

@@ -1,0 +1,12 @@
+{"check": "ls_quoted", "ok": true, "detail": "kind=backslash_path want=backslash_path"}
+{"check": "ls_flat_stderr", "ok": true, "detail": "kind=backslash_path want=backslash_path"}
+{"check": "cat_unquoted", "ok": true, "detail": "kind=backslash_path want=backslash_path"}
+{"check": "drive_path_intact", "ok": true, "detail": "kind=None want=None"}
+{"check": "quoted_colon_not_a_drive", "ok": true, "detail": "kind=None want=None"}
+{"check": "glob_still_routed", "ok": true, "detail": "kind=glob_nomatch want=glob_nomatch"}
+{"check": "test_file_chunk", "ok": false, "detail": "kind=glob_nomatch want=None"}
+{"check": "bench_chunk", "ok": true, "detail": "kind=None want=None"}
+{"check": "doc_sentence", "ok": false, "detail": "kind=backslash_path want=None"}
+{"check": "module_source", "ok": false, "detail": "kind=glob_nomatch want=None"}
+{"check": "audit_prose_silent", "ok": false, "detail": "rows=1 warnings=['Command aborted by an unmatched glob — zsh (macOS) cancels the whole line when a pattern matches nothing: confirm the target exists before a `path/*` command, and never let a glob decide whether the rest runs.']"}
+{"check": "test_file_whole", "ok": false, "detail": "kind=glob_nomatch want=None"}

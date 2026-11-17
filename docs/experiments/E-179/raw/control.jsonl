@@ -1,0 +1,12 @@
+{"check": "bash_line_flat", "ok": true, "detail": "kind=command_not_found want=command_not_found"}
+{"check": "bash_line_nested", "ok": true, "detail": "kind=command_not_found want=command_not_found"}
+{"check": "zsh_trailing", "ok": true, "detail": "kind=command_not_found want=command_not_found"}
+{"check": "sh_numbered", "ok": true, "detail": "kind=command_not_found want=command_not_found"}
+{"check": "preceded_by_output", "ok": true, "detail": "kind=command_not_found want=command_not_found"}
+{"check": "glob_still_routed", "ok": true, "detail": "kind=glob_nomatch want=glob_nomatch"}
+{"check": "module_source", "ok": false, "detail": "kind=glob_nomatch want=None"}
+{"check": "grep_hit_line", "ok": false, "detail": "kind=command_not_found want=None"}
+{"check": "docstring_prose", "ok": false, "detail": "kind=command_not_found want=None"}
+{"check": "harness_label", "ok": false, "detail": "kind=command_not_found want=None"}
+{"check": "fish_vocabulary", "ok": true, "detail": "kind=None want=None"}
+{"check": "audit_prose_silent", "ok": false, "detail": "rows=1 warnings=['The command never resolved — check the tool exists in THIS shell and that nothing relies on a shell variable from an earlier tool call (every call is a fresh shell: run commands self-contained with literal paths).']"}

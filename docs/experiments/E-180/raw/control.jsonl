@@ -1,0 +1,12 @@
+{"check": "ps_term_sentence", "ok": true, "detail": "kind=powershell_dialect want=powershell_dialect"}
+{"check": "ps_error_id", "ok": true, "detail": "kind=powershell_dialect want=powershell_dialect"}
+{"check": "cmd_quoted", "ok": true, "detail": "kind=powershell_dialect want=powershell_dialect"}
+{"check": "ps_token_separator", "ok": true, "detail": "kind=powershell_dialect want=powershell_dialect"}
+{"check": "bsd_sed_flat", "ok": true, "detail": "kind=bsd_sed want=bsd_sed"}
+{"check": "bsd_sed_stderr", "ok": true, "detail": "kind=bsd_sed want=bsd_sed"}
+{"check": "glob_still_routed", "ok": true, "detail": "kind=glob_nomatch want=glob_nomatch"}
+{"check": "table_sed_comment", "ok": false, "detail": "kind=bsd_sed want=None"}
+{"check": "table_powershell_regex", "ok": false, "detail": "kind=powershell_dialect want=None"}
+{"check": "module_source", "ok": false, "detail": "kind=glob_nomatch want=None"}
+{"check": "doc_naming_both", "ok": false, "detail": "kind=powershell_dialect want=None"}
+{"check": "audit_prose_silent", "ok": false, "detail": "rows=1 warnings=[\"GNU-style `sed -i 's/…/'` fails under BSD sed (macOS) — use `sed -i.bak 's/…/' file`, which works on both, or `sed -i '' …` on macOS only.\"]"}

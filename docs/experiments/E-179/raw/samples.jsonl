@@ -1,0 +1,12 @@
+{"check": "bash_line_flat", "ok": true, "detail": "kind=command_not_found want=command_not_found"}
+{"check": "bash_line_nested", "ok": true, "detail": "kind=command_not_found want=command_not_found"}
+{"check": "zsh_trailing", "ok": true, "detail": "kind=command_not_found want=command_not_found"}
+{"check": "sh_numbered", "ok": true, "detail": "kind=command_not_found want=command_not_found"}
+{"check": "preceded_by_output", "ok": true, "detail": "kind=command_not_found want=command_not_found"}
+{"check": "glob_still_routed", "ok": true, "detail": "kind=glob_nomatch want=glob_nomatch"}
+{"check": "module_source", "ok": true, "detail": "kind=None want=None"}
+{"check": "grep_hit_line", "ok": true, "detail": "kind=None want=None"}
+{"check": "docstring_prose", "ok": true, "detail": "kind=None want=None"}
+{"check": "harness_label", "ok": true, "detail": "kind=None want=None"}
+{"check": "fish_vocabulary", "ok": true, "detail": "kind=None want=None"}
+{"check": "audit_prose_silent", "ok": true, "detail": "rows=0 warnings=[]"}

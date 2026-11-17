@@ -1,0 +1,12 @@
+{"check": "ls_quoted", "ok": true, "detail": "kind=backslash_path want=backslash_path"}
+{"check": "ls_flat_stderr", "ok": true, "detail": "kind=backslash_path want=backslash_path"}
+{"check": "cat_unquoted", "ok": true, "detail": "kind=backslash_path want=backslash_path"}
+{"check": "drive_path_intact", "ok": true, "detail": "kind=None want=None"}
+{"check": "quoted_colon_not_a_drive", "ok": true, "detail": "kind=None want=None"}
+{"check": "glob_still_routed", "ok": true, "detail": "kind=glob_nomatch want=glob_nomatch"}
+{"check": "test_file_chunk", "ok": true, "detail": "kind=None want=None"}
+{"check": "bench_chunk", "ok": true, "detail": "kind=None want=None"}
+{"check": "doc_sentence", "ok": true, "detail": "kind=None want=None"}
+{"check": "module_source", "ok": true, "detail": "kind=None want=None"}
+{"check": "audit_prose_silent", "ok": true, "detail": "rows=0 warnings=[]"}
+{"check": "test_file_whole", "ok": true, "detail": "kind=None want=None"}

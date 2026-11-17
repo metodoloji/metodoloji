@@ -1,0 +1,12 @@
+{"check": "glob_zsh_string", "ok": true, "detail": "kind=glob_nomatch want=glob_nomatch"}
+{"check": "glob_bash_string", "ok": true, "detail": "kind=glob_nomatch want=glob_nomatch"}
+{"check": "glob_zsh_mapping", "ok": true, "detail": "kind=glob_nomatch want=glob_nomatch"}
+{"check": "glob_harness_label", "ok": true, "detail": "kind=None want=None"}
+{"check": "glob_program_prose", "ok": true, "detail": "kind=None want=None"}
+{"check": "clean_stdout", "ok": true, "detail": "kind=None want=None"}
+{"check": "unknown_output", "ok": true, "detail": "kind=None want=None"}
+{"check": "backslash_mapping", "ok": true, "detail": "kind=backslash_path want=backslash_path"}
+{"check": "command_not_found_mapping", "ok": true, "detail": "kind=command_not_found want=command_not_found"}
+{"check": "command_not_found_string", "ok": true, "detail": "kind=command_not_found want=command_not_found"}
+{"check": "audit_false_label_silent", "ok": true, "detail": "rows=0 warnings=[]"}
+{"check": "audit_real_abort_logged", "ok": true, "detail": "rows=1 command_failed=glob_nomatch warnings=['Command aborted by an unmatched glob — zsh (macOS) cancels the whole line when a pattern matches nothing: confirm the target exists before a `path/*` command, and never let a glob decide whether the rest runs.']"}
