@@ -629,8 +629,9 @@ _OP_TOKENS = frozenset({">", ">>", "<", "|"})
 
 # The command words whose branches below are position-sensitive.
 _WRITE_CMD_WORDS = frozenset({
-    "tee", "sed", "cp", "mv", "install", "curl", "wget", "sort", "touch",
-    "truncate", "perl", "ruby", "git", "patch", "tar", "unzip",
+    "tee", "sed", "cp", "mv", "install", "rsync", "ln", "curl", "wget",
+    "sort", "touch", "truncate", "perl", "ruby", "git", "patch", "tar",
+    "unzip",
 })
 
 
@@ -975,13 +976,20 @@ def _extract_raw(command: str) -> tuple[list[str], bool]:
                     files.append(t)
                     j += 1
                 targets.extend(files)
-        elif tok in ("cp", "mv", "install"):
+        elif tok in ("cp", "mv", "install", "rsync", "ln"):
             # Operands come from THIS segment, not from `st[0] == tok`: a
             # prefixed call (`sudo cp a.py src/b.py`, `env X=1 mv a b`) never
             # has the verb at index 0, so the old scan reported nothing and
             # the copy destination escaped the gate (real session, 2026-11-16).
+            #
+            # `rsync` and `ln` name their destination the same way (E-183):
+            # LAST operand, so `rsync -a /tmp/x src/a.py` and `ln -sf /tmp/x
+            # src/a.py` overwrite a gated file while naming no target at all.
+            # `ln -s TARGET` with no link name lands in the cwd under the
+            # target's basename, which no operand states — it reports nothing
+            # rather than guessing a path the command never spelled.
             operands = _write_operands(_seg_after(i))
-            if operands:
+            if operands and not (tok == "ln" and len(operands) < 2):
                 targets.append(operands[-1])
         elif tok == "curl":
             targets.extend(_output_flag_targets(_seg_after(i), ("-o", "--output"), "-o"))
@@ -1023,6 +1031,31 @@ def _extract_raw(command: str) -> tuple[list[str], bool]:
                 # Operands before any redirect only: `>`/`>>` (and a glued fd
                 # prefix) are operators, never checked-out paths.
                 targets.extend(_write_operands(rest[rest.index("--") + 1 :]))
+            elif rest and rest[0] == "restore":
+                # `git restore P` rewrites the working tree exactly like
+                # `git checkout -- P` (E-183). The checkout branch above needs
+                # the `--` separator, so restore's own shape (`git restore
+                # src/a.py`, no `--`) named no target and the write was read as
+                # a read.
+                #
+                # Flags are dropped with their VALUE (`-s HEAD`,
+                # `--source origin/main`), so a revision argument is never
+                # mistaken for a path. `.`/`./` name the whole tree, not a
+                # path this write spells, and are dropped too; any other
+                # operand is a pathspec and is reported — fail-closed, even
+                # when it is a bare name (`git restore Makefile`) or a
+                # directory (`git restore src/`), because the guard gates
+                # those paths just as it gates `src/a.py`.
+                cleaned: list[str] = []
+                skip_value = False
+                for t in rest[1:]:
+                    if skip_value:
+                        skip_value = False
+                    elif t in ("-s", "--source"):
+                        skip_value = True
+                    elif t not in (".", "./"):
+                        cleaned.append(t)
+                targets.extend(_write_operands(cleaned))
         elif tok == "patch":
             rest = _seg_after(i)
             nonflags = [t for t in rest if not t.startswith("-")]

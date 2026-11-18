@@ -1,0 +1,12 @@
+{"check": "rsync_dest", "ok": true, "detail": "rsync -a /tmp/x src/zzz_probe.py -> deny (want deny) No approved experiment record for src/zzz_probe.py: record /root/workspace/metod"}
+{"check": "rsync_prefixed", "ok": true, "detail": "sudo rsync -a /tmp/x src/zzz_probe.py -> deny (want deny) No approved experiment record for src/zzz_probe.py: record /root/workspace/metod"}
+{"check": "ln_dest", "ok": true, "detail": "ln -sf /tmp/x src/zzz_probe.py -> deny (want deny) No approved experiment record for src/zzz_probe.py: record /root/workspace/metod"}
+{"check": "git_restore", "ok": true, "detail": "git restore src/zzz_probe.py -> deny (want deny) No approved experiment record for src/zzz_probe.py: record /root/workspace/metod"}
+{"check": "git_restore_redirect", "ok": true, "detail": "git restore src/zzz_probe.py > /dev/null -> deny (want deny) No approved experiment record for src/zzz_probe.py: record /root/workspace/metod"}
+{"check": "cp_dest", "ok": true, "detail": "cp /tmp/x src/zzz_probe.py -> deny (want deny) No approved experiment record for src/zzz_probe.py: record /root/workspace/metod"}
+{"check": "mv_dest", "ok": true, "detail": "mv /tmp/x src/zzz_probe.py -> deny (want deny) No approved experiment record for src/zzz_probe.py: record /root/workspace/metod"}
+{"check": "touch_dest", "ok": true, "detail": "touch src/zzz_probe.py -> deny (want deny) No approved experiment record for src/zzz_probe.py: record /root/workspace/metod"}
+{"check": "rsync_source_read", "ok": true, "detail": "rsync -a src/zzz_probe.py /tmp/out/ -> allow (want allow) "}
+{"check": "ln_outside", "ok": true, "detail": "ln -sf /tmp/x /tmp/zzz_link -> allow (want allow) "}
+{"check": "readonly_listing", "ok": true, "detail": "ls src -> allow (want allow) "}
+{"check": "git_status", "ok": true, "detail": "git status -> allow (want allow) "}

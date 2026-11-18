@@ -739,6 +739,67 @@ def test_print_of_a_literal_on_stdin_is_not_a_write():
     assert extract_bash_targets("python3 - <<'PY'\nprint('src/app.py')\nPY") == []
 
 
+# --- E-183: every verb that writes a code path names it ----------------------
+# The guard gates what this extractor names: a verb that yields nothing is
+# judged as a READ. `rsync`, `ln` and `git restore` all overwrote a gated code
+# path while naming no target, so the same intent spelled cp/mv/install (or
+# `git checkout --`) was denied and these three were allowed.
+
+
+def test_rsync_destination_is_the_last_operand():
+    assert extract_bash_targets("rsync -a /tmp/x src/a.py") == ["src/a.py"]
+    assert extract_bash_targets("rsync -az --delete /tmp/x src/a.py") == ["src/a.py"]
+    # a prefixed call still names the verb (E-176's position rule)
+    assert extract_bash_targets("sudo rsync -a /tmp/x src/a.py") == ["src/a.py"]
+    # the SOURCE is a read: only the destination is a write target
+    assert extract_bash_targets("rsync -a src/a.py /tmp/out/") == ["/tmp/out/"]
+
+
+def test_ln_link_name_is_the_destination():
+    assert extract_bash_targets("ln -sf /tmp/x src/a.py") == ["src/a.py"]
+    assert extract_bash_targets("ln src/old.py src/new.py") == ["src/new.py"]
+    # `ln -s TARGET` with no link name creates the link under the target's
+    # basename in the cwd — a path the command never spells, so nothing is
+    # guessed (Known Gaps in E-183).
+    assert extract_bash_targets("ln -s /tmp/x") == []
+
+
+def test_git_restore_names_the_working_tree_file():
+    assert extract_bash_targets("git restore src/a.py") == ["src/a.py"]
+    assert extract_bash_targets("git restore src/a.py lib/b.py") == ["src/a.py", "lib/b.py"]
+    assert extract_bash_targets("git restore src/a.py > /dev/null") == ["src/a.py", "/dev/null"]
+    assert extract_bash_targets("git restore --staged src/a.py") == ["src/a.py"]
+
+
+def test_git_restore_pathspec_that_is_not_a_file_names_nothing():
+    # `.`/`./` cover the whole tree, not a path this write spells
+    assert extract_bash_targets("git restore .") == []
+    assert extract_bash_targets("git restore ./ src/a.py") == ["src/a.py"]
+    # a flag's VALUE is a revision, never a path
+    assert extract_bash_targets("git restore --source HEAD src/a.py") == ["src/a.py"]
+    assert extract_bash_targets("git restore -s origin/main .") == []
+    assert extract_bash_targets("git restore --staged src/a.py") == ["src/a.py"]
+
+
+def test_git_restore_bare_and_directory_pathspecs_stay_fail_closed():
+    # gated paths need not look like code: Makefile is gated, and `src/` is a
+    # tree of gated files — dropping them would reopen the hole for every
+    # name that carries no slash or dot.
+    assert extract_bash_targets("git restore Makefile") == ["Makefile"]
+    assert extract_bash_targets("git restore src/") == ["src/"]
+
+
+def test_checkout_branch_is_unchanged_by_the_restore_rule():
+    assert extract_bash_targets("git checkout -- src/a.py") == ["src/a.py"]
+    # without the separator checkout is branch/file ambiguity — unchanged
+    assert extract_bash_targets("git checkout src/a.py") == []
+
+
+def test_new_write_verbs_do_not_fire_in_prose():
+    assert extract_bash_targets("git commit -m 'rsync -a a b'") == []
+    assert extract_bash_targets("echo 'ln -s a b'") == []
+
+
 def test_print_only_narrowing_keeps_every_writer_fail_closed():
     """The narrowing must not open the dynamic-writer hole it sits beside."""
     assert extract_bash_targets("""python3 -c "run('scripts/gen.py')\"""") == [
