@@ -104,6 +104,28 @@ def test_a_missing_record_cannot_back_a_criterion(tmp_path):
     assert "no record exists" in _cited_experiment_problem("E-904", root)
 
 
+def test_a_slug_named_record_backs_a_criterion(tmp_path):
+    """The inventory already accepts a title-slug file; the citation must too."""
+    body = APPROVED_RECORD.replace("E-900", "E-905")
+    root = _project(tmp_path, {"E-905-gate-heading-guard": body})
+    assert _cited_experiment_problem("E-905", root) == ""
+
+
+def test_an_unpadded_reference_resolves_its_record(tmp_path):
+    """`E-9` names `E-009`: padding is spelling, not a different record."""
+    body = APPROVED_RECORD.replace("E-900", "E-009")
+    root = _project(tmp_path, {"E-009": body})
+    assert _cited_experiment_problem("E-9", root) == ""
+
+
+def test_two_records_claiming_one_id_cannot_back_a_criterion(tmp_path):
+    """The id resolves to two files, so the citation names no single lesson."""
+    body = APPROVED_RECORD.replace("E-900", "E-906")
+    root = _project(tmp_path, {"E-906": body, "E-906-other": body})
+    problem = _cited_experiment_problem("E-906", root)
+    assert "2 records claim that id" in problem
+
+
 def test_the_chain_denies_a_story_citing_a_withdrawn_record(tmp_path):
     root = _project(tmp_path, {"E-901": WITHDRAWN_RECORD})
     ok, reason = _validate_methodology_chain(

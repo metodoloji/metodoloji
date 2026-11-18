@@ -2501,7 +2501,9 @@ def _check_experiment_lineage_enforced() -> str | None:
     the field, pins both E templates to ship it, and re-resolves every
     ``Lineage`` ref declared under ``docs/experiments/`` so a dangling claim
     cannot sit in the corpus (legacy refs-less records are skipped here: the
-    gate is what covers a NEW record).
+    gate is what covers a NEW record). Refs resolve through the gate's own id
+    reader, so a `E-9` spelling or a slug-named record file is the record it
+    names, and a record that both says 'none' and cites a sibling is reported.
     """
     import tempfile  # noqa: PLC0415
 
@@ -2536,17 +2538,43 @@ def _check_experiment_lineage_enforced() -> str | None:
     for rel in ("templates/_template_E.md", "docs/experiments/_template.md"):
         if "**Lineage:**" not in _read(rel):
             problems.append(f"{rel} does not ship the 'Lineage' field")
+    # The corpus scan asks the GATE's resolver, not a second copy of it: a ref
+    # spelled `E-9` or naming a slug-suffixed file (`E-056-…md`, a shape the
+    # record inventory accepts) is the same record, and the audit used to call
+    # both 'no record'. Two files claiming one id is likewise reported here —
+    # the audit must see the corpus the writer would refuse.
+    import importlib.util as _importlib_util  # noqa: PLC0415
+    _spec = _importlib_util.spec_from_file_location(
+        "_lineage_gate",
+        ROOT / "skills" / "bmad-research-experiment" / "scripts" / "run_experiment.py")
+    gate = _importlib_util.module_from_spec(_spec)
+    _spec.loader.exec_module(gate)
     field_re = re.compile(r"^\s*-\s*\*\*Lineage:\*\*\s*(.*)$", re.MULTILINE)
     exp_dir = ROOT / "docs" / "experiments"
+    index = gate.record_index(exp_dir)
     for path in sorted(exp_dir.glob("E-*.md")):
+        if not path.is_file():
+            continue
         m = field_re.search(path.read_text(encoding="utf-8", errors="replace"))
         if not m:
             continue  # legacy record: predates the field; the gate covers new ones
-        for ref in sorted(set(re.findall(r"\bE-\d+\b", m.group(1)))):
-            if ref == path.stem:
+        refs = sorted(set(re.findall(r"\bE-\d+\b", m.group(1))))
+        if refs and re.match(r"^\s*none\b", m.group(1), re.IGNORECASE):
+            problems.append(
+                f"{path.name}: 'Lineage' says 'none' but also cites {', '.join(refs)}")
+        own = gate.canonical_record_id(path.stem)
+        for ref in refs:
+            canon = gate.canonical_record_id(ref)
+            if canon == own:
                 problems.append(f"{path.name}: 'Lineage' cites itself")
-            elif not (exp_dir / f"{ref}.md").is_file():
+                continue
+            found = index.get(canon, [])
+            if not found:
                 problems.append(f"{path.name}: 'Lineage' ref {ref} has no record")
+            elif len(found) > 1:
+                problems.append(
+                    f"{path.name}: 'Lineage' ref {ref} is claimed by "
+                    f"{len(found)} records ({', '.join(p.name for p in found)})")
     return "; ".join(problems) if problems else None
 
 

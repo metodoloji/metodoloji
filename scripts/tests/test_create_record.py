@@ -132,6 +132,36 @@ def test_validate_keeps_append_only_history_labels(tmp_path, monkeypatch):
     assert create_record.validate_text("experiment", text) == []
 
 
+def test_a_second_file_for_a_claimed_record_id_is_refused(tmp_path, monkeypatch,
+                                                        capsys):
+    """The generator writes the file itself, so the guard never sees the target:
+    it must refuse the same fork the write gate refuses — a slug-named sibling
+    and a differently padded spelling are the same record."""
+    exp = tmp_path / "docs" / "experiments"
+    exp.mkdir(parents=True)
+    (exp / "E-001-gate.md").write_text("## Experiment: E-001\n", encoding="utf-8")
+    rc = _run(
+        monkeypatch, "--project-root", str(tmp_path), "--kind", "experiment",
+        "--id", "E-001", "--title", "fork", "--theory", "t",
+        "--hypothesis", 'H-001: "x >= 0.90"', "--metrics", "x >= 0.90",
+        "--design", "d", "--scope", "s", "--raw-samples", "raw/s.jsonl",
+        "--force")
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "Duplicate record ID 'E-001'" in err
+    assert not (exp / "E-001.md").exists()
+
+    (exp / "E-002.md").write_text("## Experiment: E-002\n", encoding="utf-8")
+    rc = _run(
+        monkeypatch, "--project-root", str(tmp_path), "--kind", "experiment",
+        "--id", "E-2", "--title", "padding", "--theory", "t",
+        "--hypothesis", 'H-002: "x >= 0.90"', "--metrics", "x >= 0.90",
+        "--design", "d", "--scope", "s", "--raw-samples", "raw/s.jsonl")
+    assert rc == 2
+    assert "Duplicate record ID 'E-2'" in capsys.readouterr().err
+    assert not (exp / "E-2.md").exists()
+
+
 def test_check_skips_a_legacy_record_without_the_marker(tmp_path, monkeypatch, capsys):
     legacy = tmp_path / "E-999.md"
     legacy.write_text("## Experiment: E-999 — legacy\n- **Status:** completed\n",

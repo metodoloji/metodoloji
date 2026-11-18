@@ -1825,6 +1825,60 @@ def test_check_duplicate_record_ids_unique_file_not_flagged():
         td.cleanup()
 
 
+def test_check_duplicate_record_ids_sees_a_slug_named_claimant():
+    """`E-001-gate.md` claims id E-001: creating `E-001.md` beside it is a
+    duplicate, and the readers would otherwise call the id ambiguous."""
+    from modules.guard import _check_duplicate_record_ids
+    td = tempfile.TemporaryDirectory()
+    root = Path(td.name)
+    try:
+        (root / "docs/experiments").mkdir(parents=True)
+        (root / "docs/experiments" / "E-001-gate.md").write_text(
+            "# E-001\n", encoding="utf-8")
+        unique, reason = _check_duplicate_record_ids(root, "docs/experiments/E-001.md")
+        assert unique is False and "E-001-gate.md" in reason
+        # And the reverse direction: a slug-named write beside a plain record.
+        unique2, reason2 = _check_duplicate_record_ids(
+            root, "docs/experiments/E-002-other.md")
+        assert unique2 is True
+        (root / "docs/experiments" / "E-002.md").write_text("# E-002\n", encoding="utf-8")
+        unique3, reason3 = _check_duplicate_record_ids(
+            root, "docs/experiments/E-002-other.md")
+        assert unique3 is False and "E-002.md" in reason3
+    finally:
+        td.cleanup()
+
+
+def test_check_duplicate_record_ids_treats_padding_as_spelling():
+    """`E-1` and `E-001` are one id, so the second file is refused."""
+    from modules.guard import _check_duplicate_record_ids
+    td = tempfile.TemporaryDirectory()
+    root = Path(td.name)
+    try:
+        (root / "docs/experiments").mkdir(parents=True)
+        (root / "docs/experiments" / "E-001.md").write_text("# E-001\n", encoding="utf-8")
+        unique, reason = _check_duplicate_record_ids(root, "docs/experiments/E-1.md")
+        assert unique is False and "E-001.md" in reason
+    finally:
+        td.cleanup()
+
+
+def test_a_second_file_for_one_record_id_is_denied(tmp_path, monkeypatch):
+    """The write gate refuses the fork itself: a non-story record id that another
+    file already claims cannot be written as a new file."""
+    from modules.guard import guard
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+    monkeypatch.delenv("OPENHANDS_PROJECT_DIR", raising=False)
+    exp = tmp_path / "docs" / "experiments"
+    exp.mkdir(parents=True)
+    (exp / "E-001.md").write_text("## Experiment: E-001\n", encoding="utf-8")
+    res = guard({"tool_name": "file_editor",
+                 "tool_input": {"path": "docs/experiments/E-001-gate.md",
+                                "content": "## Experiment: E-001\n"}})
+    assert res["decision"] == "deny"
+    assert "Duplicate record ID" in res["reason"]
+
+
 def test_check_duplicate_record_ids_skips_non_record_filenames():
     """Filenames that are not record IDs are never scanned or flagged."""
     from modules.guard import _check_duplicate_record_ids

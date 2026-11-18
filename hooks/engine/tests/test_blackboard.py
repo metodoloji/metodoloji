@@ -2747,6 +2747,17 @@ def test_doctor_detects_duplicate_record_ids_real_layout(tmp_path):
     assert not any("Duplicate record ID" in w for w in d2["warnings"])
 
 
+def test_doctor_detects_a_slug_named_duplicate(tmp_path):
+    """A title-slug file claims the same id as its plain sibling."""
+    (tmp_path / "docs" / "experiments").mkdir(parents=True)
+    (tmp_path / "docs" / "experiments" / "E-056.md").write_text(
+        "# E-056", encoding="utf-8")
+    (tmp_path / "docs" / "experiments" / "E-056-gate-heading-guard.md").write_text(
+        "# E-056 again", encoding="utf-8")
+    d = bb.doctor(str(tmp_path))
+    assert any("Duplicate record ID 'E-056'" in w for w in d["warnings"])
+
+
 # ==============================================================================
 # Live-board repair (ops exercise): retire a pre-protocol diagnostic stamp
 # ==============================================================================

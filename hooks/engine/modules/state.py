@@ -12,6 +12,10 @@ This module is the one place that answers it, READ-ONLY:
   a precise absence reason. Story/epic keys are separated, so callers can
   report both ``3-4-foo: done`` and ``epic-3: in-progress`` without confusing
   one for the other.
+- ``canonical_record_id()`` / ``record_files()`` — an id back to its file(s).
+  One id, one record: a title-slug file and a zero-padded spelling are the
+  record they name, so a citation or a freshness anchor resolves instead of
+  reading as "no record".
 
 Neither function reads anything else and neither mutates anything. orient.py
 delegates to record_inventory; stop.py's story scan delegates to
@@ -106,6 +110,83 @@ def record_inventory(project_root: str | pathlib.Path) -> dict:
             "legacy_items": dw["legacy_items"],
         }
     return inventory
+
+
+# --- record identity ----------------------------------------------------------
+
+# One record id, one file. `record_inventory` already accepts a title-derived
+# slug (`E-056-gate-heading-guard.md`), but every reader that turned an id back
+# into a path spelled `docs/experiments/<id>.md` literally: a story citing the
+# approved `E-056` was told "no record exists", and the freshness plane read the
+# same record as UNKNOWN. The record existed; the lookup could not recall it.
+# Zero padding is the other half of the same mistake: `E-9` and `E-009` are one
+# id, not two.
+_RECORD_STEM_RE = re.compile(r"^(?P<kind>[A-Za-z]+)-(?P<num>\d+)(?:-(?P<slug>.+))?$")
+
+
+def canonical_record_id(value: str) -> str:
+    """`E-009`, `E-9` and `E-009-title` name one id: `E-9`."""
+    raw = str(value or "").strip()
+    m = _RECORD_STEM_RE.fullmatch(raw)
+    if not m:
+        return raw
+    return f"{m.group('kind').upper()}-{int(m.group('num'))}"
+
+
+#: A record STEM, as opposed to an id a caller typed: the kind is the uppercase
+#: prefix every record kind uses (E, IR, SP, S, QR, PR), and a title slug may
+#: follow the number. Kept separate from `_RECORD_STEM_RE` because a filename is
+#: untrusted input: `note-1.md` is a note, and `notes-S-001.md` is neither a note
+#: nor a record, while `E-9`, `E-009` and `E-009-title` are one record.
+_RECORD_STEM_FILE_RE = re.compile(
+    r"^(?P<kind>[A-Z]+)-(?P<num>\d+)(?:-(?P<slug>.+))?$")
+
+
+def record_id_of_stem(stem: str) -> str:
+    """Canonical id of a record filename stem, or '' when it names no record.
+
+    Every reader that decides "is this a duplicate record?" must first agree on
+    "is this a record at all?". Spelling a filename check as `E-001.md` made a
+    title-slug record (`E-056-gate-heading-guard.md`) invisible to the guard and
+    to the board's duplicate scan, so the second file for one id was admitted
+    and every later lookup had to call the id ambiguous. Identity is the id, not
+    the name.
+    """
+    m = _RECORD_STEM_FILE_RE.fullmatch(str(stem or "").strip())
+    if not m:
+        return ""
+    return f"{m.group('kind')}-{int(m.group('num'))}"
+
+
+def record_files(project_root: str | pathlib.Path, record_id: str,
+                 rel_dirs) -> list[pathlib.Path]:
+    """Every file under `rel_dirs` that claims `record_id` (sorted, unique).
+
+    Callers report zero matches as "no record" and more than one as an
+    ambiguous id; neither may be decided by a guessed path.
+    """
+    wanted = canonical_record_id(record_id)
+    root = pathlib.Path(project_root)
+    found: list[pathlib.Path] = []
+    seen: set[str] = set()
+    for rel in rel_dirs:
+        try:
+            candidates = sorted((root / rel).glob("*.md"))
+        except OSError:
+            continue
+        for candidate in candidates:
+            try:
+                if not candidate.is_file():
+                    continue
+            except OSError:
+                continue
+            if canonical_record_id(candidate.stem) != wanted:
+                continue
+            key = str(candidate)
+            if key not in seen:
+                seen.add(key)
+                found.append(candidate)
+    return found
 
 
 # --- deferred-work ledger ------------------------------------------------------

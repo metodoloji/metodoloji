@@ -342,6 +342,9 @@ def _validate_story_experiment_refs(content: str, root: str = "") -> tuple[bool,
 _RECORD_SCAN_ROOTS = ("docs", "bmad-output", "_bmad-output", "design-artifacts")
 
 _RECORD_ID_RE = re.compile(r"[A-Z]+-\d+")
+#: The id part of a record stem, for the message a writer reads: `E-001-gate`
+#: names id `E-001` (identity is canonicalized by state.record_id_of_stem).
+_RECORD_STEM_LABEL_RE = re.compile(r"^([A-Z]+-\d+)")
 
 def _check_duplicate_record_ids(root: str, rel_path: str,
                                record_type: str | None = None) -> tuple[bool, str]:
@@ -361,14 +364,22 @@ def _check_duplicate_record_ids(root: str, rel_path: str,
     `record_type` is accepted for backward compatibility and ignored: the record
     ID prefix already carries the type (IR-001 vs QR-001 are different IDs).
 
+    Identity is the canonical record id, not the filename: `E-001.md`,
+    `E-001-gate.md` and `E-1.md` are one record, so the second file for an id is
+    refused here rather than admitted and reported as an ambiguous anchor by
+    every reader afterwards (the recall plane resolves ids canonically).
+
     Returns (is_unique, reason). An unreadable tree fails open.
     """
     try:
         root = str(root)  # callers pass str; Path is accepted for convenience
         name = pathlib.Path(rel_path).name
-        record_id = name[:-3] if name.endswith(".md") else name
-        if not _RECORD_ID_RE.fullmatch(record_id):
+        stem = name[:-3] if name.endswith(".md") else name
+        record_id = state_mod.record_id_of_stem(stem)
+        if not record_id:
             return True, ""  # not a record file — nothing to check
+        label_match = _RECORD_STEM_LABEL_RE.match(stem)
+        label = label_match.group(1) if label_match else stem
 
         try:
             if (pathlib.Path(root) / rel_path).exists():
@@ -388,7 +399,9 @@ def _check_duplicate_record_ids(root: str, rel_path: str,
             base = pathlib.Path(root) / rel_root
             if not base.is_dir():
                 continue
-            for found in base.rglob(f"{record_id}.md"):
+            for found in base.rglob("*.md"):
+                if state_mod.record_id_of_stem(found.stem) != record_id:
+                    continue
                 budget += 1
                 if budget > MAX_DUPLICATE_CHECK_RECORDS:
                     break
@@ -404,7 +417,7 @@ def _check_duplicate_record_ids(root: str, rel_path: str,
             if len(others) > 3:
                 shown += f", … (+{len(others) - 3} more)"
             return False, (
-                f"Duplicate record ID '{record_id}' detected: also at {shown}. "
+                f"Duplicate record ID '{label}' detected: also at {shown}. "
                 f"A record ID must identify exactly one file."
             )
 
@@ -572,11 +585,22 @@ def _qr_remedy(root: str, missing_keys: "list[str]") -> str:
 _INERT_EXPERIMENT_STATUSES = ("withdrawn", "rejected", "refused", "planned", "draft")
 
 def _cited_experiment_problem(ref: str, root: str) -> str:
-    """Return why `E-NNN` cannot back an AC, or "" when it can."""
-    path = pathlib.Path(root) / "docs" / "experiments" / f"{ref}.md"
-    if not path.is_file():
+    """Return why `E-NNN` cannot back an AC, or "" when it can.
+
+    The cited id resolves through the state module's one id reader, so a
+    slug-named record (`E-056-gate-heading-guard.md`) or a `E-9` spelling names
+    the record it means instead of reading as "no record exists".
+    """
+    from .state import record_files  # noqa: PLC0415 (keep the guard import-light)
+    matches = record_files(root, ref, ("docs/experiments",))
+    if not matches:
         return (f"{ref} is cited but no record exists at docs/experiments/{ref}.md — "
                 f"the reference has to resolve before it can mean anything")
+    if len(matches) > 1:
+        return (f"{ref} is cited but {len(matches)} records claim that id "
+                f"({', '.join(p.name for p in matches)}) — one id has to name "
+                f"one file before it can back an acceptance criterion")
+    path = matches[0]
     try:
         text = path.read_text(encoding="utf-8", errors="replace")
     except OSError as exc:
@@ -956,6 +980,19 @@ def guard(json_in: dict) -> dict:
     # Check each target
     for target in targets:
         rel = rel_to_root(root, target)
+
+        # --- Record writes: one id, one file ------------------------------
+        # Only story ids were checked here; every other record kind (E, IR, SP,
+        # QR, PR) was written unguarded, so a slug-named sibling or an unpadded
+        # spelling could fork one id into two files — and then every reader had
+        # to call the id ambiguous. Identity lives in the filename, so this
+        # needs no content, and an edit takes the fast path in the checker.
+        if not _is_story_file(rel) and state_mod.record_id_of_stem(
+                pathlib.Path(rel).stem):
+            unique, dup_reason = _check_duplicate_record_ids(root, rel)
+            if not unique:
+                return {"decision": "deny",
+                        "reason": f"Duplicate record ID detected: {dup_reason}"}
 
         # --- Story file validation (runs BEFORE free/code checks) ---
         if _is_story_file(rel):

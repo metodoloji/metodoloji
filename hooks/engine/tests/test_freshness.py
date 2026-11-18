@@ -249,6 +249,27 @@ def test_re_measured_by_is_a_cascade_invalidation(repo):
     assert fr.superseded_by(repo, "E-902") is None
 
 
+def test_re_measured_by_self_in_another_spelling_is_not_a_supersede(repo):
+    """`E-9` inside `E-009.md` names the record itself: no self-invalidation."""
+    _record(repo, "E-009", "src/**", "- **Re-Measured-By:** E-9 (16.10.2026)\n")
+    fr.reset_cache()
+    assert fr.superseded_by(repo, "E-009") is None
+    assert fr.superseded_by(repo, "E-9") is None
+
+
+def test_supersede_declaration_resolves_spelling_and_slug(repo):
+    """The cascade set is made of the canonical ids claims cite, so a declaration
+    spelled `E-0901` from a slug-named file still retires `E-901`."""
+    path = _record(repo, "E-900", "src/**",
+                   "- **Re-Measured-By:** E-0901 (16.10.2026)\n")
+    path.rename(path.with_name("E-900-old-claim.md"))
+    _record(repo, "E-901", "src/**")
+    fr.reset_cache()
+    assert fr.superseded_by(repo, "E-900") == "E-901"
+    assert fr.superseded_records(repo, "E-901") == ["E-900"]
+    assert fr.superseded_records(repo, "E-9") == []
+
+
 def test_measurement_only_record_has_nothing_to_stale(repo):
     _record(repo, "E-903", "none")
     _commit(repo, "record only")
@@ -424,3 +445,31 @@ def test_unscoped_claim_without_a_record_leans_on_its_witness(repo):
     verdict, detail = fr.classify(str(repo), commit="", scope="",
                                   tree="", run_key="E-998")
     assert verdict == fr.UNKNOWN, detail
+
+
+# --- record identity: the anchor resolves the id it names -----------------------
+def test_record_path_resolves_a_slug_named_record(tmp_path):
+    """A title-slug file is the record the run key names, not an UNKNOWN anchor."""
+    exp = tmp_path / "docs" / "experiments"
+    exp.mkdir(parents=True)
+    record = exp / "E-056-gate-heading-guard.md"
+    record.write_text("## Experiment: E-056\n", encoding="utf-8")
+    assert fr.record_path(str(tmp_path), "E-056") == record
+
+
+def test_record_path_resolves_an_unpadded_key(tmp_path):
+    """`E-9` and `E-009` name one record; padding is not identity."""
+    exp = tmp_path / "docs" / "experiments"
+    exp.mkdir(parents=True)
+    record = exp / "E-009.md"
+    record.write_text("## Experiment: E-009\n", encoding="utf-8")
+    assert fr.record_path(str(tmp_path), "E-9") == record
+
+
+def test_record_path_refuses_an_ambiguous_id(tmp_path):
+    """Two files for one id make the anchor a coin flip, so there is no anchor."""
+    exp = tmp_path / "docs" / "experiments"
+    exp.mkdir(parents=True)
+    for name in ("E-009.md", "E-009-other.md"):
+        (exp / name).write_text("## Experiment: E-009\n", encoding="utf-8")
+    assert fr.record_path(str(tmp_path), "E-009") is None

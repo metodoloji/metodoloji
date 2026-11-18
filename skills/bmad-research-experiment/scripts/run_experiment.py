@@ -648,6 +648,49 @@ def contract_draft_issue(text: str, claim: str) -> str | None:
 # re-learned and a rejected hypothesis silently re-run under a fresh id.
 _LINEAGE_NONE_RE = re.compile(r"^\s*none\b", re.IGNORECASE)
 _LINEAGE_EID_RE = re.compile(r"\bE-\d+\b")
+_RECORD_ID_PREFIX_RE = re.compile(r"^(E-\d+)(?:-|$)")
+_PADDED_RECORD_ID_RE = re.compile(r"^E-(\d+)$")
+
+
+def canonical_record_id(value: str) -> str:
+    """One spelling per record id: 'E-009', 'E-9', 'E-009-title' -> 'E-9'.
+
+    A lineage ref is typed from memory and a record file may carry a title slug
+    (`E-056-gate-heading-guard.md`, a shape the record inventory already
+    accepts), so the characters after 'E-' are naming, not identity. Reading
+    them literally turned a real citation into 'has no record' — the recall
+    claim was refused for how it was spelled, not for what it names.
+    """
+    value = (value or "").strip()
+    m = _PADDED_RECORD_ID_RE.match(value)
+    if m:
+        return f"E-{int(m.group(1))}"
+    m = _RECORD_ID_PREFIX_RE.match(value)
+    if m:
+        digits = _PADDED_RECORD_ID_RE.match(m.group(1))
+        return f"E-{int(digits.group(1))}" if digits else value
+    return value
+
+
+def record_index(records_dir) -> dict[str, list[pathlib.Path]]:
+    """Map every record id in `records_dir` to the files that claim it.
+
+    `E-<id>.md` and `E-<id>-<slug>.md` both name a record, so a cited id
+    resolves when either file exists beside the record. Two files for one id are
+    returned together instead of resolved by directory order: 'which record
+    does this carry?' must not depend on `ls`.
+    """
+    index: dict[str, list[pathlib.Path]] = {}
+    dirp = pathlib.Path(records_dir)
+    try:
+        candidates = sorted(dirp.glob("E-*.md"))
+    except OSError:
+        return index
+    for path in candidates:
+        if not path.is_file():
+            continue
+        index.setdefault(canonical_record_id(path.stem), []).append(path)
+    return index
 
 
 def _scope_tokens(scope: str) -> set:
@@ -667,8 +710,10 @@ def lineage_issue(text: str, records_dir) -> str | None:
       (1) the field must be present and be either 'none' (a genuinely new line
           of inquiry) or a list of prior E-ids — a silent draft is refused, so
           the judgment is made explicitly instead of skipped;
-      (2) every cited E-id must resolve to a record file beside this one and
-          must not be the record itself (a dangling claim is a false claim);
+      (2) every cited E-id must resolve to exactly one record file beside this
+          one and must not be the record itself (a dangling claim is a false
+          claim). Ids compare canonically, so `E-9`, `E-009` and a
+          slug-named `E-009-…` file are one record rather than three;
       (3) a draft whose 'Code Scope' shares a path with a REJECTED record must
           cite it (P9: a rejection is a lesson the next record carries, not a
           hole to silently re-run).
@@ -690,19 +735,29 @@ def lineage_issue(text: str, records_dir) -> str | None:
         return (f"record 'Lineage' says 'none' but also cites {', '.join(ids)} — "
                 f"pick one: 'none' means a new line of inquiry")
     did = deney_id(text)
-    if did in ids:
+    cited = {canonical_record_id(ref): ref for ref in ids}
+    if canonical_record_id(did) in cited:
         return f"record 'Lineage' cites itself ({did})"
     if not ids:
         return None
     dirp = pathlib.Path(records_dir)
-    for ref in ids:
-        if not (dirp / f"{ref}.md").is_file():
+    index = record_index(dirp)
+    for canon, ref in cited.items():
+        found = index.get(canon, [])
+        if not found:
             return (f"record 'Lineage' cites {ref}, which has no record in "
                     f"{dirp} — carry an existing experiment or drop the claim")
+        if len(found) > 1:
+            return (f"record 'Lineage' cites {ref}, but {len(found)} records "
+                    f"claim that id ({', '.join(p.name for p in found)}) — keep "
+                    f"one file per experiment id so the claim names one lesson")
     own_scope = _scope_tokens(record_fields(text).get("Code Scope", ""))
     if own_scope:
         for path in sorted(dirp.glob("E-*.md")):
-            if path.stem == did or path.stem in ids:
+            if not path.is_file():
+                continue
+            other_id = canonical_record_id(path.stem)
+            if other_id == canonical_record_id(did) or other_id in cited:
                 continue
             try:
                 other = path.read_text(encoding="utf-8", errors="replace")

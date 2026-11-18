@@ -177,11 +177,19 @@ def doctor(project_root: str, *, post: bool = False) -> dict:
     # directory (an archive subdir, a second artifacts tree, the legacy
     # docs/stories location) — the duplicate shapes that actually occur.
     root = os.path.abspath(project_root or os.getcwd())
-    seen_ids: dict[str, str] = {}  # record ID → first directory it was seen in
+    # Identity is canonical (state.record_id_of_stem): `E-001.md` and
+    # `E-001-gate.md` are one record, and the literal-filename scan made the
+    # slug-named file invisible — so the project could carry two files for one
+    # id and the doctor reported nothing while every citation read the id as
+    # ambiguous. The label stays the first-seen spelling so the warning names
+    # the id the project writes.
+    seen_ids: dict[str, tuple[str, str]] = {}  # canonical id → (label, dir)
     scan_dirs = [
         "docs/experiments", "docs/development", "docs/development/stories",
         "docs/quality",
     ]
+
+    from . import state as _state  # local: diagnostics stays import-light
 
     for rec_dir in scan_dirs:
         rec_path = pathlib.Path(root) / rec_dir
@@ -189,19 +197,22 @@ def doctor(project_root: str, *, post: bool = False) -> dict:
             continue
 
         for record_file in rec_path.glob("*.md"):
-            match = re.match(r"^([A-Z]+-\d+)\.md$", record_file.name)
-            if not match:
+            record_id = _state.record_id_of_stem(record_file.stem)
+            if not record_id:
                 continue
-            record_id = match.group(1)
+            label_match = re.match(r"^([A-Z]+-\d+)", record_file.stem)
+            label = label_match.group(1) if label_match else record_file.stem
 
             if record_id in seen_ids:
+                first_label, first_dir = seen_ids[record_id]
                 warnings.append(
-                    f"Duplicate record ID '{record_id}' detected in {rec_dir} "
-                    f"(first seen in {seen_ids[record_id]}; record IDs must be "
-                    f"globally unique per type)"
+                    f"Duplicate record ID '{first_label}' detected in {rec_dir} "
+                    f"(first seen in {first_dir}; record IDs must be "
+                    f"globally unique per type — {record_file.name} claims "
+                    f"the same id)"
                 )
             else:
-                seen_ids[record_id] = rec_dir
+                seen_ids[record_id] = (label, rec_dir)
 
     # NEW: Detect stale sessions (MEDIUM #5 / ISSUE #64)
     # Look for SessionStart without corresponding Stop in recent history

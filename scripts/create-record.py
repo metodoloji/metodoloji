@@ -10,6 +10,13 @@ later check can tell an attested record from a hand-written one.
 It does NOT replace the experiment gate: `run_experiment.py --run` is still the
 only writer of a decision. This tool only produces the DRAFT.
 
+One id, one file: a new draft is refused when another file already claims the
+same canonical record id (`E-001.md`, `E-001-gate.md` and `E-1.md` are one
+record). The check IS the write gate's (`modules.guard`), not a local filename
+rule — this script writes the file itself, so the guard sees the process, not
+the write target, and a second spelling of the identity here would be the
+unchecked half.
+
 Usage (experiment / contract):
     python scripts/create-record.py --kind experiment --id E-119 \
         --title "..." --theory "..." --hypothesis 'H-119: "x >= 0.90"' \
@@ -36,6 +43,10 @@ import sys
 
 SCHEMA_MARKER = "metodoloji.record/v1"
 SCHEMA_FIELD = "Record Schema"
+
+# The engine carries the identity and duplicate rules; import it lazily so the
+# --check/--status-regex paths stay dependency-free.
+_ENGINE_DIR = pathlib.Path(__file__).resolve().parent.parent / "hooks" / "engine"
 
 E_REQUIRED = (
     "Date", "Status", "Theory", "Hypothesis", "Measurement Metrics",
@@ -270,6 +281,22 @@ def render(kind: str, rid: str, title: str, values: dict[str, list[str]]) -> str
     return "\n".join(lines) + "\n"
 
 
+def _duplicate_claim(root: pathlib.Path, out: pathlib.Path) -> str:
+    """The write gate's duplicate reason for `out`, or '' when the id is free.
+
+    Delegated rather than restated: the guard's `_check_duplicate_record_ids`
+    owns the canonical identity (state.record_id_of_stem), the four scan roots
+    and the budget, so the generator and the write gate cannot disagree about
+    what counts as a second file for one record.
+    """
+    if str(_ENGINE_DIR) not in sys.path:
+        sys.path.insert(0, str(_ENGINE_DIR))
+    from modules.guard import _check_duplicate_record_ids
+    rel = out.relative_to(root).as_posix()
+    unique, reason = _check_duplicate_record_ids(str(root), rel)
+    return "" if unique else reason
+
+
 def _next_id(kind: str, root: pathlib.Path) -> str:
     spec = _SCHEMAS[kind]
     base = root.joinpath(*spec["dir"])
@@ -428,6 +455,12 @@ def main() -> int:
     if out.exists() and not args.force:
         print(f"ERROR: {out} already exists (use --force to overwrite)", file=sys.stderr)
         return 2
+    if not out.exists():
+        claimed = _duplicate_claim(root, out)
+        if claimed:
+            print(f"ERROR: {claimed} Pick a free id with --id; --force only "
+                  f"overwrites this exact path.", file=sys.stderr)
+            return 2
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(text, encoding="utf-8")
     print(f"created {out} ({kind}, {SCHEMA_MARKER})")

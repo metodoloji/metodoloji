@@ -47,6 +47,8 @@ import subprocess
 import time
 from contextlib import contextmanager
 
+from .state import canonical_record_id, record_files
+
 # Verdicts. RETIRED is a verdict too (a first-class "this no longer applies"),
 # but it is owned by the board's retire plane and only surfaced here.
 CURRENT = "CURRENT"
@@ -398,9 +400,11 @@ def blocks(verdict: str) -> bool:
 def record_path(root: str, run_key: str) -> pathlib.Path | None:
     """The record file a claim's run key resolves to, when it resolves.
 
-    `E-048` → `docs/experiments/E-048.md`; `story.1-1-x` / `IR-*` ids resolve
-    where the canonical layout keeps them. None when the key names no record
-    (then the claim has no code-state anchor and reads UNKNOWN).
+    `E-048` → its record under `docs/experiments/`, wherever the canonical
+    layout keeps it and however the file is named (`E-048.md` or a title-slug
+    sibling). None when the key names no record (then the claim has no
+    code-state anchor and reads UNKNOWN) or when two files claim one id — an
+    ambiguous anchor is not an anchor.
     """
     key = str(run_key or "").strip()
     m = _RECORD_ID_RE.match(key)
@@ -408,23 +412,18 @@ def record_path(root: str, run_key: str) -> pathlib.Path | None:
         return None
     record_id = m.group(1)
     kind = record_id.split("-", 1)[0]
-    base = pathlib.Path(root)
-    candidates = {
-        "E": [base / "docs" / "experiments" / f"{record_id}.md"],
-        "IR": [base / "docs" / "development" / f"{record_id}.md"],
-        "SP": [base / "docs" / "development" / f"{record_id}.md"],
-        "S": [base / "docs" / "development" / "stories" / f"{record_id}.md",
-              base / "docs" / "development" / f"{record_id}.md"],
-        "QR": [base / "docs" / "quality" / f"{record_id}.md"],
-        "PR": [base / "docs" / "development" / f"{record_id}.md"],
-    }.get(kind, [])
-    for cand in candidates:
-        try:
-            if cand.is_file():
-                return cand
-        except OSError:
-            continue
-    return None
+    dirs = {
+        "E": ("docs/experiments",),
+        "IR": ("docs/development",),
+        "SP": ("docs/development",),
+        "S": ("docs/development/stories", "docs/development"),
+        "QR": ("docs/quality",),
+        "PR": ("docs/development",),
+    }.get(kind, ())
+    if not dirs:
+        return None
+    matches = record_files(root, record_id, dirs)
+    return matches[0] if len(matches) == 1 else None
 
 
 def read_fields(record_file: pathlib.Path) -> dict:
@@ -467,9 +466,12 @@ def superseded_by(root: str, run_key: str) -> str | None:
     if not m:
         return None
     new_id = m.group(1)
-    if new_id == str(run_key).strip():
+    # Ids compare canonically: a record that names ITSELF with another spelling
+    # (`Re-Measured-By: E-9` inside `E-009.md`) has not been superseded, and a
+    # miss here would invalidate the claim with its own declaration.
+    if canonical_record_id(new_id) == canonical_record_id(run_key):
         return None
-    return new_id if record_path(root, new_id) is not None else None
+    return canonical_record_id(new_id) if record_path(root, new_id) is not None else None
 
 
 def superseded_records(root: str, new_key: str) -> list[str]:
@@ -481,7 +483,7 @@ def superseded_records(root: str, new_key: str) -> list[str]:
     cascade-invalidated rather than merely old. Bounded scan (500 records, one
     stat each, cached per process) — a run-key write pays it once.
     """
-    key = str(new_key or "").strip()
+    key = canonical_record_id(str(new_key or "").strip())
     if not key:
         return []
     directory = pathlib.Path(root) / "docs" / "experiments"
@@ -502,8 +504,15 @@ def superseded_records(root: str, new_key: str) -> list[str]:
                 continue
             value = read_fields(rec).get("Re-Measured-By", "")
             m = _RECORD_ID_RE.match(value.strip())
-            if m and m.group(1) == key and rec.stem != key:
-                found.append(rec.stem)
+            if not m or canonical_record_id(m.group(1)) != key:
+                continue
+            old_id = canonical_record_id(rec.stem)
+            # The cascade set is a set of RUN KEYS, so it returns the canonical
+            # id the board and claims cite — not the filename. A slug-named file
+            # used to put `E-053-gate-x` on the board while every claim said
+            # `E-053`, so nothing was ever retired by the declaration.
+            if old_id and old_id != key:
+                found.append(old_id)
         return found
 
     return _cached(_SUPERSEDE_CACHE, (str(directory), key), scan)

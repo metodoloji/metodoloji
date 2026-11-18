@@ -979,6 +979,38 @@ def test_lineage_dangling_ref_refused(tmp_path):
     assert issue and "E-777" in issue
 
 
+def test_lineage_ref_resolves_without_zero_padding(tmp_path):
+    """`E-9` names `E-009.md`: the citation is read for what it names."""
+    (tmp_path / "E-009.md").write_text("## Experiment: E-009\n", encoding="utf-8")
+    _, text = _draft(tmp_path, lineage="E-9 — carries the rejection")
+    assert gate.lineage_issue(text, tmp_path) is None
+
+
+def test_lineage_ref_resolves_a_slug_named_record(tmp_path):
+    """A title-suffixed file is the record it names, not a missing one."""
+    (tmp_path / "E-056-gate-heading-guard.md").write_text(
+        "## Experiment: E-056\n", encoding="utf-8")
+    _, text = _draft(tmp_path, lineage="E-056")
+    assert gate.lineage_issue(text, tmp_path) is None
+
+
+def test_lineage_self_reference_in_a_slug_named_draft_refused(tmp_path):
+    """The draft's own id is its id even when its file carries a title slug."""
+    (tmp_path / "E-018.md").write_text("## Experiment: E-018\n", encoding="utf-8")
+    _, text = _draft(tmp_path, name="E-022-probe.md", lineage="E-22, E-018")
+    issue = gate.lineage_issue(text, tmp_path)
+    assert issue and "itself" in issue
+
+
+def test_lineage_ref_with_two_claimants_refused(tmp_path):
+    """Two files for one id make 'which lesson does this carry?' depend on `ls`."""
+    (tmp_path / "E-009.md").write_text("## Experiment: E-009\n", encoding="utf-8")
+    (tmp_path / "E-009-other.md").write_text("## Experiment: E-009\n", encoding="utf-8")
+    _, text = _draft(tmp_path, lineage="E-009")
+    issue = gate.lineage_issue(text, tmp_path)
+    assert issue and "claim that id" in issue
+
+
 def test_lineage_self_reference_refused(tmp_path):
     _, text = _draft(tmp_path, lineage="E-022, E-018")
     issue = gate.lineage_issue(text, tmp_path)
