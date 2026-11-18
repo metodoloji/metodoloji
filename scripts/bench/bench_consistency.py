@@ -4391,6 +4391,23 @@ def _check_external_context_index_drift_contract() -> str | None:
                 return "the in-sync entry did not finalize"
             if not module.check(project).get("ok"):
                 return "an in-sync registry failed the audit"
+            readme = registry / "README.md"
+            index_text = readme.read_text(encoding="utf-8")
+            line = next(item for item in index_text.splitlines()
+                        if "(mastra/context.md)" in item)
+            readme.write_text(index_text.replace(
+                line, line + "\n- [Mastra](mastra/context.md) — v0.0.1 (2020-01-01)",
+                1), encoding="utf-8")
+            duplicated = module.check(project)
+            if duplicated.get("ok"):
+                return "a duplicated index line passed the audit"
+            if not any("generated index block does not match" in finding
+                       for finding in duplicated.get("index_findings", [])):
+                return f"a duplicated index line was not itemized: {duplicated}"
+            if not module.rebuild_index(project).get("ok"):
+                return "rebuild-index could not clear a duplicated index line"
+            if not module.check(project).get("ok"):
+                return "rebuild-index left the registry not ok"
             entry.write_text(
                 entry_text.replace("- **Analyzed version/ref:** v0.30.0",
                                    "- **Analyzed version/ref:** v0.31.0"),

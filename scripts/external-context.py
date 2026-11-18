@@ -273,6 +273,17 @@ def _collision(root: Path, slug: str, name: str, canonical: str) -> None:
         if entry["slug"].casefold() == slug.casefold():
             raise ContextError(
                 f"slug '{slug}' differs only by case from '{entry['slug']}'")
+    # A `Superseded by` pointer may name a slug or a display name/alias. Two
+    # spaces share one key, but `_live_index` indexes slugs first, so a slug
+    # that spells another entry's name/alias silently steals every pointer to
+    # that entry. `prepare` used to accept it because it compared the new slug
+    # only with existing slugs.
+    owner = aliases.get(fold(slug).strip())
+    if owner and owner != slug:
+        raise ContextError(
+            f"slug '{slug}' is already the display name or an alias of "
+            f"{REGISTRY_REL}/{owner}/context.md; choose a slug outside the "
+            "pointer names of other entries")
     wanted = source_key(canonical, root)
     for entry in entries:
         rows = source_rows(parse_sections(entry["text"]).get("Sources inspected", ""))
@@ -653,7 +664,7 @@ def prepare(project_root: str | Path, source: str, name: str = "",
     # Validate every input before creating the registry: `prepare` used to
     # mkdir the registry first, so a missing source or an unparseable date left
     # a new `docs/research/external/` directory behind on a command that failed.
-    kind, identity, canonical = classify_source(source)
+    kind, identity, canonical = classify_source(source, root)
     template_path, template = _template(root)
     raw_name = (name or "").strip()
     # A display name is one heading line. A newline used to reach the scaffold
@@ -1009,12 +1020,40 @@ def check(project_root: str | Path, strict: bool = False,
         warnings.extend(f"{_rel(root, entry['entry'])}: {message}"
                         for message in entry_warnings)
 
+    # `prepare` refuses a slug that folds onto an existing one (for example
+    # `MASTRA` and `mastra`), because two folders would be one registry name in
+    # every folded map. The audit must derive the same rule: an entry created
+    # outside the writer (a manual copy) used to pass while the writer would
+    # have refused it.
+    folded_slugs: dict[str, str] = {}
+    for entry in entries:
+        key = fold(entry["slug"]).strip()
+        owner = folded_slugs.get(key)
+        if owner is not None and owner != entry["slug"]:
+            findings.append({
+                "entry": _rel(root, entry["entry"]),
+                "findings": [f"slug '{entry['slug']}' differs only by case from "
+                             f"'{owner}'; keep one folder per folded slug"],
+                "warnings": []})
+        else:
+            folded_slugs[key] = entry["slug"]
+
     aliases: dict[str, str] = {}
     for entry in entries:
         for value in [entry["name"], *entry["aliases"]]:
             key = fold(value).strip()
             if not key:
                 continue
+            # `_live_index` gives a slug precedence over a name or alias with
+            # the same key, so the name/alias would address the wrong entry in
+            # every `Superseded by` pointer. Report the shadowed identity.
+            slug_owner = folded_slugs.get(key)
+            if slug_owner and slug_owner != entry["slug"]:
+                findings.append({
+                    "entry": _rel(root, entry["entry"]),
+                    "findings": [f"alias '{value}' is also the slug of "
+                                 f"{slug_owner}/context.md"],
+                    "warnings": []})
             if key in aliases and aliases[key] != entry["slug"]:
                 findings.append({
                     "entry": _rel(root, entry["entry"]),
@@ -1073,7 +1112,8 @@ def check(project_root: str | Path, strict: bool = False,
     if not index.is_file():
         index_findings.append("registry README is missing")
     else:
-        listed = re.sub(r"<!--.*?-->", "", read_text(index), flags=re.DOTALL)
+        index_text = read_text(index)
+        listed = re.sub(r"<!--.*?-->", "", index_text, flags=re.DOTALL)
         linked = set(re.findall(r"\(([^)/<>]+)/context\.md\)", listed))
         slugs = {entry["slug"] for entry in _indexable(entries)}
         missing = sorted(slugs - linked)
@@ -1107,7 +1147,19 @@ def check(project_root: str | Path, strict: bool = False,
                 index_findings.append(
                     f"index line for {slug} names '{match.group(1)}' but the "
                     f"entry heading is '{expected_name}'")
-        if BEGIN_MARKER not in read_text(index):
+        if BEGIN_MARKER in index_text and END_MARKER in index_text:
+            # The block is generated, so the writer's own output is the
+            # invariant. Per-line checks cannot see a second line for the same
+            # entry: a correct line followed by a stale duplicate used to pass
+            # the audit while the README showed two contradictory records.
+            current = re.search(
+                re.escape(BEGIN_MARKER) + r".*?" + re.escape(END_MARKER),
+                index_text, flags=re.DOTALL)
+            if current and current.group(0) != _generated_block(entries):
+                index_findings.append(
+                    "generated index block does not match the entries; run "
+                    "`rebuild-index` to regenerate it")
+        else:
             index_findings.append(
                 "registry index is hand-maintained; run `rebuild-index` to "
                 "generate it from the entries")

@@ -511,13 +511,20 @@ def source_key(value: str, base: Path | str | None = None) -> str:
     return canonical
 
 
-def classify_source(source: str) -> tuple[str, str, str]:
+def classify_source(source: str,
+                    base: Path | str | None = None) -> tuple[str, str, str]:
     """Return (template type, identity, canonical source) for a URL or path.
 
     `identity` is the stable display/name seed: the repository name for a repo
     URL, the registrable domain for documentation, and the resolved path for a
     local source. `canonical` is what belongs in the Sources table, in the one
     spelling the registry compares (`normalize_source`).
+
+    A relative local path is resolved against `base` — the project root when
+    the caller has one — never against today's working directory: the same
+    spelling run from another directory used to name a different file (or
+    none), while the audit already resolved legacy rows against the project
+    root. One source has one origin.
     """
     source = source.strip()
     if not source:
@@ -546,6 +553,8 @@ def classify_source(source: str) -> tuple[str, str, str]:
             return "official docs", _registrable_label(host), canonical
         return "official docs", _registrable_label(host), canonical
     path = Path(source).expanduser()
+    if not path.is_absolute() and base is not None:
+        path = Path(base) / path
     if not path.exists():
         raise ContextError(f"source path does not exist: {source}")
     if path.is_file():

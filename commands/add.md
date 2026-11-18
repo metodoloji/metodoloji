@@ -48,7 +48,9 @@ when unsure.
      --json
    ```
 
-   The result names the `entry`, `slug`, `source_kind`, and `date`. If it
+   The result names the `entry`, `slug`, `source_kind`, and `date`. A relative
+   local `--source` path is resolved against `--project-root`, so the command
+   behaves the same from any working directory. If it
    reports that an entry or the same source is already registered, do **not**
    create a second folder: read the existing entry and update it with the new
    analysis (a second slug for the same technology splits the evidence). Start

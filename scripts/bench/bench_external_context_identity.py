@@ -127,8 +127,8 @@ def main(argv: list[str] | None = None) -> int:
         cli.source_key = lambda value, base=None: (value or "").strip()
         canonical_classify = cli.classify_source
 
-        def legacy_classify(source: str):
-            kind, identity, _ = canonical_classify(source)
+        def legacy_classify(source: str, base=None):
+            kind, identity, _ = canonical_classify(source, base)
             return kind, identity, source.strip()
 
         cli.classify_source = legacy_classify

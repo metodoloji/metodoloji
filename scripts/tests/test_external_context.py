@@ -122,6 +122,23 @@ def test_prepare_classifies_docs_urls_and_local_sources(tmp_path):
     assert tool.prepare(root, str(folder))["source_kind"] == "supplied path"
 
 
+def test_prepare_resolves_a_relative_source_against_the_project_root(tmp_path,
+                                                                   monkeypatch):
+    """One source has one origin: the project root, not the caller's cwd."""
+    root = _project(tmp_path)
+    notes = root / "notes.md"
+    notes.write_text("# notes\n", encoding="utf-8")
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    result = tool.prepare(root, "notes.md", name="Notes")
+    assert result["source_kind"] == "supplied file"
+    text = (root / result["entry"]).read_text(encoding="utf-8")
+    assert str(notes.resolve()) in text
+    with pytest.raises(tool.ContextError, match="already registered"):
+        tool.prepare(root, str(notes.resolve()), name="Other")
+
+
 def test_prepare_derives_meaningful_names_for_issue_urls_domains_and_records(tmp_path):
     """F-19: GitHub issues, multi-label domains and record files never name an entry '3'."""
     root = _project(tmp_path)
@@ -373,6 +390,26 @@ def test_check_reports_a_stale_ref_and_date_in_the_index(tmp_path):
                for finding in result["index_findings"])
     assert any("shows date" in finding and "2020-01-01" in finding
                for finding in result["index_findings"])
+
+
+def test_check_reports_a_duplicate_generated_index_line(tmp_path):
+    """A second line for one entry is drift even when the first line is right."""
+    root = _project(tmp_path)
+    _complete(root)
+    assert tool.finalize(root, "mastra")["ok"] is True
+    readme = root / "docs/research/external/README.md"
+    text = readme.read_text(encoding="utf-8")
+    line = next(item for item in text.splitlines()
+                if "(mastra/context.md)" in item)
+    readme.write_text(text.replace(
+        line, line + "\n- [Mastra](mastra/context.md) — v0.0.1 (2020-01-01)", 1),
+        encoding="utf-8")
+    duplicated = tool.check(root)
+    assert duplicated["ok"] is False
+    assert any("generated index block does not match" in finding
+               for finding in duplicated["index_findings"])
+    assert tool.rebuild_index(root)["updated"] is True
+    assert tool.check(root)["ok"] is True
 
 
 def test_check_reports_a_renamed_entry_in_the_index(tmp_path):
@@ -937,6 +974,51 @@ def test_prepare_is_serialized_by_the_registry_lock(tmp_path):
     assert (registry / "mastra/context.md").is_file()
 
 
+def test_check_reports_slugs_that_differ_only_by_case(tmp_path):
+    """The writer refuses a folded duplicate; the audit must see a manual copy."""
+    root = _project(tmp_path)
+    entry = _complete(root)
+    assert tool.finalize(root, "mastra")["ok"] is True
+    text = entry.read_text(encoding="utf-8")
+    text = text.replace("# Mastra Context", "# Mirror Context", 1)
+    text = text.replace("https://github.com/mastra-ai/mastra",
+                        "https://example.com/mirror", 1)
+    text = text.replace("- **Aliases:** mastra-ai", "- **Aliases:** mirror-ai", 1)
+    twin = root / "docs/research/external/MASTRA/context.md"
+    twin.parent.mkdir()
+    twin.write_text(text, encoding="utf-8")
+    assert tool.rebuild_index(root)["ok"] is True
+    result = tool.check(root)
+    assert result["ok"] is False
+    assert any("differs only by case" in finding
+               for item in result["findings"] for finding in item["findings"])
+
+
+def test_prepare_refuses_a_slug_that_is_another_entrys_name(tmp_path):
+    """Slugs and display names share the `Superseded by` pointer namespace."""
+    root = _project(tmp_path)
+    tool.prepare(root, "https://example.com/acme", "Acme", slug="acme-ai")
+    with pytest.raises(tool.ContextError, match="display name or an alias"):
+        tool.prepare(root, "https://example.com/beta", "Beta", slug="acme")
+
+
+def test_check_reports_a_slug_that_shadows_another_entrys_alias(tmp_path):
+    """A slug indexes before names, so it would steal that entry's pointers."""
+    root = _project(tmp_path)
+    registry = root / "docs/research/external"
+    entry = _complete(root)
+    tool.prepare(root, "https://example.com/other", "Other")
+    text = entry.read_text(encoding="utf-8")
+    text = tool._set_field(text, "Aliases", "mastra-ai, acme")
+    entry.write_text(text, encoding="utf-8")
+    (registry / "other").rename(registry / "acme")
+    assert tool.rebuild_index(root)["ok"] is True
+    result = tool.check(root)
+    assert result["ok"] is False
+    assert any("is also the slug of acme/context.md" in finding
+               for item in result["findings"] for finding in item["findings"])
+
+
 def test_check_reports_a_folder_without_an_entry(tmp_path):
     """E-092: a silently skipped folder hides registry drift."""
     root = _project(tmp_path)
@@ -984,6 +1066,20 @@ def test_cli_prepare_finalize_and_check_roundtrip(tmp_path):
     checked = _cli("check", "--project-root", str(root), "--json")
     assert checked.returncode == 0, checked.stdout
     assert json.loads(checked.stdout)["entries"] == 1
+
+
+def test_cli_resolves_a_relative_source_against_the_project_root(tmp_path):
+    """The command runs from any cwd; a relative source still names the project file."""
+    root = _project(tmp_path)
+    notes = root / "notes.md"
+    notes.write_text("# notes\n", encoding="utf-8")
+    prepared = _cli("prepare", "--project-root", str(root),
+                    "--source", "notes.md", "--json")
+    assert prepared.returncode == 0, prepared.stdout + prepared.stderr
+    payload = json.loads(prepared.stdout)
+    assert payload["source_kind"] == "supplied file"
+    assert str(notes.resolve()) in (root / payload["entry"]).read_text(
+        encoding="utf-8")
 
 
 def test_cli_reports_input_errors_with_exit_two(tmp_path):
