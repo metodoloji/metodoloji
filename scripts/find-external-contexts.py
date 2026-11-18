@@ -4,7 +4,10 @@
 Read-only and deterministic. Scoring uses content terms only: template labels
 and lifecycle vocabulary are removed, fields carry different weights, and each
 matched term is weighted by inverse document frequency so a term shared by every
-entry cannot dominate. Every result names the terms that matched and a short
+entry cannot dominate. The corpus those weights are derived from is the set of
+discoverable entries: a draft, a superseded entry or an entry with an
+unrecognized status is reported when it matches but must not change how the
+registered entries rank. Every result names the terms that matched and a short
 snippet, and every entry reports its status, computed freshness and whether it
 needs revalidation.
 
@@ -37,16 +40,17 @@ if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
 from external_context_common import (  # noqa: E402
+    DISCOVERABLE_STATUSES,
     REGISTRY_REL,
     ContextError,
     fold,
     freshness,
     heading_name,
     idf,
-    parse_date,
     parse_fields,
     parse_sections,
     refs_match,
+    resolve_today,
     search_terms,
     source_rows,
     table_cells,
@@ -110,9 +114,14 @@ def find_contexts(root: Path, query: str, version: str = "", limit: int = 10,
                   today: str | None = None) -> dict:
     root = root.resolve()
     registry = root / REGISTRY_REL
-    today_value = parse_date(today) if today else None
-    if today and today_value is None:
-        raise ContextError(f"--today must be a YYYY-MM-DD date: {today!r}")
+    if today:
+        try:
+            today_value = resolve_today(today)
+        except ContextError as exc:
+            raise ContextError(
+                f"--today must be a YYYY-MM-DD date: {today!r}") from exc
+    else:
+        today_value = None
     if not registry.exists():
         if registry.is_symlink():
             return {"registry": "invalid", "query": query, "results": [],
@@ -214,8 +223,15 @@ def find_contexts(root: Path, query: str, version: str = "", limit: int = 10,
         }
         documents.append(document)
 
+    # Only entries a workflow may actually consume define term rarity. Counting
+    # drafts, superseded entries or an unrecognized status here let an
+    # unregistered analysis reorder the registered results it shares a term
+    # with — the discovery half of E-088 applied to results but not to scoring.
+    corpus = [document for document in documents
+              if not document["status"]
+              or document["status"] in DISCOVERABLE_STATUSES]
     document_frequency = {
-        term: sum(1 for document in documents
+        term: sum(1 for document in corpus
                   if any(term in document["terms"][field]
                          for field, _weight in _FIELD_WEIGHTS))
         for term in query_terms
@@ -233,7 +249,7 @@ def find_contexts(root: Path, query: str, version: str = "", limit: int = 10,
             if weight:
                 matched.append(term)
                 score += weight * idf(document_frequency.get(term, 1),
-                                      len(documents))
+                                      len(corpus))
         if not matched:
             continue
         status = document["status"]
@@ -245,6 +261,15 @@ def find_contexts(root: Path, query: str, version: str = "", limit: int = 10,
         if status == "superseded":
             superseded.append(path)
             warnings.append(f"Superseded entry matched and is not current: {path}")
+            continue
+        # `DISCOVERABLE_STATUSES` is the contract the authoring half validates
+        # against. An entry whose Status is neither one of these nor the two
+        # explicitly reported states above must not be handed to a workflow as
+        # "unknown" evidence: that was a malformed entry wearing a valid label.
+        if status and status not in DISCOVERABLE_STATUSES:
+            warnings.append(
+                f"Entry has an unrecognized status '{status}' and is not "
+                f"current context: {path}")
             continue
         state = freshness(status, document["revalidate_after"], today_value)
         revalidate = state != "fresh"

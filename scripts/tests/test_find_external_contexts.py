@@ -327,12 +327,43 @@ def test_a_draft_is_reported_but_never_returned_as_registered_context(tmp_path):
                for warning in result["warnings"])
 
 
+def test_an_unrecognized_status_is_not_returned_as_context(tmp_path):
+    """The declared discoverable set must bind, not just document."""
+    _entry(tmp_path, "weird-lib", "Weird Lib", "AI agent runtime",
+           status="banana")
+    result = finder.find_contexts(tmp_path, "AI agent runtime")
+    assert result["results"] == []
+    assert any("unrecognized status 'banana'" in warning and "weird-lib" in warning
+               for warning in result["warnings"])
+
+
 def test_a_statusless_entry_still_returns_with_unknown_status(tmp_path):
     """E-088: entries the contract pins without a Status field stay discoverable."""
     _entry(tmp_path, "mastra", "Mastra Framework", "AI agent runtime")
     result = finder.find_contexts(tmp_path, "Mastra")
     assert result["results"][0]["status"] == "unknown"
     assert result["drafts"] == [] and result["warnings"] == []
+
+
+def test_unregistered_entries_do_not_shape_the_ranking(tmp_path):
+    """E-088 binds results, so excluded entries must not weight the corpus."""
+    _entry(tmp_path, "reviewed-a", "Reviewed A", "orchestration",
+           status="reviewed")
+    _entry(tmp_path, "reviewed-b", "Reviewed B", "database",
+           status="reviewed")
+    baseline = finder.find_contexts(tmp_path, "orchestration database")
+    paths = [row["path"] for row in baseline["results"]]
+    assert paths == [
+        "docs/research/external/reviewed-a/context.md",
+        "docs/research/external/reviewed-b/context.md"]
+    _entry(tmp_path, "draft-lib", "Draft Lib", "orchestration", status="draft")
+    _entry(tmp_path, "old-lib", "Old Lib", "orchestration", status="superseded")
+    with_excluded = finder.find_contexts(tmp_path, "orchestration database")
+    assert [row["path"] for row in with_excluded["results"]] == paths
+    assert with_excluded["drafts"] == [
+        "docs/research/external/draft-lib/context.md"]
+    assert with_excluded["superseded"] == [
+        "docs/research/external/old-lib/context.md"]
 
 
 def test_a_draft_on_an_unrelated_query_is_not_reported(tmp_path):
@@ -381,18 +412,20 @@ def test_turkish_dotted_and_dotless_i_fold_together(tmp_path):
 def test_invalid_today_is_rejected_not_silently_ignored(tmp_path):
     """E-092: an explicit date override is validated, not ignored."""
     _entry(tmp_path, "mastra", "Mastra", "agents")
-    with pytest.raises(finder.ContextError):
-        finder.find_contexts(tmp_path, "Mastra", today="not-a-date")
+    for value in ("not-a-date", "release 2026-01-01", "2026-01-01T00:00:00"):
+        with pytest.raises(finder.ContextError):
+            finder.find_contexts(tmp_path, "Mastra", today=value)
 
 
 def test_cli_rejects_an_invalid_today(tmp_path):
-    result = subprocess.run(
-        [sys.executable, str(SCRIPT), "--project-root", str(tmp_path),
-         "--query", "Mastra", "--today", "not-a-date", "--json"],
-        stdin=subprocess.DEVNULL, capture_output=True, text=True, check=False,
-        timeout=10)
-    assert result.returncode == 2
-    assert "--today" in result.stderr
+    for value in ("not-a-date", "release 2026-01-01"):
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "--project-root", str(tmp_path),
+             "--query", "Mastra", "--today", value, "--json"],
+            stdin=subprocess.DEVNULL, capture_output=True, text=True,
+            check=False, timeout=10)
+        assert result.returncode == 2, value
+        assert "--today" in result.stderr
 
 
 def test_golden_retrieval_set_meets_precision_and_recall(tmp_path):

@@ -214,6 +214,7 @@ def _entries(registry: Path) -> list[dict]:
             "schema": fields.get("schema", ""),
             "aliases": [value.strip() for value in re.split(
                 r"[,;]", fields.get("aliases", "")) if value.strip()],
+            "superseded_by": fields.get("superseded by", ""),
         })
     return found
 
@@ -221,6 +222,31 @@ def _entries(registry: Path) -> list[dict]:
 def _alias_index(entries: list[dict]) -> dict[str, str]:
     index: dict[str, str] = {}
     for entry in entries:
+        for value in [entry["name"], *entry["aliases"]]:
+            key = fold(value).strip()
+            if key:
+                index.setdefault(key, entry["slug"])
+    return index
+
+
+def _pointer_key(value: str) -> str:
+    """The registry-facing key of a `Superseded by` target.
+
+    A pointer may name a sibling slug, its display name, one of its aliases,
+    or its `.../<slug>/context.md` path; all of them denote the same entry.
+    """
+    text = (value or "").strip().strip("`").strip().replace("\\", "/")
+    match = re.search(r"(?:^|/)([^/]+)/context\.md$", text.rstrip("/"))
+    if match:
+        text = match.group(1)
+    return fold(text).strip()
+
+
+def _live_index(entries: list[dict]) -> dict[str, str]:
+    """Every registered entry by slug, display name and alias."""
+    index: dict[str, str] = {}
+    for entry in _indexable(entries):
+        index[fold(entry["slug"]).strip()] = entry["slug"]
         for value in [entry["name"], *entry["aliases"]]:
             key = fold(value).strip()
             if key:
@@ -624,10 +650,16 @@ def _write_index(root: Path, registry: Path) -> tuple[bool, str]:
 def prepare(project_root: str | Path, source: str, name: str = "",
             slug: str = "", today: str | None = None) -> dict:
     root = Path(project_root).resolve()
-    registry = registry_root(root, create=True)
+    # Validate every input before creating the registry: `prepare` used to
+    # mkdir the registry first, so a missing source or an unparseable date left
+    # a new `docs/research/external/` directory behind on a command that failed.
     kind, identity, canonical = classify_source(source)
     template_path, template = _template(root)
-    chosen_name = (name or derive_name(canonical, kind, identity)).strip()
+    raw_name = (name or "").strip()
+    # A display name is one heading line. A newline used to reach the scaffold
+    # and inject a second `- **Status:**` bullet under `# <name> Context`.
+    chosen_name = " ".join(raw_name.split()) if raw_name else derive_name(
+        canonical, kind, identity).strip()
     if not chosen_name or chosen_name.isdigit():
         raise ContextError("cannot derive a name from the source; pass --name")
     chosen_slug = slugify(slug or chosen_name)
@@ -635,6 +667,7 @@ def prepare(project_root: str | Path, source: str, name: str = "",
         raise ContextError("the template has no '<Technology or Project>' heading placeholder")
     day_date = resolve_today(today)
     day = day_date.isoformat()
+    registry = registry_root(root, create=True)
     text = template.replace("<Technology or Project>", chosen_name, 1)
     text = _set_field(text, "Status", "draft")
     text = _set_field(text, "Analyzed on", day)
@@ -749,6 +782,18 @@ def refresh(project_root: str | Path, slug: str, today: str | None = None) -> di
             raise ContextError(
                 f"{_rel(root, entry)} is still a draft; complete and finalize it "
                 "instead of refreshing it")
+        if previous_status.casefold() == "superseded":
+            replacement = fields.get("superseded by", "").strip()
+            where = f" (superseded by {replacement})" if replacement else ""
+            raise ContextError(
+                f"{_rel(root, entry)} is superseded{where}; revalidate the "
+                "replacement instead of reviving this entry")
+        if previous_status.casefold() == "revalidating":
+            started = fields.get("revalidation started on", "").strip()
+            since = f" since {started}" if started else ""
+            raise ContextError(
+                f"{_rel(root, entry)} is already being revalidated{since}; "
+                "finalize or discard it instead of restarting the pass")
         text = _set_field(text, "Status", "revalidating")
         text = _set_field(text, "Revalidation started on", day)
         atomic_write_text(entry, text)
@@ -780,8 +825,11 @@ def discard(project_root: str | Path, slug: str, force: bool = False,
         fields = parse_fields(text)
         status = fields.get("status", "").casefold()
         last_reviewed = fields.get("last reviewed on", "").strip()
+        # A superseded entry was reviewed by definition: the replacement is
+        # what should be read now, and archiving it would drop the record of
+        # what it said without the same safeguard as any other reviewed entry.
         ever_reviewed = (
-            status in ("reviewed", "revalidating", "stale")
+            status in ("reviewed", "revalidating", "stale", "superseded")
             or bool(parse_date(last_reviewed)))
         if ever_reviewed and not force:
             raise ContextError(
@@ -999,6 +1047,27 @@ def check(project_root: str | Path, strict: bool = False,
             else:
                 sources[key] = entry["slug"]
 
+    # A superseded entry hands its authority to another entry. A pointer that
+    # names nothing live (or names the entry itself) makes the replacement
+    # impossible to follow, so it is drift even though the entry's own fields
+    # are well formed. A warning keeps a default audit non-fatal and lets
+    # `--strict` fail on it, the same split the other derived findings use.
+    live = _live_index(entries)
+    for entry in entries:
+        if entry["status"] != "superseded":
+            continue
+        raw = entry["superseded_by"].strip()
+        key = _pointer_key(raw)
+        if not key:
+            continue
+        rel = _rel(root, entry["entry"])
+        owner = live.get(key)
+        if owner is None:
+            warnings.append(
+                f"{rel}: 'Superseded by: {raw}' does not name a registered entry")
+        elif owner == entry["slug"]:
+            warnings.append(f"{rel}: 'Superseded by' names the entry itself")
+
     index = registry / "README.md"
     index_findings: list[str] = []
     if not index.is_file():
@@ -1055,8 +1124,10 @@ def check(project_root: str | Path, strict: bool = False,
 
 def _date_arg(value: str) -> str:
     """argparse type for `--today`: reject a value instead of ignoring it."""
-    if parse_date(value) is None:
-        raise argparse.ArgumentTypeError("expected a YYYY-MM-DD date")
+    try:
+        resolve_today(value)
+    except ContextError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
     return value
 
 

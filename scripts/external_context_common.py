@@ -409,13 +409,20 @@ def resolve_today(value: str | date | None = None) -> date:
     Freshness used to read `date.today()` directly, so `check --strict` could
     flip on a calendar boundary and a test could not pin the date it asserted.
     An explicit value is validated instead of silently falling back to the
-    wall clock.
+    wall clock. It must be exactly `YYYY-MM-DD`: `parse_date` deliberately
+    finds a date inside a table cell, so accepting that shape here made
+    `--today 'release 2026-01-01'` a silent alias for an override the caller
+    did not spell.
     """
     if isinstance(value, date):
         return value
-    if not value:
+    text = (value or "").strip()
+    if not text:
         return date.today()
-    parsed = parse_date(value)
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
+        raise ContextError(
+            f"today must be a YYYY-MM-DD date: {value!r}")
+    parsed = parse_date(text)
     if parsed is None:
         raise ContextError(
             f"today must be a YYYY-MM-DD date: {value!r}")

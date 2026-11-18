@@ -144,8 +144,9 @@ when unsure.
    index links, index lines that outlived the entry (display name, ref, date),
    duplicate aliases, malformed revision history, and a hand-maintained index.
    Warnings are reported but pass by default: an entry being revalidated, a
-   passed `Revalidate after`, an unknown analyzed ref, or a `Use in this
-   project` section with no record citation. `--strict` (used by CI and
+   passed `Revalidate after`, an unknown analyzed ref, a `Superseded by`
+   pointer that names no registered entry, or a `Use in this project` section
+   with no record citation. `--strict` (used by CI and
    `handle_audit`) turns those warnings into failures. `finalize` is the repair
    for index drift; `rebuild-index` regenerates the block without touching an
    entry. `list` shows every entry with its status and computed freshness.
@@ -162,10 +163,10 @@ when unsure.
 |---|---|
 | URL unreachable / requires credentials | Stop; report what could not be read. Do not create an entry from the URL text. |
 | PDF has no extractable text | Try `pdftotext`; if still empty, stop and ask for another copy. Never summarize an unread file. |
-| Entry already exists | Revalidate it in place with `external-context.py refresh` (keeps the last reviewed analysis, marks `revalidating`), then finalize; never fork the slug. Archive an abandoned draft with `external-context.py discard` (any entry that was ever reviewed needs `--force`). |
+| Entry already exists | Revalidate it in place with `external-context.py refresh` (keeps the last reviewed analysis, marks `revalidating`), then finalize; never fork the slug. If it is already `revalidating`, continue that pass and finalize instead of calling `refresh` again. If it is `superseded`, analyze the entry named by `Superseded by` rather than reviving the old one. Archive an abandoned draft with `external-context.py discard` (any entry that was ever reviewed, including a superseded one, needs `--force`). |
 | `finalize` lists findings | Fix the entry, not the validator. Re-run until `ok: true`. |
 | `check` reports a stale index line | The index names an old ref/date/name for a finished entry. Run `finalize` for that slug or `rebuild-index` for the whole registry — never edit the README line by hand. |
-| `check --strict` reports a warning | A revalidating/stale entry, an unknown ref, or an uncited `Use in this project`. Revalidate with `refresh` → `finalize`, record the ref, or cite the record. |
+| `check --strict` reports a warning | A revalidating/stale entry, an unknown ref, a `Superseded by` pointer with no live target, or an uncited `Use in this project`. Revalidate with `refresh` → `finalize`, record the ref, fix the pointer, or cite the record. |
 | Entry uses `Schema: 1` or has no schema | Run `external-context.py migrate --project-root "{project-root}"` (add `--dry-run` first). | |
 | Source is a whole platform with many products | Scope the entry to the product the project uses; record the rest as open questions. |
 

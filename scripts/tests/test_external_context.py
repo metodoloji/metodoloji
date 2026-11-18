@@ -147,6 +147,31 @@ def test_prepare_rejects_missing_and_unsupported_sources(tmp_path):
         tool.prepare(root, "   ")
 
 
+def test_failed_prepare_leaves_no_registry_behind(tmp_path):
+    """A rejected input must not create the registry as a side effect."""
+    root = tmp_path / "bare"
+    root.mkdir()
+    registry = root / "docs/research/external"
+    with pytest.raises(tool.ContextError):
+        tool.prepare(root, str(tmp_path / "absent.md"))
+    assert not registry.exists()
+    with pytest.raises(tool.ContextError):
+        tool.prepare(root, "https://github.com/mastra-ai/mastra",
+                     today="release 2026-01-01")
+    assert not registry.exists()
+
+
+def test_prepare_keeps_the_display_name_on_one_heading_line(tmp_path):
+    """A pasted multi-line name must not inject a second Status bullet."""
+    root = _project(tmp_path)
+    result = tool.prepare(root, "https://github.com/mastra-ai/mastra",
+                          name="Evil\n- **Status:** reviewed")
+    text = (root / result["entry"]).read_text(encoding="utf-8")
+    assert text.splitlines()[0] == "# Evil - **Status:** reviewed Context"
+    assert [line for line in text.splitlines()
+            if line.startswith("- **Status:**")] == ["- **Status:** draft"]
+
+
 def test_prepare_refuses_to_overwrite_an_existing_entry(tmp_path):
     root = _project(tmp_path)
     first = tool.prepare(root, "https://github.com/mastra-ai/mastra")
@@ -439,6 +464,35 @@ def test_refresh_rejects_a_draft(tmp_path):
         tool.refresh(root, "mastra")
 
 
+def test_refresh_refuses_a_superseded_entry(tmp_path):
+    """A replacement owns current evidence; refresh must not revive the old entry."""
+    root = _project(tmp_path)
+    entry = _complete(root)
+    assert tool.finalize(root, "mastra")["ok"] is True
+    text = entry.read_text(encoding="utf-8").replace(
+        "- **Status:** reviewed", "- **Status:** superseded", 1)
+    entry.write_text(text + "\n- **Superseded by:** guide\n", encoding="utf-8")
+    before = entry.read_bytes()
+    with pytest.raises(tool.ContextError, match="superseded"):
+        tool.refresh(root, "mastra", today="2026-11-01")
+    assert entry.read_bytes() == before
+    assert "- **Status:** revalidating" not in entry.read_text(encoding="utf-8")
+
+
+def test_refresh_does_not_restart_a_revalidation(tmp_path):
+    """The start date is evidence; a second pass must not silently move it."""
+    root = _project(tmp_path)
+    entry = _complete(root)
+    assert tool.finalize(root, "mastra")["ok"] is True
+    assert tool.refresh(root, "mastra", today="2026-11-01")["ok"] is True
+    before = entry.read_bytes()
+    with pytest.raises(tool.ContextError, match="already being revalidated"):
+        tool.refresh(root, "mastra", today="2026-11-02")
+    assert entry.read_bytes() == before
+    assert "- **Revalidation started on:** 2026-11-01" in entry.read_text(
+        encoding="utf-8")
+
+
 def test_refresh_missing_entry_raises(tmp_path):
     root = _project(tmp_path)
     with pytest.raises(tool.ContextError, match="no entry to refresh"):
@@ -495,6 +549,20 @@ def test_discard_requires_force_after_refresh(tmp_path):
     assert tool.discard(root, "mastra", force=True)["ok"] is True
 
 
+def test_discard_requires_force_for_a_superseded_entry(tmp_path):
+    """Superseded entries were reviewed; F-04's force rule covers them too."""
+    root = _project(tmp_path)
+    entry = _complete(root)
+    assert tool.finalize(root, "mastra")["ok"] is True
+    text = entry.read_text(encoding="utf-8").replace(
+        "- **Status:** reviewed", "- **Status:** superseded", 1)
+    entry.write_text(text + "\n- **Superseded by:** guide\n", encoding="utf-8")
+    with pytest.raises(tool.ContextError, match="--force"):
+        tool.discard(root, "mastra")
+    assert entry.is_file()
+    assert tool.discard(root, "mastra", force=True)["ok"] is True
+
+
 def test_discard_missing_entry_raises(tmp_path):
     root = _project(tmp_path)
     with pytest.raises(tool.ContextError, match="no entry to discard"):
@@ -519,6 +587,47 @@ def test_check_reports_a_missing_registry_instead_of_crashing(tmp_path):
     assert result["ok"] is False
     assert result["registry"] == "missing"
     assert result["index_findings"]
+
+
+def test_check_warns_when_superseded_by_does_not_resolve(tmp_path):
+    """A replacement pointer that names nothing live is drift, not a dead field."""
+    root = _project(tmp_path)
+    tool.prepare(root, "https://github.com/mastra-ai/mastra", name="Mastra")
+    tool.prepare(root, "https://example.com/guide", name="Guide")
+    old = root / "docs/research/external/mastra/context.md"
+    guide = root / "docs/research/external/guide/context.md"
+    old.write_text(old.read_text(encoding="utf-8").replace(
+        "- **Status:** draft", "- **Status:** superseded", 1).rstrip() +
+        "\n- **Superseded by:** Guide\n", encoding="utf-8")
+    guide.write_text(guide.read_text(encoding="utf-8").replace(
+        "- **Status:** draft", "- **Status:** reviewed", 1), encoding="utf-8")
+    resolved = tool.check(root)
+    assert not any("Superseded by" in warning for warning in resolved["warnings"])
+    old.write_text(old.read_text(encoding="utf-8").replace(
+        "- **Superseded by:** Guide", "- **Superseded by:** ghost", 1),
+        encoding="utf-8")
+    dangling = tool.check(root)
+    assert any("Superseded by: ghost" in warning and "does not name" in warning
+               for warning in dangling["warnings"])
+    assert tool.check(root, strict=True)["ok"] is False
+
+
+def test_explicit_date_overrides_must_be_exactly_yyyy_mm_dd(tmp_path):
+    """A date embedded in prose is not the override the help promises."""
+    root = _project(tmp_path)
+    _complete(root)
+    assert tool.finalize(root, "mastra")["ok"] is True
+    for value in ("release 2026-01-01", "2026-01-01T00:00:00", "2026-1-1"):
+        with pytest.raises(tool.ContextError, match="YYYY-MM-DD"):
+            tool.check(root, today=value)
+
+
+def test_cli_rejects_a_date_hidden_in_prose(tmp_path):
+    root = _project(tmp_path)
+    result = _cli("check", "--project-root", str(root),
+                  "--today", "release 2026-01-01", "--json")
+    assert result.returncode == 2
+    assert "--today" in result.stderr
 
 
 def test_check_strict_turns_warnings_into_failures(tmp_path):
