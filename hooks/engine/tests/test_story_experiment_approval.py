@@ -104,6 +104,26 @@ def test_a_missing_record_cannot_back_a_criterion(tmp_path):
     assert "no record exists" in _cited_experiment_problem("E-904", root)
 
 
+def test_a_record_in_a_legacy_home_backs_a_criterion(tmp_path):
+    """A cited record the gate already treats as E's one claim resolves.
+
+    The lookup named one guessed directory, so a pre-migration
+    `bmad-output/docs/experiments/E-907.md` read as "no record exists" and the
+    story was denied for citing a record that was on disk.
+    """
+    legacy = pathlib.Path(tmp_path) / "bmad-output" / "docs" / "experiments"
+    legacy.mkdir(parents=True)
+    (legacy / "E-907.md").write_text(
+        APPROVED_RECORD.replace("E-900", "E-907"), encoding="utf-8")
+    assert _cited_experiment_problem("E-907", str(tmp_path)) == ""
+
+
+def test_a_missing_record_message_does_not_guess_a_directory(tmp_path):
+    problem = _cited_experiment_problem("E-904", _project(tmp_path, {}))
+    assert "no record exists" in problem
+    assert "docs/experiments/" not in problem
+
+
 def test_a_slug_named_record_backs_a_criterion(tmp_path):
     """The inventory already accepts a title-slug file; the citation must too."""
     body = APPROVED_RECORD.replace("E-900", "E-905")

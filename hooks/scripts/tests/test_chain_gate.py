@@ -59,6 +59,28 @@ def test_record_refuses_an_ambiguous_id(tmp_path):
     assert chain_gate._record(tmp_path, "experiment", "E-001") is None
 
 
+def test_record_resolves_a_story_filed_under_an_archive(tmp_path):
+    """A home is a tree: `stories/archive/S-004.md` is the story, not absence.
+
+    The lookup globbed one level, so a run whose story had been archived failed
+    its first gate with "no story record" while the file was on disk.
+    """
+    archive = tmp_path / "docs" / "development" / "stories" / "archive"
+    archive.mkdir(parents=True)
+    rec = archive / "S-004-done.md"
+    rec.write_text("# S-004", encoding="utf-8")
+    assert chain_gate._record(tmp_path, "story", "S-004") == rec
+
+
+def test_story_identity_resolves_a_story_moved_to_an_archive(tmp_path, monkeypatch):
+    archive = tmp_path / "docs" / "development" / "stories" / "archive"
+    archive.mkdir(parents=True)
+    rec = archive / "S-004-done.md"
+    rec.write_text("# S-004", encoding="utf-8")
+    monkeypatch.setattr(chain_gate, "_SLUG", "S-004")
+    assert chain_gate._story(tmp_path) == rec
+
+
 def test_record_ignores_a_filename_the_gate_calls_a_note(tmp_path):
     """A lowercase stem is not a record under the filename grammar."""
     exp = tmp_path / "docs" / "experiments"

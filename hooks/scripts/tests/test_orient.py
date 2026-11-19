@@ -507,6 +507,22 @@ def test_build_hot_run_is_grounded_when_the_board_key_is_padded(tmp_path):
     assert orient.build(tmp_path)["board"]["hot_dangling"] is False
 
 
+def test_build_hot_run_is_grounded_by_an_archived_record(tmp_path):
+    """A record filed under `archive/` is on disk, not deleted.
+
+    The lookup globbed one level, so an archived run read as dangling — the
+    false alarm that sends the next session hunting for evidence that exists.
+    """
+    archive = tmp_path / "docs" / "experiments" / "archive"
+    archive.mkdir(parents=True)
+    (archive / "E-001.md").write_text("x", encoding="utf-8")
+    bb.write_key(str(tmp_path), "E-001", "in-progress: H-1 x", type_="state")
+    bb.set_hot(str(tmp_path), "E-001")
+    digest = orient.build(tmp_path)
+    assert digest["board"]["hot_dangling"] is False
+    assert not any("hot --clear" in step for step in digest["next_steps"])
+
+
 def test_hot_dangling_does_not_ground_a_neighbouring_id(tmp_path):
     """A shared prefix is not the same record: E-001 hot, E-010.md on disk."""
     exp = tmp_path / "docs" / "experiments"

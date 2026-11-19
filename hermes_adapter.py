@@ -89,7 +89,7 @@ _GATE_KEYS = {"quality": "quality_gate", "deploy": "deploy_guard"}
 # 2s for the audit trail. Match those budgets: Hermes bounds plugin callbacks
 # at 30s, and a gate that answers after the tool already ran is worthless.
 TIMEOUTS = {
-    "pre": 12.0, "guard": 12.0, "quality": 12.0, "deploy": 12.0,
+    "pre": 25.0, "guard": 25.0, "quality": 25.0, "deploy": 25.0,
     "audit": 4.0, "stop": 10.0, "session_start": 10.0,
 }
 

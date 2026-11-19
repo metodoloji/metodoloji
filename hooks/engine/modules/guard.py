@@ -639,10 +639,15 @@ def _cited_experiment_problem(ref: str, root: str) -> str:
     the record it means instead of reading as "no record exists".
     """
     from .state import record_files  # noqa: PLC0415 (keep the guard import-light)
-    matches = record_files(root, ref, ("docs/experiments",))
+    # The id space, not one guessed directory: a project that migrated from
+    # `bmad-output/` (or archived the record) already has the file the gate
+    # treats as E's one claim, and "no record exists at docs/experiments/…"
+    # sent the reader looking in a directory the project never used.
+    matches = record_files(root, ref, state_mod.RECORD_SCAN_ROOTS)
     if not matches:
-        return (f"{ref} is cited but no record exists at docs/experiments/{ref}.md — "
-                f"the reference has to resolve before it can mean anything")
+        return (f"{ref} is cited but no record exists in the project that "
+                f"claims that id — the reference has to resolve before it "
+                f"can mean anything")
     if len(matches) > 1:
         return (f"{ref} is cited but {len(matches)} records claim that id "
                 f"({', '.join(p.name for p in matches)}) — one id has to name "
@@ -831,9 +836,13 @@ def _freshness_chain_row(root: str, blocked_action: str) -> dict:
     stale: list[str] = []
     unknown: list[str] = []
     try:
-        base = pathlib.Path(root) / "docs" / "experiments"
+        # The id space, not `docs/experiments` alone: the write path resolves a
+        # claim's record wherever the project keeps it, so the commit/deploy row
+        # that reports those approvals must not skip a legacy/archived one.
+        e_records = [p for p in state_mod.record_scan_files(root)
+                     if state_mod.record_id_of_stem(p.stem).startswith("E-")]
         with fr.batch():
-            for rec in sorted(base.glob("E-*.md"))[:_FRESHNESS_ROW_MAX_RECORDS]:
+            for rec in sorted(e_records)[:_FRESHNESS_ROW_MAX_RECORDS]:
                 if rec.name == "_template.md":
                     continue
                 try:

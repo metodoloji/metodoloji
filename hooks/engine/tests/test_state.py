@@ -62,6 +62,25 @@ def test_record_inventory_counts_title_slugged_records(tmp_path):
     assert "S" in inv and inv["S"]["count"] == 1
 
 
+def test_record_files_finds_a_record_in_an_archive_subdir(tmp_path):
+    """A home is a tree: a superseded record moved to `archive/` is still that
+    record, not "no record" (the write gate already treats the id as claimed)."""
+    archive = tmp_path / "docs" / "development" / "stories" / "archive"
+    archive.mkdir(parents=True)
+    rec = archive / "S-004-done.md"
+    rec.write_text("x", encoding="utf-8")
+    assert state.record_files(
+        tmp_path, "S-4", ("docs/development/stories",)) == [rec]
+
+
+def test_record_files_still_ignores_a_note_in_a_nested_dir(tmp_path):
+    nested = tmp_path / "docs" / "experiments" / "raw"
+    nested.mkdir(parents=True)
+    (nested / "notes.md").write_text("x", encoding="utf-8")
+    assert state.record_files(
+        tmp_path, "E-001", ("docs/experiments",)) == []
+
+
 def test_record_inventory_reads_the_id_space_the_gate_enforces(tmp_path):
     """Legacy/archived/nested homes count, like they do for the write gate.
 

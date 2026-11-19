@@ -47,7 +47,8 @@ import subprocess
 import time
 from contextlib import contextmanager
 
-from .state import canonical_record_id, record_files, record_id_of_stem
+from .state import (RECORD_SCAN_ROOTS, canonical_record_id, record_files,
+                    record_id_of_stem, record_scan_files)
 
 # Verdicts. RETIRED is a verdict too (a first-class "this no longer applies"),
 # but it is owned by the board's retire plane and only surfaced here.
@@ -72,6 +73,10 @@ _HEAD_CACHE: dict[str, str | None] = {}
 _CHANGED_CACHE: dict[tuple[str, str], list[str] | None] = {}
 _DIRTY_CACHE: dict[str, list[str] | None] = {}
 _SUPERSEDE_CACHE: dict[tuple[str, str], list[str]] = {}
+#: One id→file resolution per batch: a single annotate asks up to four times
+#: (witness, scope, classify's no-scope branch), and each ask now walks the id
+#: space rather than one directory. Same lifetime as the other batch caches.
+_RECORD_PATH_CACHE: dict[tuple[str, str], pathlib.Path | None] = {}
 
 # A run key is the identity a claim is dated against: `E-048`, `story.1-1-x`,
 # `IR-2026-10-01`. Loose on purpose (the protocol is extensible) but anchored
@@ -134,6 +139,7 @@ def _batch_cm():
             _CHANGED_CACHE.clear()
             _DIRTY_CACHE.clear()
             _SUPERSEDE_CACHE.clear()
+            _RECORD_PATH_CACHE.clear()
 
 
 def _cached(cache: dict, key, producer):
@@ -400,30 +406,31 @@ def blocks(verdict: str) -> bool:
 def record_path(root: str, run_key: str) -> pathlib.Path | None:
     """The record file a claim's run key resolves to, when it resolves.
 
-    `E-048` → its record under `docs/experiments/`, wherever the canonical
-    layout keeps it and however the file is named (`E-048.md` or a title-slug
+    `E-048` → the one file in the project that claims that id, wherever the
+    layout keeps it (canonical, an archive subdir, a pre-migration
+    `bmad-output/` tree) and however it is named (`E-048.md` or a title-slug
     sibling). None when the key names no record (then the claim has no
     code-state anchor and reads UNKNOWN) or when two files claim one id — an
     ambiguous anchor is not an anchor.
+
+    The lookup used a kind→dir table, so a record the write gate already treats
+    as claimed read as no anchor outside the four canonical directories: a
+    legacy QR home (`docs/development/QR-003.md`) made every claim citing it
+    UNKNOWN, and UNKNOWN blocks writes under `unknown_policy = deny`. The id
+    already carries the kind, so the space is the whole id space, not a guessed
+    directory per kind.
     """
     key = str(run_key or "").strip()
     m = _RECORD_ID_RE.match(key)
     if not m:
         return None
-    record_id = m.group(1)
-    kind = record_id.split("-", 1)[0]
-    dirs = {
-        "E": ("docs/experiments",),
-        "IR": ("docs/development",),
-        "SP": ("docs/development",),
-        "S": ("docs/development/stories", "docs/development"),
-        "QR": ("docs/quality",),
-        "PR": ("docs/development",),
-    }.get(kind, ())
-    if not dirs:
-        return None
-    matches = record_files(root, record_id, dirs)
-    return matches[0] if len(matches) == 1 else None
+    record_id = canonical_record_id(m.group(1))
+
+    def resolve():
+        matches = record_files(root, record_id, RECORD_SCAN_ROOTS)
+        return matches[0] if len(matches) == 1 else None
+
+    return _cached(_RECORD_PATH_CACHE, (str(root), record_id), resolve)
 
 
 def read_fields(record_file: pathlib.Path) -> dict:
@@ -482,16 +489,20 @@ def superseded_records(root: str, new_key: str) -> list[str]:
     decision is no longer the operative one, so every claim citing it is
     cascade-invalidated rather than merely old. Bounded scan (500 records, one
     stat each, cached per process) — a run-key write pays it once.
+
+    The scan reads the id space, not `docs/experiments` alone: a declaration in
+    a legacy/archived record is the same supersede claim, and missing it left a
+    claim live on a decision a newer record had replaced.
     """
     key = canonical_record_id(str(new_key or "").strip())
     if not key:
         return []
-    directory = pathlib.Path(root) / "docs" / "experiments"
 
     def scan() -> list[str]:
         found: list[str] = []
         try:
-            files = sorted(directory.glob("E-*.md"))[:500]
+            files = [p for p in record_scan_files(root)
+                     if record_id_of_stem(p.stem).startswith("E-")][:500]
         except OSError:
             files = []
         for rec in files:
@@ -519,7 +530,7 @@ def superseded_records(root: str, new_key: str) -> list[str]:
                 found.append(old_id)
         return found
 
-    return _cached(_SUPERSEDE_CACHE, (str(directory), key), scan)
+    return _cached(_SUPERSEDE_CACHE, (str(root), key), scan)
 
 
 def witness_of(root: str, *, scope: str = "") -> dict:
@@ -742,6 +753,7 @@ def reset_cache() -> None:
     _CHANGED_CACHE.clear()
     _DIRTY_CACHE.clear()
     _SUPERSEDE_CACHE.clear()
+    _RECORD_PATH_CACHE.clear()
     # The glob memo is keyed on the pattern alone, so it never holds a stale answer about
     # the code state — it is cleared here only so this function remains what its name says
     # (every per-process cache), which is what tests rely on to count hits.

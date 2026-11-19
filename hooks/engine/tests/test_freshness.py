@@ -466,6 +466,48 @@ def test_record_path_resolves_an_unpadded_key(tmp_path):
     assert fr.record_path(str(tmp_path), "E-9") == record
 
 
+def test_record_path_resolves_a_record_in_a_legacy_home(tmp_path):
+    """A claim the gate already treats as claimed has an anchor.
+
+    The kind→dir table read a pre-migration `bmad-output/` record as no anchor,
+    so the claim went UNKNOWN — which blocks writes under
+    `unknown_policy = deny` — while the write gate refused a second file for
+    the same id.
+    """
+    exp = tmp_path / "bmad-output" / "docs" / "experiments"
+    exp.mkdir(parents=True)
+    record = exp / "E-007.md"
+    record.write_text("# E-007", encoding="utf-8")
+    assert fr.record_path(str(tmp_path), "E-007") == record
+
+
+def test_record_path_resolves_a_legacy_qr_home(tmp_path):
+    """QR's legacy home is `docs/development`, which the digest already counts."""
+    dev = tmp_path / "docs" / "development"
+    dev.mkdir(parents=True)
+    record = dev / "QR-003.md"
+    record.write_text("# QR-003", encoding="utf-8")
+    assert fr.record_path(str(tmp_path), "QR-003") == record
+
+
+def test_supersede_declaration_in_a_legacy_home_still_cascades(tmp_path):
+    """A `Re-Measured-By` declaration is a supersede claim wherever it lives.
+
+    Scanning `docs/experiments` alone left a claim live on a decision a newer
+    record had replaced, just because the old record predated the migration.
+    """
+    legacy = tmp_path / "bmad-output" / "docs" / "experiments"
+    legacy.mkdir(parents=True)
+    (legacy / "E-900.md").write_text(
+        "## Experiment: E-900\n- **Re-Measured-By:** E-901 (16.10.2026)\n",
+        encoding="utf-8")
+    exp = tmp_path / "docs" / "experiments"
+    exp.mkdir(parents=True)
+    (exp / "E-901.md").write_text("## Experiment: E-901\n", encoding="utf-8")
+    fr.reset_cache()
+    assert fr.superseded_records(str(tmp_path), "E-901") == ["E-900"]
+
+
 def test_record_path_refuses_an_ambiguous_id(tmp_path):
     """Two files for one id make the anchor a coin flip, so there is no anchor."""
     exp = tmp_path / "docs" / "experiments"

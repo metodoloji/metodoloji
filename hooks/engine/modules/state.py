@@ -188,6 +188,12 @@ def record_files(project_root: str | pathlib.Path, record_id: str,
                  rel_dirs) -> list[pathlib.Path]:
     """Every file under `rel_dirs` that claims `record_id` (sorted, unique).
 
+    The walk is recursive: a home is a tree, and a superseded/archived record
+    lives in a subdirectory of it (`stories/archive/S-004.md`). A flat glob read
+    that record as "no record", so a hot key pointing at it was reported
+    dangling and a chain gate could not find its own story — while the write
+    gate, which scans recursively, already treated the id as claimed.
+
     Callers report zero matches as "no record" and more than one as an
     ambiguous id; neither may be decided by a guessed path.
     """
@@ -197,7 +203,7 @@ def record_files(project_root: str | pathlib.Path, record_id: str,
     seen: set[str] = set()
     for rel in rel_dirs:
         try:
-            candidates = sorted((root / rel).glob("*.md"))
+            candidates = sorted((root / rel).rglob("*.md"))
         except OSError:
             continue
         for candidate in candidates:

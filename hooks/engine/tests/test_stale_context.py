@@ -373,6 +373,33 @@ def test_quality_gate_blocks_when_the_operator_asked_for_deny(repo, monkeypatch)
     assert blocked["decision"] == "deny" and "freshness denies" in blocked["reason"]
 
 
+def test_the_commit_row_visits_a_record_in_a_legacy_home(repo, monkeypatch):
+    """The row says "every APPROVED record"; a legacy home must not hide one.
+
+    The write path already resolves the claim's record wherever it lives, so a
+    stale approval the row skipped was a denial the operator never saw.
+    """
+    from modules import guard as guard_mod
+    legacy = repo / "bmad-output" / "docs" / "experiments"
+    legacy.mkdir(parents=True)
+    (repo / "docs" / "experiments" / "E-900.md").rename(legacy / "E-900.md")
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(repo))
+    monkeypatch.delenv("OPENHANDS_PROJECT_DIR", raising=False)
+    seen: list[str] = []
+
+    def _stale(root, rec):
+        seen.append(pathlib.Path(rec).name)
+        return {"verdict": fr.STALE, "reason": "moved", "changed": [],
+                "age_s": 1.0, "commit": "deadbeef",
+                "record": pathlib.Path(rec).name}
+
+    monkeypatch.setattr(guard_mod, "_record_freshness", _stale)
+    monkeypatch.setattr(fr, "blocks", lambda v: str(v).upper() == fr.STALE)
+    row = guard_mod._freshness_chain_row(str(repo), "git commit legacy")
+    assert "E-900.md" in seen
+    assert row["decision"] == "deny" and "E-900" in row["reason"]
+
+
 def test_stop_report_labels_a_stale_baton_and_lists_retirements(repo, monkeypatch):
     """P2/P3 on the stop surface: a baton the code moved past is not announced
     as live work, and a withdrawal made in this session is named."""
