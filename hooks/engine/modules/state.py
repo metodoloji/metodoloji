@@ -48,45 +48,71 @@ from collections import Counter
 
 # --- record inventory ---------------------------------------------------------
 
-# Per-kind pattern (orient.py's lesson: a shared `^(E|IR|…)-N.md$` counted
-# SP-026.md once per kind). Keys follow the E → IR → SP → S → QR → PR chain.
-# QR keeps its legacy secondary home (docs/development) — pre-migration
-# projects wrote QRs there and the digest must keep seeing them.
-_RECORD_KINDS = (
-    ("E", ("docs/experiments",)),
-    ("IR", ("docs/development",)),
-    ("SP", ("docs/development",)),
-    ("S", ("docs/development/stories",)),
-    ("QR", ("docs/quality", "docs/development")),
-    ("PR", ("docs/development",)),
-)
+# The id space, owned here because every reader asks this module: the duplicate
+# gate, the number allocator, the doctor and the digest all count "records"
+# over these roots. Keys follow the E → IR → SP → S → QR → PR chain.
+RECORD_SCAN_ROOTS = ("docs", "bmad-output", "_bmad-output", "design-artifacts")
+_RECORD_KINDS = ("E", "IR", "SP", "S", "QR", "PR")
+
+
+def record_scan_files(project_root: str | pathlib.Path) -> list[pathlib.Path]:
+    """Every `*.md` under `RECORD_SCAN_ROOTS`, recursively, in scan order.
+
+    A record home is any file the write gate would treat as an id claim: the
+    canonical directories, but also an archive subdir, `docs/development/native`
+    and a pre-migration `bmad-output/` tree. A reader that walks only the
+    canonical directories answers "no records" for a project the gate already
+    refuses duplicates in. Unreadable roots are skipped (the gate fails open the
+    same way); identity is still decided by `record_id_of_stem`, not the path.
+    """
+    root = pathlib.Path(project_root)
+    found: list[pathlib.Path] = []
+    for rel_root in RECORD_SCAN_ROOTS:
+        base = root / rel_root
+        try:
+            if not base.is_dir():
+                continue
+            found.extend(sorted(base.rglob("*.md")))
+        except OSError:
+            continue
+    return found
 
 
 def record_inventory(project_root: str | pathlib.Path) -> dict:
     """Count the E→IR→SP→S→QR→PR records (newest first per kind).
 
-    Returns {kind: {count, newest, dir}} for kinds with at least one record.
-    Read-only: glob + stat only.
+    Returns {kind: {count, newest, dirs}} for kinds with at least one record,
+    counted over the id space the write gate enforces (`RECORD_SCAN_ROOTS`), so
+    a legacy or archived record is not "no records" to the digest while the
+    gate already refuses a second file for its id. Read-only: glob + stat only.
     """
     root = pathlib.Path(project_root)
-    inventory: dict = {}
-    for kind, rels in _RECORD_KINDS:
+    by_kind: dict[str, list[tuple[float, str, str]]] = {k: [] for k in _RECORD_KINDS}
+    for candidate in record_scan_files(root):
         # Title-derived slug suffix counts: the gate's own records are named
         # `E-056-gate-heading-guard.md`, and the mirror note names that real
         # path — a bare `^E-N.md$` pattern made every slugged record
-        # invisible to routing (E-054..E-058 reported as "none yet").
-        record_re = re.compile(rf"^{kind}-\d+(?:-[A-Za-z0-9-]+)?\.md$")
-        found = []
-        for rel in rels:
-            base = root / rel
-            if not base.is_dir():
-                continue
-            for candidate in base.glob("*.md"):
-                if record_re.match(candidate.name):
-                    try:
-                        found.append((candidate.stat().st_mtime, rel, candidate.name))
-                    except OSError:
-                        continue
+        # invisible to routing (E-054..E-058 reported as "none yet"). The
+        # filename grammar is the gate's, so a stray `notes-S-001.md` or a
+        # lowercase `e-001.md` is not a record for either reader.
+        record_id = record_id_of_stem(candidate.stem)
+        if not record_id:
+            continue
+        kind = record_id.rpartition("-")[0]
+        if kind not in by_kind:
+            continue
+        try:
+            mtime = candidate.stat().st_mtime
+        except OSError:
+            continue
+        try:
+            rel = candidate.parent.relative_to(root).as_posix()
+        except ValueError:
+            rel = candidate.parent.as_posix()
+        by_kind[kind].append((mtime, rel, candidate.name))
+
+    inventory: dict = {}
+    for kind, found in by_kind.items():
         found.sort(reverse=True)
         if found:
             inventory[kind] = {"count": len(found), "newest": found[0][2],

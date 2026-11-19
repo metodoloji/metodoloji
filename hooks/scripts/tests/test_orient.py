@@ -290,6 +290,29 @@ def test_build_record_inventory_matches_the_engine_parser(tmp_path):
     assert orient.record_inventory(tmp_path) == engine_state.record_inventory(tmp_path)
 
 
+def test_standalone_inventory_matches_the_engine_over_the_whole_id_space(
+        tmp_path, monkeypatch):
+    """The engine-missing fallback must count what `state` counts.
+
+    A standalone digest that globbed only the canonical flat directories read
+    \"no records\" for a legacy tree the write gate already treated as claimed.
+    """
+    (tmp_path / "docs" / "experiments" / "archive").mkdir(parents=True)
+    (tmp_path / "docs" / "experiments" / "archive" / "E-003-gate.md").write_text(
+        "x", encoding="utf-8")
+    legacy = tmp_path / "bmad-output" / "docs" / "quality"
+    legacy.mkdir(parents=True)
+    (legacy / "QR-004.md").write_text("x", encoding="utf-8")
+
+    def _boom():
+        raise ImportError("engine tree missing")
+
+    monkeypatch.setattr(orient, "_state", _boom)
+    sys.path.insert(0, str(PLUGIN / "hooks" / "engine"))
+    from modules import state as engine_state
+    assert orient.record_inventory(tmp_path) == engine_state.record_inventory(tmp_path)
+
+
 def test_handoff_digest_is_read_only_and_names_the_peek(tmp_path):
     bb.post_handoff(str(tmp_path), "bmad-ux", "prd.mailjs", "PRD final — wizard")
     before = bb.pending_handoffs(str(tmp_path), "bmad-ux")

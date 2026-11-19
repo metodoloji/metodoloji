@@ -4,5 +4,5 @@ requires-python = ">=3.11"
 
 [[package]]
 name = "metodoloji"
-version = "0.3.13"
+version = "0.3.14"
 source = { virtual = "." }

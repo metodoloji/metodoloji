@@ -180,21 +180,31 @@ def record_inventory(project_root: pathlib.Path) -> dict:
     try:
         return _state().record_inventory(project_root)
     except Exception:
-        inventory: dict = {}
-        for kind, dirs in RECORD_DIRS.items():
-            # Per-kind pattern: a shared `^(E|IR|…)-N.md$` would count every
-            # SP-026.md once per kind (the first draft reported IR=52, QR=85).
-            # The slug suffix is accepted: methodology records carry
-            # title-derived names (`E-056-gate-heading-guard.md`).
-            record_re = re.compile(rf"^{kind}-\d+(?:-[A-Za-z0-9-]+)?\.md$")
-            found = []
-            for rel in dirs:
-                base = project_root / rel
-                if not base.is_dir():
+        # Mirrors state.RECORD_SCAN_ROOTS and state.record_id_of_stem. The
+        # engine is missing — that is why this branch runs — so the roots are
+        # restated rather than the digest silently counting a narrower space
+        # than the write gate (a legacy/archived record would read as "none").
+        roots = ("docs", "bmad-output", "_bmad-output", "design-artifacts")
+        # One grammar for all kinds: a shared `^(E|IR|…)-N.md$` would count
+        # SP-026.md once per kind (the first draft reported IR=52, QR=85).
+        record_re = re.compile(r"^(?P<kind>[A-Z]+)-(?P<num>\d+)(?:-(?P<slug>.+))?$")
+        by_kind: dict = {kind: [] for kind in RECORD_DIRS}
+        for rel_root in roots:
+            base = project_root / rel_root
+            if not base.is_dir():
+                continue
+            for candidate in base.rglob("*.md"):
+                match = record_re.fullmatch(candidate.stem)
+                if not match or match.group("kind") not in by_kind:
                     continue
-                for candidate in base.glob("*.md"):
-                    if record_re.match(candidate.name):
-                        found.append((candidate.stat().st_mtime, rel, candidate.name))
+                try:
+                    mtime = candidate.stat().st_mtime
+                    rel = candidate.parent.relative_to(project_root).as_posix()
+                except (OSError, ValueError):
+                    continue
+                by_kind[match.group("kind")].append((mtime, rel, candidate.name))
+        inventory: dict = {}
+        for kind, found in by_kind.items():
             found.sort(reverse=True)
             if found:
                 inventory[kind] = {

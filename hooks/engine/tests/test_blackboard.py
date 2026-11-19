@@ -2747,6 +2747,48 @@ def test_doctor_detects_duplicate_record_ids_real_layout(tmp_path):
     assert not any("Duplicate record ID" in w for w in d2["warnings"])
 
 
+def test_doctor_sees_the_id_space_the_write_gate_scans(tmp_path):
+    """The doctor must not be narrower than the gate.
+
+    A duplicate in a legacy tree (`bmad-output/…`) or a nested dir (an archive,
+    `docs/development/native`) was refused by the write gate while the flat
+    four-directory scan reported nothing — the observer and the gate disagreed
+    about whether the project was sound.
+    """
+    (tmp_path / "docs" / "experiments").mkdir(parents=True)
+    (tmp_path / "docs" / "experiments" / "E-001.md").write_text(
+        "# E-001", encoding="utf-8")
+    legacy = tmp_path / "bmad-output" / "docs" / "experiments" / "E-001.md"
+    legacy.parent.mkdir(parents=True)
+    legacy.write_text("# E-001 legacy", encoding="utf-8")
+    (tmp_path / "docs" / "development" / "native").mkdir(parents=True)
+    (tmp_path / "docs" / "development" / "IR-001.md").write_text(
+        "# IR-001", encoding="utf-8")
+    (tmp_path / "docs" / "development" / "native" / "IR-001.md").write_text(
+        "# IR-001 archive copy", encoding="utf-8")
+    d = bb.doctor(str(tmp_path))
+    assert any("Duplicate record ID 'E-001'" in w and "bmad-output" in w
+               for w in d["warnings"])
+    assert any("Duplicate record ID 'IR-001'" in w and "native" in w
+               for w in d["warnings"])
+
+
+def test_doctor_sees_a_slug_duplicate_in_a_nested_dir(tmp_path):
+    """Nesting must not hide a canonical identity: `E-7-gate.md` claims E-7."""
+    (tmp_path / "docs" / "experiments" / "archive").mkdir(parents=True)
+    (tmp_path / "docs" / "experiments" / "E-007.md").write_text(
+        "# E-007", encoding="utf-8")
+    (tmp_path / "docs" / "experiments" / "archive" / "E-7-gate.md").write_text(
+        "# E-7", encoding="utf-8")
+    d = bb.doctor(str(tmp_path))
+    assert any("Duplicate record ID 'E-" in w and "E-7-gate.md" in w
+               for w in d["warnings"])
+    # one file in a nested dir is still just one record
+    (tmp_path / "docs" / "experiments" / "E-007.md").unlink()
+    d2 = bb.doctor(str(tmp_path))
+    assert not any("Duplicate record ID" in w for w in d2["warnings"])
+
+
 def test_doctor_detects_a_slug_named_duplicate(tmp_path):
     """A title-slug file claims the same id as its plain sibling."""
     (tmp_path / "docs" / "experiments").mkdir(parents=True)

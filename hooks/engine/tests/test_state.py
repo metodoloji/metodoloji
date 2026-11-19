@@ -62,6 +62,27 @@ def test_record_inventory_counts_title_slugged_records(tmp_path):
     assert "S" in inv and inv["S"]["count"] == 1
 
 
+def test_record_inventory_reads_the_id_space_the_gate_enforces(tmp_path):
+    """Legacy/archived/nested homes count, like they do for the write gate.
+
+    Counting only the canonical flat directories told a pre-migration project
+    "no E records" while the gate refused `E-001` because a file in
+    `bmad-output/` already claimed it — the digest and the gate disagreed
+    about whether the project had records at all.
+    """
+    (tmp_path / "docs" / "experiments" / "archive").mkdir(parents=True)
+    (tmp_path / "docs" / "experiments" / "archive" / "E-001.md").write_text(
+        "x", encoding="utf-8")
+    legacy = tmp_path / "bmad-output" / "docs" / "experiments"
+    legacy.mkdir(parents=True)
+    (legacy / "E-002.md").write_text("x", encoding="utf-8")
+    (legacy / "notes.md").write_text("x", encoding="utf-8")  # not a record
+    inv = state.record_inventory(tmp_path)
+    assert inv["E"]["count"] == 2
+    assert inv["E"]["dirs"] == ["bmad-output/docs/experiments",
+                                "docs/experiments/archive"]
+
+
 # --- sprint_summary -------------------------------------------------------------
 
 def _write_sprint(tmp_path, body):

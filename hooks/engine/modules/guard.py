@@ -339,7 +339,35 @@ def _validate_story_experiment_refs(content: str, root: str = "") -> tuple[bool,
 # docs/planning + docs/development/native) plus the legacy per-type dirs;
 # `bmad-output/` is the pre-migration artifacts tree, kept as legacy fallback.
 # A project on either layout gets the check.
-_RECORD_SCAN_ROOTS = ("docs", "bmad-output", "_bmad-output", "design-artifacts")
+#: The gate's id space. Owned by state (the module every reader already asks),
+#: re-exported here because this is the enforcement point callers cite.
+_RECORD_SCAN_ROOTS = state_mod.RECORD_SCAN_ROOTS
+
+
+def _record_files(root: str):
+    """Every file in the id space, from the one enumeration (`state`).
+
+    The duplicate gate, the allocator, the doctor and the digest must not each
+    walk their own subset — a narrower walk is how a second file for one id
+    gets admitted, a free number looks taken, or the digest says "no records".
+    """
+    yield from state_mod.record_scan_files(root)
+
+
+def record_id_claims(root: str) -> dict[str, list[str]]:
+    """Canonical record id → every project-relative file that claims it.
+
+    An observer's answer to "is this id unique?" must be the gate's answer:
+    the same roots, the same `record_id_of_stem` identity, recursive. Callers
+    report `len(claims) > 1` as a duplicate and zero as "no record".
+    """
+    claims: dict[str, list[str]] = {}
+    for found in _record_files(str(root)):
+        record_id = state_mod.record_id_of_stem(found.stem)
+        if not record_id:
+            continue
+        claims.setdefault(record_id, []).append(rel_to_root(str(root), str(found)))
+    return claims
 
 _RECORD_ID_RE = re.compile(r"[A-Z]+-\d+")
 #: The id part of a record stem, for the message a writer reads: `E-001-gate`
@@ -395,22 +423,18 @@ def _check_duplicate_record_ids(root: str, rel_path: str,
         from .config import MAX_DUPLICATE_CHECK_RECORDS
         others: list[str] = []
         budget = 0
-        for rel_root in _RECORD_SCAN_ROOTS:
-            base = pathlib.Path(root) / rel_root
-            if not base.is_dir():
+        for found in _record_files(root):
+            if state_mod.record_id_of_stem(found.stem) != record_id:
                 continue
-            for found in base.rglob("*.md"):
-                if state_mod.record_id_of_stem(found.stem) != record_id:
-                    continue
-                budget += 1
-                if budget > MAX_DUPLICATE_CHECK_RECORDS:
-                    break
-                try:
-                    same = target_abs is not None and found.resolve() == target_abs
-                except OSError:
-                    same = False
-                if not same:
-                    others.append(rel_to_root(root, str(found)))
+            budget += 1
+            if budget > MAX_DUPLICATE_CHECK_RECORDS:
+                break
+            try:
+                same = target_abs is not None and found.resolve() == target_abs
+            except OSError:
+                same = False
+            if not same:
+                others.append(rel_to_root(root, str(found)))
 
         if others:
             shown = ", ".join(sorted(others)[:3])
@@ -441,20 +465,13 @@ def next_record_number(root: str, prefix: str) -> int:
     way); a caller that still collides is refused by the gate, never silently.
     """
     highest = 0
-    for rel_root in _RECORD_SCAN_ROOTS:
-        base = pathlib.Path(root) / rel_root
-        try:
-            if not base.is_dir():
-                continue
-            for found in base.rglob("*.md"):
-                record_id = state_mod.record_id_of_stem(found.stem)
-                if not record_id:
-                    continue
-                kind, _sep, num = record_id.rpartition("-")
-                if kind == prefix:
-                    highest = max(highest, int(num))
-        except OSError:
+    for found in _record_files(str(root)):
+        record_id = state_mod.record_id_of_stem(found.stem)
+        if not record_id:
             continue
+        kind, _sep, num = record_id.rpartition("-")
+        if kind == prefix:
+            highest = max(highest, int(num))
     return highest + 1
 
 def _validate_story_metadata(content: str) -> tuple[bool, str]:
