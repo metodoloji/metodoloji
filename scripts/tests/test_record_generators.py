@@ -20,6 +20,7 @@ fragments, on the shipped template, and on the shipped story.
 """
 
 import importlib.util
+import os
 import re
 import subprocess
 import sys
@@ -411,12 +412,20 @@ def test_mirror_heartbeat_honors_kill_switch(tmp_path, monkeypatch):
 # The record tooling reads a story/record that any editor or tool may corrupt;
 # a UnicodeDecodeError (a ValueError, not OSError) used to escape as a crash.
 
-def _run_script(script: str, *args: str) -> subprocess.CompletedProcess:
+def _run_script(script: str, *args: str,
+                env: dict | None = None) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, str(PLUGIN / "scripts" / script), *args],
         capture_output=True, text=True, encoding="utf-8", errors="replace",
-        timeout=60,
+        timeout=60, env=env,
         stdin=subprocess.DEVNULL)  # pytest's fd capture leaves stdin unusable on Windows
+
+
+def _project_env(tmp_path: Path) -> dict:
+    """The ambient env without the project override the QR CLI prefers."""
+    env = {k: v for k, v in os.environ.items() if k != "OPENHANDS_PROJECT_DIR"}
+    env["CLAUDE_PROJECT_DIR"] = str(tmp_path)
+    return env
 
 
 def test_qr_generator_refuses_a_non_utf8_story(tmp_path):
@@ -435,6 +444,97 @@ def test_s_generator_refuses_a_non_utf8_story(tmp_path):
                     "--project-root", str(tmp_path))
     assert r.returncode == 1, r.stdout + r.stderr
     assert "not valid UTF-8" in r.stderr and "Traceback" not in r.stderr
+
+
+def test_qr_generator_refuses_to_replace_an_existing_record(tmp_path):
+    """A QR is evidence: a re-run never silently replaces the record."""
+    story = tmp_path / "1-1-bench-in-ci.md"
+    story.write_text(_unstarted_story(), encoding="utf-8")
+    qr = tmp_path / "docs" / "quality" / "QR-001.md"
+    qr.parent.mkdir(parents=True)
+    qr.write_text("# Quality Record: QR-001\n\nsentinel\n", encoding="utf-8")
+    r = _run_script("create-qr-record.py", "--story", str(story),
+                    "--project-root", str(tmp_path), "--sira", "1",
+                    "--no-blackboard", env=_project_env(tmp_path))
+    assert r.returncode == 2, r.stdout + r.stderr
+    assert "already exists" in r.stderr
+    assert "sentinel" in qr.read_text(encoding="utf-8")
+
+
+def test_qr_generator_refuses_a_legacy_home_fork(tmp_path):
+    """`docs/development/QR-001.md` is the legacy home of the same id; the
+    local glob never saw it, so the generator could fork one id into two files."""
+    story = tmp_path / "1-1-bench-in-ci.md"
+    story.write_text(_unstarted_story(), encoding="utf-8")
+    legacy = tmp_path / "docs" / "development" / "QR-001.md"
+    legacy.parent.mkdir(parents=True)
+    legacy.write_text("# Quality Record: QR-001\n", encoding="utf-8")
+    r = _run_script("create-qr-record.py", "--story", str(story),
+                    "--project-root", str(tmp_path), "--sira", "1",
+                    "--no-blackboard", env=_project_env(tmp_path))
+    assert r.returncode == 2, r.stdout + r.stderr
+    assert "Duplicate record ID 'QR-001'" in r.stderr
+    assert not (tmp_path / "docs" / "quality" / "QR-001.md").exists()
+
+
+def test_s_generator_refuses_to_replace_or_fork_a_record(tmp_path):
+    story = tmp_path / "1-1-bench-in-ci.md"
+    story.write_text(_unstarted_story(), encoding="utf-8")
+    stories = tmp_path / "docs" / "development" / "stories"
+    stories.mkdir(parents=True)
+    record = stories / "S-001.md"
+    record.write_text("# Methodology Record: S-001\n\nsentinel\n", encoding="utf-8")
+
+    r = _run_script("create-methodology-record.py", "--story", str(story),
+                    "--project-root", str(tmp_path), "--sira", "1",
+                    "--no-blackboard", env=_project_env(tmp_path))
+    assert r.returncode == 2, r.stdout + r.stderr
+    assert "already exists" in r.stderr
+    assert "sentinel" in record.read_text(encoding="utf-8")
+
+    record.unlink()
+    (stories / "S-001-gate.md").write_text("# Methodology Record: S-001\n",
+                                           encoding="utf-8")
+    r = _run_script("create-methodology-record.py", "--story", str(story),
+                    "--project-root", str(tmp_path), "--sira", "1",
+                    "--no-blackboard", env=_project_env(tmp_path))
+    assert r.returncode == 2, r.stdout + r.stderr
+    assert "Duplicate record ID 'S-001'" in r.stderr
+    assert not record.exists()
+
+
+def test_qr_generator_skips_a_number_the_gate_already_owns(tmp_path):
+    """Auto-numbering reads the legacy home too, so it never proposes an id
+    the write gate just refused (the old glob counted only docs/quality, so
+    every run proposed QR-001 and exited 2 until a human passed --sira)."""
+    story = tmp_path / "1-1-bench-in-ci.md"
+    story.write_text(_unstarted_story(), encoding="utf-8")
+    legacy = tmp_path / "docs" / "development" / "QR-001.md"
+    legacy.parent.mkdir(parents=True)
+    legacy.write_text("# Quality Record: QR-001\n", encoding="utf-8")
+    r = _run_script("create-qr-record.py", "--story", str(story),
+                    "--project-root", str(tmp_path),
+                    "--no-blackboard", env=_project_env(tmp_path))
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert (tmp_path / "docs" / "quality" / "QR-002.md").is_file()
+    assert not (tmp_path / "docs" / "quality" / "QR-001.md").exists()
+
+
+def test_s_generator_skips_a_number_the_gate_already_owns(tmp_path):
+    """`docs/development/S-001.md` (an S home the gate scans) moves numbering
+    to S-002 instead of proposing the refused S-001 on every run."""
+    story = tmp_path / "1-1-bench-in-ci.md"
+    story.write_text(_unstarted_story(), encoding="utf-8")
+    legacy = tmp_path / "docs" / "development" / "S-001.md"
+    legacy.parent.mkdir(parents=True)
+    legacy.write_text("# Methodology Record: S-001\n", encoding="utf-8")
+    r = _run_script("create-methodology-record.py", "--story", str(story),
+                    "--project-root", str(tmp_path),
+                    "--no-blackboard", env=_project_env(tmp_path))
+    assert r.returncode == 0, r.stdout + r.stderr
+    stories = tmp_path / "docs" / "development" / "stories"
+    assert (stories / "S-002.md").is_file()
+    assert not (stories / "S-001.md").exists()
 
 
 def test_sync_story_qr_reports_a_non_utf8_record_and_check_fails(tmp_path):

@@ -47,7 +47,7 @@ import subprocess
 import time
 from contextlib import contextmanager
 
-from .state import canonical_record_id, record_files
+from .state import canonical_record_id, record_files, record_id_of_stem
 
 # Verdicts. RETIRED is a verdict too (a first-class "this no longer applies"),
 # but it is owned by the board's retire plane and only surfaced here.
@@ -506,7 +506,11 @@ def superseded_records(root: str, new_key: str) -> list[str]:
             m = _RECORD_ID_RE.match(value.strip())
             if not m or canonical_record_id(m.group(1)) != key:
                 continue
-            old_id = canonical_record_id(rec.stem)
+            # A downgrade is declared BY a record, so the declaring file has to
+            # be one under the filename grammar the gate uses. A stem like
+            # `E-draft.md` is not a record there, and the permissive id reader
+            # used to put it in the cascade set as an id no record claimed.
+            old_id = record_id_of_stem(rec.stem)
             # The cascade set is a set of RUN KEYS, so it returns the canonical
             # id the board and claims cite — not the filename. A slug-named file
             # used to put `E-053-gate-x` on the board while every claim said

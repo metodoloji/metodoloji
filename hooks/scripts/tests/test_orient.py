@@ -456,6 +456,56 @@ def test_build_hot_run_with_record_file_is_not_dangling(tmp_path):
     assert not any("hot --clear" in step for step in digest["next_steps"])
 
 
+def test_build_hot_run_is_grounded_by_a_differently_padded_record(tmp_path):
+    """`E-9` on the board, `E-009.md` on disk: one record, not a deletion.
+
+    The literal `E-9*.md` glob matched neither `E-009.md` (padding) nor any
+    slug sibling, so the digest warned that the run's evidence was deleted
+    while it sat in the canonical home — a false alarm that sends the next
+    session looking for a record that was never gone.
+    """
+    exp = tmp_path / "docs" / "experiments"
+    exp.mkdir(parents=True)
+    (exp / "E-009.md").write_text("x", encoding="utf-8")
+    bb.write_key(str(tmp_path), "E-9", "in-progress: H-1 x", type_="state")
+    bb.set_hot(str(tmp_path), "E-9")
+    digest = orient.build(tmp_path)
+    assert digest["board"]["hot_dangling"] is False
+    assert not any("hot --clear" in step for step in digest["next_steps"])
+
+
+def test_build_hot_run_is_grounded_when_the_board_key_is_padded(tmp_path):
+    """The reverse spelling: hot `E-009` grounded by `E-9.md`."""
+    exp = tmp_path / "docs" / "experiments"
+    exp.mkdir(parents=True)
+    (exp / "E-9.md").write_text("x", encoding="utf-8")
+    bb.write_key(str(tmp_path), "E-009", "in-progress: H-1 x", type_="state")
+    bb.set_hot(str(tmp_path), "E-009")
+    assert orient.build(tmp_path)["board"]["hot_dangling"] is False
+
+
+def test_hot_dangling_does_not_ground_a_neighbouring_id(tmp_path):
+    """A shared prefix is not the same record: E-001 hot, E-010.md on disk."""
+    exp = tmp_path / "docs" / "experiments"
+    exp.mkdir(parents=True)
+    (exp / "E-010.md").write_text("x", encoding="utf-8")
+    bb.write_key(str(tmp_path), "E-001", "in-progress: H-1 x", type_="state")
+    bb.set_hot(str(tmp_path), "E-001")
+    assert orient.build(tmp_path)["board"]["hot_dangling"] is True
+
+
+def test_hot_dangling_ignores_a_date_suffixed_board_key(tmp_path):
+    """`IR-2026-09-30` is a verdict key, not a chain-record id.
+
+    Reading it with the file grammar would collapse it to `IR-2026` and warn
+    that the record is missing whenever no `IR-2026*.md` exists.
+    """
+    bb.write_key(str(tmp_path), "IR-2026-09-30", "readiness: NOT READY",
+                 type_="state")
+    bb.set_hot(str(tmp_path), "IR-2026-09-30")
+    assert orient.build(tmp_path)["board"]["hot_dangling"] is False
+
+
 # --- Stale gate verdicts (2026-09-30 graph-engineering-arge session) ----------
 # The board said `IR-2026-09-30: readiness: NOT READY — report: …` because
 # docs/design/prds/ did not exist yet; the PRD landed ~30 minutes later and the

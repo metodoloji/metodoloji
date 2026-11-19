@@ -66,15 +66,22 @@ def _cannot(msg: str) -> int:
 
 
 def _record(root: pathlib.Path, kind: str, record_id: str) -> pathlib.Path | None:
-    """A record by id, where its owner puts it (`E-108` → docs/experiments/)."""
+    """A record by id, wherever its owner files it (`E-108` → docs/experiments/).
+
+    Identity resolves through the state module's one id reader, so a
+    title-slug record (`E-056-gate-heading-guard.md`, a shape the record
+    inventory accepts) and a differently padded spelling (`SP-9` vs
+    `SP-009.md`) name the file they mean. The literal `<id>.md` path this
+    replaces reported a record that exists as "not found", and the chain gate
+    read that as a broken chain. Two files claiming one id stay unresolved:
+    an ambiguous id is not an anchor.
+    """
     prefix = _PREFIX[kind]
     rid = record_id if re.match(rf"^{prefix}-\d", record_id) else (
         f"{prefix}-{record_id}")
-    for rel in _RECORD_DIRS[kind]:
-        path = root / rel / f"{rid}.md"
-        if path.is_file():
-            return path
-    return None
+    from hooks.engine.modules import state
+    matches = state.record_files(root, rid, _RECORD_DIRS[kind])
+    return matches[0] if len(matches) == 1 else None
 
 
 def _read(path: pathlib.Path) -> str:

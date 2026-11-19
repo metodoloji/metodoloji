@@ -417,3 +417,30 @@ def test_stop_stale_leftover_still_ignored_after_delegation(tmp_path, monkeypatc
     log.write_text('{"type": "session_start", "timestamp": ' + str(time.time()) + "}\n",
                    encoding="utf-8")
     assert stop_mod._in_progress_stories(str(tmp_path)) == []
+
+
+# --- record_files: one answer to "is this file a record?" ----------------------
+# The write gate reads a filename as a record only under `record_id_of_stem`
+# (uppercase kind prefix, digits, optional title slug). Recall used the
+# permissive id reader on stems, so it could hand back a file the gate never
+# protected — a lowercase `e-001.md` or `notes-1.md` — and a second file for the
+# same id could be created behind the duplicate check.
+
+def test_record_files_reads_a_slug_and_an_unpadded_id_as_one_record(tmp_path):
+    exp = tmp_path / "docs" / "experiments"
+    exp.mkdir(parents=True)
+    (exp / "E-009-gate.md").write_text("x", encoding="utf-8")
+    assert state.record_files(tmp_path, "E-9", ("docs/experiments",)) == [
+        exp / "E-009-gate.md"]
+
+
+def test_record_files_ignores_a_stem_the_write_gate_does_not_read_as_a_record(tmp_path):
+    exp = tmp_path / "docs" / "experiments"
+    exp.mkdir(parents=True)
+    (exp / "E-001.md").write_text("x", encoding="utf-8")
+    (exp / "e-002.md").write_text("x", encoding="utf-8")
+    (exp / "notes-3.md").write_text("x", encoding="utf-8")
+    assert state.record_files(tmp_path, "E-001", ("docs/experiments",)) == [
+        exp / "E-001.md"]
+    assert state.record_files(tmp_path, "E-002", ("docs/experiments",)) == []
+    assert state.record_files(tmp_path, "NOTES-3", ("docs/experiments",)) == []

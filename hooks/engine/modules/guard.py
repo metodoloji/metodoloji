@@ -427,6 +427,36 @@ def _check_duplicate_record_ids(root: str, rel_path: str,
         # Can't check, allow write (fail-open)
         return True, f"(duplicate check skipped: {str(e)[:100]})"
 
+def next_record_number(root: str, prefix: str) -> int:
+    """One past the highest `<prefix>-N` in the space the write gate scans.
+
+    A generator used to number from its own canonical directory while the gate
+    refused a second file for an id in ANY scan root. In a project that still
+    keeps records under a legacy home (`docs/development/QR-001.md`, an
+    `bmad-output/` tree), auto-numbering therefore proposed the id the gate had
+    just refused — on every run, so the default path could not create the
+    record at all and only a hand-picked `--sira`/`--id` escaped it. Allocation
+    now reads the same files the gate does, so the first number it proposes is
+    free there. Unreadable trees are skipped (the gate fails open the same
+    way); a caller that still collides is refused by the gate, never silently.
+    """
+    highest = 0
+    for rel_root in _RECORD_SCAN_ROOTS:
+        base = pathlib.Path(root) / rel_root
+        try:
+            if not base.is_dir():
+                continue
+            for found in base.rglob("*.md"):
+                record_id = state_mod.record_id_of_stem(found.stem)
+                if not record_id:
+                    continue
+                kind, _sep, num = record_id.rpartition("-")
+                if kind == prefix:
+                    highest = max(highest, int(num))
+        except OSError:
+            continue
+    return highest + 1
+
 def _validate_story_metadata(content: str) -> tuple[bool, str]:
     """Validate AC metadata, Task↔AC mapping, DoD structure, and STATUS field state machine.
 

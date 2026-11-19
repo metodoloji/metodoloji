@@ -298,15 +298,19 @@ def _duplicate_claim(root: pathlib.Path, out: pathlib.Path) -> str:
 
 
 def _next_id(kind: str, root: pathlib.Path) -> str:
+    """The next id, numbered in the space the write gate enforces.
+
+    Numbering from this generator's own directory ignored a record under a
+    legacy/target tree (`bmad-output/…`, a slug-named neighbour elsewhere), so
+    the auto id could be the one the gate refuses — every run, until the caller
+    passed `--id` by hand. The gate owns the id space, so it owns the number.
+    """
     spec = _SCHEMAS[kind]
-    base = root.joinpath(*spec["dir"])
-    nums = []
-    if base.is_dir():
-        for f in base.glob(f"{spec['prefix']}-*.md"):
-            m = re.match(rf"{spec['prefix']}-(\d+)", f.name)
-            if m:
-                nums.append(int(m.group(1)))
-    return f"{spec['prefix']}-{max(nums, default=0) + 1:03d}"
+    if str(_ENGINE_DIR) not in sys.path:
+        sys.path.insert(0, str(_ENGINE_DIR))
+    from modules.guard import next_record_number
+    number = next_record_number(str(root), spec["prefix"])
+    return f"{spec['prefix']}-{number:03d}"
 
 
 def _check(path: pathlib.Path) -> int:

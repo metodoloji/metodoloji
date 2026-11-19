@@ -5,13 +5,20 @@ This script implements bridge #1 from the bridge document.
 It reads a native story file and creates a methodology record.
 
 Usage:
-    python3 scripts/create-methodology-record.py --story <story-file> [--sira <number>]
+    python3 scripts/create-methodology-record.py --story <story-file> [--sira <number>] [--force]
 
 The script:
 1. Reads the native story file
 2. Extracts metadata (title, epic, AC, experiment refs)
 3. Creates docs/development/stories/S-<sira>.md from template
 4. Updates story file with methodology reference comment
+
+A story record is evidence, so the write is guarded: an existing S file is
+never replaced silently (--force replaces exactly that path), and an id that
+another file already claims — a title-slug sibling or a differently padded
+spelling — is refused. The claim rule is the write gate's (modules.guard), not
+a local filename match; this script writes the file itself, so the guard sees
+the process, never the target.
 """
 
 import argparse
@@ -24,7 +31,8 @@ from pathlib import Path
 # generator writes the value into the S record the gate later reads, so a local
 # regex that drifted (one digit matched `12` as Tier 1) would declare a fast
 # path the gate never granted (E-125).
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "hooks" / "engine"))
+_ENGINE_DIR = Path(__file__).resolve().parent.parent / "hooks" / "engine"
+sys.path.insert(0, str(_ENGINE_DIR))
 from modules.config import story_rigor_tier  # noqa: E402
 
 
@@ -252,6 +260,19 @@ def extract_story_metadata(content: str) -> dict:
     return meta
 
 
+def claimed_record_reason(project_root: Path, out: Path) -> str:
+    """The write gate's duplicate reason for `out`, or '' when the id is free.
+
+    Delegated rather than restated: `modules.guard._check_duplicate_record_ids`
+    owns the canonical identity and the scan roots, so the generator cannot
+    admit the fork that the write gate refuses.
+    """
+    from modules.guard import _check_duplicate_record_ids
+    rel = out.relative_to(project_root).as_posix()
+    unique, reason = _check_duplicate_record_ids(str(project_root), rel)
+    return "" if unique else reason
+
+
 def create_methodology_record(meta: dict, sira: int, project_root: Path) -> Path:
     """Create S-<sira>.md methodology record from template."""
     # Canonical story template lives in stories/ (see templates/_template_S.md
@@ -419,36 +440,25 @@ def next_qr_rel(project_root: Path) -> str:
     """`docs/quality/QR-<next>.md` — the file `create-qr-record.py` will write.
 
     Both generators number their records independently, so the QR a story record
-    predicts must be computed from the QR directory (same `max + 1` rule the QR
-    generator uses), never from the story number. `sync-story-qr.py` re-resolves
-    and repairs the path if anything creates a QR record in between.
+    predicts must be computed from the QR id space, never from the story number
+    — and that space is the one the write gate scans, not just `docs/quality`:
+    a legacy `docs/development/QR-001.md` would otherwise be predicted here and
+    then refused by the gate. `sync-story-qr.py` re-resolves and repairs the
+    path if anything creates a QR record in between.
     """
-    max_sira = 0
-    try:
-        for f in (project_root / "docs" / "quality").glob("QR-*.md"):
-            match = re.search(r"QR-(\d+)", f.name)
-            if match:
-                max_sira = max(max_sira, int(match.group(1)))
-    except OSError:
-        pass
-    return f"docs/quality/QR-{max_sira + 1:03d}.md"
+    from modules.guard import next_record_number
+    return f"docs/quality/QR-{next_record_number(str(project_root), 'QR'):03d}.md"
 
 
-def find_next_sira(stories_dir: Path) -> int:
-    """Find the next available S-XXX number."""
-    existing = list(stories_dir.glob("S-*.md"))
-    if not existing:
-        return 1
+def find_next_sira(project_root: Path) -> int:
+    """Find the next S number in the space the write gate scans.
 
-    max_sira = 0
-    for f in existing:
-        match = re.search(r"S-(\d+)", f.name)
-        if match:
-            num = int(match.group(1))
-            if num > max_sira:
-                max_sira = num
-
-    return max_sira + 1
+    Counting only the stories directory skipped the legacy/other S homes the
+    gate refuses (a same-id file under `docs/development`), so auto-numbering
+    proposed the refused id on every run.
+    """
+    from modules.guard import next_record_number
+    return next_record_number(str(project_root), "S")
 
 
 def _mirror_heartbeat(project_root: Path, run_key: str, value: str,
@@ -478,6 +488,8 @@ def main():
     parser.add_argument("--story", required=True, help="Path to native story file")
     parser.add_argument("--sira", type=int, default=0, help="Record number (auto if 0)")
     parser.add_argument("--project-root", default=".", help="Project root directory")
+    parser.add_argument("--force", action="store_true",
+                        help="replace this exact S file (never a second file for the id)")
     parser.add_argument("--no-blackboard", action="store_true",
                         help="skip the blackboard heartbeat (record is still created)")
     args = parser.parse_args()
@@ -507,7 +519,19 @@ def main():
     if args.sira > 0:
         sira = args.sira
     else:
-        sira = find_next_sira(stories_dir)
+        sira = find_next_sira(project_root)
+
+    target = stories_dir / f"S-{sira:03d}.md"
+    if target.exists() and not args.force:
+        print(f"❌ {target} already exists; a story record is evidence, so it "
+              f"is not replaced silently (use --force to replace this exact file)",
+              file=sys.stderr)
+        sys.exit(2)
+    if not target.exists():
+        claimed = claimed_record_reason(project_root, target)
+        if claimed:
+            print(f"❌ {claimed} Pick a free --sira.", file=sys.stderr)
+            sys.exit(2)
 
     # Create methodology record
     output_path = create_methodology_record(meta, sira, project_root)

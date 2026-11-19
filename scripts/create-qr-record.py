@@ -5,13 +5,20 @@ This script implements bridge #3 from the bridge document.
 It reads a story file and creates a QR record.
 
 Usage:
-    python3 scripts/create-qr-record.py --story <story-file> [--sira <number>]
+    python3 scripts/create-qr-record.py --story <story-file> [--sira <number>] [--force]
 
 The script:
 1. Reads the native story file
 2. Extracts DoD items and their verification status
 3. Creates docs/quality/QR-<sira>.md
 4. Updates story file Quality Record section
+
+A QR is evidence, so the write is guarded: an existing QR file is never
+replaced silently (--force replaces exactly that path), and an id that another
+file already claims — the same number under the legacy docs/development home,
+a title-slug sibling, or another padding — is refused. The claim rule is the
+write gate's (modules.guard), not a local filename match; this script writes
+the file itself, so the guard sees the process, never the target.
 """
 
 import argparse
@@ -20,6 +27,10 @@ import re
 import sys
 from datetime import date
 from pathlib import Path
+
+# The engine carries the identity and duplicate rules; import it lazily so the
+# parsing helpers stay dependency-free.
+_ENGINE_DIR = Path(__file__).resolve().parent.parent / "hooks" / "engine"
 
 
 # A DoD bullet appears in TWO canonical forms and both must count, because the
@@ -384,21 +395,32 @@ def retarget_qr_references(story_path: Path, qr_path: Path,
     return touched
 
 
-def find_next_sira(quality_dir: Path) -> int:
-    """Find the next available QR-XXX number."""
-    existing = list(quality_dir.glob("QR-*.md"))
-    if not existing:
-        return 1
+def claimed_record_reason(project_root: Path, out: Path) -> str:
+    """The write gate's duplicate reason for `out`, or '' when the id is free.
 
-    max_sira = 0
-    for f in existing:
-        match = re.search(r"QR-(\d+)", f.name)
-        if match:
-            num = int(match.group(1))
-            if num > max_sira:
-                max_sira = num
+    Delegated rather than restated: `modules.guard._check_duplicate_record_ids`
+    owns the canonical identity and the four scan roots (including the legacy
+    `docs/development` QR home this file's own glob never saw).
+    """
+    if str(_ENGINE_DIR) not in sys.path:
+        sys.path.insert(0, str(_ENGINE_DIR))
+    from modules.guard import _check_duplicate_record_ids
+    rel = out.relative_to(project_root).as_posix()
+    unique, reason = _check_duplicate_record_ids(str(project_root), rel)
+    return "" if unique else reason
 
-    return max_sira + 1
+
+def find_next_sira(project_root: Path) -> int:
+    """Find the next QR number in the space the write gate scans.
+
+    Counting only `docs/quality` skipped the legacy `docs/development` QR home
+    the gate refuses as a duplicate, so auto-numbering proposed the refused id
+    on every run. The gate's own allocator sees both.
+    """
+    if str(_ENGINE_DIR) not in sys.path:
+        sys.path.insert(0, str(_ENGINE_DIR))
+    from modules.guard import next_record_number
+    return next_record_number(str(project_root), "QR")
 
 
 def _mirror_heartbeat(project_root: Path, run_key: str, value: str,
@@ -429,6 +451,8 @@ def main():
     parser.add_argument("--story", required=True, help="Path to native story file")
     parser.add_argument("--sira", type=int, default=0, help="QR number (auto if 0)")
     parser.add_argument("--project-root", default=".", help="Project root directory")
+    parser.add_argument("--force", action="store_true",
+                        help="replace this exact QR file (never a second file for the id)")
     parser.add_argument("--no-blackboard", action="store_true",
                         help="skip the blackboard heartbeat (record is still created)")
     args = parser.parse_args()
@@ -462,7 +486,19 @@ def main():
     if args.sira > 0:
         sira = args.sira
     else:
-        sira = find_next_sira(quality_dir)
+        sira = find_next_sira(project_root)
+
+    target = quality_dir / f"QR-{sira:03d}.md"
+    if target.exists() and not args.force:
+        print(f"❌ {target} already exists; a QR is evidence, so it is not "
+              f"replaced silently (use --force to replace this exact file)",
+              file=sys.stderr)
+        sys.exit(2)
+    if not target.exists():
+        claimed = claimed_record_reason(project_root, target)
+        if claimed:
+            print(f"❌ {claimed} Pick a free --sira.", file=sys.stderr)
+            sys.exit(2)
 
     # Create QR record
     qr_path = create_qr_record(meta, dod_items, sira, project_root)

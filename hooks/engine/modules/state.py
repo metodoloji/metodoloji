@@ -180,7 +180,12 @@ def record_files(project_root: str | pathlib.Path, record_id: str,
                     continue
             except OSError:
                 continue
-            if canonical_record_id(candidate.stem) != wanted:
+            # A FILE is a record only under the filename grammar
+            # (`record_id_of_stem`): the uppercase kind prefix is what the write
+            # gate sees, so recall must not answer "record" for a stem the gate
+            # reads as a plain note (`notes-1.md`, a lowercase `e-001.md`). The
+            # permissive `canonical_record_id` stays for ids a caller TYPES.
+            if record_id_of_stem(candidate.stem) != wanted:
                 continue
             key = str(candidate)
             if key not in seen:

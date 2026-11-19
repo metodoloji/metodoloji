@@ -37,6 +37,28 @@ def test_experiment_draft_is_created_and_validates(tmp_path, monkeypatch, capsys
     assert _run(monkeypatch, "--check", str(record)) == 0
 
 
+def test_auto_id_skips_a_claim_in_a_legacy_tree(tmp_path, monkeypatch, capsys):
+    """Numbering reads the gate's whole id space, not just docs/experiments.
+
+    A pre-migration `bmad-output/docs/experiments/E-001.md` made the gate
+    refuse the auto id E-001, and the generator proposed it again on every
+    run; the caller had to discover `--id` to get past it.
+    """
+    out = tmp_path / "proj"
+    legacy = out / "bmad-output" / "docs" / "experiments" / "E-001.md"
+    legacy.parent.mkdir(parents=True)
+    legacy.write_text("# Experiment: E-001\n", encoding="utf-8")
+    rc = _run(
+        monkeypatch, "--project-root", str(out), "--kind", "experiment",
+        "--title", "demo", "--theory", "because",
+        "--hypothesis", 'H-001: "rate >= 0.90"', "--metrics", "rate >= 0.90",
+        "--design", "run the bench", "--scope", "src/**", "--lineage", "none",
+        "--raw-samples", "docs/experiments/E-002/raw/samples.jsonl")
+    assert rc == 0, capsys.readouterr().err
+    assert (out / "docs" / "experiments" / "E-002.md").is_file()
+    assert legacy.read_text(encoding="utf-8") == "# Experiment: E-001\n"
+
+
 def test_contract_draft_without_census_is_refused(tmp_path, monkeypatch, capsys):
     rc = _run(
         monkeypatch, "--project-root", str(tmp_path), "--kind", "contract",

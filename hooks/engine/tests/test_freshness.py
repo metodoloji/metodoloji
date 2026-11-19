@@ -473,3 +473,16 @@ def test_record_path_refuses_an_ambiguous_id(tmp_path):
     for name in ("E-009.md", "E-009-other.md"):
         (exp / name).write_text("## Experiment: E-009\n", encoding="utf-8")
     assert fr.record_path(str(tmp_path), "E-009") is None
+
+
+def test_supersede_set_ignores_a_filename_that_is_not_a_record(tmp_path):
+    """A cascade id must be one the write gate would call a record.
+
+    `E-draft.md` names no id (`record_id_of_stem` → ""), so a declaration
+    inside it cannot retire an id no record ever claimed.
+    """
+    exp = tmp_path / "docs" / "experiments"
+    exp.mkdir(parents=True)
+    (exp / "E-draft.md").write_text("- **Re-Measured-By:** E-009\n", encoding="utf-8")
+    (exp / "E-002.md").write_text("- **Re-Measured-By:** E-009\n", encoding="utf-8")
+    assert fr.superseded_records(str(tmp_path), "E-009") == ["E-2"]

@@ -383,22 +383,22 @@ def hot_record_dangling(project_root: pathlib.Path, hot) -> bool:
     in-progress while docs/experiments/ holds no E-001*.md (record deleted
     or never created, board kept the claim). A new session reading the
     digest would otherwise believe the run is live.
+
+    The key and the filename compare canonically through the state module's
+    one id reader, so hot `E-9` is grounded by the file `E-009.md` (and a
+    slug-suffixed sibling, `E-001-logger-migration.md`). The literal
+    `{key}*.md` glob this replaces read a differently-padded spelling as
+    "no record", which is the worst false alarm this warning can give: it
+    tells a new session its evidence was deleted when it is on disk.
     """
     try:
         m = _HOT_ID_RE.match(str(hot or ""))
         if not m or m.group(1) not in RECORD_DIRS:
             return False
         kind, num = m.group(1), m.group(2)
-        for rel in RECORD_DIRS[kind]:
-            base = pathlib.Path(project_root) / rel
-            if not base.is_dir():
-                continue
-            for candidate in base.glob(f"{kind}-{num}*.md"):
-                stem = candidate.name[:-3]  # exact id or slug suffix grounds it
-                if stem == f"{kind}-{num}" or stem.startswith(f"{kind}-{num}-"):
-                    return False
-        return True
-    except (OSError, ValueError):
+        record_id = f"{kind}-{int(num)}"
+        return not _state().record_files(project_root, record_id, RECORD_DIRS[kind])
+    except (OSError, ValueError, ImportError, AttributeError):
         return False
 
 
