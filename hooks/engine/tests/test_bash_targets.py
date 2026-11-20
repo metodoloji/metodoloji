@@ -755,6 +755,39 @@ def test_rsync_destination_is_the_last_operand():
     assert extract_bash_targets("rsync -a src/a.py /tmp/out/") == ["/tmp/out/"]
 
 
+def test_a_destination_flag_carries_the_target():
+    # `cp -t src x.txt` writes src/x.txt, but the only operand is the SOURCE:
+    # the last-operand rule read the copy as a read (E-184).
+    assert extract_bash_targets("cp -t src x.txt") == ["src/x.txt"]
+    assert extract_bash_targets("cp -t src/ x.txt") == ["src/x.txt"]
+    assert extract_bash_targets("cp --target-directory=src x.txt") == ["src/x.txt"]
+    assert extract_bash_targets("cp --target-directory src x.txt") == ["src/x.txt"]
+    assert extract_bash_targets("cp -at src x.txt") == ["src/x.txt"]
+    assert extract_bash_targets("cp -tsrc x.txt") == ["src/x.txt"]
+    assert extract_bash_targets("mv -t src x.txt") == ["src/x.txt"]
+    assert extract_bash_targets("mv --target-directory=src x.txt") == ["src/x.txt"]
+    assert extract_bash_targets("mv -bt src x.txt") == ["src/x.txt"]
+    assert extract_bash_targets("install -t src x.txt") == ["src/x.txt"]
+    assert extract_bash_targets("ln --target-directory=src x") == ["src/x"]
+    # several operands all land in the named directory
+    assert extract_bash_targets("mv -t src a.py b.py") == ["src/a.py", "src/b.py"]
+
+
+def test_target_directory_does_not_disturb_the_operand_rule():
+    # no flag: the destination is still the last operand
+    assert extract_bash_targets("cp x.txt src/") == ["src/"]
+    assert extract_bash_targets("cp -a x.txt src/a.py") == ["src/a.py"]
+    # rsync's -t preserves times; it is not a target directory
+    assert extract_bash_targets("rsync -t /tmp/x src/a.py") == ["src/a.py"]
+    # a prefixed flag-carrying copy still names the destination
+    assert extract_bash_targets("sudo cp -t src x.txt") == ["src/x.txt"]
+    # a destination outside the tree stays outside it
+    assert extract_bash_targets("cp -t /tmp x.txt") == ["/tmp/x.txt"]
+    # a redirect after the operands is still the redirect's destination
+    assert extract_bash_targets("cp -t src /tmp/x > /dev/null") == [
+        "src/x", "/dev/null"]
+
+
 def test_ln_link_name_is_the_destination():
     assert extract_bash_targets("ln -sf /tmp/x src/a.py") == ["src/a.py"]
     assert extract_bash_targets("ln src/old.py src/new.py") == ["src/new.py"]
@@ -789,10 +822,41 @@ def test_git_restore_bare_and_directory_pathspecs_stay_fail_closed():
     assert extract_bash_targets("git restore src/") == ["src/"]
 
 
-def test_checkout_branch_is_unchanged_by_the_restore_rule():
+def test_checkout_without_the_separator_names_its_path():
+    # `git checkout P` and `git checkout REV P` rewrite the working tree
+    # exactly like `git restore P`, which is already gated (E-184).
     assert extract_bash_targets("git checkout -- src/a.py") == ["src/a.py"]
-    # without the separator checkout is branch/file ambiguity — unchanged
-    assert extract_bash_targets("git checkout src/a.py") == []
+    assert extract_bash_targets("git checkout src/a.py") == ["src/a.py"]
+    assert extract_bash_targets("git checkout HEAD src/a.py") == ["src/a.py"]
+    assert extract_bash_targets("git checkout --ours src/a.py") == ["src/a.py"]
+    assert extract_bash_targets("git checkout src/") == ["src/"]
+    assert extract_bash_targets("git checkout HEAD src/a.py lib/b.py") == [
+        "src/a.py", "lib/b.py"]
+    assert extract_bash_targets("git checkout HEAD src/a.py > /dev/null") == [
+        "src/a.py", "/dev/null"]
+
+
+def test_a_lone_bare_word_stays_a_branch_switch():
+    # `git checkout main` is how a working tree changes branches; the lone
+    # operand is a branch unless it plainly spells a path.
+    assert extract_bash_targets("git checkout main") == []
+    assert extract_bash_targets("git checkout HEAD~2") == []
+    assert extract_bash_targets("git checkout v0.3.15") == []
+    assert extract_bash_targets("git checkout Makefile") == []
+    assert extract_bash_targets("git checkout -") == []
+
+
+def test_checkout_branch_creation_names_no_path():
+    assert extract_bash_targets("git checkout -b feature") == []
+    assert extract_bash_targets("git checkout -b feature main") == []
+    assert extract_bash_targets("git checkout --orphan fresh") == []
+    assert extract_bash_targets("git checkout -B feature src/a.py") == []
+
+
+def test_checkout_whole_tree_pathspec_is_dropped_like_restore():
+    assert extract_bash_targets("git checkout .") == []
+    assert extract_bash_targets("git checkout HEAD .") == []
+    assert extract_bash_targets("git checkout ./ src/a.py") == ["src/a.py"]
 
 
 def test_new_write_verbs_do_not_fire_in_prose():

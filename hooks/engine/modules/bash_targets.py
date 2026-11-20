@@ -711,6 +711,109 @@ def _write_operands(args: list[str]) -> list[str]:
     return out
 
 
+# --- the destination a FLAG carries ------------------------------------------
+# `cp -t DIR src/a.py` writes DIR/src/a.py, but its only operand is the
+# SOURCE, so the last-operand rule read the copy as a read and allowed it
+# (probe, 2026-11-20; same for `mv`, `install`, `ln`). GNU getopt accepts the
+# value three ways — `-t DIR`, `--target-directory DIR`, `--target-directory=DIR`
+# — plus inside a short bundle (`-at DIR`) and attached (`-tDIR`).
+_TARGET_DIR_LONG = "--target-directory"
+
+
+def _take_target_directory(args: list[str]) -> tuple[str | None, list[str]]:
+    """(directory, the same args without that flag and its value).
+
+    The value is REMOVED from the returned args so the operand walk never
+    reads the directory as an operand (`-t src` would otherwise leave `src`
+    in the list and join it into `src/src`). None means the flag is absent;
+    the caller then keeps the last-operand rule.
+    """
+    rest: list[str] = []
+    i = 0
+    while i < len(args):
+        tok = args[i]
+        if tok in _OP_TOKENS:
+            rest.extend(args[i:])
+            break
+        if tok == _TARGET_DIR_LONG:
+            nxt = args[i + 1] if i + 1 < len(args) else ""
+            if nxt and nxt not in _OP_TOKENS:
+                return nxt, rest + args[i + 2:]
+            return None, rest + args[i + 1:]
+        if tok.startswith(_TARGET_DIR_LONG + "="):
+            return tok[len(_TARGET_DIR_LONG) + 1:] or None, rest + args[i + 1:]
+        if tok.startswith("-") and not tok.startswith("--") and len(tok) > 1:
+            pos = tok.find("t", 1)
+            if pos != -1:
+                # `-tDIR` carries the value; `-at DIR` ends here.
+                attached = tok[pos + 1:]
+                if attached:
+                    return attached, rest + args[i + 1:]
+                nxt = args[i + 1] if i + 1 < len(args) else ""
+                if nxt and nxt not in _OP_TOKENS:
+                    return nxt, rest + args[i + 2:]
+                return None, rest + args[i + 1:]
+        rest.append(tok)
+        i += 1
+    return None, rest
+
+
+# `git checkout` without `--` is git's ambiguous spelling: ONE operand is a
+# branch or revision (switch), TWO are `<tree-ish> <pathspec>`. Flags that
+# create a branch never name a path, so they answer [] outright.
+_CHECKOUT_BRANCH_FLAGS = ("-b", "-B", "--orphan")
+# A bare version token (`v0.3.15`) is a tag, not a file (E-037's rule).
+_REVISIONISH_RE = re.compile(r"v?\d+(?:\.\d+)+")
+
+
+def _plain_path(operand: str) -> bool:
+    """True when a lone checkout operand plainly spells a file path."""
+    return ("/" in operand
+            or (bool(pathlib.PurePosixPath(operand).suffix)
+                and not _REVISIONISH_RE.fullmatch(operand)))
+
+
+def _checkout_paths(args: list[str]) -> list[str]:
+    """Paths a `git checkout <rev> [--] <path>` rewrites, else [].
+
+    The gated spelling `git checkout -- P` is handled by its own branch; this
+    covers the separator-less forms `git checkout P` and `git checkout REV P`,
+    which write the working tree exactly like `git restore P` and were allowed
+    while `git restore P` was denied (probe, 2026-11-20).
+
+    A single bare operand stays a branch switch: `git checkout main` is how a
+    working tree changes branches, and denying it would gate every branch
+    change. A lone operand that is plainly a path — it carries a `/` or a
+    file extension — is reported. `.`/`./` name the whole tree, not a path
+    this write spells, and are dropped exactly as the restore branch drops
+    them.
+    """
+    for tok in args:
+        if tok in _CHECKOUT_BRANCH_FLAGS or tok.startswith("--orphan="):
+            return []
+    operands: list[str] = []
+    i = 0
+    while i < len(args):
+        tok = args[i]
+        if tok in _OP_TOKENS:
+            break
+        if _fd_prefix(args, i):
+            i += 1
+            continue
+        if tok.startswith("-") and tok != "-":
+            i += 1
+            continue
+        operands.append(tok)
+        i += 1
+    paths = [p for p in (operands[1:] if len(operands) > 1 else operands)
+             if p not in (".", "./")]
+    if len(operands) > 1:
+        return paths
+    if not paths:
+        return []
+    return [paths[0]] if _plain_path(paths[0]) else []
+
+
 def _operand_targets(args: list[str], value_flags: tuple = ()) -> list[str]:
     """Non-flag operands, skipping the value of each value-taking flag.
 
@@ -988,9 +1091,26 @@ def _extract_raw(command: str) -> tuple[list[str], bool]:
             # `ln -s TARGET` with no link name lands in the cwd under the
             # target's basename, which no operand states — it reports nothing
             # rather than guessing a path the command never spelled.
-            operands = _write_operands(_seg_after(i))
-            if operands and not (tok == "ln" and len(operands) < 2):
-                targets.append(operands[-1])
+            _verbs_args = _seg_after(i)
+            # `rsync -t` means "preserve times", not a target directory, so
+            # only the copy verbs read the flag.
+            carried, _verbs_args = (None, _verbs_args) if tok == "rsync" else \
+                _take_target_directory(_verbs_args)
+            if carried:
+                # The file written is `DIR/<basename of each operand>`; joining
+                # keeps the target inside the tree when DIR is (`src/x.py`)
+                # and outside it when DIR is (`/tmp/x.py`), exactly like the
+                # operand spelling `cp x.py src/` / `cp x.py /tmp/`.
+                operands = _write_operands(_verbs_args)
+                landed = [
+                    f"{carried.rstrip('/')}/{pathlib.PurePosixPath(op.rstrip('/')).name}"
+                    for op in operands if op.strip("/") and op != "-"
+                ]
+                targets.extend(landed or [carried])
+            else:
+                operands = _write_operands(_verbs_args)
+                if operands and not (tok == "ln" and len(operands) < 2):
+                    targets.append(operands[-1])
         elif tok == "curl":
             targets.extend(_output_flag_targets(_seg_after(i), ("-o", "--output"), "-o"))
         elif tok == "wget":
@@ -1027,6 +1147,10 @@ def _extract_raw(command: str) -> tuple[list[str], bool]:
                 patch_path = next((t for t in args_after if not t.startswith("-")), None)
                 if patch_path:
                     targets.extend(_read_patch_targets(patch_path, prefix))
+            elif rest and rest[0] == "checkout" and "--" not in rest:
+                # Separator-less checkout (`git checkout P`,
+                # `git checkout REV P`) writes the tree like `git restore P`.
+                targets.extend(_checkout_paths(rest[1:]))
             elif rest and rest[0] == "checkout" and "--" in rest:
                 # Operands before any redirect only: `>`/`>>` (and a glued fd
                 # prefix) are operators, never checked-out paths.
