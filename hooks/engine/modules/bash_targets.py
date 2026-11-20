@@ -814,6 +814,39 @@ def _checkout_paths(args: list[str]) -> list[str]:
     return [paths[0]] if _plain_path(paths[0]) else []
 
 
+# `git mv` renames with git's own verb: the table gates `mv` (last operand)
+# but had no `mv` arm under `git`, so `git mv docs/x.md src/a.py` created a
+# gated file while naming no target at all (probe, 2026-11-20). The shape is
+# `<source>... <destination>`; the flags (`-f/--force`, `-k`, `-v/--verbose`)
+# carry no value, and `-n/--dry-run` moves nothing at all.
+_GIT_MV_DRY_RUN = ("-n", "--dry-run")
+
+
+def _git_mv_targets(args: list[str]) -> list[str]:
+    """The destination `git mv` writes, or [] when it writes nothing.
+
+    One operand is a usage error (the destination is missing) and a dry run
+    moves nothing, so neither names a write. `--` ends flag parsing, exactly
+    where git stops reading options.
+    """
+    operands: list[str] = []
+    seen_separator = False
+    for tok in args:
+        if tok in _OP_TOKENS:
+            break
+        if not seen_separator:
+            if tok == "--":
+                seen_separator = True
+                continue
+            if tok in _GIT_MV_DRY_RUN or (
+                    not tok.startswith("--") and len(tok) > 1 and "n" in tok[1:]):
+                return []  # also a bundle like `-vn`
+            if tok.startswith("-") and tok != "-":
+                continue
+        operands.append(tok)
+    return [operands[-1]] if len(operands) > 1 else []
+
+
 def _operand_targets(args: list[str], value_flags: tuple = ()) -> list[str]:
     """Non-flag operands, skipping the value of each value-taking flag.
 
@@ -1155,6 +1188,11 @@ def _extract_raw(command: str) -> tuple[list[str], bool]:
                 # Operands before any redirect only: `>`/`>>` (and a glued fd
                 # prefix) are operators, never checked-out paths.
                 targets.extend(_write_operands(rest[rest.index("--") + 1 :]))
+            elif rest and rest[0] == "mv":
+                # `git mv` writes the destination operand exactly as `mv` does;
+                # without this arm the verb named no target and the rename was
+                # read as a read (E-185).
+                targets.extend(_git_mv_targets(rest[1:]))
             elif rest and rest[0] == "restore":
                 # `git restore P` rewrites the working tree exactly like
                 # `git checkout -- P` (E-183). The checkout branch above needs

@@ -859,6 +859,34 @@ def test_checkout_whole_tree_pathspec_is_dropped_like_restore():
     assert extract_bash_targets("git checkout ./ src/a.py") == ["src/a.py"]
 
 
+# --- E-185: git's own rename verb names its destination --------------------
+# `mv a b` is gated by its last operand; `git mv a b` had no arm at all, so
+# the same rename into a code path was read as a read.
+
+
+def test_git_mv_names_the_destination_it_writes():
+    assert extract_bash_targets("git mv docs/x.md src/a.py") == ["src/a.py"]
+    assert extract_bash_targets("git mv src/a.py src/b.py") == ["src/b.py"]
+    assert extract_bash_targets("git mv src/ docs/") == ["docs/"]
+    assert extract_bash_targets("git mv -f src/a.py src/b.py") == ["src/b.py"]
+    assert extract_bash_targets("git mv -v src/a.py src/b.py") == ["src/b.py"]
+    assert extract_bash_targets("git mv src/a.py src/b.py src/") == ["src/"]
+    assert extract_bash_targets("git mv -- docs/x.md src/a.py") == ["src/a.py"]
+    assert extract_bash_targets("git mv src/a.py src/b.py > /dev/null") == [
+        "src/b.py", "/dev/null"]
+
+
+def test_git_mv_without_a_write_names_nothing():
+    # usage and help: no rename happens
+    assert extract_bash_targets("git mv") == []
+    assert extract_bash_targets("git mv src/a.py") == []
+    assert extract_bash_targets("git mv --help") == []
+    # a dry run moves nothing, so its destination is not a write
+    assert extract_bash_targets("git mv -n src/a.py src/b.py") == []
+    assert extract_bash_targets("git mv --dry-run src/a.py src/b.py") == []
+    assert extract_bash_targets("git mv -vn src/a.py src/b.py") == []
+
+
 def test_new_write_verbs_do_not_fire_in_prose():
     assert extract_bash_targets("git commit -m 'rsync -a a b'") == []
     assert extract_bash_targets("echo 'ln -s a b'") == []

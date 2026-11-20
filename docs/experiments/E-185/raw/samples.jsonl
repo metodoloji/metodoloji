@@ -1,0 +1,15 @@
+{"check": "git_mv_into_code_path", "ok": true, "detail": "git mv docs/x.md src/zzz_probe.py -> deny (want deny) No approved experiment record for src/zzz_probe.py: record /root/workspace/metod"}
+{"check": "git_mv_rename_in_code", "ok": true, "detail": "git mv src/a.py src/zzz_probe.py -> deny (want deny) No approved experiment record for src/zzz_probe.py: record /root/workspace/metod"}
+{"check": "git_mv_force", "ok": true, "detail": "git mv -f docs/x.md src/zzz_probe.py -> deny (want deny) No approved experiment record for src/zzz_probe.py: record /root/workspace/metod"}
+{"check": "git_mv_verbose", "ok": true, "detail": "git mv -v src/a.py src/zzz_probe.py -> deny (want deny) No approved experiment record for src/zzz_probe.py: record /root/workspace/metod"}
+{"check": "git_mv_dir_dest", "ok": true, "detail": "git mv docs/x.md src/ -> deny (want deny) No approved experiment record for src: record /root/workspace/metodoloji/docs/ex"}
+{"check": "git_mv_separator", "ok": true, "detail": "git mv -- docs/x.md src/zzz_probe.py -> deny (want deny) No approved experiment record for src/zzz_probe.py: record /root/workspace/metod"}
+{"check": "mv_operand_dest", "ok": true, "detail": "mv docs/x.md src/zzz_probe.py -> deny (want deny) No approved experiment record for src/zzz_probe.py: record /root/workspace/metod"}
+{"check": "cp_operand_dest", "ok": true, "detail": "cp docs/x.md src/zzz_probe.py -> deny (want deny) No approved experiment record for src/zzz_probe.py: record /root/workspace/metod"}
+{"check": "git_restore", "ok": true, "detail": "git restore src/zzz_probe.py -> deny (want deny) No approved experiment record for src/zzz_probe.py: record /root/workspace/metod"}
+{"check": "git_mv_dry_run", "ok": true, "detail": "git mv -n src/a.py src/b.py -> allow (want allow) "}
+{"check": "git_mv_help", "ok": true, "detail": "git mv --help -> allow (want allow) "}
+{"check": "git_mv_bare", "ok": true, "detail": "git mv -> allow (want allow) "}
+{"check": "git_mv_one_operand", "ok": true, "detail": "git mv src/a.py -> allow (want allow) "}
+{"check": "git_mv_out_of_code", "ok": true, "detail": "git mv docs/a.md docs/b.md -> allow (want allow) "}
+{"check": "readonly_listing", "ok": true, "detail": "ls src -> allow (want allow) "}
