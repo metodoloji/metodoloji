@@ -184,8 +184,39 @@ def record_id_of_stem(stem: str) -> str:
     return f"{m.group('kind')}-{int(m.group('num'))}"
 
 
-def record_files(project_root: str | pathlib.Path, record_id: str,
-                 rel_dirs) -> list[pathlib.Path]:
+# The .md walk behind record_files is shared through the CALLER's batch cache:
+# a project with 29 records walked its documentation tree 29 times per call,
+# 166k scandir calls and ~14s of a 15s hook budget. The cache belongs to
+# freshness.batch(), which clears it when the operation closes, so a record
+# written afterwards is never answered from an older snapshot.
+
+
+def _md_files(root, rel_dirs, cache=None):
+    """Every .md under rel_dirs, walked once per cache scope.
+
+    `cache` is the caller's batch cache: inside one read operation the tree
+    cannot change, so the walk is shared; the caller clears it when the
+    operation closes, so a record written later is seen. With no cache the walk
+    is not cached at all - a writer or a test that creates a record mid-run
+    must never be answered from a snapshot taken before the write.
+    """
+    key = (str(root), tuple(rel_dirs))
+    if cache is not None:
+        hit = cache.get(key)
+        if hit is not None:
+            return hit
+    files = []
+    for rel in rel_dirs:
+        try:
+            files.extend(sorted((root / rel).rglob("*.md")))
+        except OSError:
+            continue
+    if cache is not None:
+        cache[key] = files
+    return files
+
+
+def record_files(project_root, record_id, rel_dirs, cache=None):
     """Every file under `rel_dirs` that claims `record_id` (sorted, unique).
 
     The walk is recursive: a home is a tree, and a superseded/archived record
@@ -199,30 +230,25 @@ def record_files(project_root: str | pathlib.Path, record_id: str,
     """
     wanted = canonical_record_id(record_id)
     root = pathlib.Path(project_root)
-    found: list[pathlib.Path] = []
-    seen: set[str] = set()
-    for rel in rel_dirs:
+    found = []
+    seen = set()
+    for candidate in _md_files(root, rel_dirs, cache):
         try:
-            candidates = sorted((root / rel).rglob("*.md"))
+            if not candidate.is_file():
+                continue
         except OSError:
             continue
-        for candidate in candidates:
-            try:
-                if not candidate.is_file():
-                    continue
-            except OSError:
-                continue
-            # A FILE is a record only under the filename grammar
-            # (`record_id_of_stem`): the uppercase kind prefix is what the write
-            # gate sees, so recall must not answer "record" for a stem the gate
-            # reads as a plain note (`notes-1.md`, a lowercase `e-001.md`). The
-            # permissive `canonical_record_id` stays for ids a caller TYPES.
-            if record_id_of_stem(candidate.stem) != wanted:
-                continue
-            key = str(candidate)
-            if key not in seen:
-                seen.add(key)
-                found.append(candidate)
+        # A FILE is a record only under the filename grammar
+        # (`record_id_of_stem`): the uppercase kind prefix is what the write
+        # gate sees, so recall must not answer "record" for a stem the gate
+        # reads as a plain note (`notes-1.md`, a lowercase `e-001.md`). The
+        # permissive `canonical_record_id` stays for ids a caller TYPES.
+        if record_id_of_stem(candidate.stem) != wanted:
+            continue
+        key = str(candidate)
+        if key not in seen:
+            seen.add(key)
+            found.append(candidate)
     return found
 
 

@@ -78,6 +78,13 @@ _SUPERSEDE_CACHE: dict[tuple[str, str], list[str]] = {}
 #: space rather than one directory. Same lifetime as the other batch caches.
 _RECORD_PATH_CACHE: dict[tuple[str, str], pathlib.Path | None] = {}
 
+#: The `.md` walk shared by every record lookup in one batch. A project with 29
+#: records walked its documentation tree 29 times per call (166k scandir calls,
+#: ~14s of a 15s hook budget) because each lookup re-walked the tree; the walk
+#: is now one per batch, and the batch clears it so a record written afterwards
+#: is never answered from an older snapshot. Same lifetime as the caches above.
+_WALK_CACHE: dict[tuple[str, tuple[str, ...]], list[pathlib.Path]] = {}
+
 # A run key is the identity a claim is dated against: `E-048`, `story.1-1-x`,
 # `IR-2026-10-01`. Loose on purpose (the protocol is extensible) but anchored
 # so ordinary prose before a colon is not mistaken for a run key.
@@ -140,6 +147,10 @@ def _batch_cm():
             _DIRTY_CACHE.clear()
             _SUPERSEDE_CACHE.clear()
             _RECORD_PATH_CACHE.clear()
+            # The record walk is batch-scoped for the same reason as the git
+            # reads above: a record written after this batch must be visible to
+            # the next one, so the snapshot never outlives the operation.
+            _WALK_CACHE.clear()
 
 
 def _cached(cache: dict, key, producer):
@@ -427,7 +438,7 @@ def record_path(root: str, run_key: str) -> pathlib.Path | None:
     record_id = canonical_record_id(m.group(1))
 
     def resolve():
-        matches = record_files(root, record_id, RECORD_SCAN_ROOTS)
+        matches = record_files(root, record_id, RECORD_SCAN_ROOTS, _WALK_CACHE)
         return matches[0] if len(matches) == 1 else None
 
     return _cached(_RECORD_PATH_CACHE, (str(root), record_id), resolve)
@@ -754,6 +765,9 @@ def reset_cache() -> None:
     _DIRTY_CACHE.clear()
     _SUPERSEDE_CACHE.clear()
     _RECORD_PATH_CACHE.clear()
+    # Every per-process cache, as the name says: a walk taken before a record
+    # was written must not answer a lookup taken after it.
+    _WALK_CACHE.clear()
     # The glob memo is keyed on the pattern alone, so it never holds a stale answer about
     # the code state — it is cleared here only so this function remains what its name says
     # (every per-process cache), which is what tests rely on to count hits.
