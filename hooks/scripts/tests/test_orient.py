@@ -324,6 +324,45 @@ def test_handoff_digest_is_read_only_and_names_the_peek(tmp_path):
     assert len(bb.pending_handoffs(str(tmp_path), "bmad-ux")) == len(before) == 1
 
 
+GATE_TOKEN = "GATE-OK-E-190-c112175a6c7fee89850430f3f0f0fd61"
+
+
+def test_chain_line_never_slices_a_gate_token(tmp_path):
+    """E-191: the digest's own chain line used to hard-cut at 90 chars and print
+    `(GATE-OK-E-190-c112175a6c7fee89850430f3f0f…` — a half token is not
+    evidence (E-187). The cut now lands on a boundary, so the token is either
+    whole or absent, and --json still carries the untruncated value."""
+    long_value = ("E-190: APPROVED: measured=1.0 == threshold=1.0 "
+                  f"({GATE_TOKEN})")
+    bb.write_key(str(tmp_path), "E-190", long_value)
+    digest = orient.build(tmp_path)
+    assert digest["board"]["chain_values"]["E"] == long_value
+
+    import contextlib
+    import io
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        orient._print_text(digest)
+    chain = [ln for ln in buf.getvalue().splitlines()
+             if ln.strip().startswith("chain:")][0]
+    assert chain.endswith("…")
+    assert GATE_TOKEN not in chain                       # dropped whole ...
+    assert GATE_TOKEN[:20] not in chain                  # ... never half
+
+
+def test_handoff_preview_uses_the_shared_cutter(tmp_path):
+    """A hand-off preview was a raw `[:90]` slice; it now goes through the same
+    boundary-aware cutter as the chain line, so a token in a baton is never
+    sliced mid-hash."""
+    bb.post_handoff(str(tmp_path), "bmad-ux", "prd.big",
+                    "PRD final — " + "path/segment/" * 8 + f"report.md ({GATE_TOKEN})")
+    digest = orient.handoff_digest(tmp_path)
+    preview = digest["waiting"]["bmad-ux"]["preview"]
+    raw = bb.pending_handoffs(str(tmp_path), "bmad-ux")[0]["text"]
+    assert preview == orient._clip(raw, orient._PREVIEW_CHARS)
+    assert GATE_TOKEN[:20] not in preview
+
+
 def test_cli_text_and_json(tmp_path):
     r = _run(["--project-root", str(tmp_path)])
     assert r.returncode == 0, r.stderr

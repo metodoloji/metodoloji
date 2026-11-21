@@ -317,7 +317,9 @@ def handoff_digest(project_root: pathlib.Path) -> dict:
         except Exception:
             signals = []
         oldest = min((float(s.get("ts", 0.0) or 0.0) for s in signals), default=0.0)
-        text = str(signals[0].get("text", ""))[:_PREVIEW_CHARS] if signals else ""
+        # Same cutter as the chain line (E-191): a hand-off preview used to be
+        # a raw slice, so a path or token in it could be cut in the middle.
+        text = _clip(signals[0].get("text", "")) if signals else ""
         waiting[skill] = {"count": count, "oldest_age": _age(now - oldest) if oldest else "?",
                           "preview": text,
                           "peek": f"blackboard.py handoffs --skill {skill}"}
@@ -450,9 +452,26 @@ _REPORT_REF_RE = re.compile(r"report:\s*([^\s—]+)")
 
 
 def _clip(text: str, limit: int = _PREVIEW_CHARS) -> str:
-    """Bound a value for the text panel, marking the cut (never a silent chop)."""
+    """Bound a value with the engine's ONE boundary-aware cutter (E-187/E-191).
+
+    This panel used to cut at `limit - 1` and append `…`, so its own chain line
+    read `E-190: APPROVED: measured=1.0 == threshold=1.0
+    (GATE-OK-E-190-c112175a6c7fee89850430f3f0f…` (observed 2026-11-21) — a gate
+    token sliced mid-hash on the surface a router reads first. The bound is
+    delegated to `utils.brief_text`: cut on a word boundary, drop an unclosed
+    bracket group whole (a token either survives or is absent), mark the
+    elision. Fail-open: an unavailable engine keeps the marked hard cut, so a
+    digest never blanks because one import failed.
+    """
     text = str(text)
-    return text if len(text) <= limit else text[:limit - 1] + "…"
+    if len(text) <= limit:
+        return text
+    try:
+        sys.path.insert(0, str(_PLUGIN_ROOT / "hooks" / "engine"))
+        from modules.utils import brief_text  # noqa: PLC0415
+        return brief_text(text, limit)
+    except Exception:
+        return text[:limit - 1] + "…"
 
 
 def chain_runs(project_root: pathlib.Path) -> dict:

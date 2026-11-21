@@ -1,0 +1,10 @@
+{"broken": false, "probe": "gate_token_whole_or_absent", "ok": true, "detail": "line='chain: E: E-190: APPROVED: measured=1.0 == threshold=1.0…'"}
+{"broken": false, "probe": "full_value_when_it_fits", "ok": true, "detail": "line='chain: E: E-190: APPROVED: measured=1.0'"}
+{"broken": false, "probe": "path_dropped_whole_at_a_boundary", "ok": true, "detail": "line='chain: IR: IR-2026-09-30: readiness: NOT READY — report…'"}
+{"broken": false, "probe": "handoff_preview_matches_the_cutter", "ok": true, "detail": "preview='prd.big: PRD final…'"}
+{"broken": false, "probe": "handoff_preview_token_whole_or_absent", "ok": true, "detail": "preview='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…'"}
+{"broken": false, "probe": "shared_cutter_equality", "ok": true, "detail": "mismatched=none"}
+{"broken": false, "probe": "json_keeps_full_chain_values", "ok": true, "detail": "len=95"}
+{"broken": false, "probe": "one_giant_token_marked", "ok": true, "detail": "len=91"}
+{"broken": false, "probe": "elision_never_silent", "ok": true, "detail": "len=47"}
+{"broken": false, "probe": "handoff_preview_bounded", "ok": true, "detail": "len=89"}
