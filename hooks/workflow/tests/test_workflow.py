@@ -319,6 +319,98 @@ def test_cli_validate_rejects_broken_spec(tmp_path, capsys):
     assert out["ok"] is False
 
 
+# --- adopt: the run a story record already declares (E-186) -------------------
+
+def _story(tmp_path, sid: str = "S-001", status: str = "in-progress",
+           tier: int = 1, name: str | None = None) -> Path:
+    stories = tmp_path / "docs" / "development" / "stories"
+    stories.mkdir(parents=True, exist_ok=True)
+    path = stories / (name or f"{sid}.md")
+    path.write_text(
+        f"# Story: {sid} — demo\n\n- **Status:** {status}\n"
+        f"- **Rigor Tier:** {tier}\n", encoding="utf-8")
+    return path
+
+
+def test_cli_adopt_opens_the_run_the_story_declares(tmp_path, capsys):
+    """Slug AND branch flag come from the record, not from the caller's memory."""
+    root = str(tmp_path)
+    _story(tmp_path, tier=1)
+    assert wf_cli.main(["adopt", "--story", "S-001",
+                        "--project-root", root]) == 0
+    out = json.loads(capsys.readouterr().out)
+    # One id, one spelling: S-001.md canonicalizes to S-1.
+    assert out["ok"] and out["slug"] == "S-1" and out["tier"] == 1
+    assert out["state"]["flags"]["tier"] == "1"
+    # Tier 1 skips IR/SP by its own declaration: experiment -> story.
+    assert out["state"]["current"] == "experiment"
+    assert engine.next_stage(root, "S-1")["after"]["stage"] == "story"
+
+
+def test_cli_adopt_keeps_the_full_chain_for_tier_3(tmp_path, capsys):
+    root = str(tmp_path)
+    _story(tmp_path, tier=3)
+    assert wf_cli.main(["adopt", "--story", "S-001",
+                        "--project-root", root]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["tier"] == 3 and out["state"]["flags"]["tier"] == "3"
+    assert engine.next_stage(root, "S-1")["after"]["stage"] == \
+        "implementation-readiness"
+
+
+def test_cli_adopt_zero_pads_the_story_id(tmp_path, capsys):
+    root = str(tmp_path)
+    _story(tmp_path)
+    assert wf_cli.main(["adopt", "--story", "S-1",
+                        "--project-root", root]) == 0
+    assert json.loads(capsys.readouterr().out)["slug"] == "S-1"
+
+
+def test_cli_adopt_refuses_a_missing_story(tmp_path, capsys):
+    assert wf_cli.main(["adopt", "--story", "S-042",
+                        "--project-root", str(tmp_path)]) == 1
+    out = json.loads(capsys.readouterr().out)
+    assert out["ok"] is False and "S-42" in out["error"]
+    runs = tmp_path / ".metodoloji" / "workflow"
+    assert not runs.exists() or not list(runs.glob("*.state.json"))
+
+
+def test_cli_adopt_refuses_an_ambiguous_story(tmp_path, capsys):
+    _story(tmp_path, name="S-001.md")
+    _story(tmp_path, name="S-001-two.md")
+    assert wf_cli.main(["adopt", "--story", "S-001",
+                        "--project-root", str(tmp_path)]) == 1
+    out = json.loads(capsys.readouterr().out)
+    assert out["ok"] is False and "ambiguous" in out["error"]
+
+
+def test_cli_adopt_refuses_a_done_story(tmp_path, capsys):
+    _story(tmp_path, status="done")
+    assert wf_cli.main(["adopt", "--story", "S-001",
+                        "--project-root", str(tmp_path)]) == 1
+    out = json.loads(capsys.readouterr().out)
+    assert out["ok"] is False and "done" in out["error"]
+
+
+def test_cli_adopt_never_clobbers_an_existing_run(tmp_path, capsys):
+    root = str(tmp_path)
+    _story(tmp_path)
+    assert wf_cli.main(["adopt", "--story", "S-001",
+                        "--project-root", root]) == 0
+    capsys.readouterr()
+    assert wf_cli.main(["adopt", "--story", "S-001",
+                        "--project-root", root]) == 1
+    out = json.loads(capsys.readouterr().out)
+    assert out["ok"] is False and "already exists" in out["error"]
+
+
+def test_cli_adopt_rejects_a_non_story_id(tmp_path, capsys):
+    assert wf_cli.main(["adopt", "--story", "E-001",
+                        "--project-root", str(tmp_path)]) == 1
+    out = json.loads(capsys.readouterr().out)
+    assert out["ok"] is False and "S-NNN" in out["error"]
+
+
 def test_cli_history_command(tmp_path, capsys):
     root = str(tmp_path)
     wf_cli.main(["--project-root", root, "create", "--builtin", "seo-visibility"])

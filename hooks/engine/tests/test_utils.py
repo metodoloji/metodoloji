@@ -706,3 +706,37 @@ def test_normalize_deep_routing_value_decides_not_crash():
                                  "tool_input": {"path": _deep_list(500, "docs/a.md")}})
     assert isinstance(norm["tool_input"]["path"], str)
     assert "truncated" in norm["tool_input"]["path"]
+
+
+# --- brief_text: a bound that never cuts a token in half (E-187) --------------
+
+def test_brief_text_keeps_short_values_verbatim():
+    from modules.utils import brief_text
+    value = "E-186: APPROVED: measured=1.0 == threshold=1.0"
+    assert brief_text(value, 80) == value
+    # exactly at the bound is still whole — no marker for a value that fits
+    assert brief_text("x" * 60, 60) == "x" * 60
+
+
+def test_brief_text_lands_on_a_boundary_and_marks_the_elision():
+    from modules.utils import brief_text
+    value = "APPROVED — engine changed on the shared scope " * 4
+    out = brief_text(value, 40)
+    assert out.endswith("…") and len(out) <= 41
+    # the cut landed between words, not inside one, and left no dangling dash
+    assert out[:-1] == out[:-1].rstrip()
+    assert out[:-1][-1].isalnum()
+
+
+def test_brief_text_never_returns_half_a_gate_token():
+    from modules.utils import brief_text
+    token = "GATE-OK-E-186-a365d69b823ca8478568acfa31b3e8f9"
+    value = ("E-186: APPROVED: measured=1.0 == threshold=1.0 "
+             f"({token}) — code landed")
+    for limit in (40, 51, 60, 80, 90, 95):
+        out = brief_text(value, limit)
+        assert "GATE-OK-E-18" not in out, (limit, out)
+        assert out.count("(") == out.count(")"), (limit, out)
+        assert out.count("…") <= 1, (limit, out)
+        if token in out:
+            assert f"({token})" in out, (limit, out)

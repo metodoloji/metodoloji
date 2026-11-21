@@ -1,0 +1,10 @@
+{"broken": false, "probe": "short_value_verbatim", "ok": true, "detail": "out='E-186: APPROVED: m=1.0'"}
+{"broken": false, "probe": "boundary_not_mid_word", "ok": true, "detail": "out='E-186: APPROVED — engine changed on the shared scope APPROVED — engine changed…'"}
+{"broken": false, "probe": "token_never_fragmented", "ok": true, "detail": "bad=[]"}
+{"broken": false, "probe": "claim_survives_elision", "ok": true, "detail": "out='E-186: APPROVED: measured=1.0 == threshold=1.0…'"}
+{"broken": false, "probe": "unclosed_bracket_dropped", "ok": true, "detail": "out='E-186…'"}
+{"broken": false, "probe": "marker_once", "ok": true, "detail": "out='E-186: APPROVED — engine changed on the shared scope APPROVED — engine changed…'"}
+{"broken": false, "probe": "doctor_elides", "ok": true, "detail": "value='E-186: APPROVED: measured=1.0 == threshold=1.0…'"}
+{"broken": false, "probe": "session_edge_elides", "ok": true, "detail": "value=' — E: E-186: APPROVED: measured=1.0 == threshold=1.0… [UNKNOWN].'"}
+{"broken": false, "probe": "session_stage_bounded", "ok": true, "detail": "stage='E-186: APPROVED — engine changed on the shared scope…'"}
+{"broken": false, "probe": "budget_holds", "ok": true, "detail": "compact=47 doctor=47 stage=47"}

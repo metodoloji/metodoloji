@@ -423,6 +423,59 @@ def test_session_start_without_records_stays_quiet(tmp_path, monkeypatch):
     assert any(r.get("type") == "session_start" for r in recs)
 
 
+# --- proactive workflow offer (E-186) -----------------------------------------
+
+def _offer_project(tmp_path, status: str = "in-progress") -> None:
+    stories = tmp_path / "docs" / "development" / "stories"
+    stories.mkdir(parents=True)
+    (stories / "S-001.md").write_text(
+        f"# Story: S-001 — demo\n\n- **Status:** {status}\n- **Rigor Tier:** 1\n",
+        encoding="utf-8")
+
+
+def _offer_context(tmp_path, monkeypatch) -> str:
+    from modules.audit import session_start
+    (tmp_path / ".metodoloji").mkdir(exist_ok=True)
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+    monkeypatch.delenv("OPENHANDS_PROJECT_DIR", raising=False)
+    import modules.blackboard as bb
+    monkeypatch.setattr(bb, "pending_handoff_channels", lambda _root: {})
+    monkeypatch.setattr(bb, "compact_context", lambda _root: {"methodology": {}})
+    monkeypatch.setattr(bb, "read_board", lambda _root: {})
+    monkeypatch.setattr(bb, "pending_alerts", lambda _root, _channel: [])
+    return session_start({"cwd": str(tmp_path)})["additionalContext"]
+
+
+def test_session_start_offers_the_run_an_in_flight_story_declares(tmp_path, monkeypatch):
+    """No run + work under way was silent; the offer names the record's own run."""
+    _offer_project(tmp_path)
+    ctx = _offer_context(tmp_path, monkeypatch)
+    assert "PROACTIVE — no declared workflow run for S-1 (in-progress)" in ctx
+    assert "workflow.py adopt --story S-1" in ctx
+    # Read-only: the offer must not open the run it names.
+    assert not list((tmp_path / ".metodoloji" / "workflow").glob("*.state.json"))
+
+
+def test_session_start_offer_is_silent_once_a_run_exists(tmp_path, monkeypatch):
+    import subprocess, sys, pathlib
+    _offer_project(tmp_path)
+    cli = pathlib.Path(__file__).resolve().parents[3] / "hooks" / "scripts" / "workflow.py"
+    result = subprocess.run(
+        [sys.executable, str(cli), "create", "--builtin", "methodology-chain",
+         "--slug", "S-1", "--project-root", str(tmp_path)],
+        capture_output=True, text=True, stdin=subprocess.DEVNULL)
+    assert result.returncode == 0, result.stdout + result.stderr
+    ctx = _offer_context(tmp_path, monkeypatch)
+    assert "no declared workflow run" not in ctx
+    assert "WORKFLOW 'S-1'" in ctx
+
+
+def test_session_start_offer_ignores_a_done_story(tmp_path, monkeypatch):
+    _offer_project(tmp_path, status="done")
+    ctx = _offer_context(tmp_path, monkeypatch)
+    assert "no declared workflow run" not in ctx
+
+
 def test_session_start_fixed_sentence_without_waiting_handoffs(tmp_path, monkeypatch):
     """No waiting signals → the context is exactly the fixed sentence."""
     from modules.audit import FIXED_SESSION_CONTEXT, session_start
@@ -469,6 +522,27 @@ def test_session_start_appends_chain_progress(tmp_path, monkeypatch):
     # read-only: the run key and its mirror are untouched, no alert consumed
     board = bb.read_board(str(root))
     assert board["keys"]["E-001"]["value"].startswith("APPROVED")
+
+
+def test_session_start_never_delivers_half_a_gate_token(tmp_path, monkeypatch):
+    """This project's own chain line read `... (GATE-OK-E-18` live: a 60-char
+    slice cut the verifiable token in half, so the most durable surface handed
+    out something that reads as a corrupted gate token (E-187)."""
+    from modules.audit import session_start
+    from modules import blackboard as bb
+
+    root = tmp_path
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(root))
+    monkeypatch.delenv("OPENHANDS_PROJECT_DIR", raising=False)
+    token = "GATE-OK-E-186-a365d69b823ca8478568acfa31b3e8f9"
+    bb.write_key(str(root), "E-186",
+                 f"APPROVED: measured=1.0 == threshold=1.0 ({token})")
+    ctx = session_start({"cwd": str(root)})["additionalContext"]
+    line = ctx.split("Chain progress", 1)[1].split(". ", 1)[0]
+    assert "APPROVED" in line and "measured=1.0" in line
+    assert token not in line
+    assert "GATE-OK-E-18" not in line
+    assert line.count("(") == line.count(")")
 
 
 def test_session_start_announces_the_active_workflow(tmp_path, monkeypatch):

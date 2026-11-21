@@ -85,6 +85,10 @@ flight: resume the one the session announced (the SessionStart line names it), o
 which run to continue when more than one is active.
 
 - **A run exists → RUN MODE.** Read `running.md` and follow it. Do not re-plan the process.
+- **No run, and the session line offers an in-flight story → ADOPT it.** The story record
+  already declares the run's slug and `Rigor Tier`; run
+  `{kernel} adopt --story <S-id> --project-root {project-root}` instead of hand-writing a
+  `create` line, then switch to RUN MODE.
 - **No run, and the user asked for a multi-step process → AUTHOR MODE.** Read `authoring.md`,
   author the spec from the intent, validate it, create the run, then switch to RUN MODE.
 

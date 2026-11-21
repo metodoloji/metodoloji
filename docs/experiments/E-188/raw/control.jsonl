@@ -1,0 +1,10 @@
+{"broken": true, "probe": "paid_debt_marked_stale", "ok": false, "detail": "clause=''"}
+{"broken": true, "probe": "live_debt_present_tense", "ok": true, "detail": "clause=''"}
+{"broken": true, "probe": "unverifiable_not_clean", "ok": true, "detail": "clause=''"}
+{"broken": true, "probe": "inscope_edit_pays", "ok": false, "detail": "clause=''"}
+{"broken": true, "probe": "stale_not_consumed", "ok": false, "detail": "pending=1"}
+{"broken": true, "probe": "remedy_runnable", "ok": false, "detail": "clause=''"}
+{"broken": true, "probe": "verdict_matches_gate", "ok": false, "detail": "paid=([], True) live=['lib/new.py'] labels=(False, False)"}
+{"broken": true, "probe": "older_siblings_counted", "ok": false, "detail": "clause=''"}
+{"broken": true, "probe": "line_bounded", "ok": false, "detail": "len=0"}
+{"broken": true, "probe": "no_alert_no_line", "ok": true, "detail": "context_has_line=False"}

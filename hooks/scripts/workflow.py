@@ -9,6 +9,7 @@ computes the next one.
 Usage:
     python3 hooks/scripts/workflow.py validate --spec FILE
     python3 hooks/scripts/workflow.py create  (--spec FILE | --builtin ID) [--slug S] [--force]
+    python3 hooks/scripts/workflow.py adopt   --story S-005
     python3 hooks/scripts/workflow.py list
     python3 hooks/scripts/workflow.py status   [--slug S]
     python3 hooks/scripts/workflow.py next      [--slug S]
@@ -27,6 +28,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -65,6 +67,66 @@ def _load_spec_arg(args) -> dict:
     return spec_mod.load(path)
 
 
+def _story_record(root: str, story: str):
+    """Resolve `S-005` to THE story record, or name why it cannot be.
+
+    Identity goes through the state module's one id reader (E-074/E-170), so
+    `S-5` and `S-005.md` name the same story; a zero-match and a two-match id
+    are different refusals and neither is guessed from a filename. The walk is
+    returned, not repeated by the caller.
+    """
+    from hooks.engine.modules import state as state_mod
+    sid = state_mod.canonical_record_id(story.strip())
+    if not re.fullmatch(r"S-\d+", sid):
+        return sid, None, f"--story must name a story id (S-NNN), got {story!r}"
+    matches = state_mod.record_files(root, sid, ("docs/development/stories",))
+    if not matches:
+        return sid, None, (f"no story record for {sid} under "
+                           f"docs/development/stories — create the story record first")
+    if len(matches) > 1:
+        names = ", ".join(p.name for p in matches)
+        return sid, None, f"story id {sid} is ambiguous: {names} — one id, one file"
+    return sid, matches[0], ""
+
+
+def _adopt(root: str, story: str) -> dict:
+    """Open the methodology-chain run a story already implies.
+
+    `create --builtin methodology-chain` makes the caller remember two things
+    the story record already declares: its id (the run's slug) and its `Rigor
+    Tier` (the branch flag that decides whether IR/SP are required). Forgetting
+    the flag turned a Tier 1 story into the full chain and made the run demand
+    planning records its own tier says it does not need. This command derives
+    both from the record, then hands the validated builtin spec to `create` —
+    the kernel still decides everything after the first stage.
+    """
+    sid, path, problem = _story_record(root, story)
+    if problem:
+        return {"ok": False, "error": problem}
+    from hooks.engine.modules.config import story_rigor_tier, story_status
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        return {"ok": False, "error": f"cannot read {sid}: {exc}"}
+    status = story_status(text)
+    if status == "done":
+        return {"ok": False,
+                "error": (f"{sid} is done — a finished story has no run to open; "
+                          f"adopt the next story instead")}
+    tier = story_rigor_tier(text)
+    spec = spec_mod.load(os.path.join(_builtin_dir(), "methodology-chain.json"))
+    result = engine.create(root, spec, slug=sid, flags={"tier": str(tier)})
+    if not result.get("ok"):
+        return result
+    result.update({
+        "story": sid,
+        "tier": tier,
+        "story_status": status,
+        "record": os.path.relpath(str(path), root).replace(os.sep, "/"),
+    })
+    return result
+
+
 def _add_root(p) -> None:
     """Accept --project-root after the subcommand, the form every doc example uses.
 
@@ -93,6 +155,11 @@ def main(argv=None) -> int:
                    help="branch flag read by a conditional edge (e.g. tier=1)")
     c.add_argument("--force", action="store_true")
     _add_root(c)
+
+    a = sub.add_parser("adopt")
+    a.add_argument("--story", required=True,
+                   help="story id whose record declares the run (e.g. S-005)")
+    _add_root(a)
 
     _add_root(sub.add_parser("list"))
 
@@ -143,6 +210,8 @@ def main(argv=None) -> int:
                 flags[key.strip()] = value.strip()
             return _emit(engine.create(root, data, slug=args.slug,
                                        force=args.force, flags=flags))
+        if args.cmd == "adopt":
+            return _emit(_adopt(root, args.story))
         if args.cmd == "list":
             return _emit(engine.list_runs(root))
         if args.cmd in ("status", "next", "resume", "history"):

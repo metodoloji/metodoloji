@@ -1,0 +1,10 @@
+{"broken": false, "probe": "paid_debt_marked_stale", "ok": true, "detail": "clause=' [STALE — no edited file sits outside an approved scope now; clear with `python3 /root/workspace/metodoloji/hooks/scripts/blackboard.py consume --channel scope`]'"}
+{"broken": false, "probe": "live_debt_present_tense", "ok": true, "detail": "clause=''"}
+{"broken": false, "probe": "unverifiable_not_clean", "ok": true, "detail": "clause=''"}
+{"broken": false, "probe": "inscope_edit_pays", "ok": true, "detail": "clause=' [STALE — no edited file sits outside an approved scope now; clear with `python3 /root/workspace/metodoloji/hooks/scripts/blackboard.py consume --channel scope`]'"}
+{"broken": false, "probe": "stale_not_consumed", "ok": true, "detail": "pending=1"}
+{"broken": false, "probe": "remedy_runnable", "ok": true, "detail": "clause=' [STALE — no edited file sits outside an approved scope now; clear with `python3 /root/workspace/metodoloji/hooks/scripts/blackboard.py consume --channel scope`]'"}
+{"broken": false, "probe": "verdict_matches_gate", "ok": true, "detail": "paid=([], True) live=['lib/new.py'] labels=(True, False)"}
+{"broken": false, "probe": "older_siblings_counted", "ok": true, "detail": "clause=' [STALE — no edited file sits outside an approved scope now; clear with `python3 /root/workspace/metodoloji/hooks/scripts/blackboard.py consume --channel scope`]'"}
+{"broken": false, "probe": "line_bounded", "ok": true, "detail": "len=161"}
+{"broken": false, "probe": "no_alert_no_line", "ok": true, "detail": "context_has_line=False"}

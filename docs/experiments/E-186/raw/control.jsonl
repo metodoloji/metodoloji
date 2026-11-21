@@ -1,0 +1,12 @@
+{"broken": true, "probe": "adopt_tier1_branch", "ok": false, "detail": "tier=None flags=None"}
+{"broken": true, "probe": "adopt_tier3_branch", "ok": false, "detail": "refused: None"}
+{"broken": true, "probe": "adopt_canonical_slug", "ok": false, "detail": "slug=None record=None"}
+{"broken": true, "probe": "adopt_refuses_missing", "ok": false, "detail": "error=None runs=0"}
+{"broken": true, "probe": "adopt_refuses_ambiguous", "ok": false, "detail": "error=None"}
+{"broken": true, "probe": "adopt_refuses_done", "ok": false, "detail": "error=None"}
+{"broken": true, "probe": "adopt_never_clobbers", "ok": false, "detail": "second=None"}
+{"broken": true, "probe": "offer_names_in_flight", "ok": false, "detail": "context='ll). Guard globs — an unmatched pattern cancels the whole command in zsh (macOS), so confirm the target exists before running a `path/*` command. Language: write every document in English. Records: S=1 (newest S-001.md).'"}
+{"broken": true, "probe": "offer_yields_to_active_run", "ok": false, "detail": "adopt=None context='ll). Guard globs — an unmatched pattern cancels the whole command in zsh (macOS), so confirm the target exists before running a `path/*` command. Language: write every document in English. Records: S=2 (newest S-002.md).'"}
+{"broken": true, "probe": "offer_ignores_done", "ok": false, "detail": "context='ll). Guard globs — an unmatched pattern cancels the whole command in zsh (macOS), so confirm the target exists before running a `path/*` command. Language: write every document in English. Records: S=2 (newest S-002.md).'"}
+{"broken": true, "probe": "offer_is_read_only", "ok": false, "detail": "runs=0 context='get exists before running a `path/*` command. Language: write every document in English. Records: S=1 (newest S-001.md).'"}
+{"broken": true, "probe": "offer_bounded", "ok": false, "detail": "len=745 tail='mmand in zsh (macOS), so confirm the target exists before running a `path/*` command. Language: write every document in English. Records: S=3 (newest S-003.md).'"}

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from .utils import brief_text
+
 # --- doctor (one-glance diagnostic) ---------------------------------------------------
 _DOCTOR_CAP_WARN_PCT = 90  # warn when a plane is this close to its cap
 
@@ -384,7 +386,9 @@ def doctor(project_root: str, *, post: bool = False) -> dict:
                        ("PR", "methodology.last_pr")):
         entry = board["keys"].get(key)
         if entry and isinstance(entry, dict) and str(entry.get("value", "")).strip():
-            methodology[stage] = str(entry.get("value"))[:80]
+            # E-187: same boundary-safe bound as compact_context — a gate token
+            # is quoted whole or not at all.
+            methodology[stage] = brief_text(entry.get("value"), 80)
 
     # Freshness plane (E-053): the DERIVED verdict of every waiting claim, plus
     # the claims explicitly withdrawn. Informational by itself — a signal whose

@@ -138,6 +138,21 @@ def test_write_run_key_mirrors_methodology_chain_progress(root):
     assert ctx2["methodology"] == {}
 
 
+def test_compact_context_never_slices_a_gate_token(root):
+    """A run value ends in its gate token; the 80-char bound used to cut the
+    token in half, and the session edge then cut the stub again (E-187). Elide
+    at a boundary: the decision and claim survive, the token is never partial."""
+    token = "GATE-OK-E-186-a365d69b823ca8478568acfa31b3e8f9"
+    bb.write_key(root, "E-186",
+                 f"APPROVED: measured=1.0 == threshold=1.0 ({token})")
+    value = bb.compact_context(root)["methodology"]["E"]
+    assert "APPROVED" in value and "measured=1.0" in value
+    assert token not in value            # elided whole, not stubbed
+    assert "GATE-OK-E-18" not in value
+    assert value.count("(") == value.count(")")
+    assert value.endswith("…")
+
+
 def test_write_mirror_not_hot_and_no_recurse(root):
     # A run-key write mirrors exactly once: the mirror value itself carries
     # the run-key prefix, so recursion must be structurally impossible

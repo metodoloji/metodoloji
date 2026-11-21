@@ -14,7 +14,8 @@ import time
 from typing import Any
 
 from .config import log_file
-from .utils import dod_issues, has_dod_content, repo_root, scan_dod_items
+from .utils import (brief_text, dod_issues, has_dod_content, repo_root,
+                    scan_dod_items)
 
 
 # Read-only call detection (2026-09-25, LIMX OpenHands session): the audit
@@ -517,6 +518,86 @@ def _workflow_notice(root: str, kind: str) -> str:
         return ""
 
 
+# Proactive workflow offer: the states where implementation is already in
+# flight, so a story with no declared run is work the kernel could be carrying.
+# `review` is included because the chain's later stages (QR/PR) are still ahead.
+_OFFER_STATUSES = ("in-progress", "review")
+_OFFER_LIMIT = 2
+
+
+def _workflow_offer(root: str) -> str:
+    """One bounded sentence offering a run for an in-flight story (E-186).
+
+    The kernel only ever reported runs that already existed, so a story being
+    implemented without one was silent: creation depended on the agent
+    remembering `create`, and nothing in the project said which run it meant.
+    The session edge now names the stories whose own record says work is under
+    way and whose id no run claims, plus the ONE command that derives the run
+    (slug + Rigor Tier) from that record. Read-only and fail-open: no state is
+    written, no run is created, and any unreadable input yields "".
+    """
+    try:
+        from hooks.workflow import store
+        from . import state as _state
+        from .config import story_status
+        from .story_quality import _iter_story_files
+    except Exception:
+        return ""
+    try:
+        runs = {str(s).lower() for s in store.list_slugs(root)}
+    except Exception:
+        return ""
+    rows: list[tuple[str, str]] = []
+    try:
+        for path in _iter_story_files(root):
+            try:
+                text = path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            status = story_status(text)
+            if status not in _OFFER_STATUSES:
+                continue
+            sid = _state.record_id_of_stem(path.stem)
+            if not sid or sid.lower() in runs:
+                continue
+            rows.append((sid, status))
+            if len(rows) > _OFFER_LIMIT:
+                break
+    except Exception:
+        return ""
+    if not rows:
+        return ""
+    from .utils import plugin_script_cmd
+    shown = ", ".join(f"{sid} ({status})" for sid, status in rows[:_OFFER_LIMIT])
+    commands = "; ".join(
+        f"`{plugin_script_cmd('hooks/scripts/workflow.py', 'adopt', '--story', sid)}`"
+        for sid, _status in rows[:_OFFER_LIMIT])
+    extra = (f" (+{len(rows) - _OFFER_LIMIT} more)"
+             if len(rows) > _OFFER_LIMIT else "")
+    return (f"PROACTIVE — no declared workflow run for {shown}{extra}: "
+            f"the story record already declares the run, so open it with "
+            f"{commands}.")
+
+
+def _scope_debt_is_paid(root: str) -> bool:
+    """True only when the commit gate's own coverage check RUNS and finds no
+    edited file outside an approved scope.
+
+    The "scope" channel holds an observation from commit time, and the session
+    edge used to replay it as current debt forever. The answer is computed by
+    the SAME check the commit gate uses (never a second matcher): when it
+    answers and finds nothing, the debt it described no longer exists. A check
+    that could not run (no git, no gate companion, timeout) is NOT clean — an
+    unverifiable tree cannot pay a debt (E-037's rule, one channel over).
+    """
+    try:
+        from . import guard
+        misses, ran = guard._check_scope_coverage(root)
+    except Exception:
+        return False
+    return bool(ran) and not misses
+
+
 # A kernel mutation is the only turn worth announcing: reads (`status`, `next`,
 # `list`, `history`) and enquiries must not spam the human channel (E-175).
 _WORKFLOW_MUTATION_RE = re.compile(
@@ -668,14 +749,17 @@ def session_start(json_in: dict) -> dict:
         if progress:
             verdicts = compact.get("methodology_freshness", {}) or {}
             chain_s = "; ".join(
-                f"{stage}: {val[:60]}"
+                f"{stage}: {brief_text(val, 60)}"
                 + (f" [{verdicts[stage]['label']}]"
                    if verdicts.get(stage, {}).get("verdict") not in (None, fr.CURRENT)
                    and (verdicts[stage]['verdict'] != fr.UNKNOWN
                         or announce_unknown)
                    else "")
                 for stage, val in progress.items())
-            context += f" Chain progress — {chain_s}."
+            # An elided value already ends in its own marker; a second period
+            # would read as `… .` and make the bound look like a typo.
+            context += (f" Chain progress — {chain_s}"
+                        + ("" if chain_s.endswith("…") else "."))
         # Graph peek (blackboard full-integration P1): the hot run's
         # neighborhood grounds a resumed session in what the run is wired
         # to (decision map, upstream spec, downstream consumer). Read-only,
@@ -701,6 +785,12 @@ def session_start(json_in: dict) -> dict:
         wf_line = _workflow_peek(root)
         if wf_line:
             context += f" {wf_line}"
+        else:
+            # E-186: no unfinished run is exactly when creation is the missing
+            # step, so the offer rides the same edge instead of a second hook.
+            offer = _workflow_offer(root)
+            if offer:
+                context += f" {offer}"
         # Scope-debt peek (2026-09-25): the commit-time mirror posts uncovered
         # files to the "scope" channel; a later session should still see the
         # debt even though the commit warning has scrolled away. Read-only —
@@ -711,7 +801,18 @@ def session_start(json_in: dict) -> dict:
         if scope_alerts:
             first = str(scope_alerts[0].get("text", ""))[:160]
             more = f" (+{len(scope_alerts) - 1} older)" if len(scope_alerts) > 1 else ""
-            context += f" SCOPE DEBT — {first}{more}."
+            if _scope_debt_is_paid(root):
+                # The persisted claim is replayed in the present tense forever;
+                # this tree kept telling every session to open an E record for
+                # `uv.lock` after the file had gone back to matching HEAD
+                # (observed 2026-11-20). Label it, never consume it — the
+                # session edge is announce-only.
+                context += (f" SCOPE DEBT [STALE — no edited file sits outside "
+                            f"an approved scope now; clear with "
+                            f"`{_plugin_cmd('hooks/scripts/blackboard.py', 'consume', '--channel', 'scope')}`]"
+                            f" — {first}{more}.")
+            else:
+                context += f" SCOPE DEBT — {first}{more}."
         # Subscription-plane delivery announcement (the engine's contract: "session
         # → injected at session start"). The engine invariants bar the session
         # edge from consuming (announce-only: never consume, never mutate), so

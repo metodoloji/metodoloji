@@ -113,6 +113,10 @@ time round — that is what makes a loop-back branch fire once instead of loopin
    `{kernel} create --spec <path> [--slug <slug>] --project-root {project-root}` (or
    `--builtin seo-visibility`). `create` refuses to clobber an existing run unless `--force`
    is given — a reset is a confession, report it to the user.
+   When the work is a story and there is no run yet, `{kernel} adopt --story <S-id>` opens the
+   `methodology-chain` run from the story record instead: it uses the story id as the slug and
+   reads the record's `Rigor Tier` into the branch flag, so the chain does not demand planning
+   records a Tier 1/2 story declares unneeded. It refuses a missing, ambiguous or `done` story.
 6. Reuse before authoring: `{kernel} list --project-root {project-root}`. If a run of the same
    process already exists, resume it instead of creating a second one.
 7. Then read `running.md` and drive the run.

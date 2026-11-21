@@ -949,6 +949,41 @@ def extract_story_key_from_content(content: str) -> str:
     return ""
 
 
+_BRIEF_BOUNDARIES = " \t\n\r—–-:;,/|"
+
+
+def brief_text(text: str, limit: int) -> str:
+    """Bound `text` to `limit` chars without cutting a word or token in half.
+
+    A run key's value ends in its gate token — `... (GATE-OK-E-186-a365d69b...)`
+    — and the session edge used to slice that value at 60 characters, so this
+    project's own chain line read `E-186: APPROVED: measured=1.0 ==
+    threshold=1.0 (GATE-OK-E-18` (observed 2026-11-20). A half token is not
+    evidence: it cannot be verified, and it reads as a corrupted gate token on
+    the most durable surface a session sees (E-187). The bound stays — the edge
+    carries six stages — but the cut lands on the last boundary that fits, an
+    unclosed bracket is dropped whole, and `…` marks the elision, so a reader
+    can tell a shortened value from a complete one.
+    """
+    text = str(text)
+    if len(text) <= limit:
+        return text
+    cut = text[:limit]
+    space = max(cut.rfind(" "), cut.rfind("\t"), cut.rfind("\n"))
+    if space > 0:
+        cut = cut[:space]
+    cut = cut.rstrip(_BRIEF_BOUNDARIES)
+    for opener, closer in (("(", ")"), ("[", "]"), ("<", ">")):
+        if cut.count(opener) > cut.count(closer):
+            cut = cut[:cut.rfind(opener)].rstrip(_BRIEF_BOUNDARIES)
+    cut = cut.rstrip("…").rstrip(_BRIEF_BOUNDARIES)
+    if not cut:
+        # One giant token: there is no boundary to land on, so the hard cut is
+        # the only option — keep it marked rather than silently maimed.
+        cut = text[:limit].rstrip("…")
+    return cut + "…"
+
+
 def plugin_script_cmd(script: str, *args: str) -> str:
     """A runnable command for one of the PLUGIN's own scripts (E-029/E-033).
 

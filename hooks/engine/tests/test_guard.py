@@ -2195,6 +2195,52 @@ def test_session_start_no_scope_debt_line_on_clean_board(tmp_path):
     assert "SCOPE DEBT" not in res["additionalContext"]
 
 
+def test_session_start_labels_a_paid_scope_debt_stale(tmp_path, monkeypatch):
+    """Live on this tree 2026-11-20: every session was told to open an E record
+    for `uv.lock` while the commit gate's own coverage check answered "no
+    uncovered edit". A persisted observation the tree has outgrown must read as
+    STALE — and the edge still must not consume it (announce-only)."""
+    import modules.audit as au
+    import modules.blackboard as bb
+    root = _scope_repo(tmp_path, monkeypatch, scope=None, probe=None)
+    bb.post_alert(str(root), "scope", "warn",
+                  "SCOPE COVERAGE: uv.lock — outside every approved Code Scope",
+                  sender="quality-gate")
+    ctx = au.session_start({"cwd": str(root)})["additionalContext"]
+    assert "SCOPE DEBT [STALE" in ctx
+    assert "consume --channel scope" in ctx
+    assert len(bb.pending_alerts(str(root), "scope")) == 1
+
+
+def test_session_start_keeps_a_live_scope_debt_unlabelled(tmp_path, monkeypatch):
+    """An edit still outside every scope keeps the debt in the present tense:
+    the label is a verdict of the coverage check, not a timeout."""
+    import modules.audit as au
+    import modules.blackboard as bb
+    root = _scope_repo(tmp_path, monkeypatch, scope=None, probe="lib/new.py")
+    bb.post_alert(str(root), "scope", "warn",
+                  "SCOPE COVERAGE: lib/new.py — outside every approved Code Scope",
+                  sender="quality-gate")
+    ctx = au.session_start({"cwd": str(root)})["additionalContext"]
+    assert "SCOPE DEBT — " in ctx
+    assert "SCOPE DEBT [STALE" not in ctx
+
+
+def test_session_start_never_calls_an_unverifiable_tree_clean(tmp_path):
+    """A non-git directory makes the coverage check unverifiable, and an
+    unverifiable tree cannot pay a debt (E-037): no STALE label."""
+    import modules.audit as au
+    import modules.blackboard as bb
+    proj = tmp_path / "bare"
+    proj.mkdir()
+    bb.post_alert(str(proj), "scope", "warn",
+                  "SCOPE COVERAGE: x/y.py — outside every approved Code Scope",
+                  sender="quality-gate")
+    ctx = au.session_start({"cwd": str(proj)})["additionalContext"]
+    assert "SCOPE DEBT — " in ctx
+    assert "[STALE" not in ctx
+
+
 def test_clean_commit_clears_scope_debt_alert(tmp_path, monkeypatch):
     """Remediation contract: once the tree verifies clean (git answered, no
     misses), the 'scope' channel is consumed — the debt is cleared. This is

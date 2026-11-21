@@ -51,6 +51,7 @@ from enum import Enum  # NEW: For AlertKind (PHASE 4 #7)
 from typing import Any, TypeVar
 
 from . import freshness as fr
+from .utils import brief_text
 
 # NEW: Structured alert taxonomy (PHASE 4 #7)
 class AlertKind(Enum):
@@ -1899,7 +1900,9 @@ def compact_context(project_root: str) -> dict:
             if not (entry and isinstance(entry, dict)
                     and str(entry.get("value", "")).strip()):
                 continue
-            methodology[stage] = str(entry.get("value"))[:80]
+            # E-187: a run value ends in its gate token; elide at a boundary
+            # instead of slicing a verifiable token into an unverifiable stub.
+            methodology[stage] = brief_text(entry.get("value"), 80)
             # The relay line is a CLAIM about a record, so it is dated too: the
             # cited run key's own witness (write_key stamped it) or its record's
             # commit. Without this the chain-progress sentence repeated history
