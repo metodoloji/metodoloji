@@ -272,7 +272,10 @@ def _plan_progress_note(root: str, writes: list[str]) -> str:
     seen: list[str] = []
     for rel in writes[:_PLAN_PROGRESS_FILES]:
         try:
-            rec = plan_mod.active_plan_for(rel, str(recs_dir))
+            # Open operations only (E-190): a decided record's narrower plan
+            # would win the specificity tie and then report as silence, hiding
+            # the open plan that actually covers this file.
+            rec = plan_mod.active_plan_for(rel, str(recs_dir), require_open=True)
         except Exception:
             continue
         if rec and rec not in seen:

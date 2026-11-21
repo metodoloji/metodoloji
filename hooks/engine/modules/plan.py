@@ -276,7 +276,7 @@ def plan_progress(record_path: str, project_root: str) -> dict:
 
 
 def active_plan_for(target: str, records_dir: str,
-                    is_verified=None) -> str | None:
+                    is_verified=None, require_open: bool = False) -> str | None:
     """The record whose plan covers target ('' targets → None).
 
     Prefer the VERIFIED record when several plans cover the target: an
@@ -284,6 +284,13 @@ def active_plan_for(target: str, records_dir: str,
     shadow it. `is_verified(record_path) -> bool` is injectable (the guard
     passes its HMAC verify wrapper); records that raise on check are skipped.
     Missing records dir → None (fail-open; guard falls back to Code Scope).
+
+    `require_open=True` drops DECIDED records before the choice (E-190): a
+    completed program's narrower plan used to win the specificity tie and then
+    silence the Stop note, so an open operation covering the same file was
+    reported as nothing at all. The guard keeps the default — a decided but
+    verified plan still authorizes the writes it always did (E-065/E-189 drew
+    the line at what a surface ANNOUNCES, not what a plan unlocks).
     """
     if not target:
         return None
@@ -300,6 +307,8 @@ def active_plan_for(target: str, records_dir: str,
         except Exception:
             continue
         if plan["planned_count"] == 0 or not plan_match(plan, target):
+            continue
+        if require_open and record_plan_closed(str(rec)):
             continue
         ok = False
         if is_verified is not None:
@@ -544,15 +553,58 @@ def plan_progress_text(record_path: str, project_root: str) -> str:
     return _progress_fragment(prog)
 
 
+# A decided record declares no OPEN operation: its GRP section is the plan the
+# operation was carried out under, not work waiting on a session. Measured live
+# on this tree, 2026-11-21: every one of the 122 records with planned files
+# still "pending" was `Status: completed` (120) or `REJECTED` (2), so the
+# SessionStart line announced three concluded experiments as live progress —
+# and because the open list is name-sorted and capped, those decided records
+# occupied every slot a genuinely open plan would need.
+#
+# `completed` covers both a passed gate and a record whose Decision says
+# REJECTED while its Status still reads completed (the shape guard's
+# _cited_experiment_problem names). `planned`/`draft` are NOT closed: those
+# records still have the work ahead of them.
+_CLOSED_PLAN_STATUSES = frozenset({
+    "completed", "approved", "rejected", "refused", "withdrawn", "superseded"})
+_DECISION_RE = re.compile(r"^-\s*\*\*Decision:\*\*\s*([A-Za-z]+)", re.MULTILINE)
+
+
+def record_plan_closed(record_path: str) -> bool:
+    """True when the record itself says the operation it planned has ENDED.
+
+    Reads the record's own Status with the shared field reader
+    (`config.story_status`) rather than a second regex dialect, and falls back
+    to a REJECTED/REFUSED Decision for the shape where Status was left benign. An
+    unreadable record is not closed (fail-open: the caller still has to find a
+    plan before anything is surfaced, and silence caused by a read error would
+    hide work rather than retire it).
+    """
+    try:
+        text = pathlib.Path(record_path).read_text(encoding="utf-8",
+                                                    errors="replace")
+    except OSError:
+        return False
+    from .config import story_status  # noqa: PLC0415 (keep plan import-light)
+    status = story_status(text)
+    token = status.split()[0].strip("—-,.:;") if status else ""
+    if token in _CLOSED_PLAN_STATUSES:
+        return True
+    decision = _DECISION_RE.search(text)
+    return bool(decision and decision.group(1).upper() in ("REJECTED", "REFUSED"))
+
+
 def open_plan_line(record_path: str, project_root: str) -> str | None:
     """`<record-name> n/m planned files on disk (k pending)`, or None.
 
-    None when the record has no plan or nothing pending (see
-    plan_progress_text). The record name leads so a resumed session knows WHICH
+    None when the record has no plan, nothing pending (see
+    plan_progress_text), or the record is already decided: a concluded
+    experiment's leftover plan files are history, not an operation the session
+    should resume. The record name leads so a resumed session knows WHICH
     operation the counts belong to.
     """
     frag = plan_progress_text(record_path, project_root)
-    if not frag:
+    if not frag or record_plan_closed(record_path):
         return None
     return f"{pathlib.Path(record_path).name} {frag}"
 
@@ -566,7 +618,8 @@ def open_plans(records_dir: str, project_root: str,
     """Records whose plan still has pending files — name-sorted, capped, read-only.
 
     Only records with a plan AND at least one pending planned file become rows
-    (a completed plan is silent by design). Returns
+    (a completed plan is silent by design, and so is a decided record — see
+    record_plan_closed). Returns
     [{name, path, line, done, pending, planned}]. Fail-open: a missing records
     dir or an unreadable record contributes nothing.
     """
@@ -599,19 +652,12 @@ def open_plans_text(records_dir: str, project_root: str,
     return "; ".join(row["line"] for row in rows)
 
 
-# Stop-report hook surface: the session wrap-up can surface plan progress for
-# records touched this session (the guard's audit trail names the records).
-def progress_line(record_path: str, project_root: str) -> str | None:
-    """One-line plan progress summary, or None when the record has no plan.
-
-    Unlike plan_progress_text this keeps a completed plan visible (nothing
-    pending still reports `n/n`); it exists for callers that already decided to
-    report a record and only need the counts.
-    """
-    prog = plan_progress(record_path, project_root)
-    if prog["planned"] == 0:
-        return None
-    return f"plan progress: {_progress_fragment(prog)}"
+# There is deliberately no second progress formatter here (E-190):
+# `progress_line` used to sit on this seam with a docstring naming the Stop
+# report as its caller, but no shipped path ever called it — the Stop note goes
+# through `open_plan_line` like every other surface. A formatter nothing calls
+# is not a surface, and E-189's bench certified "the Stop report keeps the
+# counts" by exercising exactly that dead function.
 
 
 def _selfcheck() -> int:

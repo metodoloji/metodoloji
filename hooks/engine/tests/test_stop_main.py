@@ -355,14 +355,14 @@ def test_stop_tail_bound_respected(tmp_path, monkeypatch):
 # --- GRP plan progress in the stop report (E-066) ----------------------------
 
 def _seed_plan_record(root, eid="E-066", planned="src/a.py, src/b.py",
-                      with_plan=True):
+                      with_plan=True, status="planned"):
     recs = root / "docs" / "experiments"
     recs.mkdir(parents=True, exist_ok=True)
     plan_block = ("\n## Implementation Plan (GRP)\n\n"
                   f"- **Planned Files:** {planned}\n"
                   "- **Amendments:** none\n") if with_plan else ""
     (recs / f"{eid}.md").write_text(
-        f"## Experiment: {eid} — plan\n- **Status:** planned\n"
+        f"## Experiment: {eid} — plan\n- **Status:** {status}\n"
         "- **Code Scope:** none\n" + plan_block,
         encoding="utf-8")
 
@@ -385,6 +385,23 @@ def test_stop_reports_plan_progress(tmp_path, monkeypatch):
     # informational only — the note never claims approval (E-066 contract)
     assert "verified" not in reason.lower()
     assert "approved" not in reason.lower()
+
+
+def test_stop_no_plan_note_for_a_decided_record(tmp_path, monkeypatch):
+    """E-189 one surface over: a decided record's leftover plan files are not an
+    operation being extended, so the close report adds no progress note even
+    when this session edited a covered file."""
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src/a.py").write_text("x = 1\n", encoding="utf-8")
+    _seed_plan_record(tmp_path, status="completed")
+    _env(tmp_path, monkeypatch)
+    _seed_session_start(tmp_path, session_id="sess-decided")
+    _seed_audit_log(tmp_path, [
+        {"tool": "file_editor", "input": {"path": "src/a.py"}},
+    ])
+    reason = stop({}).get("reason", "")
+    assert "src/a.py" in reason          # the code-writes note still fires
+    assert "plan progress" not in reason
 
 
 def test_stop_no_plan_note_without_a_plan(tmp_path, monkeypatch):

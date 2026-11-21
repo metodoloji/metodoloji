@@ -654,6 +654,28 @@ def test_session_start_silent_without_a_pending_plan(tmp_path, monkeypatch):
         session_start({"cwd": str(root2)})["additionalContext"]
 
 
+def test_session_start_silent_for_a_decided_records_plan(tmp_path, monkeypatch):
+    """E-189: the live tree injected "Plan progress (GRP): E-005.md 1/5 …" for
+    a completed experiment every session. A decided record has no open
+    operation, so it contributes no clause and no amendment nudge."""
+    from modules.audit import session_start
+
+    root = tmp_path
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(root))
+    monkeypatch.delenv("OPENHANDS_PROJECT_DIR", raising=False)
+    _plan_record(root, eid="E-100")
+    rec = root / "docs" / "experiments" / "E-100.md"
+    rec.write_text(rec.read_text(encoding="utf-8").replace(
+        "- **Status:** planned", "- **Status:** completed"), encoding="utf-8")
+    (root / "src").mkdir()
+    (root / "src" / "a.py").write_text("x = 1\n", encoding="utf-8")
+
+    ctx = session_start({"cwd": str(root)})["additionalContext"]
+    assert "Plan progress (GRP)" not in ctx
+    assert "--amend-plan" not in ctx
+    assert "Records: E=1" in ctx  # the rest of the edge still speaks
+
+
 def test_audit_exception_handling_graceful(tmp_path, monkeypatch):
     """Test that audit handles exceptions gracefully (broad exception handling reduction)."""
     root = tmp_path

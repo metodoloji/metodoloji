@@ -1,0 +1,10 @@
+{"broken": true, "probe": "decided_plan_silent", "ok": false, "detail": "clause='E-100.md 1/2 planned files on disk (1 pending)'"}
+{"broken": true, "probe": "open_plan_surfaced", "ok": true, "detail": "clause='E-100.md 1/2 planned files on disk (1 pending)'"}
+{"broken": true, "probe": "rejected_decision_silent", "ok": false, "detail": "clause='E-100.md 1/2 planned files on disk (1 pending)'"}
+{"broken": true, "probe": "cap_reserved_for_open_work", "ok": false, "detail": "clause='E-005.md 1/2 planned files on disk (1 pending); E-008.md 1/2 planned files on disk (1 pending); E-009.md 1/2 planned files on disk (1 pending)'"}
+{"broken": true, "probe": "progress_derivation_unchanged", "ok": true, "detail": "progress={'done': 1, 'pending': 1, 'planned': 2}"}
+{"broken": true, "probe": "one_formatter_two_surfaces", "ok": false, "detail": "clause='E-100.md 1/2 planned files on disk (1 pending); E-900.md 1/2 planned files on disk (1 pending)' shared='E-100.md 1/2 planned files on disk (1 pending); E-900.md 1/2 planned files on disk (1 pending)'"}
+{"broken": true, "probe": "closed_vocabulary", "ok": false, "detail": "surfaced={'completed': 1, 'approved': 1, 'superseded': 1, 'withdrawn': 1, 'refused': 1}"}
+{"broken": true, "probe": "open_vocabulary", "ok": true, "detail": "missing=none"}
+{"broken": true, "probe": "stop_report_keeps_counts", "ok": true, "detail": "line='plan progress: 1/2 planned files on disk (1 pending)'"}
+{"broken": true, "probe": "no_plan_no_line", "ok": true, "detail": "rows=0"}

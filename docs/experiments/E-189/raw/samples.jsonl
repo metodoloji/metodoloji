@@ -1,0 +1,10 @@
+{"broken": false, "probe": "decided_plan_silent", "ok": true, "detail": "clause=''"}
+{"broken": false, "probe": "open_plan_surfaced", "ok": true, "detail": "clause='E-100.md 1/2 planned files on disk (1 pending)'"}
+{"broken": false, "probe": "rejected_decision_silent", "ok": true, "detail": "clause=''"}
+{"broken": false, "probe": "cap_reserved_for_open_work", "ok": true, "detail": "clause='E-500.md 1/2 planned files on disk (1 pending)'"}
+{"broken": false, "probe": "progress_derivation_unchanged", "ok": true, "detail": "progress={'done': 1, 'pending': 1, 'planned': 2}"}
+{"broken": false, "probe": "one_formatter_two_surfaces", "ok": true, "detail": "clause='E-100.md 1/2 planned files on disk (1 pending)' shared='E-100.md 1/2 planned files on disk (1 pending)'"}
+{"broken": false, "probe": "closed_vocabulary", "ok": true, "detail": "surfaced=none"}
+{"broken": false, "probe": "open_vocabulary", "ok": true, "detail": "missing=none"}
+{"broken": false, "probe": "stop_report_keeps_counts", "ok": true, "detail": "line='plan progress: 1/2 planned files on disk (1 pending)'"}
+{"broken": false, "probe": "no_plan_no_line", "ok": true, "detail": "rows=0"}

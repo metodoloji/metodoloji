@@ -1,0 +1,10 @@
+{"broken": true, "probe": "stop_note_silent_for_decided", "ok": false, "detail": "note='plan progress (GRP): E-100.md 1/2 planned files on disk (1 pending) — extend an operation\\'s plan with python3 /tmp/tmpj9h2lpcq/prefix/skills/bmad-research-experiment/scripts/run_experiment.py --amend-plan <rec> --files <file> --reason \"<why>\".'"}
+{"broken": true, "probe": "stop_note_names_open_record", "ok": true, "detail": "note='plan progress (GRP): E-100.md 1/2 planned files on disk (1 pending) — extend an operation\\'s plan with python3 /tmp/tmpj9h2lpcq/prefix/skills/bmad-research-experiment/scripts/run_experiment.py --amend-plan <rec> --files <file> --reason \"<why>\".'"}
+{"broken": true, "probe": "stop_note_uses_the_shared_fragment", "ok": true, "detail": "note=\"plan progress (GRP): E-100.md 1/2 planned files on disk (1 pending) — extend an operation'\" shared='E-100.md 1/2 planned files on disk (1 pending)'"}
+{"broken": true, "probe": "session_clause_matches_open_list", "ok": false, "detail": "clause='E-100.md 1/2 planned files on disk (1 pending); E-900.md 1/2 planned files on disk (1 pending)' shared='E-100.md 1/2 planned files on disk (1 pending); E-900.md 1/2 planned files on disk (1 pending)'"}
+{"broken": true, "probe": "stop_note_skips_a_decided_cover", "ok": false, "detail": "note=''"}
+{"broken": true, "probe": "no_formatter_without_a_caller", "ok": false, "detail": "dead=['progress_line']"}
+{"broken": true, "probe": "open_record_derivation_unchanged", "ok": true, "detail": "progress={'done': 1, 'pending': 1, 'planned': 2}"}
+{"broken": true, "probe": "stop_note_capped", "ok": true, "detail": "names=3 len=339"}
+{"broken": true, "probe": "decided_record_silent_on_every_surface", "ok": false, "detail": "note='plan progress (GRP): E-100.md 1/2 planned files on disk (1 pending) — extend an operation\\'s plan with python3 /tmp/tmpj9h2lpcq/prefix/skills/bmad-research-experiment/scripts/run_experiment.py --amend-plan <rec> --files <file> --reason \"<why>\".' rows=1 clause=True"}
+{"broken": true, "probe": "stop_note_empty_without_writes", "ok": true, "detail": "note=''"}

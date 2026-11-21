@@ -12,7 +12,8 @@ from modules import plan as plan_mod  # noqa: E402
 
 
 def _record(path: Path, planned: str = "src/a.py, src/b.py", tests: str = "",
-            body: str = "", with_plan: bool = True) -> Path:
+            body: str = "", with_plan: bool = True,
+            status: str = "planned") -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     plan_block = ("\n## Implementation Plan (GRP)\n\n"
                   f"- **Planned Files:** {planned}\n"
@@ -20,7 +21,7 @@ def _record(path: Path, planned: str = "src/a.py, src/b.py", tests: str = "",
                   "- **Known Gaps:** advisory only\n"
                   "- **Amendments:** none\n") if with_plan else ""
     path.write_text(
-        "## Experiment: E-100 — plan tests\n- **Status:** planned\n- **Code Scope:** src/**\n"
+        f"## Experiment: E-100 — plan tests\n- **Status:** {status}\n- **Code Scope:** src/**\n"
         + body + plan_block,
         encoding="utf-8")
     return path
@@ -185,21 +186,14 @@ def test_plan_hash_for_record_missing_file_is_stable():
     assert a == b and len(a) == 64
 
 
-# --- progress line ---
+# --- one formatter, no dead ones (E-190) ---
 
-def test_progress_line_none_without_plan(tmp_path):
-    rec = tmp_path / "E-100.md"
-    rec.write_text("## Experiment: E-100 — no plan\n", encoding="utf-8")
-    assert plan_mod.progress_line(str(rec), str(tmp_path)) is None
-
-
-def test_progress_line_counts(tmp_path):
-    rec = _record(tmp_path / "docs" / "experiments" / "E-100.md")
-    (tmp_path / "src").mkdir()
-    (tmp_path / "src" / "a.py").write_text("x = 1\n", encoding="utf-8")
-    (tmp_path / "src" / "b.py").write_text("y = 2\n", encoding="utf-8")
-    line = plan_mod.progress_line(str(rec), str(tmp_path))
-    assert line is not None and "2/2" in line
+def test_no_second_progress_formatter():
+    """`progress_line` outlived its only caller and its docstring still named
+    the Stop report; E-189's bench measured it instead of the shipped note.
+    Every plan surface formats through open_plan_line — nothing else may sit on
+    this seam pretending to be one."""
+    assert not hasattr(plan_mod, "progress_line")
 
 
 # --- surfacing: shared formatter + open plans (E-068) ---
@@ -221,10 +215,62 @@ def test_open_plan_line_shared_formatter(tmp_path):
     assert plan_mod.open_plan_line(str(rec), str(tmp_path)) is None
 
 
-def test_plan_progress_text_empty_without_a_plan(tmp_path):
+# --- a decided record declares no open operation (E-189) ---
+
+def test_decided_record_has_no_open_plan(tmp_path):
+    """A completed experiment's leftover planned files are history, not an
+    operation a session should resume: the live tree reported 122 decided
+    records as "pending" and every SessionStart slot was spent on them."""
+    rec = _record(tmp_path / "docs" / "experiments" / "E-100.md",
+                  status="completed")
+    assert plan_mod.plan_progress_text(str(rec), str(tmp_path)) == \
+        "0/2 planned files on disk (2 pending)"  # derivation unchanged
+    assert plan_mod.open_plan_line(str(rec), str(tmp_path)) is None
+    assert plan_mod.open_plans(str(tmp_path / "docs" / "experiments"),
+                               str(tmp_path)) == []
+
+
+def test_rejected_decision_closes_a_benign_status(tmp_path):
+    """The shape guard already names: Status left benign, Decision REJECTED.
+    The operation was decided — nothing is waiting to be resumed."""
+    rec = _record(tmp_path / "E-100.md", status="in-progress",
+                  body="- **Decision:** REJECTED — H-100: measured=0.2 <= 0.9\n")
+    assert plan_mod.record_plan_closed(str(rec)) is True
+    assert plan_mod.open_plan_line(str(rec), str(tmp_path)) is None
+
+
+def test_open_record_still_surfaces_its_plan(tmp_path):
+    """The filter must not silence the surface it exists for: a record still
+    being worked keeps its line, whatever the vocabulary (draft, planned,
+    in-progress, no Status at all)."""
+    for status in ("planned", "draft", "in-progress"):
+        rec = _record(tmp_path / status / "E-100.md", status=status)
+        assert plan_mod.open_plan_line(str(rec), str(tmp_path)) == \
+            "E-100.md 0/2 planned files on disk (2 pending)"
     rec = _record(tmp_path / "docs" / "experiments" / "E-100.md", with_plan=False)
     assert plan_mod.plan_progress_text(str(rec), str(tmp_path)) == ""
     assert plan_mod.open_plan_line(str(rec), str(tmp_path)) is None
+
+
+def test_closed_status_is_read_whole_and_case_insensitively(tmp_path):
+    """`COMPLETED — gate passed` closes the plan; `completedness` must not
+    (the first token is the status, the prose after a dash is not)."""
+    closed = _record(tmp_path / "a" / "E-100.md", status="COMPLETED — gate passed")
+    assert plan_mod.open_plan_line(str(closed), str(tmp_path)) is None
+    open_ = _record(tmp_path / "b" / "E-100.md", status="completedness")
+    assert plan_mod.open_plan_line(str(open_), str(tmp_path)) is not None
+
+
+def test_decided_records_cannot_crowd_out_an_open_plan(tmp_path):
+    """The open list is name-sorted and capped, so decided records used to
+    occupy every slot: E-005/E-008/E-009 (all completed) were the three names
+    a session ever saw. The cap now only ever spends slots on live work."""
+    recs = tmp_path / "docs" / "experiments"
+    for eid in ("E-005", "E-008", "E-009"):
+        _record(recs / f"{eid}.md", status="completed")
+    _record(recs / "E-500.md", status="in-progress")
+    rows = plan_mod.open_plans(str(recs), str(tmp_path), limit=3)
+    assert [row["name"] for row in rows] == ["E-500.md"]
 
 
 def test_open_plans_sorted_capped_and_pending_only(tmp_path):
