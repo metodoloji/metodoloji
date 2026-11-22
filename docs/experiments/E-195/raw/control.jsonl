@@ -1,0 +1,10 @@
+{"broken": true, "probe": "hidden_issues_named", "ok": false, "detail": "tail='pe field; AC-002: missing Measured field'"}
+{"broken": true, "probe": "hidden_count_arithmetic", "ok": false, "detail": "shown=5 hidden=0 total=5"}
+{"broken": true, "probe": "visible_bound_unchanged", "ok": true, "detail": "shown=5"}
+{"broken": true, "probe": "short_list_verbatim", "ok": true, "detail": "reason='AC-001: missing Type field; AC-001: missing Measured field; AC-001: missing Verify field; Task without AC reference: - [ ] task one → AC-001...'"}
+{"broken": true, "probe": "singular_remainder", "ok": false, "detail": "utils.issue_summary absent in this tree"}
+{"broken": true, "probe": "plural_remainder", "ok": false, "detail": "utils.issue_summary absent in this tree"}
+{"broken": true, "probe": "list_at_limit_unmarked", "ok": false, "detail": "utils.issue_summary absent in this tree"}
+{"broken": true, "probe": "chain_validator_uses_the_count", "ok": false, "detail": "story_quality joins through issue_summary(issues, 3)"}
+{"broken": true, "probe": "denial_still_denies", "ok": true, "detail": "valid=False"}
+{"broken": true, "probe": "raw_issue_slices_gone", "ok": false, "detail": "no raw issue slice remains"}

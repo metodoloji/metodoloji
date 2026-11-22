@@ -1,0 +1,10 @@
+{"broken": false, "probe": "hidden_issues_named", "ok": true, "detail": "tail='sing Measured field; … (+20 more issues)'"}
+{"broken": false, "probe": "hidden_count_arithmetic", "ok": true, "detail": "shown=5 hidden=20 total=25"}
+{"broken": false, "probe": "visible_bound_unchanged", "ok": true, "detail": "shown=5"}
+{"broken": false, "probe": "short_list_verbatim", "ok": true, "detail": "reason='AC-001: missing Type field; AC-001: missing Measured field; AC-001: missing Verify field; Task without AC reference: - [ ] task one → AC-001'"}
+{"broken": false, "probe": "singular_remainder", "ok": true, "detail": "text=' i2; i3; i4; … (+1 more issue)'"}
+{"broken": false, "probe": "plural_remainder", "ok": true, "detail": "text='i0; i1; i2; … (+6 more issues)'"}
+{"broken": false, "probe": "list_at_limit_unmarked", "ok": true, "detail": "text='i0; i1; i2; i3; i4'"}
+{"broken": false, "probe": "chain_validator_uses_the_count", "ok": true, "detail": "story_quality joins through issue_summary(issues, 3)"}
+{"broken": false, "probe": "denial_still_denies", "ok": true, "detail": "valid=False"}
+{"broken": false, "probe": "raw_issue_slices_gone", "ok": true, "detail": "no raw issue slice remains"}

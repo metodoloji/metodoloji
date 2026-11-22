@@ -1201,3 +1201,36 @@ def test_real_abort_inside_harness_mapping_still_warns(tmp_path, monkeypatch):
     recs = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
     assert recs[-1]["command_failed"] == "glob_nomatch"
     assert any("unmatched glob" in w for w in res.get("methodology_warnings", []))
+
+
+def test_inject_counts_the_unanchored_keys_it_hides(tmp_path, monkeypatch):
+    """E-196: the inject said "4 of them" and named three.
+
+    Live session-start context, 2026-11-22, with four anchorless hand-offs on
+    one channel: `NOTE: 4 of them carry no code-state anchor (UNKNOWN: E-001,
+    E-002, E-003)` — the sentence contradicts the list it shows. The list is
+    now bounded through the shared counter, so the count and the names agree.
+    """
+    from modules import blackboard as bb
+    from modules.audit import session_start
+
+    root = tmp_path
+    (root / ".metodoloji").mkdir()
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(root))
+    monkeypatch.delenv("OPENHANDS_PROJECT_DIR", raising=False)
+
+    keys = ["E-001", "E-002", "E-003", "E-004"]
+    monkeypatch.setattr(bb, "pending_handoff_channels",
+                        lambda _root: {"bmad-sprint-planning": len(keys)})
+    monkeypatch.setattr(
+        bb, "pending_handoff_freshness",
+        lambda _root: {"bmad-sprint-planning": {
+            "total": len(keys), "current": 0, "stale": 0,
+            "unknown": len(keys), "oldest_age_s": 60.0,
+            "stale_keys": [], "unknown_keys": keys, "freshness": []}})
+    monkeypatch.setattr(bb, "compact_context", lambda _root: {})
+
+    res = session_start({"cwd": str(root)})
+    ctx = res["additionalContext"]
+    assert "4 of them carry no code-state anchor" in ctx
+    assert "UNKNOWN: E-001, E-002, E-003, … (+1 more key)" in ctx

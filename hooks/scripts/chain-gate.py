@@ -60,6 +60,41 @@ def _say(msg: str) -> int:
     return 1
 
 
+_EXCERPT_LIMIT = 300
+
+
+def _excerpt(text: str, limit: int = _EXCERPT_LIMIT) -> str:
+    """A tool's fault output, cut on LINE boundaries and counted (E-194).
+
+    Both failure paths used `out[:300]`. A schema check that listed twelve
+    defects printed five and a half of them: the live message ended
+    `… missing or placeholder field 'Experime` — cut mid-word, with no sign
+    that seven more defects followed. The gate then blocked the stage while
+    hiding most of the reason, so each rerun revealed the next few. Lines are
+    now kept whole while they fit inside the bound, and what was dropped is
+    named (`… (+7 more lines)`); a first line too long to fit falls back to the
+    shared cutter, which marks the elision and never halves a token.
+    """
+    lines = str(text).strip("\n").splitlines()
+    kept: list[str] = []
+    used = 0
+    for line in lines:
+        cost = len(line) + (1 if kept else 0)
+        if used + cost > limit:
+            break
+        kept.append(line)
+        used += cost
+    if not kept:
+        from hooks.engine.modules.utils import brief_text
+        return brief_text(lines[0] if lines else "", limit)
+    body = "\n".join(kept)
+    hidden = len(lines) - len(kept)
+    if hidden:
+        # Its own line, so every kept line stays verbatim and can be quoted.
+        body += f"\n… (+{hidden} more line{'' if hidden == 1 else 's'})"
+    return body
+
+
 def _cannot(msg: str) -> int:
     print(msg)
     return 2
@@ -115,7 +150,7 @@ def _check(root: pathlib.Path, kind: str, paths: list[pathlib.Path]) -> int:
     for path in paths:
         rc, out = _run([sys.executable, str(checker), "--check", str(path)])
         if rc != 0:
-            return _say(f"{path.name}: schema check failed — {out[:300]}")
+            return _say(f"{path.name}: schema check failed — {_excerpt(out)}")
     print(f"{kind}: {len(paths)} record(s) pass the schema check")
     return 0
 
@@ -179,7 +214,7 @@ def _gate_experiment(root: pathlib.Path) -> int:
             # rc 3 is "no gate key here" — name it instead of calling it forged.
             label = {1: "not verified", 2: "advisory-blocked",
                      3: "cannot verify (no gate key on this machine)"}.get(rc, f"rc {rc}")
-            return _say(f"{rid}: {label} — {out[:300]}")
+            return _say(f"{rid}: {label} — {_excerpt(out)}")
     print(f"experiment: {len(ids)} approved reference(s) verify")
     return 0
 

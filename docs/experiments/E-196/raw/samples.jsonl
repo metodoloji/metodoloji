@@ -1,0 +1,10 @@
+{"broken": false, "probe": "remainder_counted", "ok": true, "detail": "tail='04, E-005, … (+3 more signals)'"}
+{"broken": false, "probe": "visible_bound_kept", "ok": true, "detail": "named=5"}
+{"broken": false, "probe": "singular_and_plural", "ok": true, "detail": "one=', … (+1 more signal)' many='5, … (+6 more signals)'"}
+{"broken": false, "probe": "at_limit_unmarked", "ok": true, "detail": "out='E-001, E-002, E-003, E-004, E-005'"}
+{"broken": false, "probe": "short_list_verbatim", "ok": true, "detail": "out='E-001'"}
+{"broken": false, "probe": "separator_preserved", "ok": true, "detail": "out='k1 k2 k3 … (+1 more key)'"}
+{"broken": false, "probe": "issue_summary_unchanged", "ok": true, "detail": "out='i0; i1; i2; … (+1 more issue)'"}
+{"broken": false, "probe": "stop_report_counts_live", "ok": true, "detail": "but='E-001 (UNKNOWN, for bmad-sprint-planning), E-002 (UNKNOWN, for bmad-sprint-planning), E-003 (UNKNOWN, for bmad-sprint-pl'"}
+{"broken": false, "probe": "inject_counts_live", "ok": true, "detail": "note='4 of them carry no code-state anchor (UNKNOWN: E-001, E-002, E-003, … (+1 more key)) — ver'"}
+{"broken": false, "probe": "no_raw_slice_left", "ok": true, "detail": "no raw claim-list slice remains"}

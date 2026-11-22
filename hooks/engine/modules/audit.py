@@ -14,8 +14,8 @@ import time
 from typing import Any
 
 from .config import log_file
-from .utils import (brief_text, dod_issues, has_dod_content, repo_root,
-                    scan_dod_items)
+from .utils import (brief_text, counted_list, dod_issues, has_dod_content,
+                    repo_root, scan_dod_items)
 
 
 # Read-only call detection (2026-09-25, LIMX OpenHands session): the audit
@@ -710,8 +710,12 @@ def session_start(json_in: dict) -> dict:
                     # nobody picked up" is the exact defect E-052 measured.
                     labels = {str(item.get("key")): str(item.get("label"))
                               for item in (info.get("freshness") or [])}
-                    shown = " ".join(f"{k} ({labels.get(k, fr.STALE)})"
-                                     for k in (stale + unknown)[:5])
+                    # E-196: the illustrate list was sliced at five with no
+                    # marker, so a channel with eight dated claims named five
+                    # and read as complete. Bound it once, count the rest.
+                    shown = counted_list(
+                        [f"{k} ({labels.get(k, fr.STALE)})" for k in stale + unknown],
+                        5, noun="signal", sep=" ")
                     unknown_count = len(info.get("unknown_keys") or [])
                     parts.append(
                         f"{s} ({n}: {info.get('current', 0)} current, "
@@ -731,8 +735,11 @@ def session_start(json_in: dict) -> dict:
                     # here (no record, no git). It stays delivered as work and
                     # is FLAGGED, so a session knows the anchor is missing
                     # instead of mistaking silence for verification.
+                    # E-196: the same slice said "4 of them" and named three
+                    # (live inject, 2026-11-22). Count the remainder instead.
                     legacy += (f" NOTE: {len(unknown)} of them carry no "
-                               f"code-state anchor (UNKNOWN: {', '.join(unknown[:3])}) "
+                               f"code-state anchor (UNKNOWN: "
+                               f"{counted_list(unknown, 3, noun='key')}) "
                                f"— verify before obeying ("
                                f"`{_plugin_cmd('hooks/scripts/blackboard.py', 'witness', '--target', '<key>')}`)")
                 parts.append(legacy)

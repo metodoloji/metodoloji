@@ -1,0 +1,10 @@
+{"broken": false, "probe": "token_whole_or_absent", "ok": true, "detail": "preview='se run finished and the report is ready…'"}
+{"broken": false, "probe": "elision_marked_not_silent", "ok": true, "detail": "preview='se run finished and the report is ready…'"}
+{"broken": false, "probe": "cut_lands_on_a_boundary", "ok": true, "detail": "body='nished and the report is ready'"}
+{"broken": false, "probe": "short_alert_verbatim", "ok": true, "detail": "preview='deploy finished: ok'"}
+{"broken": false, "probe": "preview_within_bound", "ok": true, "detail": "len=159"}
+{"broken": false, "probe": "more_count_preserved", "ok": true, "detail": "reason='odoloji/hooks/scripts/blackboard.py consume --channel stop`.'"}
+{"broken": false, "probe": "unclosed_bracket_dropped_whole", "ok": true, "detail": "preview='w w w w w w w w w w w w w w w w w w w w…'"}
+{"broken": false, "probe": "path_dropped_whole", "ok": true, "detail": "preview='se run finished and the report is ready…'"}
+{"broken": false, "probe": "report_only_still_allows", "ok": true, "detail": "decision=allow"}
+{"broken": false, "probe": "shared_cutter_equality", "ok": true, "detail": "preview == brief_text(text, 160)"}

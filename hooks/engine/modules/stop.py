@@ -12,7 +12,8 @@ import pathlib
 import sys
 import time
 
-from .utils import repo_root, plugin_script_cmd as _plugin_cmd
+from .utils import (brief_text, counted_list, repo_root,
+                    plugin_script_cmd as _plugin_cmd)
 
 
 # Marker the audit log carries per session start; the report only counts
@@ -446,12 +447,17 @@ def stop(json_in: dict) -> dict:
             if stale:
                 # The same stale sentence the inject uses, on the stop surface:
                 # repeat the claim's state instead of asking for obedience.
-                labels: list[str] = []
-                for skill, signals in stale.items():
-                    labels.extend(
-                        f"{s.get('run_key') or s.get('from') or '?'} "
-                        f"({s.get('verdict')}, for {skill})" for s in signals[:3])
-                note += (" BUT: " + ", ".join(labels[:5])
+                # E-196: `signals[:3]` per skill then `labels[:5]` announced 5
+                # of 8 flagged signals with no marker (live: four unknown
+                # hand-offs to each of two skills printed five names, and the
+                # outer bound was reached only because the inner one had
+                # already dropped two). Collect every flagged signal, then
+                # bound the join once and count the remainder.
+                labels: list[str] = [
+                    f"{s.get('run_key') or s.get('from') or '?'} "
+                    f"({s.get('verdict')}, for {skill})"
+                    for skill, signals in stale.items() for s in signals]
+                note += (" BUT: " + counted_list(labels, 5, noun="signal")
                          + " may no longer apply — the code moved past "
                            "them since they were recorded; verify before "
                            "consuming, or withdraw with "
@@ -494,7 +500,13 @@ def stop(json_in: dict) -> dict:
         from .blackboard import pending_alerts
         stop_alerts = pending_alerts(root, "stop")
         if stop_alerts:
-            first = str(stop_alerts[0].get("text", ""))[:160]
+            # E-192: a raw [:160] slice cut a routed alert mid-path *and*
+            # silently — the live stop report read `…notes/segment/no — clear
+            # with …`, so the reader could not tell the text was shortened at
+            # all. Bounded by the same cutter as the session edge and the
+            # digest (E-187/E-191): the cut lands on a boundary, an unclosed
+            # bracket group is dropped whole, and `…` marks the elision.
+            first = brief_text(stop_alerts[0].get("text", ""), 160)
             more = f" (+{len(stop_alerts) - 1} more)" if len(stop_alerts) > 1 else ""
             notes.append(f"routed alert(s) on the stop channel: {first}{more} — "
                          f"clear with "

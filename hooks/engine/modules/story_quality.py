@@ -741,7 +741,9 @@ def _validate_methodology_chain(content: str, rel_path: str, root: str = "") -> 
         issues.append(dangling_test)
 
     if issues:
-        return False, "; ".join(issues[:3])
+        # E-195: three issues used to stand in for the whole list silently.
+        from .utils import issue_summary
+        return False, issue_summary(issues, 3)
     return True, ""
 
 

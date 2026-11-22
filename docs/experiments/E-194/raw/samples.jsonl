@@ -1,0 +1,10 @@
+{"broken": false, "probe": "shown_lines_are_verbatim", "ok": true, "detail": "shown=6"}
+{"broken": false, "probe": "hidden_count_named", "ok": true, "detail": "marker='… (+7 more lines)'"}
+{"broken": false, "probe": "total_lines_accounted", "ok": true, "detail": "shown=6 hidden=7 raw=13"}
+{"broken": false, "probe": "marker_is_its_own_line", "ok": true, "detail": "last='… (+7 more lines)'"}
+{"broken": false, "probe": "excerpt_within_bound", "ok": true, "detail": "body_len=283"}
+{"broken": false, "probe": "short_fault_list_verbatim", "ok": true, "detail": "message=\"t)\\n  - Status '—' is not one of planned, completed, REJECTED\""}
+{"broken": false, "probe": "no_mid_word_fragment", "ok": true, "detail": "tail=\"  - missing or placeholder field 'Experiment Design'\""}
+{"broken": false, "probe": "check_fails_closed", "ok": true, "detail": "rc=1"}
+{"broken": false, "probe": "both_failure_paths_use_the_excerpt", "ok": true, "detail": "sites=2"}
+{"broken": false, "probe": "raw_slice_gone", "ok": true, "detail": "raw_slice=gone"}

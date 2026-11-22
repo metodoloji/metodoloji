@@ -15,7 +15,7 @@ from .config import (GATE_DIR, SCOPE_GIT_TIMEOUT_SECONDS, _BMD_DIR,
                      _KEY_ACCESS_IN_CONTENT, hook_gate_mode, story_status)
 from .utils import (is_code_target, is_free, norm_path, normalize_hook_input,
                     rel_to_root, repo_root, extract_story_key_from_content,
-                    dod_issues, _VERIFY_FIELD_RE)  # noqa: F401 — compatibility imports
+                    brief_text, dod_issues, _VERIFY_FIELD_RE)  # noqa: F401 — compatibility imports
 from .bash_targets import extract_bash_targets, extract_bash_targets_ex  # noqa: F401
 from . import plan as plan_mod
 from . import state as state_mod  # noqa: F401 — consumed by story-quality service
@@ -552,12 +552,18 @@ def _validate_story_metadata(content: str) -> tuple[bool, str]:
 
     ac_ids = {ac["id"] for ac in acs}
     for task in tasks:
+        # E-193: both messages quoted the task with `[:60] + "..."`, so the live
+        # denial read `…docs/planning/implementation-rea...` — cut mid-word, and
+        # whatever followed (the AC id, a gate token) was gone. Quote through the
+        # shared cutter instead: the cut lands on a boundary, an unclosed bracket
+        # group is dropped whole, and `…` marks the elision.
+        quoted = brief_text(task["task_text"], 60)
         if not task["ac_refs"]:
-            issues.append(f"Task without AC reference: {task['task_text'][:60]}...")
+            issues.append(f"Task without AC reference: {quoted}")
         else:
             for ref in task["ac_refs"]:
                 if ref not in ac_ids:
-                    issues.append(f"Task references non-existent {ref}: {task['task_text'][:60]}...")
+                    issues.append(f"Task references non-existent {ref}: {quoted}")
 
     # 3. Validate DoD structure
     # Shared with the audit's QR DoD check (.utils.dod_issues) so guard and
@@ -567,7 +573,10 @@ def _validate_story_metadata(content: str) -> tuple[bool, str]:
         issues.extend(dod_issues(dod_match.group(1)))
 
     if issues:
-        return False, "; ".join(issues[:5])  # Limit to 5 issues
+        # E-195: the join used to print five issues with no sign of the rest;
+        # the remainder is now counted so a blocked write cannot read complete.
+        from .utils import issue_summary
+        return False, issue_summary(issues, 5)
     return True, ""
 
 # --- Methodology Chain Validation ---

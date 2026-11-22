@@ -740,3 +740,38 @@ def test_brief_text_never_returns_half_a_gate_token():
         assert out.count("…") <= 1, (limit, out)
         if token in out:
             assert f"({token})" in out, (limit, out)
+
+
+def test_counted_list_names_the_remainder_it_hid():
+    """E-196: a bounded list is a claim about the whole list.
+
+    Live stop report, 2026-11-22: eight flagged hand-off signals across two
+    skills, five named, no marker — and the outer bound of five was reached
+    only because a per-skill `[:3]` had already dropped two. The join now
+    collects everything and counts the remainder in the repo's `(+N more)`
+    style.
+    """
+    from modules.utils import counted_list
+    labels = [f"E-00{n} (UNKNOWN, for s)" for n in range(1, 9)]
+    out = counted_list(labels, 5, noun="signal")
+    assert out.startswith("E-001 (UNKNOWN, for s), ")
+    assert out.endswith("… (+3 more signals)")
+    assert sum(1 for n in range(1, 9) if f"E-00{n}" in out) == 5
+
+
+def test_counted_list_keeps_singular_and_separator():
+    from modules.utils import counted_list
+    assert counted_list(["a", "b", "c"], 2, noun="signal") == "a, b, … (+1 more signal)"
+    assert counted_list(["a", "b"], 3, noun="key") == "a, b"
+    # at the limit there is nothing hidden, so nothing is marked
+    assert counted_list(["a", "b", "c"], 3) == "a, b, c"
+    # the space-joined inject keeps its separator on the marker too
+    assert counted_list(["k1", "k2", "k3", "k4"], 3, noun="key", sep=" ") == \
+        "k1 k2 k3 … (+1 more key)"
+
+
+def test_issue_summary_is_the_semicolon_form_of_counted_list():
+    """One helper behind E-195 and E-196, so the conventions cannot drift."""
+    from modules.utils import issue_summary
+    assert issue_summary(["a", "b"], 5) == "a; b"
+    assert issue_summary([f"i{n}" for n in range(4)], 3) == "i0; i1; i2; … (+1 more issue)"

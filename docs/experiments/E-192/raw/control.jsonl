@@ -1,0 +1,10 @@
+{"broken": true, "probe": "token_whole_or_absent", "ok": true, "detail": "preview='s/segment/notes/segment/notes/segment/no'"}
+{"broken": true, "probe": "elision_marked_not_silent", "ok": false, "detail": "preview='s/segment/notes/segment/notes/segment/no'"}
+{"broken": true, "probe": "cut_lands_on_a_boundary", "ok": false, "detail": "body='/notes/segment/notes/segment/n'"}
+{"broken": true, "probe": "short_alert_verbatim", "ok": true, "detail": "preview='deploy finished: ok'"}
+{"broken": true, "probe": "preview_within_bound", "ok": true, "detail": "len=160"}
+{"broken": true, "probe": "more_count_preserved", "ok": true, "detail": "reason='/prefix/hooks/scripts/blackboard.py consume --channel stop`.'"}
+{"broken": true, "probe": "unclosed_bracket_dropped_whole", "ok": true, "detail": "preview=' w w w w w w w w w w w w w w w w w w w w'"}
+{"broken": true, "probe": "path_dropped_whole", "ok": false, "detail": "preview='s/segment/notes/segment/notes/segment/no'"}
+{"broken": true, "probe": "report_only_still_allows", "ok": true, "detail": "decision=allow"}
+{"broken": true, "probe": "shared_cutter_equality", "ok": false, "detail": "preview == brief_text(text, 160)"}

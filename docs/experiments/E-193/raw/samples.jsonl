@@ -1,0 +1,10 @@
+{"broken": false, "probe": "task_quote_not_cut_mid_word", "ok": true, "detail": "quote='- [ ] wire the release path…'"}
+{"broken": false, "probe": "task_quote_elision_marked", "ok": true, "detail": "quote='- [ ] wire the release path…'"}
+{"broken": false, "probe": "task_quote_cut_on_a_boundary", "ok": true, "detail": "body='- [ ] wire the release path'"}
+{"broken": false, "probe": "task_quote_token_whole_or_absent", "ok": true, "detail": "quote='- [ ] wire the release path…'"}
+{"broken": false, "probe": "short_quote_verbatim", "ok": true, "detail": "reason='hout AC reference: - [ ] second task with E-900 ref → AC-901'"}
+{"broken": false, "probe": "dod_quote_bounded_the_same_way", "ok": true, "detail": "issues=['ut identifier: - [ ] ship the release bundle…', ' Verify field: - [ ] ship the release bundle…']"}
+{"broken": false, "probe": "dod_token_whole_or_absent", "ok": true, "detail": "issues=['e w w w w w w w w w w w w w w w w w w w…', 'e w w w w w w w w w w w w w w w w w w w…']"}
+{"broken": false, "probe": "quote_within_bound", "ok": true, "detail": "len=28"}
+{"broken": false, "probe": "shared_cutter_equality", "ok": true, "detail": "quote == brief_text(task, 60)"}
+{"broken": false, "probe": "denial_still_denies", "ok": true, "detail": "reason='AC-001: missing Type field; AC-001: miss'"}

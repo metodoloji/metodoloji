@@ -429,6 +429,39 @@ def test_stop_no_plan_note_for_free_zone_writes(tmp_path, monkeypatch):
     assert stop({}) == {"decision": "allow"}
 
 
+TOKEN = "GATE-OK-E-191-ffd473aac263a0ce20b3aee288b5a2e2"
+
+
+def test_stop_alert_preview_is_marked_not_silently_chopped(tmp_path, monkeypatch):
+    """E-192: the stop note sliced a routed alert at [:160] with no marker, so a
+    live report read `…notes/segment/no — clear with …` — text cut mid-path and
+    shortened invisibly. The preview now goes through the shared cutter: the cut
+    lands on a boundary, a token is whole or absent, and `…` says shortened."""
+    from modules import blackboard as bb
+    long_text = ("release run finished and the report is ready: "
+                 + "notes/segment/" * 9 + f"report.md ({TOKEN}) — verify")
+    bb.post_alert(str(tmp_path), "stop", "info", long_text)
+    _env(tmp_path, monkeypatch)
+    reason = stop({}).get("reason", "")
+    assert "routed alert(s) on the stop channel" in reason
+    assert TOKEN[:20] not in reason          # never a half token ...
+    assert "…" in reason                     # ... and the cut is visible
+    preview = reason.split("stop channel: ", 1)[1].split(" — clear with", 1)[0]
+    assert preview.endswith("…")
+    body = preview[:-1]
+    assert long_text.startswith(body)            # a true prefix, not a reflow
+    assert long_text[len(body)] in " \t\n—–-:;,/|("  # the cut is on a boundary
+
+
+def test_stop_alert_short_text_prints_verbatim(tmp_path, monkeypatch):
+    """The bound only applies when it must: a short baton is not marked."""
+    from modules import blackboard as bb
+    bb.post_alert(str(tmp_path), "stop", "info", "deploy finished: ok")
+    _env(tmp_path, monkeypatch)
+    reason = stop({}).get("reason", "")
+    assert "stop channel: deploy finished: ok — clear with" in reason
+
+
 def _main_stop(project_root, payload):
     import subprocess
     env = dict(os.environ)
@@ -881,3 +914,46 @@ def test_main_handler_crash_still_decides(monkeypatch, capsys):
         out = json.loads(capsys.readouterr().out)
         assert check(out), (mode, out)
         assert "hookEventName" in out.get("hookSpecificOutput", {}), (mode, out)
+
+
+def test_stop_report_counts_the_stale_handoffs_it_hides(tmp_path, monkeypatch):
+    """E-196: the stop note named five flagged signals out of eight.
+
+    Live report, 2026-11-22, with four unknown hand-offs posted to each of two
+    methodology stages: `BUT: E-001 …, E-002 …, E-003 …, E-004 …, E-001 … may
+    no longer apply` — five names, no marker, and two of them dropped by a
+    per-skill `[:3]` before the outer bound of five was even reached. The note
+    now collects every flagged signal, bounds the join once, and counts the
+    rest.
+    """
+    from modules import blackboard as bb
+
+    def fake_pending(_root, skill):
+        if skill not in ("bmad-sprint-planning", "bmad-create-story"):
+            return []
+        return [{"run_key": f"E-00{n}", "verdict": "UNKNOWN", "skill": skill}
+                for n in range(1, 5)]
+
+    monkeypatch.setattr(bb, "pending_handoffs", fake_pending)
+    _env(tmp_path, monkeypatch)
+    reason = stop({}).get("reason", "")
+    assert "8 unclaimed signal(s)" in reason
+    but = reason.split("BUT: ", 1)[1].split(" may no longer apply", 1)[0]
+    named = [f"E-00{n}" for n in range(1, 5)]
+    assert sum(but.count(k) for k in named) == 5      # the visible bound
+    assert but.endswith("… (+3 more signals)")        # the rest is counted
+
+
+def test_stop_report_prints_a_short_stale_list_verbatim(tmp_path, monkeypatch):
+    from modules import blackboard as bb
+
+    def fake_pending(_root, skill):
+        if skill != "bmad-sprint-planning":
+            return []
+        return [{"run_key": "E-001", "verdict": "STALE", "skill": skill}]
+
+    monkeypatch.setattr(bb, "pending_handoffs", fake_pending)
+    _env(tmp_path, monkeypatch)
+    reason = stop({}).get("reason", "")
+    assert "E-001 (STALE, for bmad-sprint-planning) may no longer apply" in reason
+    assert "more signal" not in reason

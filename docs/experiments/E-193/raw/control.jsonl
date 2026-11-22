@@ -1,0 +1,10 @@
+{"broken": true, "probe": "task_quote_not_cut_mid_word", "ok": false, "detail": "quote='- [ ] wire the release path docs/planning/implementation-rea...'"}
+{"broken": true, "probe": "task_quote_elision_marked", "ok": false, "detail": "quote='- [ ] wire the release path docs/planning/implementation-rea...'"}
+{"broken": true, "probe": "task_quote_cut_on_a_boundary", "ok": false, "detail": "body='- [ ] wire the release path docs/planning/implementation-rea..'"}
+{"broken": true, "probe": "task_quote_token_whole_or_absent", "ok": true, "detail": "quote='- [ ] wire the release path docs/planning/implementation-rea...'"}
+{"broken": true, "probe": "short_quote_verbatim", "ok": false, "detail": "reason='t AC reference: - [ ] second task with E-900 ref → AC-901...'"}
+{"broken": true, "probe": "dod_quote_bounded_the_same_way", "ok": false, "detail": "issues=['ease bundle docs/planning/implementation-r...', 'ease bundle docs/planning/implementation-r...']"}
+{"broken": true, "probe": "dod_token_whole_or_absent", "ok": true, "detail": "issues=[' w w w w w w w w w w w w w w w w w w ...', ' w w w w w w w w w w w w w w w w w w ...']"}
+{"broken": true, "probe": "quote_within_bound", "ok": false, "detail": "len=63"}
+{"broken": true, "probe": "shared_cutter_equality", "ok": false, "detail": "quote == brief_text(task, 60)"}
+{"broken": true, "probe": "denial_still_denies", "ok": true, "detail": "reason='AC-001: missing Type field; AC-001: miss'"}

@@ -417,6 +417,69 @@ def test_validate_story_metadata_missing_fields():
     assert "missing Type field" in reason
 
 
+def test_task_quote_is_bounded_on_a_boundary_not_mid_word():
+    """E-193: the denial quoted the task with `[:60] + "..."`, so a live reason
+    read `…docs/planning/implementation-rea...` — cut mid-word, dropping the AC
+    id or gate token that followed. The quote now uses the shared cutter: the
+    cut lands on a boundary, a token stays whole or disappears, and `…` marks
+    the elision. A quote that fits prints verbatim, without a fake ellipsis."""
+    from modules.guard import _validate_story_metadata
+    token = "GATE-OK-E-192-02810bde1da438c02f9d1bafa129ba50"
+    long_task = ("- [ ] wire the release path "
+                 "docs/planning/implementation-readiness-report.md "
+                 f"({token}) into the gate")
+    short_task = "- [ ] second task with E-900 ref → AC-901"
+    content = ("## Story: S-001\n## Technical Tasks\n"
+               f"{long_task}\n{short_task}\n## Acceptance Criteria\n"
+               "- [AC-001] Given X When Y Then Z\n")
+    valid, reason = _validate_story_metadata(content)
+    assert valid is False
+    assert "implementation-rea…" not in reason        # no mid-word cut
+    assert "implementation-rea..." not in reason      # old bare-dots cut gone
+    assert "implementation-readi" not in reason       # path dropped whole
+    assert "release path…" in reason                  # cut on a boundary, marked
+    assert token[:20] not in reason                   # token never half
+    assert short_task in reason                       # fits: verbatim, no "…"
+    assert "AC-901..." not in reason
+
+
+def test_dod_issue_quotes_are_bounded_the_same_way():
+    """The DoD details share guard's message family, so they share the cutter."""
+    from modules.utils import dod_issues
+    issues = dod_issues("- [ ] ship the release bundle docs/planning/"
+                        "implementation-readiness-report.md without identifier\n")
+    assert issues
+    assert all("implementation-rea" not in issue for issue in issues)
+    assert all(issue.endswith("…") for issue in issues)
+    assert all("bundle…" in issue for issue in issues)
+
+
+def test_metadata_denial_names_the_issues_it_hid():
+    """E-195: `"; ".join(issues[:5])` printed five of twenty-four with no sign
+    of the rest, so a blocked write read fully explained. The remainder is now
+    counted."""
+    from modules.guard import _validate_story_metadata
+    acs = "\n".join(f"- [AC-{i:03d}] Given X When Y Then Z" for i in range(1, 9))
+    content = ("## Story: S-001\n## Technical Tasks\n- [ ] task one → AC-001\n"
+               f"## Acceptance Criteria\n{acs}\n")
+    valid, reason = _validate_story_metadata(content)
+    assert valid is False
+    shown = reason.count(": missing")
+    hidden = int(reason.rsplit("(+", 1)[1].split(" ", 1)[0])
+    assert shown == 5                       # the visible bound is unchanged
+    assert hidden >= 19                     # 8 ACs x 3 fields, all named as hidden
+    assert reason.endswith("more issues)")
+
+
+def test_issue_summary_counts_the_remainder():
+    from modules.utils import issue_summary
+    assert issue_summary(["a", "b"], 5) == "a; b"            # nothing hidden
+    assert issue_summary([f"i{n}" for n in range(5)], 5) == "i0; i1; i2; i3; i4"
+    assert issue_summary([f"i{n}" for n in range(6)], 5) == \
+        "i0; i1; i2; i3; i4; … (+1 more issue)"
+    assert issue_summary([f"i{n}" for n in range(9)], 3).endswith("(+6 more issues)")
+
+
 def test_validate_story_metadata_ok():
     from modules.guard import _validate_story_metadata
     content = """## Story: S-001

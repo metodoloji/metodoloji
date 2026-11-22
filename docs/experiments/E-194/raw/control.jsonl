@@ -1,0 +1,10 @@
+{"broken": true, "probe": "shown_lines_are_verbatim", "ok": false, "detail": "shown=7"}
+{"broken": true, "probe": "hidden_count_named", "ok": false, "detail": "marker='  - missing or p'"}
+{"broken": true, "probe": "total_lines_accounted", "ok": false, "detail": "shown=6 hidden=-1 raw=13"}
+{"broken": true, "probe": "marker_is_its_own_line", "ok": false, "detail": "last='  - missing or p'"}
+{"broken": true, "probe": "excerpt_within_bound", "ok": true, "detail": "body_len=300"}
+{"broken": true, "probe": "short_fault_list_verbatim", "ok": true, "detail": "message=\"t)\\n  - Status '—' is not one of planned, completed, REJECTED\""}
+{"broken": true, "probe": "no_mid_word_fragment", "ok": false, "detail": "tail='  - missing or p'"}
+{"broken": true, "probe": "check_fails_closed", "ok": true, "detail": "rc=1"}
+{"broken": true, "probe": "both_failure_paths_use_the_excerpt", "ok": false, "detail": "sites=0"}
+{"broken": true, "probe": "raw_slice_gone", "ok": false, "detail": "raw_slice=present"}

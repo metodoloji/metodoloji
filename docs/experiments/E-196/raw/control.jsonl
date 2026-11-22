@@ -1,0 +1,10 @@
+{"broken": true, "probe": "remainder_counted", "ok": false, "detail": "utils.counted_list absent in this tree"}
+{"broken": true, "probe": "visible_bound_kept", "ok": false, "detail": "utils.counted_list absent in this tree"}
+{"broken": true, "probe": "singular_and_plural", "ok": false, "detail": "utils.counted_list absent in this tree"}
+{"broken": true, "probe": "at_limit_unmarked", "ok": false, "detail": "utils.counted_list absent in this tree"}
+{"broken": true, "probe": "short_list_verbatim", "ok": false, "detail": "utils.counted_list absent in this tree"}
+{"broken": true, "probe": "separator_preserved", "ok": false, "detail": "utils.counted_list absent in this tree"}
+{"broken": true, "probe": "issue_summary_unchanged", "ok": false, "detail": "utils.counted_list absent in this tree"}
+{"broken": true, "probe": "stop_report_counts_live", "ok": false, "detail": "but='E-001 (UNKNOWN, for bmad-sprint-planning), E-002 (UNKNOWN, for bmad-sprint-planning), E-003 (UNKNOWN, for bmad-sprint-pl'"}
+{"broken": true, "probe": "inject_counts_live", "ok": false, "detail": "note='4 of them carry no code-state anchor (UNKNOWN: E-001, E-002, E-003) — verify before obeyin'"}
+{"broken": true, "probe": "no_raw_slice_left", "ok": false, "detail": "no raw claim-list slice remains"}

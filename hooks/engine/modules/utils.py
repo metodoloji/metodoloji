@@ -984,6 +984,37 @@ def brief_text(text: str, limit: int) -> str:
     return cut + "…"
 
 
+def counted_list(items: list[str], limit: int, *, noun: str = "item",
+                 sep: str = ", ") -> str:
+    """Join `items`, NAME the ones the bound hid, and keep the count exact.
+
+    A list printed with a silent slice is a claim about the whole list (E-195
+    in the story denials, E-196 in the stop report's stale hand-offs): the
+    reader cannot tell "these are all of them" from "these are the first few",
+    so a bounded list must carry its remainder in the same `… (+N more X)`
+    convention the chain gate and the stop report already use. One helper, so
+    a new bounded list cannot inherit the silence by slicing around it.
+    """
+    items = [str(item) for item in items]
+    if len(items) <= limit:
+        return sep.join(items)
+    hidden = len(items) - limit
+    return (sep.join(items[:limit])
+            + f"{sep}… (+{hidden} more {noun}{'' if hidden == 1 else 's'})")
+
+
+def issue_summary(issues: list[str], limit: int) -> str:
+    """Join a denial's issues and NAME the ones the bound hid (E-195).
+
+    Both story validators printed `"; ".join(issues[:5])` / `[:3]`: a live
+    denial listed five of twenty-four with no sign that more existed, so a
+    blocked write read as fully explained and the agent fixed five, retried,
+    and met the next five. A truncated list is a claim about the whole list; the
+    remainder is counted through the shared list helper.
+    """
+    return counted_list(issues, limit, noun="issue", sep="; ")
+
+
 def plugin_script_cmd(script: str, *args: str) -> str:
     """A runnable command for one of the PLUGIN's own scripts (E-029/E-033).
 
@@ -1142,11 +1173,14 @@ def dod_issues(text: str, *, qr: bool = False) -> list[str]:
     """
     issues: list[str] = []
     for item in scan_dod_items(text, qr=qr):
-        first = item["first"]
+        # E-193: these denial details used `first[:60] + "..."`, the same
+        # mid-word cut guard's task quotes had; quote through `brief_text` so a
+        # token in the item is whole or absent and the elision is marked.
+        first = brief_text(item["first"], 60)
         if not item["has_identifier"]:
-            issues.append(f"DoD item without identifier: {first[:60]}...")
+            issues.append(f"DoD item without identifier: {first}")
         if not item["has_verification"]:
-            issues.append(f"DoD item missing Verify field: {first[:60]}...")
+            issues.append(f"DoD item missing Verify field: {first}")
     return issues
 
 
