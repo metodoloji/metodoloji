@@ -561,20 +561,21 @@ def _workflow_offer(root: str) -> str:
             if not sid or sid.lower() in runs:
                 continue
             rows.append((sid, status))
-            if len(rows) > _OFFER_LIMIT:
-                break
+            # E-213: the scan used to stop one row past the bound, so the tail
+            # could only ever say `(+1 more)` — five in-flight stories with no
+            # run read as three, and the marker named no unit. Count the whole
+            # set (the files are read anyway) and let counted_list state it.
     except Exception:
         return ""
     if not rows:
         return ""
     from .utils import plugin_script_cmd
-    shown = ", ".join(f"{sid} ({status})" for sid, status in rows[:_OFFER_LIMIT])
+    shown = counted_list([f"{sid} ({status})" for sid, status in rows],
+                         _OFFER_LIMIT, noun="story")
     commands = "; ".join(
         f"`{plugin_script_cmd('hooks/scripts/workflow.py', 'adopt', '--story', sid)}`"
         for sid, _status in rows[:_OFFER_LIMIT])
-    extra = (f" (+{len(rows) - _OFFER_LIMIT} more)"
-             if len(rows) > _OFFER_LIMIT else "")
-    return (f"PROACTIVE — no declared workflow run for {shown}{extra}: "
+    return (f"PROACTIVE — no declared workflow run for {shown}: "
             f"the story record already declares the run, so open it with "
             f"{commands}.")
 

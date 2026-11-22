@@ -456,6 +456,29 @@ def test_session_start_offers_the_run_an_in_flight_story_declares(tmp_path, monk
     assert not list((tmp_path / ".metodoloji" / "workflow").glob("*.state.json"))
 
 
+def _offer_many_stories(tmp_path, count: int) -> None:
+    stories = tmp_path / "docs" / "development" / "stories"
+    stories.mkdir(parents=True, exist_ok=True)
+    for n in range(101, 101 + count):
+        (stories / f"S-{n}.md").write_text(
+            f"# Story: S-{n} — demo\n\n- **Status:** in-progress\n",
+            encoding="utf-8")
+
+
+def test_session_start_offer_counts_every_story_the_bound_withholds(tmp_path, monkeypatch):
+    """E-213: the scan broke one row past the bound, so five stories read +1."""
+    _offer_many_stories(tmp_path, 5)
+    ctx = _offer_context(tmp_path, monkeypatch)
+    assert "… (+3 more stories)" in ctx
+    assert "(+1 more)" not in ctx
+
+
+def test_session_start_offer_names_one_withheld_story_in_the_singular(tmp_path, monkeypatch):
+    _offer_many_stories(tmp_path, 3)
+    ctx = _offer_context(tmp_path, monkeypatch)
+    assert "… (+1 more story)" in ctx
+
+
 def test_session_start_offer_is_silent_once_a_run_exists(tmp_path, monkeypatch):
     import subprocess, sys, pathlib
     _offer_project(tmp_path)
