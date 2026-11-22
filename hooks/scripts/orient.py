@@ -366,7 +366,7 @@ def install_digest() -> dict:
             try:
                 if not base.is_dir():
                     continue
-                for entry in sorted(base.iterdir(), key=lambda q: q.name)[:5]:
+                for entry in sorted(base.iterdir(), key=lambda q: q.name):
                     try:
                         if entry.is_dir():
                             found.append(str(entry))
@@ -390,7 +390,8 @@ def install_digest() -> dict:
         if not same:
             shadows.append(f)
     return {"available": True, "canonical": canonical,
-            "found": found, "duplicate": bool(shadows), "shadows": shadows}
+            "found": found, "duplicate": bool(shadows), "shadows": shadows,
+            "shadow_count": len(shadows)}
 
 
 _HOT_ID_RE = re.compile(r"^([A-Z]+)-(\d+)$")
@@ -457,6 +458,28 @@ _STAGE_RERUN_SKILL = {"IR": "bmad-check-implementation-readiness",
                       "PR": "bmad-production-readiness"}
 _MAX_STALE_WALK = 2000
 _REPORT_REF_RE = re.compile(r"report:\s*([^\s—]+)")
+
+
+def _named(items: list[str], limit: int, noun: str) -> str:
+    """Name at most `limit` items and count the remainder (E-203).
+
+    A bounded list reads as the whole list unless it says otherwise. Two
+    surfaces here printed three shadow installs of however many the scan
+    found, so a home with eight cache copies looked like three. The repo's
+    `counted_list` owns the convention; the local fallback keeps the marker
+    if the engine import fails, so a digest never goes silent.
+    """
+    try:
+        sys.path.insert(0, str(_PLUGIN_ROOT / "hooks" / "engine"))
+        from modules.utils import counted_list  # noqa: PLC0415
+        return counted_list(items, limit, noun=noun)
+    except Exception:
+        pass
+    shown = ", ".join(items[:limit])
+    rest = len(items) - limit
+    if rest <= 0:
+        return shown
+    return f"{shown}, … (+{rest} more {noun}{'' if rest == 1 else 's'})"
 
 
 def _clip(text: str, limit: int = _PREVIEW_CHARS) -> str:
@@ -716,9 +739,9 @@ def build(project_root: pathlib.Path) -> dict:
             f"{{project-root}}/docs/config.toml so run folders and record headers "
             f"name YOUR project, not the plugin default")
     if installs.get("duplicate"):
-        shadows = ", ".join((installs.get("shadows") or [])[:3])
+        shadows = _named(installs.get("shadows") or [], 3, "shadow install")
         next_steps.append(
-            f"duplicate plugin installs shadow this checkout ({shadows}) — "
+            f"duplicate plugin installs shadow this checkout: {shadows} — "
             f"use canonical {installs.get('canonical')} verbatim; never "
             f"cat skills/docs from cache paths and never `find /` for the root")
     if handoffs.get("waiting"):
@@ -1028,7 +1051,7 @@ def _print_text(digest: dict) -> None:
     installs = digest.get("installs") or {}
     if installs.get("duplicate"):
         print(f"  installs        : DUPLICATE — shadows: "
-              f"{', '.join((installs.get('shadows') or [])[:3])}")
+              f"{_named(installs.get('shadows') or [], 3, 'shadow install')}")
         print(f"                    → canonical is {installs.get('canonical')}; "
               f"never read skills/docs from cache paths, never `find /`")
     skeleton = digest["skeleton"]

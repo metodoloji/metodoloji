@@ -343,6 +343,64 @@ def test_quality_gate_reports_the_freshness_row(repo, monkeypatch):
     assert res.get("decision") in (None, "allow") or "FRESHNESS" in res.get("reason", "")
 
 
+def test_the_freshness_row_counts_the_approvals_it_withholds(repo, monkeypatch):
+    """E-204: five stale approvals, three names — and a reader who retired
+    three was denied again by the two the line never mentioned."""
+    from modules import guard as guard_mod
+    exp = repo / "docs" / "experiments"
+    for i in range(2, 5):
+        (exp / f"E-90{i}.md").write_text(
+            f"## Experiment: E-90{i} — fixture\n- **Decision:** APPROVED — fixture\n",
+            encoding="utf-8")
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(repo))
+    monkeypatch.delenv("OPENHANDS_PROJECT_DIR", raising=False)
+
+    def _stale(root, rec):
+        return {"verdict": fr.STALE, "reason": "moved", "changed": [],
+                "age_s": 1.0, "commit": "deadbeef",
+                "record": pathlib.Path(rec).name}
+
+    monkeypatch.setattr(guard_mod, "_record_freshness", _stale)
+    monkeypatch.setattr(fr, "blocks", lambda v: str(v).upper() == fr.STALE)
+    blocked = guard_mod._freshness_chain_row(str(repo), "git commit blocked")
+    assert blocked["decision"] == "deny"
+    reason = blocked["reason"]
+    assert "5 approval(s) the code moved past" in reason
+    assert "… (+2 more approvals)" in reason
+    assert "E-904" not in reason
+    monkeypatch.setattr(fr, "blocks", lambda v: False)
+    warned = guard_mod._freshness_chain_row(str(repo), "git commit")
+    assert warned["decision"] == "allow"
+    assert "… (+2 more approvals)" in warned["methodology_warnings"][0]
+
+
+def test_the_freshness_row_reports_the_records_it_did_not_read(repo, monkeypatch):
+    """E-205: past the cap an approval is neither CURRENT nor STALE, just
+    unvisited — the row used to stop without a word.
+
+    Live on 2026-11-22: a 600-record project made the row read 500 and report
+    as if the corpus ended there.
+    """
+    from modules import guard as guard_mod
+    exp = repo / "docs" / "experiments"
+    for i in range(10, 600):
+        (exp / f"E-{i}").with_suffix(".md").write_text(
+            f"## Experiment: E-{i} — fixture\n- **Decision:** APPROVED — fixture\n",
+            encoding="utf-8")
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(repo))
+    monkeypatch.delenv("OPENHANDS_PROJECT_DIR", raising=False)
+    monkeypatch.setattr(guard_mod, "_record_freshness",
+                        lambda root, rec: {"verdict": fr.CURRENT, "reason": "same",
+                                           "changed": [], "age_s": 1.0,
+                                           "commit": "deadbeef",
+                                           "record": pathlib.Path(rec).name})
+    row = guard_mod._freshness_chain_row(str(repo), "git commit")
+    assert row["decision"] == "allow"
+    note = next(w for w in row["methodology_warnings"] if w.startswith("FRESHNESS SCAN"))
+    assert "cap 500" in note and "not measured" in note
+    assert f"read {guard_mod._FRESHNESS_ROW_MAX_RECORDS} of" in note
+
+
 def test_quality_gate_blocks_when_the_operator_asked_for_deny(repo, monkeypatch):
     """`[hooks] freshness = deny` turns the same row into a block.
 

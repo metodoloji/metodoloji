@@ -1,0 +1,7 @@
+{"broken": false, "probe": "cap_note_in_warn", "ok": true, "detail": "note='FRESHNESS SCAN: read 500 of 600 record files (cap 500); the other 100 were not measured, s'"}
+{"broken": false, "probe": "cap_note_in_deny", "ok": true, "detail": "decision=deny"}
+{"broken": false, "probe": "cap_note_in_empty_scan", "ok": true, "detail": "note='FRESHNESS SCAN: read 500 of 600 record files (cap 500); the other 100 were not measured, s'"}
+{"broken": false, "probe": "under_cap_silent", "ok": true, "detail": "warnings=1"}
+{"broken": false, "probe": "count_matches", "ok": true, "detail": "hidden=100"}
+{"broken": false, "probe": "cap_value_stated", "ok": true, "detail": "text_has_cap=True"}
+{"broken": false, "probe": "decisions_unchanged", "ok": true, "detail": "warn=allow deny=deny"}

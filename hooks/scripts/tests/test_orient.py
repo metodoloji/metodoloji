@@ -481,6 +481,30 @@ def test_install_digest_flags_shadow_copy(tmp_path, monkeypatch):
     assert d["canonical"] == str(orient._PLUGIN_ROOT)
 
 
+def test_install_digest_finds_every_copy_and_the_step_counts_them(
+        tmp_path, monkeypatch):
+    """E-203: eight cache copies scanned five (the slice), and both surfaces
+    printed three with no marker. The scan is whole and the list counts."""
+    home = tmp_path / "home"
+    base = home / ".claude" / "plugins" / "cache" / "yunusgungor" / "metodoloji"
+    for i in range(8):
+        (base / f"0.3.{i}").mkdir(parents=True)
+    monkeypatch.setattr(orient.pathlib.Path, "home", lambda: home)
+    d = orient.install_digest()
+    assert d["shadow_count"] == len(d["shadows"]) == 8
+    steps = orient.build(tmp_path)["next_steps"]
+    step = next(s for s in steps if "duplicate plugin installs" in s)
+    assert "… (+5 more shadow installs)" in step
+    assert "0.3.2" in step and "0.3, " not in step
+    single = tmp_path / "single"
+    cache = single / ".claude" / "plugins" / "cache" / "yunusgungor" / "metodoloji"
+    (cache / "0.3.9").mkdir(parents=True)
+    monkeypatch.setattr(orient.pathlib.Path, "home", lambda: single)
+    one = next(s for s in orient.build(tmp_path)["next_steps"]
+               if "duplicate plugin installs" in s)
+    assert "(+1 more" not in one and "…" not in one
+
+
 def test_build_carries_docs_and_installs_keys(tmp_path, monkeypatch):
     """build() always carries the docs + installs sections (fail-open values)."""
     monkeypatch.setattr(orient.pathlib.Path, "home", lambda: tmp_path)

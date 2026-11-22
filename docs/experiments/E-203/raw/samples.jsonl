@@ -1,0 +1,7 @@
+{"broken": false, "probe": "scan_finds_every_copy", "ok": true, "detail": "found=8 shadows=8"}
+{"broken": false, "probe": "count_matches", "ok": true, "detail": "count=8"}
+{"broken": false, "probe": "step_counts_remainder", "ok": true, "detail": "tail='never cat skills/docs from cache paths and never `find /` for the root'"}
+{"broken": false, "probe": "render_counts_remainder", "ok": true, "detail": "tail=['he/yunusgungor/metodoloji/0.3.2, … (+5 more shadow installs)']"}
+{"broken": false, "probe": "step_names_three", "ok": true, "detail": "named=3"}
+{"broken": false, "probe": "single_copy_unmarked", "ok": true, "detail": "step_len=244"}
+{"broken": false, "probe": "canonical_copy_not_a_shadow", "ok": true, "detail": "duplicate=False count=0"}

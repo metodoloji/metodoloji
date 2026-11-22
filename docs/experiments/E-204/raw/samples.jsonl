@@ -1,0 +1,8 @@
+{"broken": false, "probe": "warn_counts_remainder", "ok": true, "detail": "tail='not a block: `[hooks] freshness = deny` / `[freshness] unknown_policy = deny` make it one.'"}
+{"broken": false, "probe": "deny_counts_remainder", "ok": true, "detail": "tail='d, or retire the old one (blackboard.py handoff-retire) so the claim stops unlocking code.'"}
+{"broken": false, "probe": "deny_names_three", "ok": true, "detail": "named=['E-900', 'E-901', 'E-902']"}
+{"broken": false, "probe": "warn_names_three", "ok": true, "detail": "named=['E-900', 'E-901', 'E-902']"}
+{"broken": false, "probe": "two_records_unmarked", "ok": true, "detail": "text='s = deny` / `[freshness] unknown_policy = deny` make it one.'"}
+{"broken": false, "probe": "counts_stated", "ok": true, "detail": "tail='FRESHNESS: 5 approval(s) the code moved past, 0 unverifiable'"}
+{"broken": false, "probe": "warn_stays_allow", "ok": true, "detail": "decision=allow"}
+{"broken": false, "probe": "arithmetic_matches", "ok": true, "detail": "named=3 hidden=2"}

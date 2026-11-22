@@ -1,0 +1,7 @@
+{"broken": true, "probe": "cap_note_in_warn", "ok": false, "detail": "note=''"}
+{"broken": true, "probe": "cap_note_in_deny", "ok": false, "detail": "decision=deny"}
+{"broken": true, "probe": "cap_note_in_empty_scan", "ok": false, "detail": "note=''"}
+{"broken": true, "probe": "under_cap_silent", "ok": true, "detail": "warnings=1"}
+{"broken": true, "probe": "count_matches", "ok": false, "detail": "hidden=100"}
+{"broken": true, "probe": "cap_value_stated", "ok": false, "detail": "text_has_cap=False"}
+{"broken": true, "probe": "decisions_unchanged", "ok": true, "detail": "warn=allow deny=deny"}

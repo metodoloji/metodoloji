@@ -13,7 +13,8 @@ from typing import Any
 
 from .config import (GATE_DIR, SCOPE_GIT_TIMEOUT_SECONDS, _BMD_DIR,
                      _KEY_ACCESS_IN_CONTENT, hook_gate_mode, story_status)
-from .utils import (is_code_target, is_free, norm_path, normalize_hook_input,
+from .utils import (counted_list, is_code_target, is_free, norm_path,
+                    normalize_hook_input,
                     rel_to_root, repo_root, extract_story_key_from_content,
                     brief_text, dod_issues, _VERIFY_FIELD_RE)  # noqa: F401 — compatibility imports
 from .bash_targets import extract_bash_targets, extract_bash_targets_ex  # noqa: F401
@@ -850,6 +851,12 @@ def _freshness_chain_row(root: str, blocked_action: str) -> dict:
         # that reports those approvals must not skip a legacy/archived one.
         e_records = [p for p in state_mod.record_scan_files(root)
                      if state_mod.record_id_of_stem(p.stem).startswith("E-")]
+        # E-205: the cap below keeps the hot commit path cheap, but it used to
+        # stop without a word — an approval past it was neither CURRENT nor
+        # STALE, just unvisited, and the row read as complete. Count what the
+        # scan did not reach and say so on both branches.
+        total_records = len(e_records)
+        e_records = e_records[:_FRESHNESS_ROW_MAX_RECORDS]
         with fr.batch():
             for rec in sorted(e_records)[:_FRESHNESS_ROW_MAX_RECORDS]:
                 if rec.name == "_template.md":
@@ -871,7 +878,18 @@ def _freshness_chain_row(root: str, blocked_action: str) -> dict:
     except Exception:
         return {"decision": "allow"}
 
+    scan_note = ""
+    if total_records > len(e_records):
+        scan_note = (
+            f"read {len(e_records)} of {total_records} record files "
+            f"(cap {_FRESHNESS_ROW_MAX_RECORDS}); the other "
+            f"{total_records - len(e_records)} were not measured, so a stale "
+            f"approval past the cap stays invisible")
+
     if not stale and not unknown:
+        if scan_note:
+            return {"decision": "allow",
+                    "methodology_warnings": [f"FRESHNESS SCAN: {scan_note}."]}
         return {"decision": "allow"}
     try:
         from . import freshness as fr
@@ -881,24 +899,29 @@ def _freshness_chain_row(root: str, blocked_action: str) -> dict:
         stale_blocks = unknown_blocks = False
     if stale_blocks or unknown_blocks:
         parts = []
+        # E-204: both the block and the warning counted five approvals and
+        # named three, so the reader retired three and was denied again by the
+        # two the line never mentioned. The list counts what it withholds.
         if stale_blocks:
             parts.append(f"{len(stale)} approval(s) the code moved past: "
-                         + ", ".join(stale[:3]))
+                         + counted_list(stale, 3, noun="approval"))
         if unknown_blocks:
             parts.append(f"{len(unknown)} unverifiable approval(s): "
-                         + ", ".join(unknown[:3]))
+                         + counted_list(unknown, 3, noun="approval"))
         return {"decision": "deny",
                 "reason": (f"{blocked_action}: freshness denies — "
                            + "; ".join(parts)
                            + ". Re-measure in a new E record, or retire the "
                              "old one (blackboard.py handoff-retire) so the "
-                             "claim stops unlocking code.")}
-    shown = (stale + unknown)[:3]
+                             "claim stops unlocking code."
+                           + (f" Scan: {scan_note}." if scan_note else ""))}
+    shown = counted_list(stale + unknown, 3, noun="approval")
     return {"decision": "allow", "methodology_warnings": [
         f"FRESHNESS: {len(stale)} approval(s) the code moved past, "
-        f"{len(unknown)} unverifiable — " + ", ".join(shown)
+        f"{len(unknown)} unverifiable — " + shown
         + (". This is a report, not a block: `[hooks] freshness = deny` / "
-           "`[freshness] unknown_policy = deny` make it one.")]}
+           "`[freshness] unknown_policy = deny` make it one.")]
+        + ([f"FRESHNESS SCAN: {scan_note}."] if scan_note else [])}
 
 from .scope_gate import (  # noqa: F401 — stable guard compatibility exports
     _INSTRUMENT_PREFIXES, _STRUCTURAL_DIR, _STRUCTURAL_MIN_JUSTIFICATION)

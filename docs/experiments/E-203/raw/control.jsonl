@@ -1,0 +1,7 @@
+{"broken": true, "probe": "scan_finds_every_copy", "ok": false, "detail": "found=5 shadows=5"}
+{"broken": true, "probe": "count_matches", "ok": false, "detail": "count=None"}
+{"broken": true, "probe": "step_counts_remainder", "ok": false, "detail": "tail='never cat skills/docs from cache paths and never `find /` for the root'"}
+{"broken": true, "probe": "render_counts_remainder", "ok": false, "detail": "tail=['320c/home/.claude/plugins/cache/yunusgungor/metodoloji/0.3.2']"}
+{"broken": true, "probe": "step_names_three", "ok": true, "detail": "named=3"}
+{"broken": true, "probe": "single_copy_unmarked", "ok": true, "detail": "step_len=242"}
+{"broken": true, "probe": "canonical_copy_not_a_shadow", "ok": false, "detail": "duplicate=False count=None"}
