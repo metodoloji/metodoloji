@@ -1529,7 +1529,7 @@ def test_guard_verify_cache_skips_reverify(tmp_path, monkeypatch):
     assert len(calls) == 1
 
 
-def _stale_scope_message(tmp_path, monkeypatch, changed, reason="5 file(s) in the claim's scope changed since it was recorded"):
+def _stale_scope_message(tmp_path, monkeypatch, changed, reason="5 file(s) in the claim's scope changed since it was recorded", superseded_by=""):
     """Render the shipped STALE notice find_approved hands the write path."""
     import sys
     from modules.guard import find_approved, _VERIFY_CACHE
@@ -1544,6 +1544,7 @@ def _stale_scope_message(tmp_path, monkeypatch, changed, reason="5 file(s) in th
     monkeypatch.setattr(guard_mod, "record_scope_cached", lambda rec: "src/**")
     monkeypatch.setattr(guard_mod, "_record_freshness", lambda root, rec: {
         "verdict": "STALE", "reason": reason, "changed": list(changed),
+        "superseded_by": superseded_by,
         "commit": "0123456789abcdef0123", "record": "E-001.md"})
     # The denial message is the `[hooks] freshness = deny` path; under `warn`
     # the write proceeds with the short "(scope matched)" line and the verdict
@@ -1583,6 +1584,36 @@ def test_guard_stale_notice_keeps_the_code_state_wording_when_nothing_moved(tmp_
         reason="superseded by E-54 (cascade invalidation)")
     assert "(code state changed after approval" in detail
     assert "more path" not in detail
+
+
+def test_guard_stale_notice_names_a_supersede_without_claiming_code_moved(tmp_path, monkeypatch):
+    """E-210: live on E-117 the notice read "the code has moved past it:
+    superseded by E-118 … (code state changed after approval)" — the tree had
+    not moved, the record was re-measured — and it told the reader to add the
+    Re-Measured-By line E-117 already carried."""
+    detail = _stale_scope_message(
+        tmp_path, monkeypatch, [],
+        reason="superseded by E-118 (cascade invalidation)",
+        superseded_by="E-118")
+    assert "a later record supersedes it: superseded by E-118" in detail
+    assert "the code has moved past it" not in detail
+    assert "code state changed after approval" not in detail
+    assert "Re-Measured-By:** E-NNN" not in detail
+    assert "--amend-plan" in detail
+    assert "0123456789ab" not in detail  # no witness claim to make
+
+
+def test_guard_freshness_advice_does_not_ask_for_the_marker_that_superseded_it():
+    """The warn-mode line (the shipped default) carried the same wrong advice."""
+    from modules.guard import _freshness_advice
+    superseded = _freshness_advice(
+        {"verdict": "STALE", "reason": "superseded by E-118 (cascade invalidation)",
+         "superseded_by": "E-118"})
+    assert "Re-Measured-By" not in superseded
+    assert "--amend-plan" in superseded
+    drifted = _freshness_advice(
+        {"verdict": "STALE", "reason": "2 file(s) moved", "changed": ["a", "b"]})
+    assert "Re-Measured-By" in drifted and "--amend-plan" in drifted
 
 
 def test_guard_code_guard_soft_warns_not_denies(tmp_path, monkeypatch):

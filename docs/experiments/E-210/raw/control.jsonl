@@ -1,0 +1,6 @@
+{"broken": true, "probe": "supersede_is_named", "ok": false, "detail": "record /tmp/tmpajjgmony/docs/experiments/E-001.md is APPROVED and scope-matched, but the code has moved past it: superse"}
+{"broken": true, "probe": "no_code_moved_claim", "ok": false, "detail": "record /tmp/tmpfumjd60_/docs/experiments/E-001.md is APPROVED and scope-matched, but the code has moved past it: superse"}
+{"broken": true, "probe": "no_marker_advice", "ok": false, "detail": " or declare this file in the current record's plan (--amend-plan). [hooks] freshness = deny blocks stale; [freshness] unknown_policy = deny blocks unverifiable."}
+{"broken": true, "probe": "drift_keeps_the_code_moved_wording", "ok": true, "detail": "record /tmp/tmp6zh4vzec/docs/experiments/E-001.md is APPROVED and scope-matched, but the code has moved past it: 2 file(s) in the claim's scope changed since it"}
+{"broken": true, "probe": "warn_advice_is_supersede_aware", "ok": false, "detail": "AttributeError: module 'modules.guard' has no attribute '_freshness_advice'"}
+{"broken": true, "probe": "warn_advice_keeps_the_marker_remedy", "ok": false, "detail": "AttributeError: module 'modules.guard' has no attribute '_freshness_advice'"}

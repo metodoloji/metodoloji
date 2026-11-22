@@ -779,6 +779,25 @@ def _cached_verify(rec: str) -> tuple[int, str]:
         _VERIFY_CACHE[rec] = (key, rc, scope, time.time())
     return rc, scope
 
+def _freshness_advice(fresh: dict) -> str:
+    """The remedy a write-time freshness warning offers for one verdict.
+
+    A supersede verdict is not age or drift: the record carries the very
+    `Re-Measured-By` line the generic remedy tells the reader to add, so that
+    advice sent them in a circle (E-210). The remedy then is the operative
+    record, not a marker on the superseded one.
+    """
+    try:
+        from . import freshness as fr
+        stale = fresh.get("verdict") == fr.STALE
+    except Exception:
+        stale = False
+    if stale and fresh.get("superseded_by"):
+        return ("re-measure in a new E record, or plan this file in a "
+                "current record (--amend-plan)")
+    return ("re-measure it, add a `- **Re-Measured-By:**` line, or plan "
+            "this file in a current record (--amend-plan)")
+
 def _record_freshness(root: str, rec_path: str) -> dict | None:
     """Derived freshness of an APPROVED record (E-053), or None when unavailable.
 
@@ -807,6 +826,7 @@ def _record_freshness(root: str, rec_path: str) -> dict | None:
             pass
         return {"verdict": ann["verdict"], "reason": ann["reason"],
                 "changed": ann["changed"], "age_s": age_s,
+                "superseded_by": ann.get("superseded_by") or "",
                 "commit": ann.get("commit", ""), "record": path.name}
     except Exception:
         return None
@@ -1206,9 +1226,7 @@ def guard(json_in: dict) -> dict:
                 if not quiet:
                     _soft_warnings.append(
                         f"{rel}: {fresh['record']} is {fresh['verdict']} — "
-                        f"{fresh['reason']}; re-measure it, add a "
-                        f"`- **Re-Measured-By:**` line, or plan this file in a "
-                        f"current record (--amend-plan).")
+                        f"{fresh['reason']}; {_freshness_advice(fresh)}.")
             continue
         if not approved:
             # Staged instrument: a bench under a matching undecided record

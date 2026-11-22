@@ -1,0 +1,5 @@
+{"broken": false, "probe": "single_config_printed_once", "ok": true, "detail": "sources: project:./.mcp.json"}
+{"broken": false, "probe": "distinct_sources_counted", "ok": true, "detail": "sources: project:./.mcp.json, project:./.vscode/mcp.json, project:./.cursor/mcp.json, … (+2 more sources)"}
+{"broken": false, "probe": "small_source_set_whole", "ok": true, "detail": "sources: project:./.mcp.json, project:./.vscode/mcp.json, project:./.cursor/mcp.json"}
+{"broken": false, "probe": "steering_server_plural", "ok": true, "detail": "`srv1`, `srv2`, `srv3`, `srv4`, … (+2 more servers) — prefer"}
+{"broken": false, "probe": "steering_server_singular", "ok": true, "detail": "`srv1`, `srv2`, `srv3`, `srv4`, … (+1 more server) — prefer "}

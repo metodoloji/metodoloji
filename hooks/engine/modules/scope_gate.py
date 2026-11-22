@@ -88,31 +88,46 @@ def find_approved(target: str, recs_dir: str | None = None,
                     blocks = fr.blocks(fresh["verdict"])
                 except Exception:
                     blocks = False
-                if fresh["verdict"] == fr.STALE:
-                    # E-209: `fresh['changed'][:3]` dropped the rest of the
-                    # blast radius without saying so — a reader of the denial
-                    # saw three paths and "changed after approval" as the whole
-                    # story, while the STALE detail can carry hundreds.
-                    from .counting import counted_list
-                    moved = (counted_list(fresh["changed"], 3, noun="path")
-                             if fresh["changed"] else "code state")
-                    trouble = (
-                        f"but the code has moved past it: {fresh['reason']} "
-                        f"({moved} "
-                        f"changed after approval"
-                        f"{', witness ' + fresh['commit'][:12] if fresh['commit'] else ''}). ")
+                if (fresh["verdict"] == fr.STALE
+                        and fresh.get("superseded_by")):
+                    # E-210: a supersede carries no changed paths, so the
+                    # general wording below claimed the code had moved and
+                    # pointed at the Re-Measured-By line that already exists
+                    # and is exactly what made this record STALE.
+                    stale_msg = (
+                        f"record {rec} is APPROVED and scope-matched, "
+                        f"but a later record supersedes it: {fresh['reason']}. "
+                        f"Its decision is no longer operative — re-measure in a "
+                        f"new E record, or declare this file in the current "
+                        f"record's plan (--amend-plan). "
+                        f"[hooks] freshness = deny blocks stale; "
+                        f"[freshness] unknown_policy = deny blocks unverifiable.")
                 else:
-                    trouble = (f"but its code state cannot be established "
-                               f"here: {fresh['reason']}. ")
-                stale_msg = (
-                    f"record {rec} is APPROVED and scope-matched, "
-                    f"{trouble}"
-                    f"Re-measure in a new E record (add a plain "
-                    f"`- **Re-Measured-By:** E-NNN (date)` line to {rec.name}), or "
-                    f"declare this file in the current record's plan "
-                    f"(--amend-plan). "
-                    f"[hooks] freshness = deny blocks stale; "
-                    f"[freshness] unknown_policy = deny blocks unverifiable.")
+                    if fresh["verdict"] == fr.STALE:
+                        # E-209: `fresh['changed'][:3]` dropped the rest of the
+                        # blast radius without saying so — a reader of the denial
+                        # saw three paths and "changed after approval" as the
+                        # whole story, while the STALE detail can carry hundreds.
+                        from .counting import counted_list
+                        moved = (counted_list(fresh["changed"], 3, noun="path")
+                                 if fresh["changed"] else "code state")
+                        trouble = (
+                            f"but the code has moved past it: {fresh['reason']} "
+                            f"({moved} "
+                            f"changed after approval"
+                            f"{', witness ' + fresh['commit'][:12] if fresh['commit'] else ''}). ")
+                    else:
+                        trouble = (f"but its code state cannot be established "
+                                   f"here: {fresh['reason']}. ")
+                    stale_msg = (
+                        f"record {rec} is APPROVED and scope-matched, "
+                        f"{trouble}"
+                        f"Re-measure in a new E record (add a plain "
+                        f"`- **Re-Measured-By:** E-NNN (date)` line to {rec.name}), or "
+                        f"declare this file in the current record's plan "
+                        f"(--amend-plan). "
+                        f"[hooks] freshness = deny blocks stale; "
+                        f"[freshness] unknown_policy = deny blocks unverifiable.")
                 if blocks:
                     return False, stale_msg, fresh
                 return True, f"record {rec} (scope matched)", fresh

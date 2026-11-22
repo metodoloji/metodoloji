@@ -759,6 +759,21 @@ def test_counted_list_names_the_remainder_it_hid():
     assert sum(1 for n in range(1, 9) if f"E-00{n}" in out) == 5
 
 
+def test_counted_list_pluralises_a_consonant_y_noun():
+    """E-211 named the sprint line's story groups; `story` + `s` is `storys`.
+
+    The join appended a bare `s`, so the first y-noun it was asked for would
+    have shipped a misspelling into every session opener.
+    """
+    from modules.utils import counted_list
+    assert counted_list(["a", "b", "c", "d"], 2, noun="story") == \
+        "a, b, … (+2 more stories)"
+    # a vowel + y stays a plain plural, and a single remainder stays singular
+    assert counted_list(["a", "b", "c"], 2, noun="day") == "a, b, … (+1 more day)"
+    assert counted_list(["a", "b", "c", "d"], 3, noun="story") == \
+        "a, b, c, … (+1 more story)"
+
+
 def test_counted_list_keeps_singular_and_separator():
     from modules.utils import counted_list
     assert counted_list(["a", "b", "c"], 2, noun="signal") == "a, b, … (+1 more signal)"

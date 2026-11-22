@@ -29,5 +29,13 @@ def counted_list(items, limit: int, *, noun: str = "item", sep: str = ", ") -> s
     hidden = len(items) - len(shown)
     text = sep.join(shown)
     if hidden > 0:
-        text += f"{sep}… (+{hidden} more {noun}{'' if hidden == 1 else 's'})"
+        # A consonant + y takes -ies (`story` → `stories`); every other noun
+        # the engine passes is a plain plural (E-211 named a story group).
+        if hidden == 1:
+            plural = noun
+        elif len(noun) > 1 and noun.endswith("y") and noun[-2] not in "aeiou":
+            plural = noun[:-1] + "ies"
+        else:
+            plural = noun + "s"
+        text += f"{sep}… (+{hidden} more {plural})"
     return text

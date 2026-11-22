@@ -459,6 +459,65 @@ def test_build_all_disabled_servers_get_honest_enable_step(tmp_path, monkeypatch
     assert "all disabled" in buf.getvalue()
 
 
+def _panel(digest) -> str:
+    import contextlib
+    import io
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        orient._print_text(digest)
+    return buf.getvalue()
+
+
+def _source_line(text: str) -> str:
+    return next(ln for ln in text.splitlines() if "sources:" in ln)
+
+
+def test_mcp_sources_line_does_not_repeat_the_same_config(tmp_path, monkeypatch):
+    """E-212: live, five servers in one `.mcp.json` printed its path three times
+    (`sources: project:./.mcp.json, project:./.mcp.json, project:./.mcp.json`)
+    and withheld two servers without a count."""
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setattr(orient.pathlib.Path, "home", lambda: home)
+    (tmp_path / ".mcp.json").write_text(json.dumps({"mcpServers": {
+        f"srv{i}": {"command": "x"} for i in range(1, 6)}}), encoding="utf-8")
+    line = _source_line(_panel(orient.build(tmp_path)))
+    assert line.count("project:./.mcp.json") == 1
+    assert "…" not in line and "more" not in line
+
+
+def test_mcp_sources_line_counts_the_sources_it_withholds(tmp_path, monkeypatch):
+    home = tmp_path / "home"
+    (home / ".openhands").mkdir(parents=True)
+    monkeypatch.setattr(orient.pathlib.Path, "home", lambda: home)
+    files = {
+        tmp_path / ".mcp.json": "claude",
+        tmp_path / ".vscode" / "mcp.json": "vscode",
+        tmp_path / ".cursor" / "mcp.json": "cursor",
+        home / ".claude.json": "claude-user",
+        home / ".openhands" / "mcp.json": "openhands",
+    }
+    for path, name in files.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"mcpServers": {name: {"command": "x"}}}),
+                        encoding="utf-8")
+    line = _source_line(_panel(orient.build(tmp_path)))
+    assert "(+2 more sources)" in line
+    assert line.count(",") == 3  # three named, then the counted remainder
+
+
+def test_mcp_steering_names_the_servers_it_withholds(tmp_path, monkeypatch):
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setattr(orient.pathlib.Path, "home", lambda: home)
+    (tmp_path / ".mcp.json").write_text(json.dumps({"mcpServers": {
+        f"srv{i}": {"command": "x"} for i in range(1, 7)}}), encoding="utf-8")
+    step = next(s for s in orient.build(tmp_path)["next_steps"]
+                if s.startswith("mcp servers reachable"))
+    assert "… (+2 more servers)" in step
+    assert "`srv5`" not in step and "`srv6`" not in step
+
+
 def test_install_digest_quiet_when_no_second_copy(tmp_path, monkeypatch):
     """Empty HOME: no installs found, no duplicate — digest stays quiet."""
     monkeypatch.setattr(orient.pathlib.Path, "home", lambda: tmp_path)

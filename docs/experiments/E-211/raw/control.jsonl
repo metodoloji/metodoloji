@@ -1,0 +1,6 @@
+{"broken": true, "probe": "group_counts_remainder", "ok": false, "detail": "sprint: 16 done (1-1-story-1, 1-10-story-10, 1-11-story-11, …)"}
+{"broken": true, "probe": "no_bare_ellipsis", "ok": false, "detail": "markers=1 tail='tory-1, 1-10-story-10, 1-11-story-11, …)'"}
+{"broken": true, "probe": "small_group_whole", "ok": true, "detail": "sprint: 3 done (1-1-a, 1-2-b, 1-3-c)"}
+{"broken": true, "probe": "singular_remainder", "ok": false, "detail": "sprint: 4 in-progress (1-1-story-1, 1-2-story-2, 1-3-story-3, …)"}
+{"broken": true, "probe": "plural_rule", "ok": false, "detail": "story='a, b, … (+2 more storys)' path='a, b, … (+2 more paths)'"}
+{"broken": true, "probe": "bound_holds", "ok": true, "detail": "len=119"}

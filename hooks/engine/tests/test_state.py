@@ -502,6 +502,31 @@ def test_sprint_line_that_fits_has_no_remainder_marker(tmp_path):
     assert "…" not in line and "more" not in line
 
 
+def test_sprint_line_counts_the_stories_a_status_group_withholds(tmp_path):
+    """E-211: live on this tree, sixteen done stories read
+    `16 done (1-1-…, 10-1-…, 11-1-…, …)` — a bare ellipsis, so thirteen were
+    indistinguishable from one, on the line every session opener injects."""
+    _write_sprint(tmp_path,
+                  "development_status:\n"
+                  + "\n".join(f"  1-{i}-story-{i}: done" for i in range(1, 17))
+                  + "\n")
+    line = state.format_sprint_line(state.sprint_summary(tmp_path))
+    assert "16 done (" in line
+    assert "(+13 more stories)" in line
+    assert ", …)" not in line
+
+
+def test_sprint_line_prints_a_small_status_group_whole(tmp_path):
+    _write_sprint(tmp_path,
+                  "development_status:\n"
+                  "  1-1-a: done\n"
+                  "  1-2-b: done\n"
+                  "  1-3-c: done\n")
+    line = state.format_sprint_line(state.sprint_summary(tmp_path))
+    assert "3 done (1-1-a, 1-2-b, 1-3-c)" in line
+    assert "more" not in line
+
+
 def test_sprint_line_keeps_the_identity_of_a_lone_oversized_part(tmp_path):
     """A giant single key keeps its status and prefix, not just the status name.
 

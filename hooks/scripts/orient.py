@@ -855,7 +855,8 @@ def build(project_root: pathlib.Path) -> dict:
         more = len(enabled) - 4
         next_steps.append(
             f"mcp servers reachable this session: {names}"
-            + (f", … (+{more})" if more > 0 else "")
+            + (f", … (+{more} more server{'' if more == 1 else 's'})"
+               if more > 0 else "")
             + " — prefer them for the work they serve (repo search, docs lookup, "
               "browser, issue trackers); do not re-derive by hand what a server "
               "already provides")
@@ -1009,9 +1010,13 @@ def _print_text(digest: dict) -> None:
     mcp = digest.get("mcp") or {}
     if mcp.get("steering_line"):
         print(f"  {mcp['steering_line']}")
-        enabled = [s for s in (mcp.get("servers") or []) if s.get("enabled")][:3]
-        print("                    sources: "
-              + ", ".join(s["source"] for s in enabled))
+        enabled = [s for s in (mcp.get("servers") or []) if s.get("enabled")]
+        # E-212: this line named three of the enabled servers' config files with
+        # no count — and five servers from one `.mcp.json` printed the same path
+        # three times, so a five-server session showed one source and withheld
+        # two silently. Dedupe by config source, then count what the bound cut.
+        sources = list(dict.fromkeys(str(s.get("source") or "") for s in enabled))
+        print("                    sources: " + _named(sources, 3, "source"))
     elif mcp.get("servers"):
         print(f"  mcp             : {len(mcp['servers'])} configured (all disabled) "
               "— enable what the work needs in the harness config")

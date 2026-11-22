@@ -751,6 +751,26 @@ def sprint_summary(project_root: str | pathlib.Path) -> dict:
 _SPRINT_LINE_LIMIT = 200
 
 
+def _counted_list(items: list, limit: int, *, noun: str) -> str:
+    """The shared reminder-counting join, however this module was loaded.
+
+    `modules.counting` is a sibling in the package, but orient.py loads this
+    file by path with no package context (so the shipped digest keeps working
+    standalone), and a bare `from .counting import ...` raises there. Prefer
+    the package import; fall back to loading the sibling by path.
+    """
+    try:
+        from .counting import counted_list  # noqa: PLC0415
+        return counted_list(items, limit, noun=noun)
+    except ImportError:
+        import importlib.util  # noqa: PLC0415
+        spec = importlib.util.spec_from_file_location(
+            "state_counting", pathlib.Path(__file__).resolve().with_name("counting.py"))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)  # type: ignore[union-attr]
+        return module.counted_list(items, limit, noun=noun)
+
+
 def format_sprint_line(summary: dict) -> str:
     """One bounded line for a session-start inject (max 200 chars).
 
@@ -776,9 +796,10 @@ def format_sprint_line(summary: dict) -> str:
         if not keys:
             continue
         if status in ("done", "backlog") or len(keys) > 3:
-            shown = ", ".join(keys[:3])
-            more = len(keys) - 3
-            parts.append(f"{len(keys)} {status} ({shown}{', …' if more > 0 else ''})")
+            # E-211: this group read `16 done (a, b, c, …)` — three names and a
+            # bare ellipsis, so the reader could not tell thirteen from one.
+            parts.append(f"{len(keys)} {status} "
+                         f"({_counted_list(keys, 3, noun='story')})")
         else:
             parts.append(f"{status}: {', '.join(keys)}")
     leftover = {s: n for s, n in counts.items()
