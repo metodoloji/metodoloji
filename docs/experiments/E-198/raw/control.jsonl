@@ -1,0 +1,10 @@
+{"broken": true, "probe": "warning_kept_whole", "ok": false, "detail": "tail='one (2-1-hero-1, 2-1-slice, 2-2-hero-2, …); ⚠ epic-2: stories all don…'"}
+{"broken": true, "probe": "warnings_lead", "ok": false, "detail": "head='sprint: 8 in-progress (1-1-story-1, 1-2-story-2, 1'"}
+{"broken": true, "probe": "remainder_counted", "ok": false, "detail": "tail='epic-2: stories all don…'"}
+{"broken": true, "probe": "bound_respected_wide", "ok": true, "detail": "len=198"}
+{"broken": true, "probe": "bound_respected_extreme", "ok": true, "detail": "len=198"}
+{"broken": true, "probe": "fits_unmarked", "ok": true, "detail": "line='sprint: in-progress: 1-1-login; 1 done (1-2-out)'"}
+{"broken": true, "probe": "status_only_board_intact", "ok": true, "detail": "line='sprint: 4 in-progress (1-1-story-1, 1-2-story-2, 1-3-story-3, …); 1 done (1-9-out)'"}
+{"broken": true, "probe": "lone_oversized_part_elided", "ok": false, "detail": "len=198 tail='lugslugslugslugslugslugslugslugslugslug…'"}
+{"broken": true, "probe": "live_inject_keeps_the_action", "ok": false, "detail": "sprint='8 in-progress (1-1-story-1, 1-2-story-2, 1-3-story-3, …); 5 review (1-11-story-11, 1-12-story-12, 1-13-story-1'"}
+{"broken": true, "probe": "no_character_slice_left", "ok": false, "detail": "formatter no longer slices the finished line"}

@@ -1,0 +1,8 @@
+{"broken": false, "probe": "withheld_counted", "ok": true, "detail": "shown=6 hidden=1 line='claude.ai Sentry Production, … (+1 more)'"}
+{"broken": false, "probe": "long_names_counted", "ok": true, "detail": "shown=3 hidden=3"}
+{"broken": false, "probe": "shown_names_whole", "ok": true, "detail": "fragments=['claude.ai Figma Context Server (design workspace)', 'claude.ai Google Drive (shared drives only)']"}
+{"broken": false, "probe": "bound_respected", "ok": true, "detail": "len=187"}
+{"broken": false, "probe": "oversized_name_marked", "ok": true, "detail": "len=200 tail='g-server-name-very-long…'"}
+{"broken": false, "probe": "disabled_not_counted", "ok": true, "detail": "line='mcp: 2 active server(s) — claude.ai Google Drive, claude.ai Notion'"}
+{"broken": false, "probe": "live_inject_names_the_count", "ok": true, "detail": "line='mcp: 6 active server(s) — claude.ai Atlassian Jira Cloud (production instance), claude.ai Figma Context Server'"}
+{"broken": false, "probe": "no_trailing_slice", "ok": true, "detail": "mcp line no longer slices the finished sentence"}

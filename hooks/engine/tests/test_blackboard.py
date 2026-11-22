@@ -2516,6 +2516,56 @@ def test_session_start_announces_session_channel_alerts(tmp_path, monkeypatch):
     assert len(bb.pending_alerts(tmp_path, "session")) == 1  # untouched
 
 
+def _shown_alert(ctx: str, label: str) -> str:
+    """The alert text the session edge injected, without its `…` marker."""
+    start = ctx.index(label) + len(label)
+    end = ctx.index("…", start)
+    return ctx[start:end]
+
+
+def test_session_start_marks_a_shortened_scope_alert(tmp_path, monkeypatch):
+    """E-199: the session edge's alert was the last raw `[:160]`.
+
+    Live on this tree, 2026-11-22, a missed-scope commit injected
+    `… blackboard_diag.` — cut mid-path with no marker, so a session could not
+    tell the sentence had been shortened, let alone what the file was. The cut
+    is now marked and lands on a token boundary (E-192's rule for the stop
+    edge), and the full text stays readable on the board.
+    """
+    import modules.audit as audit_mod
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+    monkeypatch.delenv("OPENHANDS_PROJECT_DIR", raising=False)
+    text = ("commit missed 3 files outside any approved scope: "
+            "docs/development/native/segments/07-runtime/segment-note-runtime-tail.md, "
+            "hooks/engine/modules/blackboard_diagnostics.py")
+    bb.post_alert(tmp_path, "scope", "info", text)
+    ctx = audit_mod.session_start({"cwd": str(tmp_path)})["additionalContext"]
+    shown = _shown_alert(ctx, "SCOPE DEBT — ")
+    assert shown and text.startswith(shown)
+    assert text[len(shown)] in " ,;:"  # the cut is on a boundary, not mid-token
+    assert "blackboard_diag." not in ctx
+
+
+def test_session_start_marks_a_shortened_routed_alert(tmp_path, monkeypatch):
+    """The routed-alert branch bounds the same way, and still counts the rest."""
+    import modules.audit as audit_mod
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+    monkeypatch.delenv("OPENHANDS_PROJECT_DIR", raising=False)
+    text = "handoff waiting for a consumer on the release chain: " + "step-" * 40
+    bb.post_alert(tmp_path, "session", "info", text)
+    bb.post_alert(tmp_path, "session", "info", "second note")
+    ctx = audit_mod.session_start({"cwd": str(tmp_path)})["additionalContext"]
+    shown = _shown_alert(ctx, "session channel: ")
+    assert text.startswith(shown) and text[len(shown)] in " ,;:"
+    assert "(+1 more routed)" in ctx
+    # A short alert is quoted verbatim, with no elision marker.
+    bb.post_alert(tmp_path, "session", "info", "short note")
+    bb.consume_alerts(tmp_path, "session")
+    bb.post_alert(tmp_path, "session", "info", "short note")
+    ctx = audit_mod.session_start({"cwd": str(tmp_path)})["additionalContext"]
+    assert "session channel: short note;" in ctx
+
+
 def test_stop_announces_stop_channel_alerts(tmp_path, monkeypatch):
     """The engine's contract: 'stop → surfaced at stop'. Report-only; the
     producer clears the channel itself."""

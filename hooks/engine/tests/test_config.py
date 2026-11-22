@@ -256,3 +256,61 @@ def test_gate_explicit_soft_code_guard(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "_HOOKS_CFG", cfg)
     assert config.hook_gate_mode("code_guard") == "soft"
     assert config.hook_gate_mode("stop_guard") == "hard"
+
+
+def test_every_invalid_key_is_accounted_for(tmp_path, monkeypatch):
+    """E-197: a config with five typos named three of them.
+
+    Live stderr from a scratch tree on 2026-11-22: `Invalid [hooks] keys in
+    ...: line 2: 'code_gard' ...; line 3: 'blackbord' ...; line 4: 'stop_gard'
+    ...` — `qualty_gate` (line 5) and `freshnes` (line 6) were dropped with no
+    marker, so the message read as the complete list of what to fix.
+    """
+    from modules import config
+    cfg = tmp_path / "config.toml"
+    cfg.write_text(
+        "[hooks]\n"
+        'code_gard = "hard"\n'
+        "blackbord = true\n"
+        'stop_gard = "soft"\n'
+        'qualty_gate = "soft"\n'
+        'freshnes = "warn"\n', encoding="utf-8")
+    monkeypatch.setattr(config, "_HOOKS_CFG", cfg)
+    ok, error = config._validate_hooks_config()
+    assert not ok
+    assert "line 2: 'code_gard'" in error and "line 4: 'stop_gard'" in error
+    assert "… (+2 more keys)" in error
+    # the valid-key list is stated once, not repeated on every line
+    assert error.count("(valid: ") == 1
+
+
+def test_invalid_key_message_counts_the_last_hidden_key(tmp_path, monkeypatch):
+    from modules import config
+    cfg = tmp_path / "config.toml"
+    cfg.write_text("[hooks]\n" + "".join(
+        f'typo{n} = "x"\n' for n in range(1, 5)), encoding="utf-8")
+    monkeypatch.setattr(config, "_HOOKS_CFG", cfg)
+    _, error = config._validate_hooks_config()
+    assert error.endswith("; … (+1 more key) (valid: blackboard, "
+                          "blackboard_backend, code_guard, deploy_guard, "
+                          "freshness, quality_gate, stop_guard)")
+
+
+def test_invalid_key_list_fits_without_a_marker(tmp_path, monkeypatch):
+    from modules import config
+    cfg = tmp_path / "config.toml"
+    cfg.write_text('[hooks]\na = "x"\nb = "x"\nc = "x"\n', encoding="utf-8")
+    monkeypatch.setattr(config, "_HOOKS_CFG", cfg)
+    _, error = config._validate_hooks_config()
+    assert "more key" not in error and error.count("line ") == 3
+
+
+def test_freshness_keys_count_their_remainder_too(tmp_path, monkeypatch):
+    from modules import config
+    cfg = tmp_path / "config.toml"
+    cfg.write_text("[freshness]\n" + "".join(
+        f'typo{n} = "x"\n' for n in range(1, 6)), encoding="utf-8")
+    monkeypatch.setattr(config, "_HOOKS_CFG", cfg)
+    ok, error = config._validate_freshness_config()
+    assert not ok and "[freshness]" in error
+    assert "… (+2 more keys)" in error

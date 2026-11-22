@@ -258,10 +258,14 @@ def docs_overview(project_root: pathlib.Path) -> dict:
     if not docs.is_dir():
         return {"available": False}
     try:
+        try:
+            dir_names = sorted(p.name for p in docs.iterdir()
+                               if p.is_dir() and not p.name.startswith("."))
+        except OSError:
+            dir_names = []
         subdirs: list[dict] = []
-        for entry in sorted(docs.iterdir(), key=lambda p: p.name):
-            if not entry.is_dir() or entry.name.startswith("."):
-                continue
+        for name in dir_names:
+            entry = docs / name
             count = 0
             truncated = False
             try:
@@ -294,8 +298,12 @@ def docs_overview(project_root: pathlib.Path) -> dict:
             pass
         biggest.sort(reverse=True)
         files = [{"path": rel, "bytes": size} for size, rel in biggest[:_MAX_DOCS_FILES]]
+        # E-202: the walk stopped at _MAX_DOCS_SUBDIRS with no marker, so a
+        # tree with fifteen areas listed twelve and read as complete. The
+        # total is counted here (names only, no walk) and rendered as `… +N`.
         return {"available": True, "path": str(docs),
-                "subdirs": subdirs, "largest": files}
+                "subdirs": subdirs, "subdirs_total": len(dir_names),
+                "largest": files}
     except Exception:
         return {"available": False}
 
@@ -753,13 +761,29 @@ def build(project_root: pathlib.Path) -> dict:
         stories = sprint.get("stories") or {}
         in_review = sorted(k for k, s in stories.items() if s == "review")
         in_prog = sorted(k for k, s in stories.items() if s == "in-progress")
-        for k in in_review[:3]:
+        # E-201: these two lists were sliced at three with no marker, so a
+        # board with five review and five in-progress stories produced three
+        # steps each and read as the whole backlog (live, 2026-11-22: ten
+        # stories in flight, six named). Name the three and count the rest —
+        # the following step is what makes the truncation visible.
+        step_limit = 3
+        for k in in_review[:step_limit]:
             next_steps.append(
                 f"story {k} sits in 'review' — run bmad-code-review (its "
                 f"verdict is the only thing that moves it to done)")
-        for k in in_prog[:3]:
+        if len(in_review) > step_limit:
+            next_steps.append(
+                f"{len(in_review) - step_limit} more stories also sit in "
+                f"'review' (the sprint file lists {len(in_review)}) — review "
+                f"them before opening anything new")
+        for k in in_prog[:step_limit]:
             next_steps.append(
                 f"story {k} is in-progress — resume it or mark it honestly "
+                f"before opening anything new")
+        if len(in_prog) > step_limit:
+            next_steps.append(
+                f"{len(in_prog) - step_limit} more stories are also in-progress "
+                f"(the sprint file lists {len(in_prog)}) — resume or close them "
                 f"before opening anything new")
         for epic_key, prog in sorted((sprint.get("epic_progress") or {}).items()):
             epic_status = (sprint.get("epics") or {}).get(epic_key, "")
@@ -983,14 +1007,22 @@ def _print_text(digest: dict) -> None:
             print("  handoff         : none waiting")
     docs = digest.get("docs") or {}
     if docs.get("available"):
+        listed = docs.get("subdirs") or []
         subs = ", ".join(
             f"{s['name']} ({s['files']}{'+' if s['truncated'] else ''})"
-            for s in docs.get("subdirs") or [])
+            for s in listed)
+        total = docs.get("subdirs_total", len(listed))
+        if total > len(listed):
+            subs += f" … +{total - len(listed)}"
         print(f"  docs            : {docs['path']} — {subs or '(empty)'}")
-        for f in (docs.get("largest") or [])[:6]:
+        largest = docs.get("largest") or []
+        for f in largest[:_MAX_LISTED]:
             kb = f["bytes"] / 1024
             size = f"{kb:.0f}KB" if kb < 1024 else f"{kb / 1024:.1f}MB"
             print(f"                    {size:>8}  {f['path']}")
+        if len(largest) > _MAX_LISTED:
+            print(f"                    … +{len(largest) - _MAX_LISTED} more by size "
+                  f"(all {len(largest)} are in docs.largest)")
         print("                    → read large files windowed (offset/limit), "
               "never re-cat a file you already read")
     installs = digest.get("installs") or {}

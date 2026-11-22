@@ -806,7 +806,12 @@ def session_start(json_in: dict) -> dict:
         # replaces the alert) may clear it.
         scope_alerts = bb.pending_alerts(root, "scope")
         if scope_alerts:
-            first = str(scope_alerts[0].get("text", ""))[:160]
+            # E-199: this was the last raw `[:160]` on a routed alert. Live on
+            # this tree, 2026-11-22, a missed-scope commit injected
+            # `… blackboard_diag.` — cut mid-path and with no marker, so the
+            # reader could not tell the sentence had been shortened (E-192
+            # fixed the same slice on the stop edge; this edge kept it).
+            first = brief_text(str(scope_alerts[0].get("text", "")), 160)
             more = f" (+{len(scope_alerts) - 1} older)" if len(scope_alerts) > 1 else ""
             if _scope_debt_is_paid(root):
                 # The persisted claim is replayed in the present tense forever;
@@ -829,7 +834,7 @@ def session_start(json_in: dict) -> dict:
         # nothing was ever routed (fresh boards contribute nothing).
         session_alerts = bb.pending_alerts(root, "session")
         if session_alerts:
-            first = str(session_alerts[0].get("text", ""))[:160]
+            first = brief_text(str(session_alerts[0].get("text", "")), 160)
             more = (f" (+{len(session_alerts) - 1} more routed)"
                     if len(session_alerts) > 1 else "")
             context += (f" Blackboard — {len(session_alerts)} routed alert(s) on the "

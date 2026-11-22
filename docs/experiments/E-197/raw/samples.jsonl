@@ -1,0 +1,10 @@
+{"broken": false, "probe": "hooks_all_keys_accounted", "ok": true, "detail": "msg='e keys) (valid: blackboard, blackboard_backend, code_guard, deploy_guard, freshness, quality_gate, stop_guard)'"}
+{"broken": false, "probe": "hooks_singular_marker", "ok": true, "detail": "msg='ackboard_backend, code_guard, deploy_guard, freshness, quality_gate, stop_guard)'"}
+{"broken": false, "probe": "hooks_no_marker_when_it_fits", "ok": true, "detail": "msg='ackboard_backend, code_guard, deploy_guard, freshness, quality_gate, stop_guard)'"}
+{"broken": false, "probe": "valid_list_stated_once", "ok": true, "detail": "valid_mentions=1"}
+{"broken": false, "probe": "freshness_table_counted", "ok": true, "detail": "msg=\"typo3'; … (+2 more keys) (valid: max_digest_files, scope_digest, unknown_policy)\""}
+{"broken": false, "probe": "hidden_count_matches_arithmetic", "ok": true, "detail": "named=3 hidden=5"}
+{"broken": false, "probe": "live_stderr_names_the_remainder", "ok": true, "detail": "stderr='kboard, blackboard_backend, code_guard, deploy_guard, freshness, quality_gate, stop_guard)'"}
+{"broken": false, "probe": "live_stderr_quiet_on_valid_config", "ok": true, "detail": "stderr=''"}
+{"broken": false, "probe": "live_stderr_singular_at_four", "ok": true, "detail": "stderr='de_guard, deploy_guard, freshness, quality_gate, stop_guard)'"}
+{"broken": false, "probe": "one_definition_of_the_join", "ok": true, "detail": "counted_list defined once, in counting.py"}

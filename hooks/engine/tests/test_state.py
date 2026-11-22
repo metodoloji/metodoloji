@@ -406,8 +406,38 @@ def test_mcp_steering_line_bounded_and_empty(tmp_path):
     assert state.mcp_steering_line({"servers": []}) == ""
     servers = [{"name": f"s{i}", "enabled": True} for i in range(6)]
     line = state.mcp_steering_line({"servers": servers})
-    assert line.startswith("mcp: 6 active server(s) — s0, s1, s2, s3, …")
+    # E-200: the withheld servers are counted, not hidden behind a bare `, …`.
+    assert line == "mcp: 6 active server(s) — s0, s1, s2, s3, s4, s5"
     assert len(line) <= 200
+
+
+def test_mcp_steering_line_counts_what_it_withholds():
+    """E-200: seven enabled servers read as four and `, …`; count the rest.
+
+    The line was `line[:200]` as well, so a long name could be cut in half and
+    take the marker (the only admission of shortening) with it.
+    """
+    names = [
+        "claude.ai Atlassian Jira Cloud (production instance)",
+        "claude.ai Figma Context Server (design workspace)",
+        "claude.ai Google Drive (shared drives only)",
+        "claude.ai Slack Workspace (engineering org)",
+        "claude.ai Playwright Browser Automation",
+        "claude.ai Sentry Production Errors",
+    ]
+    line = state.mcp_steering_line(
+        {"servers": [{"name": n, "enabled": True} for n in names]})
+    assert len(line) <= 200
+    assert line.endswith("… (+3 more)")
+    assert "claude.ai Google Drive (shared drives only)" in line  # whole, not sliced
+    assert ", …" not in line.replace(", … (+3 more)", "")
+
+
+def test_mcp_steering_line_keeps_an_oversized_name_marked():
+    line = state.mcp_steering_line({"servers": [{"name": "x" * 400, "enabled": True}]})
+    assert len(line) == 200
+    assert line.endswith("…")
+    assert line.startswith("mcp: 1 active server(s) — x")
     disabled_only = state.mcp_steering_line(
         {"servers": [{"name": "x", "enabled": False}]})
     assert disabled_only == ""
@@ -422,6 +452,73 @@ def test_sprint_line_is_bounded(tmp_path):
     _write_sprint(tmp_path, f"development_status:\n{keys}\n")
     line = state.format_sprint_line(state.sprint_summary(tmp_path))
     assert len(line) <= 200
+
+
+def test_sprint_line_cuts_on_a_part_boundary_and_counts_what_it_withheld(tmp_path):
+    """A live line ended `⚠ epic-2: stories all done — epic …` (E-198).
+
+    The character bound kept the finding and cut its action, so the reader was
+    told an epic lags but not what to do; further warnings after the cut
+    disappeared behind one `…` with no count.
+    """
+    lines = ["development_status:"]
+    lines += [f"  1-{i}-story-{i}: in-progress" for i in range(1, 9)]
+    lines += [f"  1-{i}-story-{i}: review" for i in range(11, 16)]
+    lines += ["  2-1-hero: done", "  2-2-nav: done", "  2-3-foot: done",
+              "  epic-2: in-progress"]
+    _write_sprint(tmp_path, "\n".join(lines) + "\n")
+    line = state.format_sprint_line(state.sprint_summary(tmp_path))
+    assert len(line) <= 200
+    # The warning is whole: finding AND the action it names.
+    assert "⚠ epic-2: stories all done — epic still in-progress" in line
+    assert "roll up to done + run the retro" in line
+    # and the parts that did not fit are counted, not implied away.
+    assert "… (+2 more)" in line
+    assert not line.endswith("epic …")
+
+
+def test_sprint_line_leading_warnings_survive_a_wide_board(tmp_path):
+    lines = ["development_status:"]
+    lines += [f"  1-{i}-story-{i}: in-progress" for i in range(1, 9)]
+    lines += [f"  1-{i}-story-{i}: review" for i in range(11, 16)]
+    lines += ["  2-1-hero: done", "  epic-2: in-progress",
+              "  3-1-a: done", "  epic-3: in-progress"]
+    _write_sprint(tmp_path, "\n".join(lines) + "\n")
+    line = state.format_sprint_line(state.sprint_summary(tmp_path))
+    assert len(line) <= 200
+    # Both discrepancies lead, so neither is behind the count of dropped parts.
+    assert line.startswith("sprint: ⚠ epic-2:")
+    assert "⚠ epic-3:" in line
+    assert line.count("roll up to done") == 2
+    assert "… (+3 more)" in line
+
+
+def test_sprint_line_that_fits_has_no_remainder_marker(tmp_path):
+    _write_sprint(tmp_path,
+                  "development_status:\n"
+                  "  1-1-login: in-progress\n"
+                  "  1-2-out: done\n")
+    line = state.format_sprint_line(state.sprint_summary(tmp_path))
+    assert "…" not in line and "more" not in line
+
+
+def test_sprint_line_keeps_the_identity_of_a_lone_oversized_part(tmp_path):
+    """A giant single key keeps its status and prefix, not just the status name.
+
+    The word-boundary cut landed right after `in-progress:`, so the line named
+    no story at all (`sprint: in-progress…`).
+    """
+    long_key = "9-1-" + "slug" * 60
+    _write_sprint(tmp_path,
+                  "development_status:\n"
+                  f"  {long_key}: in-progress\n"
+                  "  1-1-a: done\n")
+    line = state.format_sprint_line(state.sprint_summary(tmp_path))
+    assert len(line) <= 200
+    assert line.endswith("; … (+1 more)")
+    first = line.split(";")[0]
+    assert first.startswith("sprint: in-progress: 9-1-")
+    assert first.endswith("…")
 
 
 # --- stop.py delegation ---------------------------------------------------------

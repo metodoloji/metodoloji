@@ -1,0 +1,7 @@
+{"broken": false, "probe": "subdirs_remainder_counted", "ok": true, "detail": "tail='10 (1), area-11 (1) … +3'"}
+{"broken": false, "probe": "largest_remainder_counted", "ok": true, "detail": "tail=['                    … +6 more by size (all 12 are in docs.largest)']"}
+{"broken": false, "probe": "counts_match_inventory", "ok": true, "detail": "total=15 largest=12"}
+{"broken": false, "probe": "fit_unmarked", "ok": true, "detail": "line='  docs            : /tmp/tmp8j2xvvh9/proj/docs — area-00 (1), area-01 (1)'"}
+{"broken": false, "probe": "hidden_dirs_not_counted", "ok": true, "detail": "total=2 listed=2"}
+{"broken": false, "probe": "size_order_kept", "ok": true, "detail": "sizes=[4000, 3000, 2000, 1000]"}
+{"broken": false, "probe": "empty_docs_marked", "ok": true, "detail": "line='empty/docs — (empty)'"}

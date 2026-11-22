@@ -558,10 +558,13 @@ def mcp_steering_line(inventory: dict) -> str:
     servers = [s for s in (inventory.get("servers") or []) if s.get("enabled")]
     if not servers:
         return ""
-    names = ", ".join(s["name"] for s in servers[:4])
-    more = len(servers) - 4
-    line = f"mcp: {len(servers)} active server(s) — {names}" + (", …" if more > 0 else "")
-    return line[:200]
+    # E-200: this line named four servers and then `, …` — no count, so seven
+    # enabled servers read as four, and the trailing `line[:200]` could cut a
+    # name in half AND eat the marker that admitted it (the same defect E-198
+    # removed from the sprint line, from which this one was modelled).
+    head = f"mcp: {len(servers)} active server(s) — "
+    return _bounded_parts_line(head, [s["name"] for s in servers],
+                               limit=200, sep=", ")
 
 
 # Canonical path first (Seçenek A: skills compose it as
@@ -745,12 +748,17 @@ def sprint_summary(project_root: str | pathlib.Path) -> dict:
             "epic_plan": epic_plan_slices(root)}
 
 
-def format_sprint_line(summary: dict) -> str:
-    """One bounded line for a session-start inject (max ~200 chars).
+_SPRINT_LINE_LIMIT = 200
 
-    Leads with actionable states (in-progress, review), counts the rest;
-    epics appear only when their state disagrees with their stories (the
-    `epic-N: in-progress` vs all-stories-done lag the real session tripped on).
+
+def format_sprint_line(summary: dict) -> str:
+    """One bounded line for a session-start inject (max 200 chars).
+
+    Leads with the epic mismatches (the only ⚠ parts: an epic claimed
+    in-progress with all its stories done, or done with gaps), then the
+    actionable states (in-progress, review), counting the rest. Warnings lead
+    because the bound can drop trailing parts: a board big enough to overflow
+    still shows its discrepancies, and only the counts fall off the end.
     """
     if not summary.get("found"):
         return ""
@@ -761,6 +769,7 @@ def format_sprint_line(summary: dict) -> str:
     epic_plan = summary.get("epic_plan") or {}
 
     parts: list[str] = []
+    warnings: list[str] = []
     # Order the vocabulary so the important states lead.
     for status in ("in-progress", "review", "ready-for-dev", "done", "backlog"):
         keys = [k for k, s in sorted(stories.items()) if s == status]
@@ -788,21 +797,79 @@ def format_sprint_line(summary: dict) -> str:
                 # The sprint file lists only drafted stories; the plan is the
                 # authority. Never say "all done" while the plan has slices the
                 # board cannot account for.
-                parts.append(f"⚠ {epic_key}: {prog['done']}/{prog['total']} listed "
+                warnings.append(f"⚠ {epic_key}: {prog['done']}/{prog['total']} listed "
                              f"done, plan has {planned} slices — verify mapping "
                              f"before roll-up")
             else:
-                parts.append(f"⚠ {epic_key}: stories all done — epic still "
+                warnings.append(f"⚠ {epic_key}: stories all done — epic still "
                              f"in-progress, roll up to done + run the retro")
         elif prog["total"] and status == "done" and prog["done"] < prog["total"]:
-            parts.append(f"⚠ {epic_key}: marked done but "
+            warnings.append(f"⚠ {epic_key}: marked done but "
                          f"{prog['total'] - prog['done']} story/stories not done")
         elif status in ("backlog", "") and prog.get("started"):
-            parts.append(f"⚠ {epic_key}: backlog but {prog['started']} of "
+            warnings.append(f"⚠ {epic_key}: backlog but {prog['started']} of "
                          f"{prog['total']} story/stories started — bump the epic")
-    if not parts:
+    if not parts and not warnings:
         return ""
-    line = "sprint: " + "; ".join(parts)
-    if len(line) > 200:
-        line = line[:197] + "…"
-    return line
+    return _bounded_sprint_line(warnings + parts)
+
+
+def _bounded_parts_line(head: str, parts: list[str],
+                        limit: int = _SPRINT_LINE_LIMIT,
+                        sep: str = "; ") -> str:
+    """Join whole parts after `head` inside `limit`, counting the rest.
+
+    The bound used to slice the finished line at 197 characters, so a realistic
+    board (8 in-progress, 5 review, one epic lag) ended
+    `⚠ epic-2: stories all done — epic …`: the finding survived and its action
+    ("roll up to done + run the retro") did not, and every ⚠ after the cut
+    vanished behind one silent `…`. Parts are the semantic units, so the line
+    now drops whole parts and names how many it withheld (E-198).
+
+    `sep` is the separator between parts; the withheld count uses it too, so an
+    ``", … (+N more)"`` list reads as one list. A part wider than the whole line
+    is shortened by `_elide_part` instead of being dropped, and its successor is
+    still counted.
+    """
+    marker = lambda hidden: f"{sep}… (+{hidden} more)"
+    out = head
+    for index, part in enumerate(parts):
+        between = "" if index == 0 else sep
+        # Reserve the marker this break would need, so the count always fits.
+        hidden = len(parts) - index
+        reserve = len(marker(hidden)) if index != len(parts) - 1 else 0
+        if len(out) + len(between) + len(part) + reserve > limit:
+            if index == 0:
+                # One part wider than the whole line: shorten it, keeping its
+                # leading identity (a status group's "status:" and the first
+                # key), and count the parts still to come.
+                tail = len(parts) - 1
+                room = limit - len(head) - (len(marker(tail)) if tail else 0)
+                out = head + _elide_part(part, max(room, 20))
+                return out + (marker(tail) if tail else "")
+            return out + marker(hidden)
+        out += between + part
+    return out
+
+
+def _bounded_sprint_line(parts: list[str], limit: int = _SPRINT_LINE_LIMIT) -> str:
+    """The sprint line: the shared part-bounded join under its own head."""
+    return _bounded_parts_line("sprint: ", parts, limit)
+
+
+def _elide_part(part: str, room: int) -> str:
+    """Shorten one oversized part, preferring a boundary that keeps its head.
+
+    A word-boundary cut is the nicer shape, but only when it leaves most of the
+    room in use: a group whose key is one giant token has its last space right
+    after `in-progress:`, and cutting there dropped the only story the part was
+    about (`sprint: in-progress…`). When the boundary sits in the first half,
+    keep the token's prefix instead — the elision is marked either way.
+    """
+    cut = part[:max(room - 1, 1)]  # `room` includes the `…` this adds
+    space = max(cut.rfind(" "), cut.rfind(";"))
+    if space >= room // 2:
+        cut = cut[:space].rstrip(";,:—–- ")
+    else:
+        cut = cut.rstrip(";,:—–- ")
+    return cut + "…"

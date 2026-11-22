@@ -1,0 +1,8 @@
+{"broken": true, "probe": "withheld_counted", "ok": false, "detail": "shown=4 hidden=0 line='ude.ai Google Drive, claude.ai Linear, …'"}
+{"broken": true, "probe": "long_names_counted", "ok": false, "detail": "shown=3 hidden=0"}
+{"broken": true, "probe": "shown_names_whole", "ok": false, "detail": "fragments=['claude.ai Google Drive (shared drives only)', 'claude.ai Playwright Bro']"}
+{"broken": true, "probe": "bound_respected", "ok": true, "detail": "len=200"}
+{"broken": true, "probe": "oversized_name_marked", "ok": false, "detail": "len=200 tail='g-server-name-very-long-'"}
+{"broken": true, "probe": "disabled_not_counted", "ok": true, "detail": "line='mcp: 2 active server(s) — claude.ai Google Drive, claude.ai Notion'"}
+{"broken": true, "probe": "live_inject_names_the_count", "ok": false, "detail": "line='mcp: 6 active server(s) — claude.ai Atlassian Jira Cloud (production instance), claude.ai Figma Context Server'"}
+{"broken": true, "probe": "no_trailing_slice", "ok": false, "detail": "mcp line no longer slices the finished sentence"}

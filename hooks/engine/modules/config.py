@@ -4,6 +4,8 @@ import os
 import pathlib
 import re
 
+from .counting import counted_list
+
 # Runtime detection. main.py sets METODOLOJI_RUNTIME from --runtime= AFTER
 # imports, so this must stay a function: a module-level constant would freeze
 # the pre-flag value. (The old RUNTIME constant was removed — zero readers.)
@@ -301,6 +303,13 @@ def _validate_config_section(section: str, valid_keys: frozenset) -> tuple[bool,
     Checks that all keys inside `[<section>]` are recognized, so a typo
     (`code_gard = "hard"`) is reported instead of silently doing nothing.
     Returns (is_valid, error_message).
+
+    Every rejected key is accounted for (E-197): the message used to join the
+    first three and stop, so a config with five typos named three of them — a
+    live run on 2026-11-22 printed `line 2: 'code_gard' ...; line 3:
+    'blackbord' ...; line 4: 'stop_gard' ...` and never mentioned `qualty_gate`
+    or `freshnes`. The bound stays at three (the valid-key list follows once),
+    but the remainder is counted, so the reader knows the list is partial.
     """
     try:
         text = _HOOKS_CFG.read_text(encoding="utf-8")
@@ -341,11 +350,10 @@ def _validate_config_section(section: str, valid_keys: frozenset) -> tuple[bool,
                 invalid_keys.append((line_no, key))
 
     if invalid_keys:
-        error_msg = f"Invalid {header} keys in {_HOOKS_CFG}: "
-        error_parts = [f"line {line}: '{key}' (valid: {', '.join(sorted(valid_keys))})"
-                      for line, key in invalid_keys[:3]]
-        error_msg += "; ".join(error_parts)
-        return False, error_msg
+        named = counted_list([f"line {line}: '{key}'" for line, key in invalid_keys],
+                             3, noun="key", sep="; ")
+        return False, (f"Invalid {header} keys in {_HOOKS_CFG}: {named} "
+                       f"(valid: {', '.join(sorted(valid_keys))})")
 
     return True, ""
 

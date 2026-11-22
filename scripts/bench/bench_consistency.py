@@ -88,6 +88,7 @@ ENGINE_MODULES = (
     "hooks/engine/modules/blackboard_fold.py",
     "hooks/engine/modules/blackboard_handoff.py",
     "hooks/engine/modules/config.py",
+    "hooks/engine/modules/counting.py",
     "hooks/engine/modules/deploy_gate.py",
     "hooks/engine/modules/freshness.py",
     "hooks/engine/modules/guard.py",

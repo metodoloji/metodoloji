@@ -1,0 +1,8 @@
+{"broken": false, "probe": "scope_alert_cut_marked", "ok": true, "detail": "scope='e/segments/07-runtime/segment-note-runtime-tail.md'"}
+{"broken": false, "probe": "scope_alert_cut_on_boundary", "ok": true, "detail": "next=','"}
+{"broken": false, "probe": "routed_alert_cut_marked", "ok": true, "detail": "routed='/07-runtime/segment-note-runtime-tail.md'"}
+{"broken": false, "probe": "remainder_still_counted", "ok": true, "detail": "older=True routed=True"}
+{"broken": false, "probe": "short_alert_verbatim", "ok": true, "detail": "line='SCOPE DEBT — handoff needs a consumer.'"}
+{"broken": false, "probe": "open_bracket_dropped_whole", "ok": true, "detail": "scope='pending review of the release candidate'"}
+{"broken": false, "probe": "board_keeps_the_full_text", "ok": true, "detail": "alerts=1"}
+{"broken": false, "probe": "no_raw_slice_left", "ok": true, "detail": "session edge bounds both alert branches through the cutter"}

@@ -259,6 +259,26 @@ def test_build_surfaces_review_story_as_next_step(tmp_path):
     assert "2-1-c" in steps and "bmad-code-review" in steps
 
 
+def test_build_counts_the_stories_the_step_bound_withholds(tmp_path):
+    """E-201: five review and five in-progress stories produced three steps
+    each and read as the whole backlog. The rest are counted, and a board that
+    fits carries no remainder line."""
+    rows = [f"  1-{i}-s{i}: review" for i in range(1, 6)]
+    rows += [f"  2-{i}-t{i}: in-progress" for i in range(1, 6)]
+    _write_sprint(tmp_path, "development_status:\n" + "\n".join(rows) + "\n")
+    steps = orient.build(tmp_path)["next_steps"]
+    assert sum(1 for s in steps if s.startswith("story ")) == 6
+    assert any("2 more stories also sit in 'review'" in s for s in steps)
+    assert any("2 more stories are also in-progress" in s for s in steps)
+    fitting = tmp_path / "small"
+    fitting.mkdir()
+    _write_sprint(fitting,
+                  "development_status:\n  1-1-a: review\n  2-1-b: in-progress\n")
+    small = orient.build(fitting)["next_steps"]
+    assert sum(1 for s in small if s.startswith("story ")) == 2
+    assert not any("more stories" in s for s in small)
+
+
 def test_build_surfaces_next_ready_story(tmp_path):
     """With no live review/epic signal, the next ready story is the route."""
     _write_sprint(tmp_path,
@@ -472,6 +492,28 @@ def test_build_carries_docs_and_installs_keys(tmp_path, monkeypatch):
     assert any(s["name"] == "arge" for s in digest["docs"]["subdirs"])
     assert digest["installs"]["duplicate"] is False
     assert digest["installs"]["canonical"] == str(orient._PLUGIN_ROOT)
+
+
+def test_docs_overview_counts_the_areas_and_files_it_withheld(tmp_path, monkeypatch):
+    """E-202: fifteen areas printed twelve and read as complete; twelve large
+    files printed six with no marker. Both say how many they withheld."""
+    monkeypatch.setattr(orient.pathlib.Path, "home", lambda: tmp_path / "home")
+    docs = tmp_path / "docs"
+    for i in range(15):
+        area = docs / f"area-{i:02d}"
+        area.mkdir(parents=True)
+        (area / f"note-{i}.md").write_text("x" * (1000 * (i + 1)), encoding="utf-8")
+    overview = orient.build(tmp_path)["docs"]
+    assert len(overview["subdirs"]) == orient._MAX_DOCS_SUBDIRS
+    assert overview["subdirs_total"] == 15
+    out = _run(["--project-root", str(tmp_path)]).stdout
+    assert f"… +{15 - orient._MAX_DOCS_SUBDIRS}" in out
+    assert f"… +{len(overview['largest']) - orient._MAX_LISTED} more by size" in out
+    small = tmp_path / "small"
+    (small / "docs" / "one").mkdir(parents=True)
+    (small / "docs" / "one" / "a.md").write_text("x", encoding="utf-8")
+    tiny = _run(["--project-root", str(small)]).stdout
+    assert "more by size" not in tiny and "… +" not in tiny
 
 
 def test_record_inventory_counts_slugged_records(tmp_path):

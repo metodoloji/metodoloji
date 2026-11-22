@@ -1,0 +1,8 @@
+{"broken": true, "probe": "review_remainder_counted", "ok": false, "detail": "review_steps=3"}
+{"broken": true, "probe": "in_progress_remainder_counted", "ok": false, "detail": "prog_steps=3"}
+{"broken": true, "probe": "count_matches_the_file", "ok": false, "detail": "match=[]"}
+{"broken": true, "probe": "named_stories_whole", "ok": true, "detail": "named=['1-1-s1', '1-2-s2', '1-3-s3', '2-1-t1', '2-2-t2', '2-3-t3']"}
+{"broken": true, "probe": "fitting_board_unmarked", "ok": true, "detail": "named=2"}
+{"broken": true, "probe": "text_render_carries_it", "ok": false, "detail": "stdout=False"}
+{"broken": true, "probe": "ready_fallback_kept", "ok": true, "detail": "ready=['next ready story: 3-1-first — open it wi']"}
+{"broken": true, "probe": "no_bare_step_slice", "ok": false, "detail": "both loops name their limit and count the remainder"}

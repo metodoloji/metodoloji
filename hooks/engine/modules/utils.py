@@ -20,6 +20,10 @@ from .config import (
     PLUGIN_FREE_FILES,
     PLUGIN_FREE_PREFIXES,
 )
+# E-197: the bounded-list join has its own dependency-free module so the config
+# validator (which this module imports) can use it without a circular import.
+# Re-exported here because `modules.utils.counted_list` is the documented path.
+from .counting import counted_list  # noqa: F401
 
 # Free-zone case key (E-035): membership is compared against a case-folded
 # path ONLY where the filesystem itself folds (os.name == "nt" — Windows).
@@ -982,25 +986,6 @@ def brief_text(text: str, limit: int) -> str:
         # the only option — keep it marked rather than silently maimed.
         cut = text[:limit].rstrip("…")
     return cut + "…"
-
-
-def counted_list(items: list[str], limit: int, *, noun: str = "item",
-                 sep: str = ", ") -> str:
-    """Join `items`, NAME the ones the bound hid, and keep the count exact.
-
-    A list printed with a silent slice is a claim about the whole list (E-195
-    in the story denials, E-196 in the stop report's stale hand-offs): the
-    reader cannot tell "these are all of them" from "these are the first few",
-    so a bounded list must carry its remainder in the same `… (+N more X)`
-    convention the chain gate and the stop report already use. One helper, so
-    a new bounded list cannot inherit the silence by slicing around it.
-    """
-    items = [str(item) for item in items]
-    if len(items) <= limit:
-        return sep.join(items)
-    hidden = len(items) - limit
-    return (sep.join(items[:limit])
-            + f"{sep}… (+{hidden} more {noun}{'' if hidden == 1 else 's'})")
 
 
 def issue_summary(issues: list[str], limit: int) -> str:

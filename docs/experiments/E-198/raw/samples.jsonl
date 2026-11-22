@@ -1,0 +1,10 @@
+{"broken": false, "probe": "warning_kept_whole", "ok": true, "detail": "tail='— epic still in-progress, roll up to done + run the retro; … (+3 more)'"}
+{"broken": false, "probe": "warnings_lead", "ok": true, "detail": "head='sprint: ⚠ epic-2: stories all done — epic still in'"}
+{"broken": false, "probe": "remainder_counted", "ok": true, "detail": "tail='n the retro; … (+3 more)'"}
+{"broken": false, "probe": "bound_respected_wide", "ok": true, "detail": "len=191"}
+{"broken": false, "probe": "bound_respected_extreme", "ok": true, "detail": "len=191"}
+{"broken": false, "probe": "fits_unmarked", "ok": true, "detail": "line='sprint: in-progress: 1-1-login; 1 done (1-2-out)'"}
+{"broken": false, "probe": "status_only_board_intact", "ok": true, "detail": "line='sprint: 4 in-progress (1-1-story-1, 1-2-story-2, 1-3-story-3, …); 1 done (1-9-out)'"}
+{"broken": false, "probe": "lone_oversized_part_elided", "ok": true, "detail": "len=200 tail='gslugslugslugslugslugslugs…; … (+1 more)'"}
+{"broken": false, "probe": "live_inject_keeps_the_action", "ok": true, "detail": "sprint='⚠ epic-2: stories all done — epic still in-progress, roll up to done + run the retro; ⚠ epic-3: stories all do'"}
+{"broken": false, "probe": "no_character_slice_left", "ok": true, "detail": "formatter no longer slices the finished line"}
