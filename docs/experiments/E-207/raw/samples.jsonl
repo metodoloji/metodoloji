@@ -1,0 +1,6 @@
+{"broken": false, "probe": "token_whole", "ok": true, "detail": "row='relay     E: E-201: APPROVED: 8/8 orient step bound (GATE-OK-E-201-f83137) | SP: SP-004: sprint ready, 7 stori'"}
+{"broken": false, "probe": "word_boundary", "ok": true, "detail": "row='relay     E: E-201: APPROVED: 8/8 orient step bound (GATE-OK-E-201-f83137) | SP: SP-004: sprint ready, 7 stori'"}
+{"broken": false, "probe": "report_value_verbatim", "ok": true, "detail": "stages=['E', 'SP']"}
+{"broken": false, "probe": "short_value_verbatim", "ok": true, "detail": "row='relay     E: E-1: APPROVED (GATE-OK-E-1-ab)'"}
+{"broken": false, "probe": "all_stages_listed", "ok": true, "detail": "row='relay     E: E-1: APPROVED (x) | SP: SP-2: sprint ready (y)'"}
+{"broken": false, "probe": "single_elision", "ok": true, "detail": "value='ured measured…' markers=1"}

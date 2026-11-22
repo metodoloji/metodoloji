@@ -480,6 +480,37 @@ def test_advisory_states_position_evidence_and_computed_next(tmp_path):
     assert "workflow.py" in line
 
 
+def test_advisory_names_the_whole_evidence_command(tmp_path):
+    """E-208: `argv[:3]` cut every builtin stage's command to a dangling flag.
+
+    Live 2026-11-22 against the builtin methodology-chain spec: all six stages
+    rendered `command `{python} {metodoloji-root}/hooks/scripts/chain-gate.py
+    --stage` (rc=0)` — no stage name, no slug, no project root, identical
+    across stages. The hint exists to tell the agent what must succeed; a
+    command elided in the middle is a different command.
+    """
+    spec = _spec()
+    argv = ["{python}", "{metodoloji-root}/hooks/scripts/chain-gate.py",
+            "--stage", "experiment", "--slug", "{slug}",
+            "--project-root", "{project-root}"]
+    spec["stages"][0]["evidence"] = {"kind": "command", "argv": argv}
+    engine.create(str(tmp_path), spec)
+    line = advisory.peek(str(tmp_path))
+    # The placeholders are expanded by the kernel, so the line carries the
+    # command it would actually run — stage, slug and project root included.
+    assert "chain-gate.py --stage experiment" in line
+    assert f"--slug demo --project-root {tmp_path}" in line
+    assert "--stage`" not in line
+
+
+def test_advisory_keeps_a_short_command_verbatim(tmp_path):
+    spec = _spec()
+    spec["stages"][0]["evidence"] = {"kind": "command", "argv": ["pytest", "-q"],
+                                      "rc": 0}
+    engine.create(str(tmp_path), spec)
+    assert "command `pytest -q` (rc=0)" in advisory.peek(str(tmp_path))
+
+
 def test_advisory_reports_blocked_reason(tmp_path):
     engine.create(str(tmp_path), _spec())
     engine.block(str(tmp_path), "demo", "waiting on GSC access")

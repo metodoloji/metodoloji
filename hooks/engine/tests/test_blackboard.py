@@ -259,6 +259,76 @@ def test_doctor_reports_orphan_link_endpoints_without_failing(root):
     assert "ux.<product-slug>" in doc2["checks"]["graph"]["orphans"]
 
 
+def test_the_doctor_panel_counts_the_orphans_its_report_withholds(root):
+    """E-206: `orphans[:10]` was printed as the count and `orph[:3]` as the list.
+
+    Live 2026-11-22 on a 14-edge board: `graph     14 edge(s) (10 orphan
+    endpoint(s): ux.ghost00, ux.ghost01, ux.ghost02)` — the report's own bound
+    read as the graph's total, and seven of the ten were named nowhere. An
+    operator triaging a mis-slugged key reads that line as the whole set.
+    """
+    bb.write_key(root, "prd.acme", "v1", hot=True)
+    for i in range(14):
+        bb.link(root, "prd.acme", f"ux.ghost{i:02d}", relation="informs")
+    graph = bb.doctor(root)["checks"]["graph"]
+    assert graph["orphans_total"] == 14 and len(graph["orphans"]) == 10
+    panel = _run_cli(root, "doctor").stdout
+    assert "14 orphan endpoint(s)" in panel
+    assert "… (+11 more orphan endpoints)" in panel
+    assert "ux.ghost00" in panel and "ux.ghost03" not in panel
+
+
+def test_the_doctor_panel_counts_the_unclear_signals_it_withholds(root):
+    """E-206: three unclear rows printed, the other three vanished silently."""
+    for i in range(6):
+        bb.post_handoff(root, "bmad-create-story", f"sprint-{i}", f"ready {i}")
+    assert bb.doctor(root)["checks"]["freshness"]["unclear_total"] == 6
+    panel = _run_cli(root, "doctor").stdout
+    assert panel.count("no code-state anchor") == 3
+    assert "… (+3 more unclear signals)" in panel
+
+
+def test_the_doctor_relay_row_quotes_each_stage_value_whole(root):
+    """E-207: `v[:50]` re-cut a value the report had bounded at a boundary.
+
+    Live 2026-11-22: `relay     E: E-201: APPROVED: 8/8 orient step bound
+    (GATE-OK-E- | SP: SP-004: … epic-3 in progres` — a verifiable gate token
+    cut in half and a word broken, on the panel operators paste into issues.
+    """
+    token = "GATE-OK-E-201-f83137"
+    bb.write_key(root, "methodology.last_experiment",
+                 f"E-201: APPROVED: 8/8 orient step bound ({token})")
+    bb.write_key(root, "methodology.last_sp",
+                 "SP-004: sprint ready, 7 stories, epic-3 in progress "
+                 "(GATE-OK-SP-4-aa11)")
+    panel = _run_cli(root, "doctor").stdout
+    row = next(line for line in panel.splitlines() if line.startswith("relay "))
+    assert token in row and "in progress" in row
+    assert "GATE-OK-E- |" not in row
+    progress = bb.doctor(root)["checks"]["methodology"]["progress"]
+    for stage, value in progress.items():
+        assert f"{stage}: {value}" in row
+
+
+def test_the_doctor_relay_row_keeps_the_reports_elision(root):
+    """A value the report elided once stays elided once — no second silent cut."""
+    bb.write_key(root, "methodology.last_experiment",
+                 "E-900: APPROVED: " + "measured " * 12 + "(GATE-OK-E-900-abc)")
+    value = bb.doctor(root)["checks"]["methodology"]["progress"]["E"]
+    assert value.endswith("…")
+    panel = _run_cli(root, "doctor").stdout
+    row = next(line for line in panel.splitlines() if line.startswith("relay "))
+    assert value in row and row.count("…") == 1
+
+
+def test_the_doctor_panel_is_silent_when_both_lists_fit(root):
+    bb.write_key(root, "prd.acme", "v1", hot=True)
+    bb.link(root, "prd.acme", "ux.acme", relation="informs")
+    panel = _run_cli(root, "doctor").stdout
+    assert "1 orphan endpoint(s): ux.acme)" in panel
+    assert "more orphan endpoint" not in panel and "more unclear" not in panel
+
+
 def test_write_non_run_key_leaves_mirror_untouched(root):
     # Only methodology run keys mirror; an ordinary key write emits exactly
     # one event (no surprise mirror), and the chain context stays empty.

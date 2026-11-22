@@ -1,0 +1,6 @@
+{"broken": true, "probe": "counts_remainder", "ok": false, "detail": "5 file(s) in the claim's scope changed since it was recorded (['src/mod_000.py', 'src/mod_001.py', 'src/mod_002.py'] "}
+{"broken": true, "probe": "bound_is_three", "ok": false, "detail": "named=3"}
+{"broken": true, "probe": "fits_verbatim", "ok": false, "detail": "2 file(s) in the claim's scope changed since it was recorded (['src/a.py', 'src/b.py'] "}
+{"broken": true, "probe": "empty_code_state", "ok": true, "detail": "superseded by E-54 (cascade invalidation) (code state "}
+{"broken": true, "probe": "hundreds_counted", "ok": false, "detail": "145 file(s) in the claim's scope changed since it was recorded (['src/mod_000.py', 'src/mod_001.py', 'src/mod_002.py'] "}
+{"broken": true, "probe": "witness_anchor", "ok": true, "detail": "5 file(s) in the claim's scope changed since it was recorded (['src/mod_000.py', 'src/mod_001.py', 'src/mod_002.py'] "}

@@ -89,9 +89,16 @@ def find_approved(target: str, recs_dir: str | None = None,
                 except Exception:
                     blocks = False
                 if fresh["verdict"] == fr.STALE:
+                    # E-209: `fresh['changed'][:3]` dropped the rest of the
+                    # blast radius without saying so — a reader of the denial
+                    # saw three paths and "changed after approval" as the whole
+                    # story, while the STALE detail can carry hundreds.
+                    from .counting import counted_list
+                    moved = (counted_list(fresh["changed"], 3, noun="path")
+                             if fresh["changed"] else "code state")
                     trouble = (
                         f"but the code has moved past it: {fresh['reason']} "
-                        f"({fresh['changed'][:3] if fresh['changed'] else 'code state'} "
+                        f"({moved} "
                         f"changed after approval"
                         f"{', witness ' + fresh['commit'][:12] if fresh['commit'] else ''}). ")
                 else:

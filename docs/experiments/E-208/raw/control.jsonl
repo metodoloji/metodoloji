@@ -1,0 +1,6 @@
+{"broken": true, "probe": "builtin_full_argv", "ok": false, "detail": "incomplete=['experiment', 'implementation-readiness', 'sprint-planning', 'story', 'quality-review', 'production-readiness']"}
+{"broken": true, "probe": "builtin_stage_value", "ok": false, "detail": "unnamed=['experiment', 'implementation-readiness', 'sprint-planning', 'story', 'quality-review', 'production-readiness']"}
+{"broken": true, "probe": "builtin_slug_and_root", "ok": false, "detail": "missing=['experiment', 'implementation-readiness', 'sprint-planning', 'story', 'quality-review', 'production-readiness']"}
+{"broken": true, "probe": "stages_distinguishable", "ok": false, "detail": "experiment!=production-readiness"}
+{"broken": true, "probe": "no_dangling_flag", "ok": false, "detail": "dangling=['experiment', 'implementation-readiness', 'sprint-planning', 'story', 'quality-review', 'production-readiness']"}
+{"broken": true, "probe": "short_argv_verbatim", "ok": true, "detail": "hint='command `pytest -q` (rc=0)'"}

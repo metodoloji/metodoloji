@@ -1,0 +1,6 @@
+{"broken": false, "probe": "builtin_full_argv", "ok": true, "detail": "incomplete=[]"}
+{"broken": false, "probe": "builtin_stage_value", "ok": true, "detail": "unnamed=[]"}
+{"broken": false, "probe": "builtin_slug_and_root", "ok": true, "detail": "missing=[]"}
+{"broken": false, "probe": "stages_distinguishable", "ok": true, "detail": "experiment!=production-readiness"}
+{"broken": false, "probe": "no_dangling_flag", "ok": true, "detail": "dangling=[]"}
+{"broken": false, "probe": "short_argv_verbatim", "ok": true, "detail": "hint='command `pytest -q` (rc=0)'"}

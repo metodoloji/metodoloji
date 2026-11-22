@@ -40,7 +40,12 @@ def _evidence_hint(stage: dict) -> str:
         base = f"artifact {ev.get('path')}"
         return f"{base} needs {tokens}" if tokens else base
     if kind == "command":
-        argv = " ".join(str(a) for a in (ev.get("argv") or [])[:3])
+        # E-208: `argv[:3]` printed `chain-gate.py --stage` for every builtin
+        # stage — a dangling flag, no slug, no project root, and identical for
+        # six different stages. The hint exists to tell the agent what to run;
+        # a command elided in the middle is a different command. argv is
+        # authored by the spec, so it prints whole.
+        argv = " ".join(str(a) for a in (ev.get("argv") or []))
         return f"command `{argv}` (rc={ev.get('rc', 0)})"
     if kind == "note":
         return "a --note statement"

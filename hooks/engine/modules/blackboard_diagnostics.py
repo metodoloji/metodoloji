@@ -448,7 +448,10 @@ def doctor(project_root: str, *, post: bool = False) -> dict:
                   "status": ("ok" if not chain_warnings and not stale
                              else "warn" if stale else "signal")},
         "watch": {"paths": watch, "status": "info" if watch else "ok"},
+        # E-206: the list is bounded, the count is not — a reader who sees
+        # ten orphans here must not read them as the whole graph.
         "graph": {"edges": len(board["links"]), "orphans": _orphans[:10],
+                  "orphans_total": len(_orphans),
                   "status": "info"},
         "methodology": {"progress": methodology,
                         "status": "info" if methodology else "ok"},
@@ -457,6 +460,7 @@ def doctor(project_root: str, *, post: bool = False) -> dict:
                       "retired": retired_count,
                       "report": freshness_report,
                       "unclear": unclear[:10],
+                      "unclear_total": len(unclear),
                       "tally": fresh_tally,
                       # A >24h signal that is ALSO stale by code state is a
                       # health finding (its remedy is retire/re-post, not

@@ -1529,6 +1529,62 @@ def test_guard_verify_cache_skips_reverify(tmp_path, monkeypatch):
     assert len(calls) == 1
 
 
+def _stale_scope_message(tmp_path, monkeypatch, changed, reason="5 file(s) in the claim's scope changed since it was recorded"):
+    """Render the shipped STALE notice find_approved hands the write path."""
+    import sys
+    from modules.guard import find_approved, _VERIFY_CACHE
+    guard_mod = sys.modules["modules.guard"]
+    (tmp_path / "docs/experiments").mkdir(parents=True)
+    (tmp_path / "docs/experiments/E-001.md").write_text("# E\n", encoding="utf-8")
+    monkeypatch.setattr(guard_mod, "verify_record", lambda rec: (0, "src/**"))
+    monkeypatch.setattr(guard_mod, "_load_gate", lambda: True)
+    monkeypatch.setattr(guard_mod, "gate",
+                        type("G", (), {"scope_matches": staticmethod(lambda s, t: True)})(),
+                        raising=False)
+    monkeypatch.setattr(guard_mod, "record_scope_cached", lambda rec: "src/**")
+    monkeypatch.setattr(guard_mod, "_record_freshness", lambda root, rec: {
+        "verdict": "STALE", "reason": reason, "changed": list(changed),
+        "commit": "0123456789abcdef0123", "record": "E-001.md"})
+    # The denial message is the `[hooks] freshness = deny` path; under `warn`
+    # the write proceeds with the short "(scope matched)" line and the verdict
+    # travels in the returned detail instead.
+    from modules import freshness as freshness_mod
+    monkeypatch.setattr(freshness_mod, "mode", lambda: "deny")
+    monkeypatch.setattr(freshness_mod, "unknown_policy", lambda: "warn")
+    _VERIFY_CACHE.clear()
+    _ok, detail, _fresh = find_approved("src/a.py", root=str(tmp_path))
+    return detail
+
+
+def test_guard_stale_notice_counts_the_paths_it_withholds(tmp_path, monkeypatch):
+    """E-209: `changed[:3]` named three of five paths and said nothing about the
+    other two, so the denial read as the whole blast radius. The notice now
+    counts the remainder in the one shared form."""
+    changed = ["src/a.py", "src/b.py", "src/c.py", "src/d.py", "src/e.py"]
+    detail = _stale_scope_message(tmp_path, monkeypatch, changed)
+    assert "src/a.py, src/b.py, src/c.py, … (+2 more paths)" in detail
+    assert "src/d.py" not in detail and "src/e.py" not in detail
+    assert "0123456789ab" in detail  # the witness anchor survives
+
+
+def test_guard_stale_notice_prints_a_short_list_whole(tmp_path, monkeypatch):
+    detail = _stale_scope_message(
+        tmp_path, monkeypatch, ["src/a.py", "src/b.py"],
+        reason="2 file(s) in the claim's scope changed since it was recorded")
+    assert "(src/a.py, src/b.py changed after approval" in detail
+    assert "more path" not in detail
+
+
+def test_guard_stale_notice_keeps_the_code_state_wording_when_nothing_moved(tmp_path, monkeypatch):
+    """A supersede verdict carries no changed paths: the notice must not print
+    an empty enumeration or a (+0 more paths) marker."""
+    detail = _stale_scope_message(
+        tmp_path, monkeypatch, [],
+        reason="superseded by E-54 (cascade invalidation)")
+    assert "(code state changed after approval" in detail
+    assert "more path" not in detail
+
+
 def test_guard_code_guard_soft_warns_not_denies(tmp_path, monkeypatch):
     """code_guard=soft (brownfield): unapproved write warns, still allows."""
     from modules.guard import guard

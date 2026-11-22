@@ -231,12 +231,24 @@ def _panel(d: dict) -> str:
     g = c.get("graph", {})
     if g.get("edges"):
         orph = g.get("orphans", [])
+        # E-206: `orphans` is capped at ten in the report, so its length was
+        # never the graph's orphan count — a 14-edge board read "10 orphan
+        # endpoint(s)" and named three of them with no remainder.
+        total = g.get("orphans_total", len(orph))
+        shown = orph[:3]
+        hidden = total - len(shown)
+        names = ", ".join(shown) + (f", … (+{hidden} more orphan endpoint"
+                                    f"{'' if hidden == 1 else 's'})"
+                                    if hidden > 0 else "")
         lines.append(f"graph     {g['edges']} edge(s)"
-                     + (f" ({len(orph)} orphan endpoint(s): "
-                        f"{', '.join(orph[:3])})" if orph else ""))
+                     + (f" ({total} orphan endpoint(s): {names})" if total else ""))
     m = c.get("methodology", {}).get("progress", {})
     if m:
-        lines.append("relay     " + " | ".join(f"{k}: {v[:50]}" for k, v in m.items()))
+        # E-207: `v[:50]` re-cut a value the report had already bounded at 80
+        # *at a boundary* (brief_text, E-187), so a live panel read
+        # `E-201: … (GATE-OK-E-` and `epic-3 in progres`. The report's bound is
+        # the bound; print what it handed over, marker and all.
+        lines.append("relay     " + " | ".join(f"{k}: {v}" for k, v in m.items()))
     else:
         lines.append("relay     not started (no E/IR/SP/S/QR/PR run key on this board)")
     if ch.get("stale"):
@@ -250,9 +262,15 @@ def _panel(d: dict) -> str:
             f"freshness {fr_.get('mode', 'warn')}: {tally.get(bb.fr.STALE, 0)} stale / "
             f"{tally.get(bb.fr.UNKNOWN, 0)} unknown of {tally.get('total', 0)} waiting "
             f"({fr_.get('retired', 0)} retired; {fr_.get('witnesses', 0)} witness(es))")
-        for item in (fr_.get("unclear") or [])[:3]:
+        unclear = fr_.get("unclear") or []
+        unclear_total = fr_.get("unclear_total", len(unclear))
+        for item in unclear[:3]:
             lines.append(f"          {item.get('run_key') or item.get('from')} "
                          f"({item.get('verdict')}): {item.get('reason')}")
+        hidden = unclear_total - len(unclear[:3])
+        if hidden > 0:
+            lines.append(f"          … (+{hidden} more unclear "
+                         f"signal{'' if hidden == 1 else 's'})")
     w = c["watch"]["paths"]
     if w:
         lines.append("watch     " + "; ".join(

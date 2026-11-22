@@ -1,0 +1,7 @@
+{"broken": true, "probe": "orphan_total_not_the_cap", "ok": false, "detail": "total=None listed=10"}
+{"broken": true, "probe": "unclear_total_not_the_cap", "ok": false, "detail": "total=None listed=6"}
+{"broken": true, "probe": "panel_prints_the_orphan_total", "ok": false, "detail": "line='graph     14 edge(s) (10 orphan endpoint(s): ux.ghost00, ux.ghost01, ux.ghost02)'"}
+{"broken": true, "probe": "panel_counts_the_orphan_remainder", "ok": false, "detail": "has_marker=False"}
+{"broken": true, "probe": "panel_counts_the_unclear_remainder", "ok": false, "detail": "rows=3"}
+{"broken": true, "probe": "report_lists_stay_bounded", "ok": true, "detail": "listed=10"}
+{"broken": true, "probe": "under_bound_silent", "ok": true, "detail": "line='graph     1 edge(s) (1 orphan endpoint(s): ux.ghost00)'"}
