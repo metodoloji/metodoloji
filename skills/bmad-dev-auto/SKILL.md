@@ -26,7 +26,7 @@ To HALT with a final status and optional blocking condition:
    Status: <final status>
    Blocking condition: <blocking condition, if any>
    ```
-3. **Only when the final status is `done`**, bind the run to the chain and signal the formal review gate (one call): `python3 {metodoloji-root}/hooks/scripts/blackboard.py mirror --key devauto.<slug> --value "dev-auto done — {spec_file}" --to bmad-code-review --note "dev-auto complete — {spec_file}; run the formal review and fold findings into docs/development/QR" --project-root {project-root}` — `<slug>` is the kebab-case slug step 01 derived (use the spec file's basename when it is unknown). Repeating the same mirror never duplicates the waiting signal; it waits in `handoff.bmad-code-review` until a review run consumes it. For any other status (`blocked`) nothing is reviewable: post no baton and let the run end silently.
+3. **Only when the final status is `done`**, bind the run to the chain and signal the formal review gate (one call): `python3 {metodoloji-root}/hooks/scripts/blackboard.py mirror --key devauto.<slug> --value "dev-auto done — {spec_file}" --to bmad-code-review --note "dev-auto complete — {spec_file}; run the formal review and author the single QR in docs/quality" --project-root {project-root}` — `<slug>` is the kebab-case slug step 01 derived (use the spec file's basename when it is unknown). Repeating the same mirror never duplicates the waiting signal; it waits in `handoff.bmad-code-review` until a review run consumes it. For any other status (`blocked`) nothing is reviewable: post no baton and let the run end silently.
 4. Run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --project-root {project-root} --key workflow.on_complete` — use your harness-native shell tool with the command as given (no extra wrapper params)
 5. If the resolved `workflow.on_complete` is non-empty, follow it as the final instruction before exiting.
 6. Stop the workflow.
@@ -96,6 +96,10 @@ Treat every entry in `{workflow.persistent_facts}` as foundational context you c
 ### Step 6: Execute Append Steps
 
 Execute each entry in `{workflow.activation_steps_append}` in order.
+
+### Step 7: Chain Handshake
+
+Before the first step file, check the chain for signals addressed to you: `python3 {metodoloji-root}/hooks/scripts/blackboard.py handoffs --skill bmad-dev-auto --project-root {project-root}` — the canonical sender is a `bmad-create-story` run. Locate the named work item, then complete the handshake: `python3 {metodoloji-root}/hooks/scripts/blackboard.py consume --channel handoff.bmad-dev-auto --project-root {project-root}` (an unconsumed signal keeps the hand-off waiting, which is correct when the run targets something else). Mirror the run onto the session intent bridge: `python3 {metodoloji-root}/hooks/scripts/blackboard.py write --key purpose --value "dev-auto {slug}" --type state --project-root {project-root}` — autonomous mode does not skip the board.
 
 Activation is complete after all activation steps have run.
 

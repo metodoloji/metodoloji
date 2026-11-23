@@ -88,6 +88,10 @@ Greet `{user_name}`, speaking in `{communication_language}`.
 
 Execute each entry in `{workflow.activation_steps_append}` in order.
 
+### Step 8: Chain Handshake
+
+Before the first step file, check the chain for signals addressed to you: `python3 {metodoloji-root}/hooks/scripts/blackboard.py handoffs --skill bmad-quick-dev --project-root {project-root}` — the canonical sender is a `bmad-create-story` run (an epics or spec run may hand off directly). Read the named work item before consuming, then complete the handshake: `python3 {metodoloji-root}/hooks/scripts/blackboard.py consume --channel handoff.bmad-quick-dev --project-root {project-root}` (consume only after the target is located — an unconsumed signal keeps the hand-off waiting, which is correct when the user routes elsewhere). Mirror the run onto the session intent bridge: `python3 {metodoloji-root}/hooks/scripts/blackboard.py write --key purpose --value "quick-dev {work_item}" --type state --project-root {project-root}`.
+
 Activation is complete. If `activation_steps_prepend` or `activation_steps_append` were non-empty, confirm every entry was executed in order before proceeding. Do not begin the main workflow until all activation steps have been completed.
 
 ## WORKFLOW ARCHITECTURE

@@ -67,6 +67,10 @@ Greet `{user_name}`, speaking in `{communication_language}`.
 
 Execute each entry in `{workflow.activation_steps_append}` in order.
 
+### Step 8: Chain Handshake
+
+Before the workflow begins, claim any baton addressed to this run: `python3 {metodoloji-root}/hooks/scripts/blackboard.py handoffs --skill bmad-correct-course --project-root {project-root}` — the canonical senders are `bmad-sprint-status` (an at-risk sprint) and `bmad-retrospective` (a lesson that changes the plan). Read the named sprint/story first, then complete the handshake: `python3 {metodoloji-root}/hooks/scripts/blackboard.py consume --channel handoff.bmad-correct-course --project-root {project-root}` (consume only after the trigger is located — an unconsumed signal keeps the hand-off waiting, which is correct when the user routes elsewhere). Subscribe to mid-run plan changes: `python3 {metodoloji-root}/hooks/scripts/blackboard.py subscribe --watcher bmad-correct-course --pattern "SP-*" --channel session --project-root {project-root}` (clear with `consume --channel session`). Mirror the run onto the intent bridge: `python3 {metodoloji-root}/hooks/scripts/blackboard.py write --key purpose --value "correct course {{scope_classification}}" --type state --project-root {project-root}`.
+
 Activation is complete. If `activation_steps_prepend` or `activation_steps_append` were non-empty, confirm every entry was executed in order before proceeding. Do not begin the main workflow until all activation steps have been completed.
 
 ## Paths

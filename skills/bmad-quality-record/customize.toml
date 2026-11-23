@@ -12,6 +12,8 @@ activation_steps_prepend = [
 # Persistent facts (loaded at start, carried through workflow)
 persistent_facts = [
   "QR records are Gate 3 of the methodology chain E→IR→SP→S→QR→PR",
+  "Rigor Tier 1 needs QR + regression evidence; Tier 2 adds AC metadata and unit tests; Tier 3 keeps the full chain. The tier never relaxes the QR requirement.",
+  "A STRUCT-XXX AC is DECLARED work: verify its structural declaration (Status declared|ratified, justification >= 40 chars, scope glob) and ratify it (Reviewed-By: QR-<id>), never mark it PASS/FAIL or treat it as a hypothesis. A contract is an E record with Record Kind: contract and verifies like any E record.",
   "QR must verify all AC (acceptance criteria) from the story",
   "QR must verify all DoD (definition of done) from the story",
   "QR requires code review approval before APPROVED decision",
@@ -37,7 +39,9 @@ qr_next_id_query = "{quality_location}/QR-*.md"
 
 [gates]
 # Gate 3 requirements
-test_coverage_threshold = 80
+test_coverage_threshold = 80   # applies to Rigor Tier 2/3
+coverage_applies_from_tier = 2
+tier1_requires_regression_evidence = true
 code_review_required = true
 ac_verification_required = true
 dod_verification_required = true

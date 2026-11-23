@@ -216,6 +216,7 @@ EXPECTED_SUBSCRIPTIONS = {
     "bmad-quality-record": (("story.*", "stop"),),
     "bmad-production-readiness": (("QR-*", "stop"),),
     "bmad-research-experiment": (("retro.*", "session"),),
+    "bmad-correct-course": (("SP-*", "session"),),
 }
 
 # The exact CLI triple a SKILL.md ships for the radar. Anchored end to end so a

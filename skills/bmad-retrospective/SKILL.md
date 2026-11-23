@@ -78,6 +78,10 @@ Greet `{user_name}`, speaking in `{communication_language}`.
 
 Execute each entry in `{workflow.activation_steps_append}` in order.
 
+### Step 8: Chain Handshake
+
+Before the workflow begins, claim any baton addressed to this run: `python3 {metodoloji-root}/hooks/scripts/blackboard.py handoffs --skill bmad-retrospective --project-root {project-root}` — the canonical sender is `bmad-sprint-status` (an epic that closed), and a course-correction run may name the epic it moved. Read the named sprint/epic first, then complete the handshake: `python3 {metodoloji-root}/hooks/scripts/blackboard.py consume --channel handoff.bmad-retrospective --project-root {project-root}` (an unconsumed signal keeps the hand-off waiting, which is correct when the user retros a different epic). Mirror the run onto the intent bridge: `python3 {metodoloji-root}/hooks/scripts/blackboard.py write --key purpose --value "retrospective {{epic_number}}" --type state --project-root {project-root}`.
+
 Activation is complete. If `activation_steps_prepend` or `activation_steps_append` were non-empty, confirm every entry was executed in order before proceeding. Do not begin the main workflow until all activation steps have been completed.
 
 ## Paths

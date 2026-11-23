@@ -129,6 +129,32 @@ Activation is complete. If prepend/append steps were non-empty, confirm every en
 
 This skill opens the methodology relay (E is its first run key), but the relay is a loop: a `bmad-retrospective` run hands its testable lessons back here as the next hypothesis, and a course correction may point at a re-run. Claim that baton before Stage 1: `python3 {metodoloji-root}/hooks/scripts/blackboard.py handoffs --skill bmad-research-experiment --project-root {project-root}` — the signal names the epic whose retrospective produced the lesson; read it first and let it seed the Theory/Hypothesis stages. Then complete the handshake: `python3 {metodoloji-root}/hooks/scripts/blackboard.py consume --channel handoff.bmad-research-experiment --project-root {project-root}` (consume only after the experiment target is chosen — an unconsumed signal keeps the loop's return edge waiting, which is correct when the user starts an unrelated experiment instead). Watch the governance return edge: `python3 {metodoloji-root}/hooks/scripts/blackboard.py subscribe --watcher bmad-research-experiment --pattern "retro.*" --channel session --project-root {project-root}` (a retrospective lesson needing an experiment surfaces at SessionStart; clear with `consume --channel session`).
 
+## Record Kind — experiment or contract (decide before Stage 2)
+
+Every record declares `- **Record Kind:** experiment | contract`. The choice is a
+claim about the measurement, not a style preference:
+
+| Kind | When | Gate expectation |
+|---|---|---|
+| `experiment` | The claim is stochastic: a sample stands in for a population, so the result needs a rate, a denominator and a sampling bound. | Hypothesis threshold + `(x/y)` samples; Wilson `Uncertainty` line. |
+| `contract` | The test is deterministic over a **closed, enumerated** input set (unit, regression, schema, lint). Every case must pass; there is no population to sample. | Hypothesis must claim 100% (`== 1.0` or `>= 1.0`); a `Census:` line names the closed set (≥ 40 chars); the gate writes a contract note instead of sampling statistics. |
+
+A deterministic test dressed up as an experiment invites a fabricated
+confidence interval; a sampled claim dressed up as a contract hides its sample
+size. Neither is allowed. Create the record through the schema-checked CLI so
+the kind is explicit and validated:
+
+```
+python3 {metodoloji-root}/scripts/create-record.py --kind contract --id E-<n> --title "..." \
+  --theory "..." --hypothesis 'H-<n>: "escape_rate == 1.0"' --metrics "escape_rate == 1.0" \
+  --design "..." --scope "src/**" --lineage none \
+  --census "the six storage write paths enumerated in storage_adapters.py are the complete set" \
+  --raw-samples docs/experiments/E-<n>/raw/samples.jsonl
+```
+
+`--kind experiment` is the default. Do not add sampling statistics to a contract
+run; its `Uncertainty` line reads `none (contract — closed deterministic input set …)`.
+
 ## THE EXPERIMENT FLOW (6 stages, gated)
 
 You move through these stages in order. A stage's gate must close before the next opens. Any missing prerequisite is a stop, not a skip.
@@ -140,6 +166,7 @@ Clarify with the researcher the **theory/framework** behind this question:
 - Why is this question being asked? What model, framework, or prior evidence motivates it?
 - A vague "I'm curious" is not a theory — write down the reasoning that predicts an outcome.
 - A good next experiment: (a) maps to a PDF claim or an existing surface's gap, (b) is falsifiable (a broken implementation scores below the threshold), (c) fits in one coherent commit.
+- **Do not invent an experiment for code that makes no claim.** Scaffold, a package manifest, CI wiring or a layout shell belongs in a **Structural Scope declaration** (`docs/development/structural/STRUCT-NNN.md`: justification ≥ 40 characters, a path glob, `Status: declared|ratified`). The guard accepts that declaration for non-measurement paths; an E record must never be fabricated to unlock it (see `docs/design/structural-scope.md`). A declaration is not an approval and never covers `scripts/bench/**`.
 - **Consult the corpus first (E-022).** The E record is the methodology's memory and a new one must carry it: read the sibling records in `docs/experiments/` — what did they measure, what scope did they open, what did a REJECTED one teach? Record the result in the mandatory `Lineage` field: `none` for a genuinely new line of inquiry, otherwise the E-ids this builds on / supersedes, with what is inherited. The gate REFUSES a draft whose `Lineage` is missing, malformed, dangling, self-citing, or silent about a REJECTED record whose `Code Scope` it re-treads (P9).
 - Output: a short theory statement recorded in the experiment log.
 
@@ -386,6 +413,7 @@ python3 {skill-root}/scripts/run_experiment.py --verify --record {project-root}/
 
 - Write/update `docs/experiments/<experiment-id>.md` per `experiment-log.md` (the gate's mandatory format).
 - Record: theory, hypothesis + threshold, measurement metrics, design, raw results, decision + rationale, next step.
+- A `contract` record carries its `Census:` line and 100% claim; the gate's contract note replaces the Wilson/`Uncertainty` statistics. Report it as "N/N closed cases pass", never as a sampled rate.
 - **Blackboard run close-out (mandatory — do not skip even when the gate already mirrored):**
   - The gate (`{skill-root}/scripts/run_experiment.py --run`, without `--no-blackboard`) already mirrors the decision onto the board automatically: `E-{experiment-id}` run key + (on APPROVED) the hand-off to `bmad-check-implementation-readiness`. Verify the mirror landed — if the gate ran with `--no-blackboard`, on another machine, or the mirror was skipped, bind it by hand:
   - **On APPROVED:** Bind the outcome and post the hand-off signal to implementation readiness (one call):

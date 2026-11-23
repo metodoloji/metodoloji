@@ -96,6 +96,30 @@ Before loading the first step file, check the chain for signals addressed to you
 | ux | UX design (fallback - epics file should have relevant sections) | whole: `{project-root}/docs/design/ux-designs/*ux*.md`, sharded: `{project-root}/docs/design/ux-designs/*ux*/*.md` | SELECTIVE_LOAD |
 | epics | Enhanced epics+stories file with BDD and source hints | whole: `{planning_artifacts}/*epic*.md`, sharded: `{planning_artifacts}/*epic*/*.md` | SELECTIVE_LOAD |
 
+## Story Contract: Rigor Tier, Experiment and Structural Scope
+
+The story record is a gate input, not free prose. Fix these three things before
+the story is written:
+
+- **The `Rigor Tier` field is mandatory** (`- **Rigor Tier:** 1|2|3`). Choose by blast radius, not by
+desired ceremony: **1** = trivial/doc/hotfix (QR + regression evidence; no
+experiment reference required), **2** = feature/refactor (adds the story
+  record, AC metadata and unit tests; planning records skipped), **3** =
+  probabilistic/security/core/ML (full E → IR → SP → S chain). An absent or
+  malformed value falls back to Tier 3, so a typo buys the stricter gate.
+- **Every AC names its measured basis.** `Experiment: E-NNN` for a claim the
+  gate measured and approved (a deterministic closed-set test is still an E
+  record — one that declares `Record Kind: contract`), `Experiment: STRUCT-NNN`
+  for paths that carry no measurable claim (declaration in
+  `docs/development/structural/`, `Status: declared|ratified`), or
+  `Experiment: —` with the `[HYPOTHESIS]` tag. A STRUCT reference is declared
+  work, not a hypothesis.
+- **Never invent an experiment to unlock scaffold.** That is falsification; the
+  structural declaration is the honest door and the guard accepts it.
+
+The tier is also the kernel's routing flag: Tier 1/2 runs skip the IR/SP
+stages, Tier 3 runs them. The QR is required at every tier.
+
 ## Execution
 
 <workflow>
@@ -396,7 +420,7 @@ Before loading the first step file, check the chain for signals addressed to you
   </check>
 
   <!-- Chain hand-off: signal dev-story that this story is ready -->
-  <action>Bind the story on the blackboard and fan out to both downstream runs (one heartbeat, two signals — the bridge): `python3 {metodoloji-root}/hooks/scripts/blackboard.py mirror --key story.{{story_key}} --value "context ready — story file final" --to bmad-dev-story --note "story ready-for-dev — file: {{default_output_file}}" --project-root {project-root}` (this run key is the relay heartbeat: the engine mirrors `methodology.last_story` from it automatically; the signal waits in `handoff.bmad-dev-story` until a dev run consumes it — that consumption completes the handshake). Queue the quality-record stage the same way: `python3 {metodoloji-root}/hooks/scripts/blackboard.py mirror --key story.{{story_key}} --value "context ready — story file final" --to bmad-quality-record --note "story {{story_key}} queued — create the QR record once the story reaches review/done (file: {{default_output_file}})" --project-root {project-root}` (waits in `handoff.bmad-quality-record` until a QR run consumes it). Trace the relay on the graph: `python3 {metodoloji-root}/hooks/scripts/blackboard.py link --a epics.<project-slug> --b story.{{story_key}} --relation informs --project-root {project-root}` (the epics slug is the one the consumed baton named; downstream reads it via `neighbors --node story.{{story_key}}`). Mirror completion onto the intent bridge: `python3 {metodoloji-root}/hooks/scripts/blackboard.py write --key status --value complete --type state --project-root {project-root}` (stop skips story checks once progress is `complete`)</action>
+  <action>Bind the story on the blackboard and fan out to both downstream runs (one heartbeat, two signals — the bridge): `python3 {metodoloji-root}/hooks/scripts/blackboard.py mirror --key story.{{story_key}} --value "context ready — story file final" --to bmad-dev-story --note "story ready-for-dev — file: {{default_output_file}}" --project-root {project-root}` (this run key is the relay heartbeat: the engine mirrors `methodology.last_story` from it automatically; the signal waits in `handoff.bmad-dev-story` until a dev run consumes it — that consumption completes the handshake). Queue the QR stage as a waiting baton, with its timing explicit: `python3 {metodoloji-root}/hooks/scripts/blackboard.py mirror --key story.{{story_key}} --value "context ready — story file final" --to bmad-quality-record --note "story {{story_key}} queued for a QR ONLY after it reaches review and bmad-code-review has run (file: {{default_output_file}})" --project-root {project-root}` — the signal waits in `handoff.bmad-quality-record`; the QR record is authored after review, never at story-creation time. Trace the relay on the graph: `python3 {metodoloji-root}/hooks/scripts/blackboard.py link --a epics.<project-slug> --b story.{{story_key}} --relation informs --project-root {project-root}` (the epics slug is the one the consumed baton named; downstream reads it via `neighbors --node story.{{story_key}}`). Mirror completion onto the intent bridge: `python3 {metodoloji-root}/hooks/scripts/blackboard.py write --key status --value complete --type state --project-root {project-root}` (stop skips story checks once progress is `complete`)</action>
 
   <!-- Live canvas feed: report the paths this run wrote so a watching canvas shows a real auto cell (advisory, fail-open — never blocks close) -->
   <action>Feed the live canvas for every path this run wrote under a watched prefix: `python3 {metodoloji-root}/hooks/scripts/blackboard.py canvas touch --path {{default_output_file}} --tool bmad-create-story --project-root {project-root}` (repeat once per written file; a touch under no watched prefix returns ok and changes nothing)</action>

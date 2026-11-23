@@ -135,4 +135,4 @@ so that {{benefit}}.
 - **Total DoD Items**: {{total}}
 - **Passed**: {{passed}}
 - **Failed**: {{failed}}
-- **QR Record Path**: docs/quality/QR-{{sira}}.md
+- **QR Record Path**: docs/quality/QR-<sequence>.md (next available numeric id)

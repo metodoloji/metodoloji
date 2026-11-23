@@ -24,7 +24,8 @@ persistent_facts = [
 # Post-activation steps (run after main workflow)
 activation_steps_append = [
   "KERNEL: The deploy branch is declared BEFORE quality-review completes — by bmad-quality-record / bmad-code-review, from the QR's Next step. Check where the run stands: `python3 {metodoloji-root}/hooks/scripts/workflow.py status --slug S-<sira> --project-root {project-root}`. At stage `production-readiness`, advance it once the PR record is ready/deployed: `python3 {metodoloji-root}/hooks/scripts/workflow.py complete --slug S-<sira> --stage production-readiness --project-root {project-root}`. A run already `completed` means the branch was never declared: say so plainly — the PR record still stands on its own, but the kernel run did not pass through this stage, and it cannot be reopened from here (re-drive it with `create --force` only if the chain itself must be re-proven).",
-  "Link every PR item to its quality record (QR-XXX) under docs/quality-records/ whose status is APPROVED. Quality claims without an approved, measured QR are marked as unverified — do not certify them as production-ready.",
+  "This record is required only for Rigor Tier 3. Read the story's `- **Rigor Tier:**`; Tier 1/2 skip the PR record by policy (the deploy guard's min_tier=3) and their tier declaration alone proves the production-readiness stage.",
+  "Link every PR item to its quality record (QR-XXX) under docs/quality/ whose status is APPROVED. Quality claims without an approved, measured QR are marked as unverified — do not certify them as production-ready.",
 ]
 
 # Post-completion action (optional terminal command)
@@ -45,7 +46,9 @@ runbook_required = true
 change_approval_required = true
 
 # Status values allowed for PR
-allowed_statuses = ["preparing", "READY", "WAITING", "deployed"]
+allowed_statuses = ["preparing", "ready", "deployed", "rolled-back"]
+# Decision values allowed for PR (separate from Status)
+allowed_decisions = ["READY", "WAITING"]
 
 [deploy]
 # Default deployment method (can be overridden)

@@ -212,12 +212,21 @@ Before `## Execution`, check the chain for signals addressed to you: `python3 {m
     <critical>Validate Acceptance Criteria metadata at load time</critical>
     <action>For each AC in Acceptance Criteria section, verify:</action>
     - AC identifier exists and is unique ([AC-XXX] format)
-    - Experiment field is present (E-XXX or —)
+    - Experiment field is present (E-XXX | STRUCT-XXX | —)
     - Type field is present (agent-verifiable | user-evaluable | hybrid)
     - Measured field is present (true | false)
     - Verify field is present (verification method)
     - If Experiment is — or Measured is false, AC must have [HYPOTHESIS] tag
+    - STRUCT-XXX is declared work, NOT a hypothesis: it needs no [HYPOTHESIS] tag
     <action>Report AC metadata validation results to user</action>
+
+    <!-- MEASURED BASIS RESOLUTION -->
+    <critical>Resolve every AC reference; never invent an id</critical>
+    <action>For each AC, resolve its declared basis:</action>
+    - Experiment: E-XXX → run `python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --verify --record {project-root}/docs/experiments/<id>.md`; only VERIFIED unlocks code. FORGED, REJECTED or a missing record means no code for that AC.
+    - Experiment: STRUCT-XXX → read `{project-root}/docs/development/structural/STRUCT-XXX.md`; require `Status: declared|ratified`, a justification >= 40 characters and a Scope glob covering the files you will touch. A missing/dangling declaration is a stop.
+    - Experiment: — with [HYPOTHESIS] → no code; leave it as a note.
+    <action if="an E-AC is not VERIFIED, a STRUCT declaration is missing/dangling, or every AC is a hypothesis">HALT and report the missing approval/declaration; implement nothing</action>
     <action if="any AC is missing required metadata">HALT: "AC metadata incomplete — fix before implementing"</action>
 
     <!-- TASK ↔ AC MAPPING VALIDATION -->
@@ -497,21 +506,10 @@ Before `## Execution`, check the chain for signals addressed to you: `python3 {m
       - Only permitted story sections were modified
     </action>
 
-    <!-- QR RECORD CREATION -->
-    <critical>Create Quality Record (QR) after all DoD items are validated</critical>
-    <action>Create docs/quality/QR-{{sira}}.md with:</action>
-    - Story reference: {{story_key}}
-    - Story file path
-    - Date: {{date}}
-    - QR Status: pass | fail | partial
-    - DoD validation results (table: DoD Item | Durum | Kanit | Tarih)
-    - AC verification results (table: AC | Durum | Method | Evidence)
-    - Test output summary
-    - File list
-    - Change log summary
-    <action>Update story file Quality Record section with QR results</action>
-    <action>Update story file Quality Record table: mark each DoD item as ✅ passed or ❌ failed with evidence</action>
-    <action>Update QR Summary in story file: Total, Passed, Failed counts, QR Record Path</action>
+    <!-- QR OWNERSHIP -->
+    <critical>This workflow does NOT author the QR record.</critical>
+    <action>Set the story Status to "review", leave the Quality Record section pending, and hand off to bmad-code-review (baton posted below). The single QR record is authored by bmad-quality-record / bmad-code-review AFTER review, uses `QR-<sequence>` (next available numeric id), and carries `**Status:** in-review | APPROVED | REJECTED | REVISED`. Writing a QR here (especially with `QR Status: pass|fail|partial`) produces a record the commit gate cannot read.</action>
+    <action>Read the story's `- **Rigor Tier:**` value and state it in the completion report. Tier 1/2 needs no PR record by policy; Tier 3 needs bmad-production-readiness before deploy — in both cases deployment readiness is NOT created here.</action>
 
     <!-- Mark story ready for review - sprint status conditional -->
     <check if="{sprint_status} file exists AND {{current_sprint_status}} != 'no-sprint-tracking'">

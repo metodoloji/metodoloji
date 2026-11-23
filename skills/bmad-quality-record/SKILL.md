@@ -8,6 +8,10 @@ triggers: ["bmad-quality-record", "/bmad-quality-record", "quality-record", "cre
 
 **Goal:** Generate a Quality Record (QR) from a completed story (S-NNN), capturing test results, AC verification, DoD verification, code review, and making an approval decision. QR is Gate 3 in the methodology chain.
 
+**Record ownership:** this skill is the canonical QR author. `bmad-code-review` writes its review findings into the same record (creating it only if absent) — a story has ONE QR, named `QR-<sequence>` (next available numeric id), never a second file and never one per skill.
+
+**Tier policy:** read the story's `- **Rigor Tier:**`. Tier 1 (trivial/doc/hotfix) needs the QR plus regression evidence; Tier 2 (feature/refactor) adds AC metadata and unit tests; Tier 3 (probabilistic/security/core/ML) keeps the full chain. The 80% coverage threshold applies to Tier 2/3; Tier 1 still needs evidence that the regression suite passed. The tier never relaxes the QR requirement.
+
 **Your Role:** You are a QA Engineer generating quality records. Parse story files, run or inspect tests, verify acceptance criteria and definitions of done, perform code review, and produce a complete QR record.
 
 ## Conventions
@@ -67,7 +71,7 @@ Execute each entry in `{workflow.activation_steps_append}` in order.
 
 ### Step 8: Chain Handshake
 
-Check for signals addressed to you before the workflow begins: `python3 {metodoloji-root}/hooks/scripts/blackboard.py handoffs --skill bmad-quality-record --project-root {project-root}` — the canonical sender is a `bmad-create-story` run whose note names the story key queued for a QR record. Read the named story first (step 1 requires it in review or done status — an earlier signal means the record is still pending implementation), then complete the handshake: `python3 {metodoloji-root}/hooks/scripts/blackboard.py consume --channel handoff.bmad-quality-record --project-root {project-root}` (consume only after the named story file is located — an unconsumed signal keeps the hand-off waiting, which is correct when the user routes elsewhere). Watch the story queue for mid-run changes: `python3 {metodoloji-root}/hooks/scripts/blackboard.py subscribe --watcher bmad-quality-record --pattern "story.*" --channel stop --project-root {project-root}` (a story landing in review/done while this run is open surfaces at Stop; clear with `consume --channel stop`).
+Check for signals addressed to you before the workflow begins: `python3 {metodoloji-root}/hooks/scripts/blackboard.py handoffs --skill bmad-quality-record --project-root {project-root}` — the canonical sender is a `bmad-dev-story` run that landed the story in review (a `bmad-code-review` run may also name the story after review). Read the named story first (step 1 requires it in review or done status — an earlier signal means the record is still pending implementation), then complete the handshake: `python3 {metodoloji-root}/hooks/scripts/blackboard.py consume --channel handoff.bmad-quality-record --project-root {project-root}` (consume only after the named story file is located — an unconsumed signal keeps the hand-off waiting, which is correct when the user routes elsewhere). Watch the story queue for mid-run changes: `python3 {metodoloji-root}/hooks/scripts/blackboard.py subscribe --watcher bmad-quality-record --pattern "story.*" --channel stop --project-root {project-root}` (a story landing in review/done while this run is open surfaces at Stop; clear with `consume --channel stop`).
 
 Activation is complete. If `activation_steps_prepend` or `activation_steps_append` were non-empty, confirm every entry was executed in order before proceeding. Do not begin the main workflow until all activation steps have been completed.
 
@@ -100,6 +104,8 @@ Activation is complete. If `activation_steps_prepend` or `activation_steps_appen
   - Definition of Done (DoD-001, DoD-002, ... — must include identifier and Evidence)
   - Sprint reference (SP-id)
   - Epic reference (E-id)
+  - Rigor Tier (1 | 2 | 3)
+  - AC measured basis: E-XXX (experiment or contract), STRUCT-XXX (declared structural scope), or — ([HYPOTHESIS])
   - Implementation details (branch, PR, or user provides)
   - Current status (should be "review" or "done")
 
@@ -132,8 +138,9 @@ Activation is complete. If `activation_steps_prepend` or `activation_steps_appen
 
 <step n="3" goal="Verify Acceptance Criteria">
 <action>For each AC from the story:</action>
-  - Extract AC-id, description, and Verify: method
+  - Extract AC-id, description, Verify: method, and Experiment reference
   - Run or ask user to verify using the Verify: method
+  - For `Experiment: E-XXX` require the record's decision APPROVED; for `Experiment: STRUCT-XXX` require `docs/development/structural/STRUCT-XXX.md` with Status declared|ratified, a justification >= 40 characters and a Scope glob covering the changed files, and record it as DECLARED (not PASS/FAIL). Fill the declaration's `Reviewed-By: QR-<id>` to ratify it.
   - Record: status (✅ verified / ⏳ pending / ❌ failed), method used, evidence (output/screenshot)
 
 <action>Build verification table:</action>
@@ -204,7 +211,7 @@ Activation is complete. If `activation_steps_prepend` or `activation_steps_appen
   - Readability: ✓ Good / ⚠ Fair / ✗ Poor
   - Maintainability: ✓ Good / ⚠ Fair / ✗ Poor
   - Design patterns: ✓ Appropriate / ⚠ Could improve / ✗ Problematic
-- **Approval:** ✓ APPROVED / ⚠ APPROVED WITH COMMENTS / ✗ CHANGES REQUESTED
+- **Approval:** ✓ APPROVED / ✗ CHANGES REQUESTED (comment-only observations go in the rationale; the QR `Status` stays APPROVED)
 - **Rationale:** [Why approved or why changes requested]
 ```
 
@@ -270,7 +277,7 @@ Activation is complete. If `activation_steps_prepend` or `activation_steps_appen
 | All mechanical ✓ + At least 1 code review ✓ + Docs ✓ | **APPROVED** → proceed to merge |
 | Any mechanical ✗ | **REJECTED** → fix and resubmit |
 | Code review "CHANGES REQUESTED" | **REJECTED** → address feedback |
-| Some DoD/AC ⏳ pending but no failures | **APPROVED WITH COMMENTS** → can merge if acceptable risk |
+| Some DoD/AC ⏳ pending but no failures | **APPROVED** with the pending items named in the rationale → can merge if acceptable risk |
 | Any critical check ✗ | **REJECTED** → fix required |
 
 <action>Record decision:</action>
@@ -278,8 +285,8 @@ Activation is complete. If `activation_steps_prepend` or `activation_steps_appen
 ```
 ## Decision
 
-- **Decision:** APPROVED | REJECTED | APPROVED WITH COMMENTS
-- **Rationale:** {Why approved or why rejected}
+- **Decision:** APPROVED | REJECTED | REVISED
+- **Rationale:** {Why approved or why rejected; name any comment-only observations here, never in the Status field}
 - **Rejection reason (if any):**
   - {Reason 1}
   - {Reason 2}
@@ -328,8 +335,10 @@ Activation is complete. If `activation_steps_prepend` or `activation_steps_appen
 <action>Post handoff notification (one call — heartbeat + signal):</action>
 
 ```
-python3 {metodoloji-root}/hooks/scripts/blackboard.py mirror --key QR-{id} --value "APPROVED for S-XXX — record: {quality_location}/QR-{id}.md" --to bmad-production-readiness --note "QR-{id} approved for S-XXX. Ready for production readiness check." --project-root {project-root}
+python3 {metodoloji-root}/hooks/scripts/blackboard.py mirror --key QR-{id} --value "APPROVED for S-XXX — record: {quality_location}/QR-{id}.md" --to bmad-production-readiness --note "QR-{id} approved for S-XXX (Rigor Tier 3). Ready for production readiness check." --project-root {project-root}
 ```
+
+Send the `--to bmad-production-readiness` baton only for **Rigor Tier 3**. For Tier 1/2 the policy requires no PR record (`min_tier=3` in the deploy guard), so mirror the run key without `--to` and state that deployment readiness is skipped by tier. Do not create a PR "for completeness".
 
 (The `mirror --key QR-{id}` run key is the relay heartbeat: the engine mirrors `methodology.last_qr` from it automatically — the injected context then shows how far the E→IR→SP→S→QR→PR chain progressed. Re-running the same mirror never duplicates the waiting signal. Trace the relay on the graph: `python3 {metodoloji-root}/hooks/scripts/blackboard.py link --a story.<story-key> --b QR-{id} --relation validates --project-root {project-root}` — the story key is the one the consumed QR-queued baton named; downstream reads it via `neighbors --node QR-{id}`.)
 
@@ -350,7 +359,7 @@ python3 {metodoloji-root}/hooks/scripts/blackboard.py mirror --key QR-{id} --val
 
 - **QR ID:** QR-{id}
 - **Story:** S-XXX
-- **Decision:** APPROVED | REJECTED | APPROVED WITH COMMENTS
+- **Decision:** APPROVED | REJECTED | REVISED
 - **File Location:** {quality_location}/QR-{id}.md
 
 **Mechanical Checks Summary:**
@@ -365,8 +374,8 @@ python3 {metodoloji-root}/hooks/scripts/blackboard.py mirror --key QR-{id} --val
 
 **Next Steps (if approved):**
 1. Story S-XXX marked as "done"
-2. Handoff notification sent to bmad-production-readiness
-3. Ready for production readiness check
+2. Rigor Tier 3: handoff sent to bmad-production-readiness; Tier 1/2: no PR record by policy, done here
+3. Tier 3 is ready for the production readiness check
 
 <action>Run: `python3 {metodoloji-root}/hooks/engine/resolve_customization.py --skill {skill-root} --project-root {project-root} --key workflow.on_complete` — use your harness-native shell tool with the command as given (no extra wrapper params) — if the resolved value is non-empty, follow it as the final terminal instruction before exiting.</action>
 </step>

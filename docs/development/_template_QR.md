@@ -97,7 +97,7 @@
   - Readability: ✓ Good / ⚠ Fair / ✗ Poor
   - Maintainability: ✓ Good / ⚠ Fair / ✗ Poor
   - Design patterns: ✓ Appropriate / ⚠ Could improve / ✗ Problematic
-- **Approval:** ✓ APPROVED / ⚠ APPROVED WITH COMMENTS / ✗ CHANGES REQUESTED
+- **Approval:** ✓ APPROVED / ✗ CHANGES REQUESTED (comment-only observations go in the rationale)
 - **Rationale:** [Approval/rejection rationale]
 
 ### Documentation
