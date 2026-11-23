@@ -58,7 +58,7 @@ These map directly onto the script CLIs below; anything not listed there (case s
 
 4. Locate the skill and verify `<skill-path>/SKILL.md` exists. Halt with a clear error if it does not.
 
-5. Resolve the adapter config per the discovery rules in `references/platform-adapter.md` (explicit `--adapter`, `BMAD_EVAL_ADAPTER`, `adapter.json` / `.bmad-eval-adapter.json` / `adapter-9router.json` beside the cases file). The repo's installed suites ship `adapter-9router.json` (gateway-backed, no CLI needed) and resolve with no flags. When nothing is configured, use the adapter matching the current runtime: `{skill-root}/assets/adapter-claude-code.json` (Claude Code) or `{skill-root}/assets/adapter-openhands.json` (OpenHands CLI).
+5. Resolve the adapter config per the discovery rules in `references/platform-adapter.md` (explicit `--adapter`, `BMAD_EVAL_ADAPTER`, `adapter.json` / `.bmad-eval-adapter.json` / `adapter-9router.json` beside the cases file). A suite that ships an adapter resolves with no flags; the repo's installed suites currently ship none, so pass one explicitly. When nothing is configured, use the adapter matching the current runtime: `{skill-root}/assets/adapter-claude-code.json` (Claude Code) or `{skill-root}/assets/adapter-openhands.json` (OpenHands CLI).
 
 6. Discover the cases file. Look at `--evals` first, then `<skill-path>/evals/`, then `<skill-path>/../../evals/<skill-name>/`, then `<project-root>/evals/<skill-name>/`, then anywhere under `<project-root>/evals/`. Take the first match. If nothing is found, halt and say so; the runner does not invent cases.
 

@@ -87,7 +87,9 @@ def test_status_detects_incomplete_existing_skeleton_and_install_repairs_it(tmp_
     (external / "README.md").unlink()
     (external / "_template.md").unlink()
     external.rmdir()
-    (tmp_path / "docs/design/architecture").rmdir()
+    architecture = tmp_path / "docs/design/architecture"
+    (architecture / sk.PLACEHOLDER_NAME).unlink()
+    architecture.rmdir()
 
     state = sk.status(tmp_path)
     assert state["installed"] is True  # marker/core probes still exist

@@ -1,0 +1,4 @@
+{"check": "the published run is contiguous and correctly placed", "ok": false, "detail": "1 gap(s) inside the published run (v0.2.40); 7 misplaced (v0.2.30 at #134 not #130, v0.2.34 at #135 not #134, v0.2.35 at #136 not #135…)"}
+{"check": "no release tag points outside this history", "ok": true, "detail": "every release tag resolves inside the enumerated history"}
+{"check": "every release tag name is producible by the rule", "ok": true, "detail": "every release tag name is a number the rule can produce"}
+{"check": "the newest release's tree holds its own number", "ok": true, "detail": "the newest release v0.2.47 holds its own number in all five files"}

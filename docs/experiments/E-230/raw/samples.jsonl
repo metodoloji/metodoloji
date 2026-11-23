@@ -1,0 +1,6 @@
+{"check": "one owner: the plugin ships a single config", "ok": true, "detail": "one owner: config.toml"}
+{"check": "full merged dump is unchanged", "ok": true, "detail": "4 top-level sections identical"}
+{"check": "targeted read is unchanged", "ok": true, "detail": "targeted keys identical"}
+{"check": "hook engine modes are unchanged", "ok": true, "detail": "every hook mode unchanged"}
+{"check": "no reader names a retired path", "ok": true, "detail": "no shipped reader names a retired path"}
+{"check": "retired config files are inert", "ok": true, "detail": "retired files inert on both sides; owner and code default win"}

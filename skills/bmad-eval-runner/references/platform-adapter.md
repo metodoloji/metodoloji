@@ -57,9 +57,7 @@ A working OpenHands CLI adapter ships at `assets/adapter-openhands.json`:
 
 Nothing found means the run degrades to staging-only (cases prepared, results recorded as skipped). When the current runtime is Claude Code and no project adapter exists, pass `--adapter {skill-root}/assets/adapter-claude-code.json`; under OpenHands, pass `--adapter {skill-root}/assets/adapter-openhands.json`.
 
-### The 9router shim (gateway-backed runs)
-
-The repo's installed eval suites (`<skill>/evals/`) run through a third adapter shape that needs no CLI binary: `adapter-9router.json` points `invocation` at the shared shim `skills/bmad-research-experiment/evals/run_9router.py` (the single copy — it lives with the first suite that grew it, and every other suite's adapter references it via the portable `{repo-root}` placeholder, which both runners expand to the checkout root that ships them). The shim stages the skill under test from the clean cwd, reads its `SKILL.md` + `references/*.md` as the system prompt (truncated to ~26k chars), sends the case input as the user message through the gateway's OpenAI-compatible `/v1/chat/completions`, and prints a two-line `stdout-jsonl` transcript (`assistant` text + `result` usage) that `run_evals.py` already accounts. Credentials arrive via `env_passthrough` (`NINEROUTER_URL`, `NINEROUTER_MODEL`, optional `NINEROUTER_KEY`); `METODOLOJI_REPO` lets the shim resolve placeholder values. The shim measures the skill document itself — a fail is a `SKILL.md` bug, fixed in `SKILL.md`, never in the shim.
+A suite that ships its own `adapter.json` resolves with no flags; the repo's installed suites currently ship none, so pass an adapter explicitly. The adapter's `invocation` targets must exist in the tree — a removed runtime is retired together with every adapter and doc that named it.
 
 ## Invocation and isolation
 

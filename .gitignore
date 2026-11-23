@@ -45,3 +45,4 @@ bmad-output/config.user.toml
 # Local Node install (skills may shell out to npx tooling); lockfiles are tracked.
 node_modules/
 
+.metodoloji/

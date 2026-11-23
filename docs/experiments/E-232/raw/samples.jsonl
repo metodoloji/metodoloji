@@ -1,0 +1,4 @@
+{"check": "the published run is contiguous and correctly placed", "ok": true, "detail": "positions 0..231 carry their rule tag (232 published; the tail is legal to leave unpublished)"}
+{"check": "no release tag points outside this history", "ok": true, "detail": "every release tag resolves inside the enumerated history"}
+{"check": "every release tag name is producible by the rule", "ok": true, "detail": "every release tag name is a number the rule can produce"}
+{"check": "the newest release's tree holds its own number", "ok": true, "detail": "the newest release v0.3.31 holds its own number in all five files"}

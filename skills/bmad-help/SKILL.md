@@ -147,7 +147,7 @@ quality-review → production-readiness`, with the story-only shortcuts its
 `stages[].next.when` declares (Tier 1/2 enters at `story`, Tier 1/2 skips the
 PR record). When the inventory shows records or a hot run, read that spec (it
 is small) before recommending a chain step: name the stage, the record it
-creates, and the `chain-gate.py --stage <id> --slug <story-id>` evidence that
+creates, and the `{metodoloji-root}/hooks/scripts/chain-gate.py --stage <id> --slug <story-id>` evidence that
 proves it. Never improvise an order from the catalog — catalog
 `preceded-by`/`followed-by` are soft suggestions and catalog `required` is a
 phase gate, not a same-phase prerequisite.

@@ -111,6 +111,10 @@ DECLARATION_SITES = (
 
 MARKER_REL = ".metodoloji/initialized"
 
+# Git cannot track an empty directory, so a directory created empty would
+# vanish on the next clone and make --status report an incomplete skeleton.
+PLACEHOLDER_NAME = ".gitkeep"
+
 
 def plugin_root() -> pathlib.Path:
     """{metodoloji-root} — derived from this file's location, never guessed."""
@@ -363,7 +367,7 @@ def _write_marker(project_root: pathlib.Path) -> dict:
 def install(project_root: pathlib.Path, *, force: bool = False) -> dict:
     """Create the skeleton and write the marker. Idempotent; never clobbers."""
     root = plugin_root()
-    created_dirs, copied, skipped = [], [], []
+    created_dirs, copied, skipped, placeholders = [], [], [], []
     for rel in DIRECTORIES:
         target = project_root / rel
         if target.is_dir():
@@ -397,6 +401,17 @@ def install(project_root: pathlib.Path, *, force: bool = False) -> dict:
         except OSError as exc:
             print(f"skeleton: cannot copy {dest_rel}: {exc}", file=sys.stderr)
             return {"ok": False, "error": f"copy {dest_rel}: {exc}"}
+    for rel in DIRECTORIES:
+        target = project_root / rel
+        try:
+            if any(target.iterdir()):
+                continue
+            (target / PLACEHOLDER_NAME).write_text("", encoding="utf-8")
+            placeholders.append(rel)
+        except OSError as exc:
+            print(f"skeleton: cannot write {rel}/{PLACEHOLDER_NAME}: {exc}",
+                  file=sys.stderr)
+            return {"ok": False, "error": f"placeholder {rel}: {exc}"}
     gitignore_written = _ensure_gitignore(project_root)
     # The marker records the FIRST init, so a redundant install must not
     # churn initialized_at (only --force rewrites it).
@@ -407,7 +422,8 @@ def install(project_root: pathlib.Path, *, force: bool = False) -> dict:
         marker_written = True
     return {"ok": True, "root": str(project_root),
             "directories_created": created_dirs, "templates_copied": copied,
-            "templates_skipped": skipped, "marker": marker,
+            "templates_skipped": skipped, "placeholders_written": placeholders,
+            "marker": marker,
             "marker_written": marker_written,
             "gitignore_written": gitignore_written,
             "next_step": "/metodoloji:audit (health check)"}

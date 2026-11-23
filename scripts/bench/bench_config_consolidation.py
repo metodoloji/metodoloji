@@ -42,6 +42,7 @@ CONFIG = ROOT / "config.toml"
 PREFIX_REV = "7249e5b"  # the E-146 commit: the last reader that honoured the retired paths
 
 BROKEN = False
+STALE_FIXTURE = False
 
 TARGETED_KEYS = ("--key", "core", "--key", "modules.bmm", "--key", "modules.bmb")
 
@@ -225,7 +226,17 @@ def _case_retired_files_are_inert() -> tuple[bool, str]:
         else:
             import shutil as _shutil
             _shutil.copy(RESOLVER, resolver)
-            _shutil.copy(ROOT / "hooks" / "engine" / "modules" / "config.py", engine_cfg)
+            if STALE_FIXTURE:
+                # The pre-fix fixture copied config.py alone. config.py now
+                # imports engine.modules.counting, so this fixture cannot
+                # import at all — the control for why the whole tree is copied.
+                _shutil.copy(ROOT / "hooks" / "engine" / "modules" / "config.py",
+                             engine_cfg)
+            else:
+                # Copy the whole engine, not one module: the engine's own
+                # dependency graph is not this probe's to track by hand.
+                _shutil.copytree(ROOT / "hooks" / "engine", plugin / "hooks" / "engine",
+                                 dirs_exist_ok=True)
         (plugin / "hooks" / "engine" / "modules" / "__init__.py").write_text("", encoding="utf-8")
         (plugin / "hooks" / "engine" / "__init__.py").write_text("", encoding="utf-8")
 
@@ -254,8 +265,11 @@ def _case_retired_files_are_inert() -> tuple[bool, str]:
         if engine.returncode != 0 or line != want_mode:
             return (False, f"plugin-side retired file: got {line!r}, want {want_mode!r}"
                            f" {engine.stderr[:100]}")
-        return (True, "pre-fix honoured retired files; post-fix ignores them" if BROKEN
-                else "retired files inert on both sides; owner and code default win")
+        if BROKEN:
+            return (True, "pre-fix honoured retired files; post-fix ignores them")
+        if STALE_FIXTURE:
+            return (True, "stale one-module fixture read the engine")
+        return (True, "retired files inert on both sides; owner and code default win")
 
 CASES = (
     ("one owner: the plugin ships a single config", _case_single_owner),
@@ -278,14 +292,18 @@ def run() -> list[dict]:
 
 
 def main() -> int:
-    global BROKEN
+    global BROKEN, STALE_FIXTURE
     ap = argparse.ArgumentParser()
     ap.add_argument("--samples", default=None,
                     help="write one JSON object per line here (the gate recomputes x/n)")
     ap.add_argument("--broken", action="store_true",
                     help="rule-7 control: drive the pre-fix resolver from git")
+    ap.add_argument("--stale-fixture", action="store_true",
+                    help="control: copy only config.py into the temp plugin, as "
+                         "the pre-E-230 fixture did")
     args = ap.parse_args()
     BROKEN = args.broken
+    STALE_FIXTURE = args.stale_fixture
 
     results = run()
     if args.samples:

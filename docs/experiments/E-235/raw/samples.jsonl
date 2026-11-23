@@ -1,0 +1,12 @@
+{"check": "docs/experiments carries a trackable file", "ok": true, "detail": "repo=True installed=True"}
+{"check": "docs/development/stories carries a trackable file", "ok": true, "detail": "repo=True installed=True"}
+{"check": "docs/development/incidents carries a trackable file", "ok": true, "detail": "repo=True installed=True"}
+{"check": "docs/development/structural carries a trackable file", "ok": true, "detail": "repo=True installed=True"}
+{"check": "docs/quality carries a trackable file", "ok": true, "detail": "repo=True installed=True"}
+{"check": "docs/research carries a trackable file", "ok": true, "detail": "repo=True installed=True"}
+{"check": "docs/research/external carries a trackable file", "ok": true, "detail": "repo=True installed=True"}
+{"check": "docs/design carries a trackable file", "ok": true, "detail": "repo=True installed=True"}
+{"check": "docs/design/prds carries a trackable file", "ok": true, "detail": "repo=True installed=True"}
+{"check": "docs/design/ux-designs carries a trackable file", "ok": true, "detail": "repo=True installed=True"}
+{"check": "docs/design/architecture carries a trackable file", "ok": true, "detail": "repo=True installed=True"}
+{"check": "scratch carries a trackable file", "ok": true, "detail": "repo=True installed=True"}
