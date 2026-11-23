@@ -1,0 +1,12 @@
+{"broken": false, "probe": "adopt_tier1_branch", "ok": true, "detail": "tier=1 flags={'tier': '1'}"}
+{"broken": false, "probe": "adopt_tier3_branch", "ok": true, "detail": "tier=3 after=implementation-readiness"}
+{"broken": false, "probe": "adopt_canonical_slug", "ok": true, "detail": "slug=S-5 record=docs/development/stories/S-005.md"}
+{"broken": false, "probe": "adopt_refuses_missing", "ok": true, "detail": "error='no story record for S-42 under docs/development/stories — create the story record first' runs=0"}
+{"broken": false, "probe": "adopt_refuses_ambiguous", "ok": true, "detail": "error='story id S-1 is ambiguous: S-001-two.md, S-001.md — one id, one file'"}
+{"broken": false, "probe": "adopt_refuses_done", "ok": true, "detail": "error='S-1 is done — a finished story has no run to open; adopt the next story instead'"}
+{"broken": false, "probe": "adopt_never_clobbers", "ok": true, "detail": "second=\"workflow 'S-1' already exists (use --force to reset)\""}
+{"broken": false, "probe": "offer_names_in_flight", "ok": true, "detail": "context=' (newest S-001.md). PROACTIVE — no declared workflow run for S-1 (in-progress): the story record already declares the run, so open it with `python3 /root/workspace/metodoloji/hooks/scripts/workflow.py adopt --story S-1`.'"}
+{"broken": false, "probe": "offer_yields_to_active_run", "ok": true, "detail": "adopt=True context=\"t --slug S-1 --project-root /tmp/tmpaliyekry/project` (rc=0); then the kernel computes 'story'; tracked in docs/development/README.md — the order is computed, not chosen: drive it with `workflow.py status|next|complete`.\""}
+{"broken": false, "probe": "offer_ignores_done", "ok": true, "detail": "context=': S=2 (newest S-002.md). PROACTIVE — no declared workflow run for S-2 (review): the story record already declares the run, so open it with `python3 /root/workspace/metodoloji/hooks/scripts/workflow.py adopt --story S-2`.'"}
+{"broken": false, "probe": "offer_is_read_only", "ok": true, "detail": "runs=0 context='eady declares the run, so open it with `python3 /root/workspace/metodoloji/hooks/scripts/workflow.py adopt --story S-1`.'"}
+{"broken": false, "probe": "offer_bounded", "ok": true, "detail": "len=320 tail='thon3 /root/workspace/metodoloji/hooks/scripts/workflow.py adopt --story S-1`; `python3 /root/workspace/metodoloji/hooks/scripts/workflow.py adopt --story S-2`.'"}

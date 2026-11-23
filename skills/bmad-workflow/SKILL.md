@@ -21,8 +21,9 @@ When the kernel refuses, you report the refusal; you never route around it.
 - Bare paths (e.g. `running.md`) resolve from the skill root.
 - `{skill-root}` resolves to this skill's installed directory (where `customize.toml` lives).
 - `{project-root}` resolves from the project working directory.
-- `{metodoloji-root}` = plugin root: **(1)** the SessionStart line `METODOLOJI active
-  (plugin: PATH)` (verbatim — never search the filesystem); **(2)** `$CLAUDE_PLUGIN_ROOT` /
+- `{metodoloji-root}` = plugin root: **(1)** the SessionStart line `METODOLOJI active.
+  {metodoloji-root} = PATH; {project-root} = PATH` — take the path after
+  `{metodoloji-root} = ` verbatim (never search the filesystem); **(2)** `$CLAUDE_PLUGIN_ROOT` /
   `$METODOLOJI_PLUGIN_ROOT` if set; **(3)** fixed checkout
   `~/.claude/plugins/marketplaces/metodoloji` or versioned cache
   `~/.claude/plugins/cache/metodoloji/metodoloji/*` (newest first, Claude Code) or

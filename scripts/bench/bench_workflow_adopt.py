@@ -212,10 +212,9 @@ def _probe(name: str, tree: pathlib.Path, base: pathlib.Path) -> tuple[bool, str
             _story(project, sid=sid)
         ctx = _context(tree, project)
         offer = ctx[ctx.find("PROACTIVE — no declared workflow run"):]
-        offer = offer.split("PROACTIVE", 1)[0] if offer else ""
-        ok = ("(+1 more)" in ctx and "\n" not in ctx
-              and "S-3" not in ctx and len(ctx) <= 1200)
-        return ok, f"len={len(ctx)} tail={ctx[-160:]!r}"
+        ok = ("(+1 more story)" in offer and "\n" not in offer
+              and "S-3" not in offer and len(offer) <= 1200)
+        return ok, f"len={len(offer)} tail={offer[-160:]!r}"
 
     raise SystemExit(f"unknown probe: {name}")
 

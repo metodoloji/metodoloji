@@ -1,0 +1,7 @@
+{"broken": true, "probe": "S-001", "ok": true, "detail": "QR-026.md: 4 DoD items complete"}
+{"broken": true, "probe": "S-011", "ok": false, "detail": "QR-027.md: missing DoD-001:Evidence, DoD-002:Evidence, DoD-003:Evidence, DoD-004:Evidence"}
+{"broken": true, "probe": "S-012", "ok": false, "detail": "QR-028.md: missing DoD-001:Evidence, DoD-002:Evidence, DoD-003:Evidence, DoD-004:Evidence"}
+{"broken": true, "probe": "S-013", "ok": false, "detail": "QR-029.md: missing DoD-001:Evidence, DoD-002:Evidence, DoD-003:Evidence, DoD-004:Evidence"}
+{"broken": true, "probe": "S-014", "ok": false, "detail": "QR-030.md: missing DoD-001:Evidence, DoD-002:Evidence, DoD-003:Evidence, DoD-004:Evidence, DoD-005:Evidence"}
+{"broken": true, "probe": "S-015", "ok": false, "detail": "QR-031.md: missing DoD-001:Evidence, DoD-002:Evidence, DoD-003:Evidence, DoD-004:Evidence, DoD-005:Evidence"}
+{"broken": true, "probe": "S-016", "ok": false, "detail": "QR-032.md: missing DoD-001:Evidence, DoD-002:Evidence, DoD-003:Evidence, DoD-004:Evidence, DoD-005:Evidence"}

@@ -474,6 +474,22 @@ def _cases(tmp: pathlib.Path,
             + _doc_checks(broken))
 
 
+def _redact_temp(detail: str, root: str) -> str:
+    """Name the temp root, never its random path (DW-8/E-227).
+
+    Every detail used to embed ``/tmp/tmpXXXX/...``, so two runs of the same
+    measurement produced different bytes and the recorded sha256 could not be
+    re-derived. The path is evidence of *where* the scratch project lived, not
+    of the result; ``<tmp>`` keeps the fact and makes the sample deterministic.
+    """
+    text = str(detail)
+    variants = {root, root.replace("\\", "/"), root.replace("/", "\\")}
+    for variant in sorted(variants, key=len, reverse=True):
+        if variant:
+            text = text.replace(variant, "<tmp>")
+    return text
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--broken", action="store_true",
@@ -487,6 +503,8 @@ def main() -> int:
             {"check": name, "ok": ok, "detail": detail}
             for name, ok, detail in _cases(pathlib.Path(td), args.broken)
         ]
+        for row in results:
+            row["detail"] = _redact_temp(row["detail"], td)
 
     x = sum(1 for r in results if r["ok"])
     n = len(results)

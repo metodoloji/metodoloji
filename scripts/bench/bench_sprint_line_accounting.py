@@ -112,7 +112,7 @@ def _probe(name: str, tree: pathlib.Path) -> tuple[bool, str]:
             giant = "9-1-" + "slug" * 60
             _write_sprint(root, [f"  {giant}: in-progress", "  1-1-a: done"])
             line = _line(tree, root)
-            ok = (len(line) <= LIMIT and line.endswith("; … (+1 more)")
+            ok = (len(line) <= LIMIT and line.endswith("; … (+1 more entry)")
                   and "…" in line.split(";")[0])
             return ok, f"len={len(line)} tail={line[-40:]!r}"
 
@@ -151,7 +151,7 @@ def _probe(name: str, tree: pathlib.Path) -> tuple[bool, str]:
             ok = line.startswith("sprint: ⚠ epic-2:")
             return ok, f"head={line[:50]!r}"
         if name == "remainder_counted":
-            ok = "… (+3 more)" in line and line.count("in-progress (") == 0
+            ok = "… (+3 more entries)" in line and line.count("in-progress (") == 0
             return ok, f"tail={line[-24:]!r}"
         if name == "bound_respected_wide":
             return len(line) <= LIMIT, f"len={len(line)}"

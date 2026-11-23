@@ -1,0 +1,5 @@
+{"broken": false, "probe": "fits_unmarked", "ok": true, "detail": "line='mcp: 2 active server(s) — s0, s1'"}
+{"broken": false, "probe": "plural_remainder", "ok": true, "detail": "line='mcp: 6 active server(s) — claude.ai Atlassian Jira Cloud (production instance), claude.ai Figma Context Server (design workspace), claude.ai Google Drive (shared drives only), … (+3 more servers)'"}
+{"broken": false, "probe": "no_bare_marker", "ok": true, "detail": "line='mcp: 6 active server(s) — claude.ai Atlassian Jira Cloud (production instance), claude.ai Figma Context Server (design workspace), claude.ai Google Drive (shared drives only), … (+3 more servers)'"}
+{"broken": false, "probe": "live_inject_uses_unit", "ok": true, "detail": "line='mcp: 6 active server(s) — claude.ai Atlassian Jira Cloud (production instance), claude.ai Figma Context Server (design w'"}
+{"broken": false, "probe": "bound_holds", "ok": true, "detail": "len=195"}

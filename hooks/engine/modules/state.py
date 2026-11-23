@@ -564,7 +564,7 @@ def mcp_steering_line(inventory: dict) -> str:
     # removed from the sprint line, from which this one was modelled).
     head = f"mcp: {len(servers)} active server(s) — "
     return _bounded_parts_line(head, [s["name"] for s in servers],
-                               limit=200, sep=", ")
+                               limit=200, sep=", ", noun="server")
 
 
 # Canonical path first (Seçenek A: skills compose it as
@@ -837,7 +837,7 @@ def format_sprint_line(summary: dict) -> str:
 
 def _bounded_parts_line(head: str, parts: list[str],
                         limit: int = _SPRINT_LINE_LIMIT,
-                        sep: str = "; ") -> str:
+                        sep: str = "; ", noun: str = "entry") -> str:
     """Join whole parts after `head` inside `limit`, counting the rest.
 
     The bound used to slice the finished line at 197 characters, so a realistic
@@ -848,11 +848,11 @@ def _bounded_parts_line(head: str, parts: list[str],
     now drops whole parts and names how many it withheld (E-198).
 
     `sep` is the separator between parts; the withheld count uses it too, so an
-    ``", … (+N more)"`` list reads as one list. A part wider than the whole line
-    is shortened by `_elide_part` instead of being dropped, and its successor is
-    still counted.
+    ``", … (+N more entries)"`` list reads as one list. A part wider than the
+    whole line is shortened by `_elide_part` instead of being dropped, and its
+    successor is still counted.
     """
-    marker = lambda hidden: f"{sep}… (+{hidden} more)"
+    marker = lambda hidden: _counted_remainder(hidden, noun, sep)
     out = head
     for index, part in enumerate(parts):
         between = "" if index == 0 else sep
@@ -871,6 +871,23 @@ def _bounded_parts_line(head: str, parts: list[str],
             return out + marker(hidden)
         out += between + part
     return out
+
+
+def _counted_remainder(hidden: int, noun: str = "entry", sep: str = ", ") -> str:
+    """The withheld tail of a part-bounded line, with its unit (E-225).
+
+    The bare ``; … (+N more)`` made the reader guess whether the dropped parts
+    were stories, epic warnings, status groups or MCP servers. E-203…E-224 named
+    the unit on every other bounded list; the caller names it here, singular
+    when one is withheld and plural for more.
+    """
+    if hidden == 1:
+        unit = noun
+    elif len(noun) > 1 and noun.endswith("y") and noun[-2] not in "aeiou":
+        unit = noun[:-1] + "ies"
+    else:
+        unit = noun + "s"
+    return f"{sep}… (+{hidden} more {unit})"
 
 
 def _bounded_sprint_line(parts: list[str], limit: int = _SPRINT_LINE_LIMIT) -> str:

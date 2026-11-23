@@ -1,0 +1,7 @@
+{"broken": true, "probe": "fits_unmarked", "ok": true, "detail": "line='sprint: in-progress: 1-1-login; 1 done (1-2-out)'"}
+{"broken": true, "probe": "singular_remainder", "ok": false, "detail": "line='sprint: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa; … (+1 more)'"}
+{"broken": true, "probe": "plural_remainder", "ok": false, "detail": "line='sprint: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa; … (+3 more)'"}
+{"broken": true, "probe": "oversized_remainder", "ok": false, "detail": "line='sprint: xxxxxxxxxxxxxxxxxxxxxxxxxxxx…; … (+1 more)'"}
+{"broken": true, "probe": "no_bare_marker", "ok": false, "detail": "line='sprint: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa; … (+3 more)'"}
+{"broken": true, "probe": "bound_holds", "ok": true, "detail": "len=191"}
+{"broken": true, "probe": "live_inject_uses_unit", "ok": false, "detail": "tail='done + run the retro; ⚠ epic-3: stories all done — epic still in-progress, roll up to done + run the retro; … (+3 more).'"}

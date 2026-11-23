@@ -9,7 +9,8 @@ triggers: ["bmad-help", "/bmad-help", "help"]
 ## Conventions
 
 - `{metodoloji-root}` = plugin root: **(1)** the SessionStart line
-  `METODOLOJI active (plugin: PATH)` (verbatim — never search the filesystem);
+  `METODOLOJI active. {metodoloji-root} = PATH; {project-root} = PATH` — take
+  the path after `{metodoloji-root} = ` verbatim (never search the filesystem);
   **(2)** `$CLAUDE_PLUGIN_ROOT` / `$METODOLOJI_PLUGIN_ROOT` if set;
   **(3)** fixed checkout `~/.claude/plugins/marketplaces/metodoloji` or
   versioned cache `~/.claude/plugins/cache/metodoloji/metodoloji/*`
@@ -26,15 +27,28 @@ python3 {metodoloji-root}/hooks/scripts/orient.py --project-root {project-root}
 ```
 
 One read-only call returns everything routing needs: both roots, core config and
-module output paths, the record inventory (E/IR/SP/S/QR/PR), the board (hot key,
-focus `status`/`scope`, chain progress, alerts, and a `STALE` flag when a live run
-still claims `complete` — plus a `STALE VERDICT` flag when a negative gate verdict
-(`IR`/`PR`) predates the artifacts it judged), waiting hand-offs with age and sender, skeleton +
-gate-key state, the catalog summary with its **ambiguous menu codes**, the
-**docs overview** (subdir file counts + largest text files with sizes), and the
+module output paths, the record inventory (E/IR/SP/S/QR/PR plus the `DW`
+open deferred-work ledger), the board (hot key, focus `status`/`scope`, chain
+progress, alerts, and a `STALE` flag when a live run still claims `complete` —
+plus a `STALE VERDICT` flag when a negative gate verdict (`IR`/`PR`) predates
+the artifacts it judged), the **sprint summary** (`sprint.stories`, `epics`,
+`epic_progress`, `epic_plan`), waiting hand-offs with age and sender, skeleton +
+gate-key state, **open Implementation Plans** (`plan`), **shadow-install
+detection** (`installs`), the catalog summary with its **ambiguous menu codes**,
+the **docs overview** (subdir file counts + largest text files with sizes), the
 **MCP server inventory** (which servers this session can reach, from the harness
-configs — read-only, never spawned). Add `--json` for tooling. Run it first; never
-re-run it "for clean output" — it is small by construction.
+configs — read-only, never spawned), and the computed **`NEXT` lines**
+(`next_steps`). Run it first; never re-run it "for clean output" — it is small
+by construction.
+
+With `--json`, the same facts are `records`, `chain_runs` (untruncated stage
+values), `board.chain_keys` (the run key per stage), `sprint`, `plan`,
+`installs`, `handoffs`, `skeleton`, `gate_key`, `catalog` and `next_steps`.
+Treat `NEXT` / `next_steps` as the live routing signal: it already encodes
+waiting batons, stale verdicts, sprint state, install drift, MCP reachability
+and skeleton repair; `plan.open` carries the open Implementation Plans. Do not
+re-derive any of those by reading `sprint-status.yaml`, a plan file, or a cache
+path.
 
 ## Anti-loop contract — read this before any other command
 
@@ -67,7 +81,8 @@ mechanical rule, not advice:
 
 1. **Digest once.** After `orient.py`, NEVER run `ls`/`find`/`wc`/`git status`/
    `git log` to "confirm" — the digest's `artifacts` + `records` + `docs` +
-   `board` sections ARE the confirmation. Re-running them is the loop.
+   `board` + `sprint` + `plan` + `installs` + `NEXT` sections ARE the
+   confirmation. Re-running them is the loop.
 2. **One command per tool call.** Never chain `echo "==="` dumps (`ls && git
    log && find …`): outputs interleave and you re-run commands you had.
 3. **Windowed reads only.** The digest's `docs.largest` gives sizes upfront:
@@ -125,8 +140,24 @@ When this skill completes, the user should:
 
 ## Methodology
 
-Bound to `{metodoloji-root}/hooks/workflow/builtin/methodology-chain.json` — the qualitative (B/C/D) and quantitative (Mode A) routes, and the E → IR → SP → S → QR → PR record chain: when a recommendation sounds like a rule, it is a gate named there, not a preference, and the next step names the record it creates (or the gate it satisfies) instead of improvising an order.
-Routing a user to code is not code-writing permission — code always requires Mode A mechanical approval (`/metodoloji:verify` + the guard hook). Fabricated evidence/measurements are fraud.
+`{metodoloji-root}/hooks/workflow/builtin/methodology-chain.json` owns the
+**Mode A (quantitative) order and its gates**:
+`experiment → implementation-readiness → sprint-planning → story →
+quality-review → production-readiness`, with the story-only shortcuts its
+`stages[].next.when` declares (Tier 1/2 enters at `story`, Tier 1/2 skips the
+PR record). When the inventory shows records or a hot run, read that spec (it
+is small) before recommending a chain step: name the stage, the record it
+creates, and the `chain-gate.py --stage <id> --slug <story-id>` evidence that
+proves it. Never improvise an order from the catalog — catalog
+`preceded-by`/`followed-by` are soft suggestions and catalog `required` is a
+phase gate, not a same-phase prerequisite.
+
+Modes B/C/D are **documentary record modes, not stages in that spec and not
+code routes**: Mode B/D use `docs/research/_template.md`, Mode C uses
+`docs/design/_template.md`; they produce planning/research artifacts and open
+no code scope. Routing a user to code is not code-writing permission — code
+always requires Mode A mechanical approval (`/metodoloji:verify` + the guard
+hook). Fabricated evidence/measurements are fraud.
 
 ## Catalog reference (moved out of the activation body)
 
@@ -164,9 +195,10 @@ A bare improvement request ("projeyi iyileştir", "improve the project",
 "make it better") with an empty record inventory is NOT a help-loop case —
 it is a brownfield experiment start:
 
-- Route to `bmad-research-experiment` (KILAVUZ/GUIDE #5 P3 brownfield path): ask the
-  ONE scoping question first (which module + hypothesis threshold), then open
-  E-001. Do not end the turn with "no records, nothing to do".
+- Route to `bmad-research-experiment` (its `iyileştir` / "improve the project"
+  trigger is the brownfield entry point): ask the ONE scoping question first
+  (which module + hypothesis threshold), then open E-001. Do not end the turn
+  with "no records, nothing to do".
   "Route to" means option 1 of the handoff contract above: read that skill's
   `SKILL.md` and follow it inline in this turn — never a Skill tool call.
 - The "fresh context window" below is a recommendation for long experiments,

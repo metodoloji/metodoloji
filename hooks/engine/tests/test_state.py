@@ -428,9 +428,9 @@ def test_mcp_steering_line_counts_what_it_withholds():
     line = state.mcp_steering_line(
         {"servers": [{"name": n, "enabled": True} for n in names]})
     assert len(line) <= 200
-    assert line.endswith("… (+3 more)")
+    assert line.endswith("… (+3 more servers)")
     assert "claude.ai Google Drive (shared drives only)" in line  # whole, not sliced
-    assert ", …" not in line.replace(", … (+3 more)", "")
+    assert ", …" not in line.replace(", … (+3 more servers)", "")
 
 
 def test_mcp_steering_line_keeps_an_oversized_name_marked():
@@ -473,7 +473,7 @@ def test_sprint_line_cuts_on_a_part_boundary_and_counts_what_it_withheld(tmp_pat
     assert "⚠ epic-2: stories all done — epic still in-progress" in line
     assert "roll up to done + run the retro" in line
     # and the parts that did not fit are counted, not implied away.
-    assert "… (+2 more)" in line
+    assert "… (+2 more entries)" in line
     assert not line.endswith("epic …")
 
 
@@ -490,7 +490,7 @@ def test_sprint_line_leading_warnings_survive_a_wide_board(tmp_path):
     assert line.startswith("sprint: ⚠ epic-2:")
     assert "⚠ epic-3:" in line
     assert line.count("roll up to done") == 2
-    assert "… (+3 more)" in line
+    assert "… (+3 more entries)" in line
 
 
 def test_sprint_line_that_fits_has_no_remainder_marker(tmp_path):
@@ -540,7 +540,7 @@ def test_sprint_line_keeps_the_identity_of_a_lone_oversized_part(tmp_path):
                   "  1-1-a: done\n")
     line = state.format_sprint_line(state.sprint_summary(tmp_path))
     assert len(line) <= 200
-    assert line.endswith("; … (+1 more)")
+    assert line.endswith("; … (+1 more entry)")
     first = line.split(";")[0]
     assert first.startswith("sprint: in-progress: 9-1-")
     assert first.endswith("…")

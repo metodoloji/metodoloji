@@ -59,14 +59,16 @@ resolution: obsolete — the optimization subsystem this entry describes (optimi
 origin: code review of SP-014, 2026-11-03
 location: n/a
 reason: `docs/development/stories/S-01*.md` Cosmetic record metadata.
-status: open
+status: done 2026-11-23
+resolution: E-229 — scanning the same rule found S-014…S-016 too, so 27 DoD items across six stories now carry a `- Evidence:` line copied from their own QR-027…QR-032 verification table. A new closed-set bench checks every done story whose QR review carries that table (7 stories, 34 DoD items, 1.00); the nine older stories with no per-DoD QR table are reported as SKIP and named outside the census, not counted as passes.
 
 ### DW-8: E-108's recorded samples embed random temp paths
 
 origin: code review of SP-014, 2026-11-03
 location: n/a
 reason: so the recorded sha256 cannot be re-derived byte-for-byte (`scripts/bench/bench_deferred_work_integration.py:232,262-274`). Determinism gap in the evidence file, not in the `ok` verdicts.
-status: open
+status: done 2026-11-23
+resolution: E-227 — the writer names the scratch root `<tmp>` in every sample detail, so two isolated runs emit byte-identical files (4418 bytes) and the recorded sha256 is reproducible; the 30 check names, verdicts and 1.00 accuracy are unchanged. The historical E-108 sample file stays as recorded evidence — re-writing a decided record would be fraud — while the writer that produces every future file is deterministic.
 
 ## Migrated from: consistency repair, 2026-11-03
 

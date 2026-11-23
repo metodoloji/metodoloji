@@ -9,13 +9,14 @@ record chain under **{project-root}**. {metodoloji-root} = this plugin's install
 root, resolved in this order (first hit wins — stop at the first hit, never
 probe further):
 
-1. The SessionStart line `METODOLOJI active (plugin: PATH)` — use PATH
-   verbatim, never search the filesystem for it. (`$CLAUDE_PLUGIN_ROOT` /
+1. The SessionStart line `METODOLOJI active. {metodoloji-root} = PATH;
+   {project-root} = PATH` — use the path after `{metodoloji-root} = ` verbatim,
+   never search the filesystem for it. (`$CLAUDE_PLUGIN_ROOT` /
    `$METODOLOJI_PLUGIN_ROOT` are usually EMPTY in slash-command context on
    Claude Code — do not depend on them, do not echo them to "verify".)
 2. Fixed checkout `~/.claude/plugins/marketplaces/metodoloji/`
 3. Versioned cache `~/.claude/plugins/cache/metodoloji/metodoloji/*`
-   (newest first; e.g. `.../0.3.30/` on Claude Code v2.1.x)
+   (newest first; e.g. `.../0.3.31/` on Claude Code v2.1.x)
 4. OpenHands install directory `~/.openhands/plugins/installed/metodoloji/`
 
 (An old `~/.claude/plugins/cache/yunusgungor/metodoloji/*` path appears in

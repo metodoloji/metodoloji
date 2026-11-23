@@ -98,7 +98,7 @@ def _probe(name: str, tree: pathlib.Path) -> tuple[bool, str]:
         ctx = audit.session_start({"cwd": str(root)})["additionalContext"]
         at = ctx.find("mcp: ")
         line = ctx[at:].split(". ", 1)[0] if at >= 0 else ""
-        ok = at >= 0 and "(+3 more)" in line and len(line) <= 200
+        ok = at >= 0 and "(+3 more servers)" in line and len(line) <= 200
         return ok, f"line={line[:110]!r}"
 
     if name == "disabled_not_counted":

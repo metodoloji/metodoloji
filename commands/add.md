@@ -10,8 +10,9 @@ does the analysis with the harness's repository/web/file tools, and the
 deterministic half (scaffold, validate, index) is done by
 `{metodoloji-root}/scripts/external-context.py`.
 
-`{metodoloji-root}` is the SessionStart line `METODOLOJI active (plugin: PATH)`,
-used verbatim. Never search the filesystem for it and never print the gate key.
+`{metodoloji-root}` is the path after `{metodoloji-root} = ` on the SessionStart
+line `METODOLOJI active. {metodoloji-root} = PATH; {project-root} = PATH`, used
+verbatim. Never search the filesystem for it and never print the gate key.
 
 ## Input the command accepts
 

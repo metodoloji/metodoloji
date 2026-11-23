@@ -1,0 +1,4 @@
+{"broken": true, "probe": "runs_are_identical", "ok": false, "detail": "first=4478 bytes second=4478 bytes"}
+{"broken": true, "probe": "no_temp_path", "ok": false, "detail": "marker=False temp_path=True"}
+{"broken": true, "probe": "sample_count", "ok": true, "detail": "checks=30"}
+{"broken": true, "probe": "accuracy_unchanged", "ok": true, "detail": "a=deferred_work_integration_accuracy=1.00 (30/30)"}
