@@ -6,7 +6,9 @@ place where the two meet, and it holds no rule of its own: for a stage it asks
 the subsystem the hooks and audits already trust, and returns that answer as an
 exit code.
 
-    experiment                run_experiment.py --verify   (HMAC + trust ring)
+    experiment                the story's declared basis: E refs run_experiment.py
+                              --verify (HMAC + trust ring), STRUCT refs resolve
+                              to a valid declaration, Test refs name a real test
     implementation-readiness  create-record.py --check
     sprint-planning           create-record.py --check
     story                     guard._validate_story_metadata + chain check
@@ -176,35 +178,67 @@ def _sprint(root: pathlib.Path) -> pathlib.Path | None:
 # --- stage gates --------------------------------------------------------------
 
 def _gate_experiment(root: pathlib.Path) -> int:
-    """Every experiment the story's ACs claim must verify on this trust ring.
+    """Resolve the story's declared basis wherever the story declares it.
+
+    The story template offers four claims, and only one of them is an E record:
+    `Experiment: E-NNN` (measured), `Experiment: STRUCT-NNN` (declared, no
+    measurable claim), `Test: path::name` (a specification decided by a named
+    test), and `[HYPOTHESIS]` (no code permission). Reading only the
+    frontmatter `experiment_refs` made the other three invisible at the chain's
+    first stage: a legitimate STRUCT-only story failed as "no measured basis",
+    and an AC-level E reference was ignored in favour of a frontmatter list
+    that might not name it. The gate now uses the same parsers and resolvers as
+    the write/story gates, so a basis that can close a story can also enter the
+    chain — and a malformed one fails here, not three stages later.
 
     Tier 1 is the one documented exception: a trivial/doc/hotfix story has no
-    measured basis by policy (`config.story_rigor_tier`, README "Rigor tiers"),
-    and the write guard already allows a Tier 1 orphan story. Demanding
-    `experiment_refs` here made the policy unreachable — the chain's first stage
-    asked for the record the tier says it does not need. The tier is read from
-    the story itself, the same source `story_quality` and the guard read, so a
-    run's `--flag tier=1` cannot loosen a Tier 3 story's gate. The code guard is
-    untouched: Tier 1 exempts the RECORD, never the approval a code write needs.
+    measured basis by policy (`config.story_rigor_tier`, README "Rigor tiers").
+    The tier is read from the story itself, so a run's `--flag tier=1` cannot
+    loosen a Tier 3 story's gate. Tier 1 exempts the RECORD, never the approval
+    a code write needs.
     """
-    from hooks.engine.modules import story_records
+    from hooks.engine.modules import guard, story_records
     from hooks.engine.modules.config import story_rigor_tier
     story = _story(root)
     if story is None:
         return _cannot(f"no story record for '{_SLUG}' — the run has no identity")
     text = _read(story)
-    ids = sorted({str(r.get("id", "")).strip()
-                  for r in story_records._parse_experiment_refs(text)} - {""})
-    if not ids:
+
+    e_ids: set[str] = set()
+    struct_ids: set[str] = set()
+    tests: list[str] = []
+    for ac in guard._parse_ac_metadata(text):
+        ref = (ac.get("experiment") or "").strip()
+        if ref.startswith("E-"):
+            e_ids.add(ref)
+        elif ref.startswith("STRUCT-"):
+            struct_ids.add(ref)
+        if ac.get("test"):
+            tests.append(str(ac["test"]).strip())
+    for r in story_records._parse_experiment_refs(text):
+        rid = str(r.get("id", "")).strip()
+        if rid.startswith("E-"):
+            e_ids.add(rid)
+        elif rid.startswith("STRUCT-"):
+            struct_ids.add(rid)
+
+    if not e_ids and not struct_ids and not tests:
         if story_rigor_tier(text) == 1:
             print(f"experiment: {story.name} declares Rigor Tier 1 — no "
                   f"experiment reference required")
             return 0
-        return _say(f"{story.name} declares no experiment_refs — a story with no "
-                    f"measured basis has no chain to enter")
+        return _say(f"{story.name} declares no measured, declared or "
+                    f"test-decided basis — a story with no basis has no chain "
+                    f"to enter (Rigor Tier 1 is the only exception)")
+
+    for sid in sorted(struct_ids):
+        reason = guard._structural_declaration_reason(sid, str(root))
+        if reason:
+            return _say(f"{reason}")
+
     verifier = (_ROOT / "skills" / "bmad-research-experiment" / "scripts"
                 / "run_experiment.py")
-    for rid in ids:
+    for rid in sorted(e_ids):
         path = _record(root, "experiment", rid)
         if path is None:
             return _say(f"{rid}: record not found under docs/experiments/")
@@ -215,7 +249,20 @@ def _gate_experiment(root: pathlib.Path) -> int:
             label = {1: "not verified", 2: "advisory-blocked",
                      3: "cannot verify (no gate key on this machine)"}.get(rc, f"rc {rc}")
             return _say(f"{rid}: {label} — {_excerpt(out)}")
-    print(f"experiment: {len(ids)} approved reference(s) verify")
+
+    if tests:
+        problem = guard._dangling_test_problem(text, str(root))
+        if problem:
+            return _say(problem)
+
+    parts = []
+    if e_ids:
+        parts.append(f"{len(e_ids)} approved experiment reference(s) verify")
+    if struct_ids:
+        parts.append(f"{len(struct_ids)} structural declaration(s) resolve")
+    if tests:
+        parts.append(f"{len(tests)} test-decided specification(s) resolve")
+    print("experiment: " + ", ".join(parts))
     return 0
 
 

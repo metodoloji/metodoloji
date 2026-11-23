@@ -141,6 +141,7 @@ Activation is complete. If `activation_steps_prepend` or `activation_steps_appen
   - Extract AC-id, description, Verify: method, and Experiment reference
   - Run or ask user to verify using the Verify: method
   - For `Experiment: E-XXX` require the record's decision APPROVED; for `Experiment: STRUCT-XXX` require `docs/development/structural/STRUCT-XXX.md` with Status declared|ratified, a justification >= 40 characters and a Scope glob covering the changed files, and record it as DECLARED (not PASS/FAIL). Fill the declaration's `Reviewed-By: QR-<id>` to ratify it.
+  - For `Test: path::name` run that named test and record PASS/FAIL with its output; the test is the specification, so a passing run is the whole evidence (no experiment or struct record is expected).
   - Record: status (✅ verified / ⏳ pending / ❌ failed), method used, evidence (output/screenshot)
 
 <action>Build verification table:</action>

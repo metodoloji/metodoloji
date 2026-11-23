@@ -113,7 +113,9 @@ experiment reference required), **2** = feature/refactor (adds the story
   for paths that carry no measurable claim (declaration in
   `docs/development/structural/`, `Status: declared|ratified`), or
   `Experiment: —` with the `[HYPOTHESIS]` tag. A STRUCT reference is declared
-  work, not a hypothesis.
+  work, not a hypothesis. A **specification** (given this input, that output —
+  nothing to discover) is `Test: path::name`, and the cited name must literally
+  appear in the file; it is neither an experiment nor a structural exemption.
 - **Never invent an experiment to unlock scaffold.** That is falsification; the
   structural declaration is the honest door and the guard accepts it.
 

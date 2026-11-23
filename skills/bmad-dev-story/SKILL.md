@@ -212,7 +212,7 @@ Before `## Execution`, check the chain for signals addressed to you: `python3 {m
     <critical>Validate Acceptance Criteria metadata at load time</critical>
     <action>For each AC in Acceptance Criteria section, verify:</action>
     - AC identifier exists and is unique ([AC-XXX] format)
-    - Experiment field is present (E-XXX | STRUCT-XXX | —)
+    - A basis is present: Experiment (E-XXX | STRUCT-XXX | —) OR Test (path::name)
     - Type field is present (agent-verifiable | user-evaluable | hybrid)
     - Measured field is present (true | false)
     - Verify field is present (verification method)
@@ -225,6 +225,7 @@ Before `## Execution`, check the chain for signals addressed to you: `python3 {m
     <action>For each AC, resolve its declared basis:</action>
     - Experiment: E-XXX → run `python3 {metodoloji-root}/skills/bmad-research-experiment/scripts/run_experiment.py --verify --record {project-root}/docs/experiments/<id>.md`; only VERIFIED unlocks code. FORGED, REJECTED or a missing record means no code for that AC.
     - Experiment: STRUCT-XXX → read `{project-root}/docs/development/structural/STRUCT-XXX.md`; require `Status: declared|ratified`, a justification >= 40 characters and a Scope glob covering the files you will touch. A missing/dangling declaration is a stop.
+    - Test: path::name → require the file to exist, sit inside the project, and contain that literal test name. A dangling name is a stop; the test is the specification, not a hypothesis.
     - Experiment: — with [HYPOTHESIS] → no code; leave it as a note.
     <action if="an E-AC is not VERIFIED, a STRUCT declaration is missing/dangling, or every AC is a hypothesis">HALT and report the missing approval/declaration; implement nothing</action>
     <action if="any AC is missing required metadata">HALT: "AC metadata incomplete — fix before implementing"</action>

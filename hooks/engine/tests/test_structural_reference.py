@@ -53,11 +53,17 @@ BRACKET = """## Story: S-901 — fixture
 """
 
 
-def _with_declaration(root, name="STRUCT-001"):
+def _with_declaration(root, name="STRUCT-001", status="declared",
+                      justification="Scaffold only: no path here asserts anything measurable.",
+                      scope="src/**"):
     d = pathlib.Path(root) / "docs" / "development" / "structural"
     d.mkdir(parents=True, exist_ok=True)
-    (d / f"{name}.md").write_text("# Structural Scope\n- **Status:** declared\n",
-                                  encoding="utf-8")
+    (d / f"{name}.md").write_text(
+        "# Structural Scope\n"
+        f"- **Status:** {status}\n"
+        f"- **Justification:** {justification}\n"
+        f"- **Scope:** {scope}\n",
+        encoding="utf-8")
     return str(root)
 
 
@@ -85,6 +91,25 @@ def test_a_missing_declaration_is_refused(tmp_path):
     assert _orphan_story_reason(content) == ""  # the shape is valid…
     reason = _dangling_structural_reason(content, str(tmp_path))  # …the file is not
     assert "STRUCT-404" in reason and "no declaration exists" in reason
+
+
+def test_a_declaration_with_an_unknown_status_does_not_back_a_story(tmp_path):
+    """Existence is not validity: the write gate ignores this record, so must the story gate."""
+    root = _with_declaration(tmp_path, status="maybe")
+    reason = _dangling_structural_reason(TABLE % ("STRUCT-001", "STRUCT-001"), root)
+    assert "Status 'maybe'" in reason
+
+
+def test_a_declaration_without_a_reviewable_justification_does_not_back_a_story(tmp_path):
+    root = _with_declaration(tmp_path, justification="we needed to move")
+    reason = _dangling_structural_reason(TABLE % ("STRUCT-001", "STRUCT-001"), root)
+    assert "Justification" in reason and "40" in reason
+
+
+def test_a_declaration_without_scope_does_not_back_a_story(tmp_path):
+    root = _with_declaration(tmp_path, scope="")
+    reason = _dangling_structural_reason(TABLE % ("STRUCT-001", "STRUCT-001"), root)
+    assert "Scope is empty" in reason
 
 
 def test_an_ac_with_no_reference_is_still_an_orphan():

@@ -275,7 +275,7 @@ def test_a_tier_2_story_still_needs_its_experiment(tmp_path):
     _tier_story(tmp_path, 2)
     proc = _run_gate(tmp_path, "experiment", "S-001")
     assert proc.returncode == 1
-    assert "no experiment_refs" in proc.stdout
+    assert "no measured, declared or test-decided basis" in proc.stdout
 
 def test_a_tier_1_release_completes_without_an_experiment_or_a_pr(tmp_path):
     """The whole Tier 1 path closes: E stage on the tier, PR stage on the tier.

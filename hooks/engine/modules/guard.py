@@ -143,22 +143,58 @@ def verify_record(rec: str) -> tuple[int, str]:
 # a/b-S-001.md/notes.md must NOT count as story files (substring match would
 # drag ordinary files into the story metadata chain).
 
+def _structural_declaration_reason(ref: str, root: str) -> str:
+    """Why a cited STRUCT-NNN cannot stand as a story's declared basis.
+
+    Existence alone is the weak version of this rule: a declaration whose
+    Status is unknown, whose justification is one sentence of schedule, or
+    which names no Scope glob is not a declaration — the write gate already
+    ignores exactly those, so the story gate must not accept them either.
+    One helper, both gates; a mismatch here is how a story closes on an
+    exemption the guard would never have granted a write.
+    """
+    root_path = pathlib.Path(root)
+    path = root_path.joinpath(*_STRUCTURAL_DIR) / f"{ref}.md"
+    rel = "/".join(_STRUCTURAL_DIR + (f"{ref}.md",))
+    if not path.is_file():
+        return (f"{ref} is cited but no declaration exists at "
+                f"{rel} — a structural "
+                f"reference has to resolve, exactly like an E record")
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        return (f"{ref}: declaration is unreadable "
+                f"({exc.__class__.__name__}) at {rel}")
+    status = _struct_field(text, "Status").strip().lower()
+    if status not in ("declared", "ratified"):
+        return (f"{ref}: Status '{status or 'missing'}' — a structural "
+                f"declaration must say declared or ratified, or it declares nothing")
+    justification = _struct_field(text, "Justification").strip()
+    if len(justification) < _STRUCTURAL_MIN_JUSTIFICATION:
+        return (f"{ref}: Justification is {len(justification)} character(s); "
+                f"a non-empirical claim needs at least "
+                f"{_STRUCTURAL_MIN_JUSTIFICATION} to be reviewable")
+    if not _struct_field(text, "Scope").strip():
+        return f"{ref}: Scope is empty — an exemption that names no paths covers nothing"
+    return ""
+
+
 def _dangling_structural_reason(content: str, root: str) -> str:
-    """A cited STRUCT-NNN must resolve to a declaration on disk.
+    """A cited STRUCT-NNN must resolve to a valid declaration on disk.
 
     Teaching the gate to accept a structural reference without checking that
     the declaration exists would swap one silent assumption for another: a
     story could cite STRUCT-404, pass every field check, and point at nothing.
-    An E reference is resolved the same way; this is not a weaker rule.
+    An E reference is resolved the same way; this is not a weaker rule. The
+    declaration is then read for Status/Justification/Scope, so the story gate
+    cannot accept an exemption the write gate would ignore.
     """
     cited = {ac.get("experiment", "") for ac in _parse_ac_metadata(content)}
     cited |= set(re.findall(r"STRUCT-\d{3}", content))
     for ref in sorted(c for c in cited if c.startswith("STRUCT-")):
-        path = pathlib.Path(root) / "docs" / "development" / "structural" / f"{ref}.md"
-        if not path.is_file():
-            return (f"{ref} is cited but no declaration exists at "
-                    f"docs/development/structural/{ref}.md — a structural "
-                    f"reference has to resolve, exactly like an E record")
+        reason = _structural_declaration_reason(ref, root)
+        if reason:
+            return reason
     return ""
 
 def _orphan_story_reason(content: str) -> str:
