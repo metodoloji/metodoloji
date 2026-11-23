@@ -1,0 +1,5 @@
+{"broken": true, "probe": "three_codes_whole", "ok": true, "detail": "ambiguous codes : C1 (m1/s1 vs m1/t1), C2 (m2/s2 vs m2/t2), C3 (m3/s3 vs m3/t3)"}
+{"broken": true, "probe": "six_codes_whole", "ok": true, "detail": " (m3/s3 vs m3/t3), C4 (m4/s4 vs m4/t4), C5 (m5/s5 vs m5/t5), C6 (m6/s6 vs m6/t6)"}
+{"broken": true, "probe": "seven_codes_singular", "ok": false, "detail": " (m3/s3 vs m3/t3), C4 (m4/s4 vs m4/t4), C5 (m5/s5 vs m5/t5), C6 (m6/s6 vs m6/t6)"}
+{"broken": true, "probe": "eight_codes_plural", "ok": false, "detail": " (m3/s3 vs m3/t3), C4 (m4/s4 vs m4/t4), C5 (m5/s5 vs m5/t5), C6 (m6/s6 vs m6/t6)"}
+{"broken": true, "probe": "twelve_codes_larger", "ok": false, "detail": " (m3/s3 vs m3/t3), C4 (m4/s4 vs m4/t4), C5 (m5/s5 vs m5/t5), C6 (m6/s6 vs m6/t6)"}

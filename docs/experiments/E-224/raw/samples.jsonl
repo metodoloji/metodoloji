@@ -1,0 +1,6 @@
+{"broken": false, "probe": "two_servers_whole", "ok": true, "detail": "sue trackers); do not re-derive by hand what a server already provides"}
+{"broken": false, "probe": "four_servers_whole", "ok": true, "detail": "sue trackers); do not re-derive by hand what a server already provides"}
+{"broken": false, "probe": "five_servers_singular", "ok": true, "detail": "sue trackers); do not re-derive by hand what a server already provides"}
+{"broken": false, "probe": "six_servers_plural", "ok": true, "detail": "sue trackers); do not re-derive by hand what a server already provides"}
+{"broken": false, "probe": "eight_servers_larger", "ok": true, "detail": "sue trackers); do not re-derive by hand what a server already provides"}
+{"broken": false, "probe": "shared_limiter_called", "ok": true, "detail": "nouns=['server'] step='derive by hand what a server already provides'"}

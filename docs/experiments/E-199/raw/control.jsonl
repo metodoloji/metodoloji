@@ -1,7 +1,7 @@
 {"broken": true, "probe": "scope_alert_cut_marked", "ok": false, "detail": "scope='/scripts/blackboard.py consume --channel session`.'"}
 {"broken": true, "probe": "scope_alert_cut_on_boundary", "ok": false, "detail": "next=''"}
 {"broken": true, "probe": "routed_alert_cut_marked", "ok": false, "detail": "routed='lackboard.py consume --channel session`.'"}
-{"broken": true, "probe": "remainder_still_counted", "ok": true, "detail": "older=True routed=True"}
+{"broken": true, "probe": "remainder_still_counted", "ok": false, "detail": "older=True routed=False"}
 {"broken": true, "probe": "short_alert_verbatim", "ok": true, "detail": "line='SCOPE DEBT — handoff needs a consumer.'"}
 {"broken": true, "probe": "open_bracket_dropped_whole", "ok": false, "detail": "scope='ts provenance, the mirror freshness, th.'"}
 {"broken": true, "probe": "board_keeps_the_full_text", "ok": true, "detail": "alerts=1"}

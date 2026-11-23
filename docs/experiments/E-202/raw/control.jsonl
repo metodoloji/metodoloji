@@ -1,7 +1,7 @@
-{"broken": true, "probe": "subdirs_remainder_counted", "ok": false, "detail": "tail='area-10 (1), area-11 (1)'"}
+{"broken": true, "probe": "subdirs_remainder_counted", "ok": false, "detail": "tail='), area-09 (1), area-10 (1), area-11 (1)'"}
 {"broken": true, "probe": "largest_remainder_counted", "ok": false, "detail": "tail=[]"}
 {"broken": true, "probe": "counts_match_inventory", "ok": false, "detail": "total=None largest=12"}
-{"broken": true, "probe": "fit_unmarked", "ok": true, "detail": "line='  docs            : /tmp/tmpg1h0a1ud/proj/docs — area-00 (1), area-01 (1)'"}
+{"broken": true, "probe": "fit_unmarked", "ok": true, "detail": "line='  docs            : /tmp/tmprk4rg04a/proj/docs — area-00 (1), area-01 (1)'"}
 {"broken": true, "probe": "hidden_dirs_not_counted", "ok": false, "detail": "total=None listed=2"}
 {"broken": true, "probe": "size_order_kept", "ok": true, "detail": "sizes=[4000, 3000, 2000, 1000]"}
 {"broken": true, "probe": "empty_docs_marked", "ok": true, "detail": "line='empty/docs — (empty)'"}

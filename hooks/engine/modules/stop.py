@@ -375,18 +375,20 @@ def stop(json_in: dict) -> dict:
     except Exception:
         stories = []
     if stories:
-        shown = ", ".join(stories[:5])
-        if len(stories) > 5:
-            shown += f", … (+{len(stories) - 5} more)"
+        # E-216: `[:5]` + a bare `(+N more)` hid how many stories remained
+        # in progress; name the unit (story) and the true count.
+        shown = counted_list(stories, 5, noun="story")
         notes.append(f"in-progress stories: {shown}.")
     try:
         writes = _session_code_writes(root)
     except Exception:
         writes = []
     if writes:
-        shown = ", ".join(writes[:5])
-        if len(writes) > 5:
-            shown += f", … (+{len(writes) - 5} more)"
+        # E-220: the code-write list sliced at five with a bare
+        # `(+N more)`, so a session with eight writes read as five and the
+        # reader could not tell withheld paths from withheld stories.
+        # Name the unit (path) and the true count.
+        shown = counted_list(writes, 5, noun="path")
         # "this session" ≠ "this turn": the set spans the whole session, and a
         # write made hours ago is still listed. Say so, and say the report is
         # informational — the guard already validated each write at write time,
@@ -483,9 +485,10 @@ def stop(json_in: dict) -> dict:
             if ts and ts >= session_start:
                 retired.append(str(target))
         if retired:
-            shown = ", ".join(sorted(retired)[:5])
-            if len(retired) > 5:
-                shown += f", … (+{len(retired) - 5} more)"
+            # E-221: the retirement list sliced at five with a bare
+            # `(+N more)`, so a session retiring eight claims read as five.
+            # Name the unit (target) and the true count.
+            shown = counted_list(sorted(retired), 5, noun="target")
             notes.append(f"retired this session: {shown} — these claims no longer "
                          f"unlock code or announce work.")
     except Exception:
@@ -507,7 +510,13 @@ def stop(json_in: dict) -> dict:
             # digest (E-187/E-191): the cut lands on a boundary, an unclosed
             # bracket group is dropped whole, and `…` marks the elision.
             first = brief_text(stop_alerts[0].get("text", ""), 160)
-            more = f" (+{len(stop_alerts) - 1} more)" if len(stop_alerts) > 1 else ""
+            # E-222: the stop-channel alert list surfaced only the first and
+            # a bare `(+N more)`, so a run with five routed alerts read as one
+            # and the reader could not tell withheld alerts from withheld paths.
+            # Name the unit (alert) and the true count.
+            _n = len(stop_alerts) - 1
+            more = (f" (+{_n} more alert{'s' if _n != 1 else ''})"
+                    if _n > 0 else "")
             notes.append(f"routed alert(s) on the stop channel: {first}{more} — "
                          f"clear with "
                          f"`{_plugin_cmd('hooks/scripts/blackboard.py', 'consume', '--channel', 'stop')}`.")

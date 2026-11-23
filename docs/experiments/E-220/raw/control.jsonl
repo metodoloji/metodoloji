@@ -1,0 +1,5 @@
+{"broken": true, "probe": "three_writes_whole", "ok": true, "detail": "code written earlier this session: src/file1.py, src/file2.py, src/file3.py (informational — guard already validated eac"}
+{"broken": true, "probe": "five_writes_whole", "ok": true, "detail": "code written earlier this session: src/file1.py, src/file2.py, src/file3.py, src/file4.py, src/file5.py (informational —"}
+{"broken": true, "probe": "six_writes_singular", "ok": false, "detail": "code written earlier this session: src/file1.py, src/file2.py, src/file3.py, src/file4.py, src/file5.py, … (+1 more) (in"}
+{"broken": true, "probe": "seven_writes_plural", "ok": false, "detail": "code written earlier this session: src/file1.py, src/file2.py, src/file3.py, src/file4.py, src/file5.py, … (+2 more) (in"}
+{"broken": true, "probe": "nine_writes_larger", "ok": false, "detail": "code written earlier this session: src/file1.py, src/file2.py, src/file3.py, src/file4.py, src/file5.py, … (+4 more) (in"}

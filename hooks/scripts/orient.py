@@ -851,12 +851,13 @@ def build(project_root: pathlib.Path) -> dict:
     enabled = [s for s in (mcp.get("servers") or []) if s.get("enabled")]
     disabled_count = len(mcp.get("servers") or []) - len(enabled)
     if enabled:
-        names = ", ".join(f"`{s['name']}`" for s in enabled[:4])
-        more = len(enabled) - 4
+        # E-224: the MCP server list sliced at four with a hand-rolled
+        # `… (+N more server(s))`, duplicating counted_list's job and its
+        # plural rule. Route through the common limiter so the remainder
+        # carries its unit and true count.
+        names = _named([f"`{s['name']}`" for s in enabled], 4, "server")
         next_steps.append(
             f"mcp servers reachable this session: {names}"
-            + (f", … (+{more} more server{'' if more == 1 else 's'})"
-               if more > 0 else "")
             + " — prefer them for the work they serve (repo search, docs lookup, "
               "browser, issue trackers); do not re-derive by hand what a server "
               "already provides")
@@ -1041,7 +1042,12 @@ def _print_text(digest: dict) -> None:
             for s in listed)
         total = docs.get("subdirs_total", len(listed))
         if total > len(listed):
-            subs += f" … +{total - len(listed)}"
+            # E-218: the walk stopped at _MAX_DOCS_SUBDIRS with a bare `… +N`
+            # that named no unit, so a tree with fifteen areas read as twelve
+            # complete. Name the unit (area) and the true count.
+            extra = total - len(listed)
+            marker = f"… (+{extra} more area{'s' if extra != 1 else ''})"
+            subs = (subs + ", " + marker) if subs else marker
         print(f"  docs            : {docs['path']} — {subs or '(empty)'}")
         largest = docs.get("largest") or []
         for f in largest[:_MAX_LISTED]:
@@ -1072,10 +1078,17 @@ def _print_text(digest: dict) -> None:
               f"{len(catalog['modules'])} modules — "
               f"{catalog['path']}")
         if catalog["ambiguous_menu_codes"]:
+            ambiguous = catalog["ambiguous_menu_codes"]
             pairs = ", ".join(
                 f"{code} ({' vs '.join(owners)})"
-                for code, owners in list(catalog["ambiguous_menu_codes"].items())[:_MAX_LISTED])
+                for code, owners in list(ambiguous.items())[:_MAX_LISTED])
             print(f"  ambiguous codes : {pairs}")
+            if len(ambiguous) > _MAX_LISTED:
+                # E-219: the menu-code list sliced at _MAX_LISTED with no
+                # count, so a catalog with twenty ambiguous codes read as six.
+                extra = len(ambiguous) - _MAX_LISTED
+                print(f"                    … (+{extra} more ambiguous "
+                      f"code{'s' if extra != 1 else ''})")
             print("                    → qualify a menu code with its module when "
                   "two skills share it")
     for step in digest["next_steps"]:

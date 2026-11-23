@@ -1,0 +1,5 @@
+{"broken": false, "probe": "three_writes_whole", "ok": true, "detail": "code written earlier this session: src/file1.py, src/file2.py, src/file3.py (informational — guard already validated eac"}
+{"broken": false, "probe": "five_writes_whole", "ok": true, "detail": "code written earlier this session: src/file1.py, src/file2.py, src/file3.py, src/file4.py, src/file5.py (informational —"}
+{"broken": false, "probe": "six_writes_singular", "ok": true, "detail": "src/file1.py, src/file2.py, src/file3.py, src/file4.py, src/file5.py, … (+1 more path)"}
+{"broken": false, "probe": "seven_writes_plural", "ok": true, "detail": "src/file1.py, src/file2.py, src/file3.py, src/file4.py, src/file5.py, … (+2 more paths)"}
+{"broken": false, "probe": "nine_writes_larger", "ok": true, "detail": "src/file1.py, src/file2.py, src/file3.py, src/file4.py, src/file5.py, … (+4 more paths)"}

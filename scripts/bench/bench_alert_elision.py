@@ -118,8 +118,9 @@ def _probe(name: str, tree: pathlib.Path) -> tuple[bool, str]:
             blackboard.post_alert(root, "session", "info", f"routed note {i}")
         from modules import audit
         text = audit.session_start({"cwd": root})["additionalContext"]
-        ok = "(+2 older)" in text and "(+2 more routed)" in text
-        return ok, f"older={'+2 older' in text} routed={'+2 more routed' in text}"
+        ok = "(+2 older)" in text and "(+2 more routed alerts)" in text
+        return ok, (f"older={'+2 older' in text} "
+                    f"routed={'+2 more routed alerts' in text}")
     if name == "short_alert_verbatim":
         short = "handoff needs a consumer"
         blackboard.post_alert(root, "scope", "info", short)

@@ -1,0 +1,5 @@
+{"broken": true, "probe": "one_alert_whole", "ok": true, "detail": "routed alert(s) on the session channel: alert text 1; clear with"}
+{"broken": true, "probe": "two_alerts_singular", "ok": false, "detail": "routed alert(s) on the session channel: alert text 1 (+1 more routed); clear with"}
+{"broken": true, "probe": "three_alerts_plural", "ok": false, "detail": "routed alert(s) on the session channel: alert text 1 (+2 more routed); clear with"}
+{"broken": true, "probe": "five_alerts_larger", "ok": false, "detail": "routed alert(s) on the session channel: alert text 1 (+4 more routed); clear with"}
+{"broken": true, "probe": "six_alerts_larger2", "ok": false, "detail": "routed alert(s) on the session channel: alert text 1 (+5 more routed); clear with"}

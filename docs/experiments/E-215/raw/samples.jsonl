@@ -1,0 +1,6 @@
+{"broken": false, "probe": "peek_singular", "ok": true, "detail": "omputed, not chosen: drive it with `workflow.py status|next|complete`."}
+{"broken": false, "probe": "peek_plural", "ok": true, "detail": "omputed, not chosen: drive it with `workflow.py status|next|complete`."}
+{"broken": false, "probe": "peek_whole", "ok": true, "detail": "omputed, not chosen: drive it with `workflow.py status|next|complete`."}
+{"broken": false, "probe": "foundation_counted", "ok": true, "detail": "no longer carries its evidence — re-complete it, do not trust the position above"}
+{"broken": false, "probe": "foundation_singular", "ok": true, "detail": "no longer carries its evidence — re-complete it, do not trust the position above"}
+{"broken": false, "probe": "foundation_whole", "ok": true, "detail": "no longer carries its evidence — re-complete it, do not trust the position above"}

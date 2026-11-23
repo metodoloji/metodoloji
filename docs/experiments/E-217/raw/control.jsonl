@@ -1,0 +1,5 @@
+{"broken": true, "probe": "one_file_whole", "ok": true, "detail": " an E record with this file in its scope before relying on these edits"}
+{"broken": true, "probe": "three_files_whole", "ok": true, "detail": " an E record with this file in its scope before relying on these edits"}
+{"broken": true, "probe": "four_files_singular", "ok": false, "detail": " an E record with this file in its scope before relying on these edits"}
+{"broken": true, "probe": "five_files_plural", "ok": false, "detail": " an E record with this file in its scope before relying on these edits"}
+{"broken": true, "probe": "six_files_larger", "ok": false, "detail": " an E record with this file in its scope before relying on these edits"}

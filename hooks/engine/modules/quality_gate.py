@@ -86,8 +86,8 @@ def quality(json_in: dict, *, guard_module: ModuleType) -> dict:
     except Exception:
         misses, ran = [], False
     if misses:
-        warn = ("SCOPE COVERAGE: " + ", ".join(misses[:3])
-                + (f" (+{len(misses) - 3} more)" if len(misses) > 3 else "")
+        from .utils import counted_list  # noqa: PLC0415
+        warn = ("SCOPE COVERAGE: " + counted_list(misses, 3, noun="path")
                 + " — outside every approved Code Scope; open an E record with "
                   "this file in its scope before relying on these edits")
         try:

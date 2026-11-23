@@ -1,0 +1,5 @@
+{"broken": false, "probe": "three_stories_whole", "ok": true, "detail": "Stop report — in-progress stories: 1-1-x, 1-2-x, 1-3-x."}
+{"broken": false, "probe": "five_stories_whole", "ok": true, "detail": "Stop report — in-progress stories: 1-1-x, 1-2-x, 1-3-x, 1-4-x, 1-5-x."}
+{"broken": false, "probe": "six_stories_singular", "ok": true, "detail": "rogress stories: 1-1-x, 1-2-x, 1-3-x, 1-4-x, 1-5-x, … (+1 more story)."}
+{"broken": false, "probe": "seven_stories_plural", "ok": true, "detail": "gress stories: 1-1-x, 1-2-x, 1-3-x, 1-4-x, 1-5-x, … (+2 more stories)."}
+{"broken": false, "probe": "nine_stories_larger", "ok": true, "detail": "gress stories: 1-1-x, 1-2-x, 1-3-x, 1-4-x, 1-5-x, … (+4 more stories)."}

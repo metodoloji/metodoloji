@@ -1446,6 +1446,24 @@ def test_advisory_flags_a_moved_foundation(tmp_path):
     assert "'a'" in line
 
 
+def test_advisory_peek_counts_the_runs_it_withholds(tmp_path):
+    base = tmp_path / ".metodoloji" / "workflow"
+    base.mkdir(parents=True)
+    for i in range(4):
+        (base / f"run{i}.state.json").write_text(
+            json.dumps({"status": "running"}), encoding="utf-8")
+    line = advisory.peek(tmp_path, limit=2)
+    assert "(+2 more runs)" in line
+    assert "run(s)" not in line
+
+
+def test_advisory_foundation_counts_the_stages_it_withholds(tmp_path, monkeypatch):
+    root, spec = _complete_a(tmp_path)
+    monkeypatch.setattr("hooks.workflow.evidence.verify",
+                       lambda pr, st, sp: {"stale": ["a", "b", "c", "d", "e"]})
+    line = advisory.peek(root)
+    assert "(+3 more stages)" in line
+
 def test_cli_status_and_next_carry_the_evidence_verdict(tmp_path, capsys):
     root, spec = _complete_a(tmp_path)
     (tmp_path / "log.md").unlink()

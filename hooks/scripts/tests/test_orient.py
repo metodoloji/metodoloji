@@ -590,13 +590,39 @@ def test_docs_overview_counts_the_areas_and_files_it_withheld(tmp_path, monkeypa
     assert len(overview["subdirs"]) == orient._MAX_DOCS_SUBDIRS
     assert overview["subdirs_total"] == 15
     out = _run(["--project-root", str(tmp_path)]).stdout
-    assert f"… +{15 - orient._MAX_DOCS_SUBDIRS}" in out
+    assert f"… (+{15 - orient._MAX_DOCS_SUBDIRS} more areas)" in out
     assert f"… +{len(overview['largest']) - orient._MAX_LISTED} more by size" in out
     small = tmp_path / "small"
     (small / "docs" / "one").mkdir(parents=True)
     (small / "docs" / "one" / "a.md").write_text("x", encoding="utf-8")
     tiny = _run(["--project-root", str(small)]).stdout
     assert "more by size" not in tiny and "… +" not in tiny
+
+
+def _ambiguous_digest(codes: dict) -> dict:
+    return {"available": True, "path": "x", "modules": [], "skill_count": 1,
+            "ambiguous_menu_codes": codes, "required": [], "skills": []}
+
+
+def test_ambiguous_codes_name_the_codes_the_bound_withholds(tmp_path, monkeypatch):
+    """E-219: the menu-code list sliced at `_MAX_LISTED` with no count, so a
+    catalog with eight ambiguous codes printed six and read as complete."""
+    codes = {f"C{i}": [f"m{i}/a", f"m{i}/b"]
+             for i in range(1, orient._MAX_LISTED + 3)}
+    monkeypatch.setattr(orient, "catalog_digest", lambda: _ambiguous_digest(codes))
+    monkeypatch.setattr(orient.pathlib.Path, "home", lambda: tmp_path / "home")
+    out = _panel(orient.build(tmp_path))
+    assert "… (+2 more ambiguous codes)" in out
+    assert f"C{orient._MAX_LISTED + 1}" not in out
+
+
+def test_ambiguous_codes_name_one_withheld_code_in_the_singular(tmp_path, monkeypatch):
+    codes = {f"C{i}": [f"m{i}/a", f"m{i}/b"]
+             for i in range(1, orient._MAX_LISTED + 2)}
+    monkeypatch.setattr(orient, "catalog_digest", lambda: _ambiguous_digest(codes))
+    monkeypatch.setattr(orient.pathlib.Path, "home", lambda: tmp_path / "home")
+    out = _panel(orient.build(tmp_path))
+    assert "… (+1 more ambiguous code)" in out
 
 
 def test_record_inventory_counts_slugged_records(tmp_path):

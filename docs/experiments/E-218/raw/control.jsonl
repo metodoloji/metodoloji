@@ -1,0 +1,5 @@
+{"broken": true, "probe": "five_areas_whole", "ok": true, "detail": "mp/tmp0zxs7mt0/proj/docs — area1 (1), area2 (1), area3 (1), area4 (1), area5 (1)"}
+{"broken": true, "probe": "twelve_areas_whole", "ok": true, "detail": "(1), area3 (1), area4 (1), area5 (1), area6 (1), area7 (1), area8 (1), area9 (1)"}
+{"broken": true, "probe": "thirteen_areas_singular", "ok": false, "detail": "area2 (1), area3 (1), area4 (1), area5 (1), area6 (1), area7 (1), area8 (1) … +1"}
+{"broken": true, "probe": "fifteen_areas_plural", "ok": false, "detail": "ea14 (1), area15 (1), area2 (1), area3 (1), area4 (1), area5 (1), area6 (1) … +3"}
+{"broken": true, "probe": "twenty_areas_larger", "ok": false, "detail": " (1), area15 (1), area16 (1), area17 (1), area18 (1), area19 (1), area2 (1) … +8"}

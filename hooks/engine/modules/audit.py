@@ -836,8 +836,13 @@ def session_start(json_in: dict) -> dict:
         session_alerts = bb.pending_alerts(root, "session")
         if session_alerts:
             first = brief_text(str(session_alerts[0].get("text", "")), 160)
-            more = (f" (+{len(session_alerts) - 1} more routed)"
-                    if len(session_alerts) > 1 else "")
+            # E-223: the session-channel alert list surfaced only the first
+            # and a bare `(+N more routed)`, so five routed alerts read as one
+            # and the reader could not tell withheld alerts from withheld paths.
+            # Name the unit (alert) and the true count.
+            _n = len(session_alerts) - 1
+            more = (f" (+{_n} more routed alert{'s' if _n != 1 else ''})"
+                    if _n > 0 else "")
             context += (f" Blackboard — {len(session_alerts)} routed alert(s) on the "
                         f"session channel: {first}{more}; clear with "
                         f"`{_plugin_cmd('hooks/scripts/blackboard.py', 'consume', '--channel', 'session')}`.")

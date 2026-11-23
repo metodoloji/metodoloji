@@ -27,6 +27,7 @@ import argparse
 import json
 import os
 import pathlib
+import re
 import subprocess
 import sys
 import tarfile
@@ -69,7 +70,10 @@ def _preview(reason: str) -> str:
     if "stop channel: " not in reason:
         return ""
     tail = reason.split("stop channel: ", 1)[1]
-    return tail.split(" — clear with", 1)[0].replace(" (+1 more)", "")
+    tail = tail.split(" — clear with", 1)[0]
+    # The withheld-alert tail is a marker, not part of the previewed text: drop
+    # it in both its unitless (E-192) and unit-named (E-222) shapes.
+    return re.sub(r" \(\+\d+ more(?: alerts?)?\)$", "", tail)
 
 
 def _long_alert(filler: str = "notes/segment/") -> str:
@@ -116,7 +120,7 @@ def _probe(name: str, tree: pathlib.Path, base: pathlib.Path) -> tuple[bool, str
 
     if name == "more_count_preserved":
         reason = run("deploy finished: ok", count=2)
-        return "(+1 more)" in reason, f"reason={reason[-60:]!r}"
+        return "(+1 more alert)" in reason, f"reason={reason[-60:]!r}"
 
     if name == "unclosed_bracket_dropped_whole":
         text = "release run finished " + "w " * 70 + f"({TOKEN}) — verify"

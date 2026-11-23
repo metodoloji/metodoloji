@@ -26,6 +26,29 @@ MAX_BROKEN_FOUNDATION = 2  # E-056: bounded, like everything else on this line
 _TITLE_LEN = 70
 
 
+def _counted_list(items, limit: int, *, noun: str) -> str:
+    """The repo's bounded-list join, reached lazily to keep `peek` fail-open.
+
+    This module is imported by `hooks.workflow`, which the session edge reaches
+    from its own lazy import. A module-scope `hooks.engine.modules.utils`
+    import would drag the whole engine package (audit/guard/stop/config, whose
+    config validates itself) into that path, so a broken engine would cost the
+    whole workflow line instead of just its remainder marker. `orient._named`
+    makes the same choice for the same reason: fall back to a local marker
+    rather than go silent.
+    """
+    try:
+        from hooks.engine.modules.utils import counted_list  # noqa: PLC0415
+        return counted_list(items, limit, noun=noun)
+    except Exception:
+        pass
+    shown = ", ".join(str(item) for item in items[:limit])
+    rest = len(items) - limit
+    if rest <= 0:
+        return shown
+    return f"{shown}, … (+{rest} more {noun}{'' if rest == 1 else 's'})"
+
+
 def _clip(text: str, limit: int = _TITLE_LEN) -> str:
     text = " ".join(str(text).split())
     return text if len(text) <= limit else text[: limit - 1] + "…"
@@ -93,10 +116,14 @@ def _describe(slug: str, state: dict, spec: dict, project_root: str) -> str:
         except Exception:
             broken = []
         if broken:
-            shown = ", ".join(f"'{s}'" for s in broken[:MAX_BROKEN_FOUNDATION])
-            extra = (f" (+{len(broken) - MAX_BROKEN_FOUNDATION} more)"
-                     if len(broken) > MAX_BROKEN_FOUNDATION else "")
-            parts.append(f"FOUNDATION MOVED: completed {shown}{extra} no longer "
+            # E-215: the broken-foundation list printed at most two stages and
+            # then a bare `(+N more)`, so a run with five stale stages read as
+            # three and the reader could not tell withdrawn stages from withdrawn
+            # runs. counted_list names the unit (stage) and the true count.
+            shown = _counted_list(
+                [f"'{s}'" for s in broken],
+                MAX_BROKEN_FOUNDATION, noun="stage")
+            parts.append(f"FOUNDATION MOVED: completed {shown} no longer "
                          f"carries its evidence — re-complete it, do not trust "
                          f"the position above")
 
@@ -128,7 +155,14 @@ def peek(project_root: str, limit: int = MAX_RUNS) -> str:
     skipped = len(runs) - len(lines)
     if not lines:
         return ""
-    tail = f" (+{skipped} more run(s))" if skipped else ""
+    # E-215: `run(s)` is the only place in the tree that still uses the
+    # parenthesised plural; the withheld count names its unit instead.
+    if skipped == 1:
+        tail = " (+1 more run)"
+    elif skipped > 1:
+        tail = f" (+{skipped} more runs)"
+    else:
+        tail = ""
     return (" ".join(lines) + tail +
             " — the order is computed, not chosen: drive it with "
             "`workflow.py status|next|complete`.")

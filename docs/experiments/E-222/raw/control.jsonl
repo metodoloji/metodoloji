@@ -1,0 +1,5 @@
+{"broken": true, "probe": "one_alert_whole", "ok": true, "detail": "mp4nxlxkfs/prefix/hooks/scripts/blackboard.py consume --channel stop`."}
+{"broken": true, "probe": "two_alerts_singular", "ok": false, "detail": "mp4nxlxkfs/prefix/hooks/scripts/blackboard.py consume --channel stop`."}
+{"broken": true, "probe": "three_alerts_plural", "ok": false, "detail": "mp4nxlxkfs/prefix/hooks/scripts/blackboard.py consume --channel stop`."}
+{"broken": true, "probe": "five_alerts_larger", "ok": false, "detail": "mp4nxlxkfs/prefix/hooks/scripts/blackboard.py consume --channel stop`."}
+{"broken": true, "probe": "six_alerts_larger2", "ok": false, "detail": "mp4nxlxkfs/prefix/hooks/scripts/blackboard.py consume --channel stop`."}

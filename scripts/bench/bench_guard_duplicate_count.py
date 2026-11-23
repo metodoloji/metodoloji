@@ -1,0 +1,164 @@
+#!/usr/bin/env python3
+"""The guard duplicate-record denial names each withheld path (E-214).
+
+A write that collides with an existing record id is refused with:
+
+    Duplicate record ID 'E-900' detected: also at a, b, c, … (+N more).
+
+The `… (+N more)` carried no unit, so with four colliding files the agent saw
+three paths and "+1 more" without knowing whether the withheld entries were
+paths, records or commands. The denial is the sentence the agent must act on, so
+the withheld count must name its unit.
+
+Claim, closed set: the denial lists up to three paths and counts the rest as
+paths (`… (+N more path)` / `… (+N more paths)`), a set of three or fewer
+prints whole with no marker, and the unit is always present.
+
+Control: `--broken` runs the same probes against `PREFIX_REV`, where the tail
+is a bare `… (+N more)` with no unit.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import pathlib
+import subprocess
+import sys
+import tarfile
+import tempfile
+
+ROOT = pathlib.Path(__file__).resolve().parents[2]
+PREFIX_REV = "f88ce5f"  # E-210 commit: the bare (+N more) marker
+
+PROBES = (
+    "three_paths_whole",
+    "remainder_counted",
+    "singular_remainder",
+    "larger_remainder",
+    "unit_always_present",
+)
+
+
+def _duplicates(root: pathlib.Path, count: int) -> None:
+    for i in range(count):
+        d = root / "docs" / "experiments" / f"dup{i}"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "E-900.md").write_text("# x\n", encoding="utf-8")
+
+
+def _check(tree: pathlib.Path, root: pathlib.Path) -> str:
+    script = (
+        "import sys, json\n"
+        "sys.path[:0] = ['hooks/engine']\n"
+        "from modules import guard\n"
+        "u, r = guard._check_duplicate_record_ids(sys.argv[1], sys.argv[2])\n"
+        "print(json.dumps({'unique': u, 'reason': r}))\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", script, str(root), "docs/experiments/E-900-new.md"],
+        capture_output=True, text=True, cwd=str(tree),
+        stdin=subprocess.DEVNULL)
+    try:
+        return str(json.loads(result.stdout).get("reason") or "")
+    except (json.JSONDecodeError, AttributeError):
+        return ""
+
+
+def _probe(name: str, tree: pathlib.Path) -> tuple[bool, str]:
+    with tempfile.TemporaryDirectory() as raw:
+        root = pathlib.Path(raw)
+
+        if name == "three_paths_whole":
+            _duplicates(root, 3)
+            reason = _check(tree, root)
+            ok = ("dup0/E-900.md" in reason and "dup2/E-900.md" in reason
+                  and "more" not in reason)
+            return ok, reason[-80:]
+        if name == "remainder_counted":
+            _duplicates(root, 5)
+            reason = _check(tree, root)
+            ok = "… (+2 more paths)" in reason
+            return ok, reason[-60:]
+        if name == "singular_remainder":
+            _duplicates(root, 4)
+            reason = _check(tree, root)
+            ok = "… (+1 more path)" in reason
+            return ok, reason[-60:]
+        if name == "larger_remainder":
+            _duplicates(root, 8)
+            reason = _check(tree, root)
+            ok = "… (+5 more paths)" in reason
+            return ok, reason[-60:]
+        if name == "unit_always_present":
+            _duplicates(root, 6)
+            reason = _check(tree, root)
+            ok = ("more path" in reason and "more)" not in reason)
+            return ok, reason[-60:]
+        raise SystemExit(f"unknown probe: {name}")
+
+
+def driver(name: str, tree: pathlib.Path) -> None:
+    ok, detail = _probe(name, tree)
+    print(json.dumps({"ok": ok, "detail": detail}, ensure_ascii=False))
+
+
+def _prefix_tree(base: pathlib.Path) -> pathlib.Path:
+    archive = base / "prefix.tar"
+    with archive.open("wb") as handle:
+        subprocess.run(["git", "archive", PREFIX_REV], cwd=ROOT,
+                       stdout=handle, stdin=subprocess.DEVNULL, check=True)
+    tree = base / "prefix"
+    tree.mkdir()
+    with tarfile.open(archive) as tar:
+        tar.extractall(tree)
+    return tree
+
+
+def _run(tree: pathlib.Path, samples: pathlib.Path | None, broken: bool) -> bool:
+    rows, passed = [], 0
+    for name in PROBES:
+        result = subprocess.run(
+            [sys.executable, str(pathlib.Path(__file__).resolve()), "--driver", name,
+             "--tree", str(tree)], capture_output=True, text=True, cwd=str(tree),
+            stdin=subprocess.DEVNULL)
+        try:
+            payload = json.loads(result.stdout or "{}")
+        except json.JSONDecodeError:
+            payload = {"ok": False, "detail": (result.stderr or result.stdout)[-200:]}
+        ok = bool(payload.get("ok"))
+        passed += 1 if ok else 0
+        rows.append({"probe": name, "ok": ok, "detail": payload.get("detail", "")})
+        print(f"  {'PASS' if ok else 'FAIL'}  {name}  — {payload.get('detail', '')}")
+    total = len(PROBES)
+    value = passed / total
+    print(f"guard_duplicate_count_accuracy={value:.2f} ({passed}/{total})")
+    if samples is not None:
+        samples.parent.mkdir(parents=True, exist_ok=True)
+        with samples.open("w", encoding="utf-8") as handle:
+            for row in rows:
+                handle.write(json.dumps({"broken": broken, **row}, ensure_ascii=False) + "\n")
+    return passed == total
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--samples", type=pathlib.Path, default=None)
+    parser.add_argument("--broken", action="store_true")
+    parser.add_argument("--driver", default=None)
+    parser.add_argument("--tree", type=pathlib.Path, default=None)
+    args = parser.parse_args()
+
+    if args.driver:
+        driver(args.driver, args.tree or ROOT)
+        return 0
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tree = _prefix_tree(pathlib.Path(tmp)) if args.broken else ROOT
+        print(f"tree: {tree}")
+        ok = _run(tree, args.samples, args.broken)
+    return 0 if (ok or args.broken) else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

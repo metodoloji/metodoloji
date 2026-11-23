@@ -438,9 +438,7 @@ def _check_duplicate_record_ids(root: str, rel_path: str,
                 others.append(rel_to_root(root, str(found)))
 
         if others:
-            shown = ", ".join(sorted(others)[:3])
-            if len(others) > 3:
-                shown += f", … (+{len(others) - 3} more)"
+            shown = counted_list(sorted(others), 3, noun="path")
             return False, (
                 f"Duplicate record ID '{label}' detected: also at {shown}. "
                 f"A record ID must identify exactly one file."

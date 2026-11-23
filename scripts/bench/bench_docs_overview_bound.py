@@ -10,7 +10,8 @@ reason to look further, and the digest exists precisely to save the manual
 ``ls``/``wc`` sweep it was hiding.
 
 The artifact line in the same render already counts its remainder
-(``… +N``); these two lists now do the same.
+(``… +N``); these two lists now do the same, and the area remainder names
+its unit (``… (+N more areas)``).
 
 Claim, closed set: the digest reports the area total and the render counts the
 areas and files the caps withheld, with counts that match the inventory; a tree
@@ -57,6 +58,11 @@ def _digest(tree: pathlib.Path, root: pathlib.Path) -> dict:
     return orient.build(root)["docs"]
 
 
+def _area_remainder(hidden: int) -> str:
+    """The docs line's withheld-area marker (E-218 named the unit)."""
+    return f"… (+{hidden} more area{'' if hidden == 1 else 's'})"
+
+
 def _render(tree: pathlib.Path, root: pathlib.Path) -> str:
     result = subprocess.run(
         [sys.executable, str(tree / "hooks" / "scripts" / "orient.py"),
@@ -98,8 +104,9 @@ def _probe(name: str, tree: pathlib.Path) -> tuple[bool, str]:
         out = _render(tree, root)
         docs_line = next((l for l in out.splitlines() if "  docs " in l), "")
         if name == "subdirs_remainder_counted":
-            ok = f"… +{15 - len(d.get('subdirs') or [])}" in docs_line
-            return ok, f"tail={docs_line[-24:]!r}"
+            hidden = 15 - len(d.get("subdirs") or [])
+            ok = _area_remainder(hidden) in docs_line
+            return ok, f"tail={docs_line[-40:]!r}"
         if name == "largest_remainder_counted":
             ok = "more by size" in out and "… +" in out
             return ok, f"tail={[l for l in out.splitlines() if 'more by size' in l]}"
@@ -107,7 +114,7 @@ def _probe(name: str, tree: pathlib.Path) -> tuple[bool, str]:
             largest = d.get("largest") or []
             subdirs = d.get("subdirs") or []
             ok = (d.get("subdirs_total") == 15
-                  and f"… +{15 - len(subdirs)}" in docs_line
+                  and _area_remainder(15 - len(subdirs)) in docs_line
                   and f"… +{len(largest) - 6} more by size" in out)
             return ok, f"total={d.get('subdirs_total')} largest={len(largest)}"
     raise SystemExit(f"unknown probe: {name}")

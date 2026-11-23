@@ -2627,7 +2627,7 @@ def test_session_start_marks_a_shortened_routed_alert(tmp_path, monkeypatch):
     ctx = audit_mod.session_start({"cwd": str(tmp_path)})["additionalContext"]
     shown = _shown_alert(ctx, "session channel: ")
     assert text.startswith(shown) and text[len(shown)] in " ,;:"
-    assert "(+1 more routed)" in ctx
+    assert "(+1 more routed alert)" in ctx
     # A short alert is quoted verbatim, with no elision marker.
     bb.post_alert(tmp_path, "session", "info", "short note")
     bb.consume_alerts(tmp_path, "session")

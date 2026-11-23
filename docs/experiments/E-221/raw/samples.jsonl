@@ -1,0 +1,5 @@
+{"broken": false, "probe": "three_retired_whole", "ok": true, "detail": "target1, target2, target3 — these claims no longer unlock code or announce work."}
+{"broken": false, "probe": "five_retired_whole", "ok": true, "detail": "target3, target4, target5 — these claims no longer unlock code or announce work."}
+{"broken": false, "probe": "six_retired_singular", "ok": true, "detail": "rget5, … (+1 more target) — these claims no longer unlock code or announce work."}
+{"broken": false, "probe": "seven_retired_plural", "ok": true, "detail": "get5, … (+2 more targets) — these claims no longer unlock code or announce work."}
+{"broken": false, "probe": "nine_retired_larger", "ok": true, "detail": "get5, … (+4 more targets) — these claims no longer unlock code or announce work."}

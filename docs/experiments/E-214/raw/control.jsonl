@@ -1,0 +1,5 @@
+{"broken": true, "probe": "three_paths_whole", "ok": true, "detail": ".md, docs/experiments/dup2/E-900.md. A record ID must identify exactly one file."}
+{"broken": true, "probe": "remainder_counted", "ok": false, "detail": "md, … (+2 more). A record ID must identify exactly one file."}
+{"broken": true, "probe": "singular_remainder", "ok": false, "detail": "md, … (+1 more). A record ID must identify exactly one file."}
+{"broken": true, "probe": "larger_remainder", "ok": false, "detail": "md, … (+5 more). A record ID must identify exactly one file."}
+{"broken": true, "probe": "unit_always_present", "ok": false, "detail": "md, … (+3 more). A record ID must identify exactly one file."}

@@ -1,0 +1,5 @@
+{"broken": false, "probe": "single_story_whole", "ok": true, "detail": "PROACTIVE — no declared workflow run for S-101 (in-progress): the story record already dec"}
+{"broken": false, "probe": "two_stories_whole", "ok": true, "detail": "PROACTIVE — no declared workflow run for S-101 (in-progress), S-102 (in-progress): the story record already declares the"}
+{"broken": false, "probe": "remainder_counted", "ok": true, "detail": "PROACTIVE — no declared workflow run for S-101 (in-progress), S-102 (in-progress), … (+3 more stories): the story record already declares th"}
+{"broken": false, "probe": "singular_remainder", "ok": true, "detail": "PROACTIVE — no declared workflow run for S-101 (in-progress), S-102 (in-progress), … (+1 more story): the story record already declares the "}
+{"broken": false, "probe": "claimed_story_silent", "ok": true, "detail": ""}
