@@ -103,7 +103,7 @@ Activation is complete. If `activation_steps_prepend` or `activation_steps_appen
   - Acceptance Criteria (AC-001, AC-002, ... — must include AC-id and Verify: method)
   - Definition of Done (DoD-001, DoD-002, ... — must include identifier and Evidence)
   - Sprint reference (SP-id)
-  - Epic reference (E-id)
+  - Epic reference (EP-id or epic number — E-XXX is the experiment namespace, never the epic)
   - Rigor Tier (1 | 2 | 3)
   - AC measured basis: E-XXX (experiment or contract), STRUCT-XXX (declared structural scope), or — ([HYPOTHESIS])
   - Implementation details (branch, PR, or user provides)
@@ -326,11 +326,13 @@ Activation is complete. If `activation_steps_prepend` or `activation_steps_appen
   - [ ] Update story (S-XXX) status to "done" (or "review" if QR pending another check)
   - [ ] Add QR reference to story (Completion section: **QR record:** QR-{id})
   - [ ] Update sprint status to reflect story completion
+  - [ ] Advance the kernel run only now that the QR is APPROVED: `python3 {metodoloji-root}/hooks/scripts/workflow.py complete --slug S-XXX --stage quality-review --project-root {project-root}` (declare `workflow.py flag --key deploy --value true` first when the Next step is 'plan deploy'; a run blocked on an earlier REJECTED is lifted with `workflow.py resume --slug S-XXX`)
 
 <action>If decision = REJECTED:</action>
   - [ ] Update story status to "blocked" or revert to "in-progress"
   - [ ] Add comment explaining rejection
   - [ ] Note next steps in story
+  - [ ] Record the block in the kernel so the run is not silently abandoned: `python3 {metodoloji-root}/hooks/scripts/workflow.py block --slug S-XXX --reason "QR-{id} REJECTED — <gap>" --project-root {project-root}` (lift it with `workflow.py resume --slug S-XXX` after the corrected QR is APPROVED)
   - [ ] Announce the block on the stop channel: `python3 {metodoloji-root}/hooks/scripts/blackboard.py notify --channel stop --kind warn --text "QR-{id} REJECTED for S-XXX — story blocked, see {quality_location}/QR-{id}.md" --project-root {project-root}` (it surfaces at Stop until consumed; clear with `consume --channel stop` once unblocked)
 
 <action>Post handoff notification (one call — heartbeat + signal):</action>
@@ -353,6 +355,7 @@ Send the `--to bmad-production-readiness` baton only for **Rigor Tier 3**. For T
   - [ ] All mandatory tables present (AC verification, DoD verification)
   - [ ] Decision clearly stated (APPROVED/REJECTED)
   - [ ] Handoff sent (if approved)
+  - [ ] Kernel run advanced on APPROVED, or blocked with a reason on REJECTED
 
 <action>Display completion summary to {user_name} in {communication_language}:</action>
 

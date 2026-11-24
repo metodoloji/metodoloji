@@ -22,9 +22,10 @@ persistent_facts = [
   "file:{metodoloji-root}/hooks/workflow/builtin/methodology-chain.json",
 ]
 
-# Post-activation steps (run after main workflow)
+# Carried activation steps (executed when the workflow starts; each KERNEL
+# entry names the moment it applies and is not run at activation).
 activation_steps_append = [
-  "KERNEL: Declare the release branch before you advance the run — if this release will be deployed (the QR's Next step is 'plan deploy'), set it first: `python3 {metodoloji-root}/hooks/scripts/workflow.py flag --slug S-<sira> --key deploy --value true --project-root {project-root}`. The deploy branch is read when quality-review completes, so a flag set after that cannot reopen the run. Then advance: `python3 {metodoloji-root}/hooks/scripts/workflow.py complete --slug S-<sira> --stage quality-review --project-root {project-root}`. The kernel re-checks the QR itself and the table it declares; a refusal names the gap.",
+  "KERNEL (only after step 9 has produced a QR with `Status: APPROVED`; never at activation): declare the release branch before you advance the run — if this release will be deployed (the QR's Next step is 'plan deploy'), set it first: `python3 {metodoloji-root}/hooks/scripts/workflow.py flag --slug S-<sira> --key deploy --value true --project-root {project-root}`. The deploy branch is read when quality-review completes, so a flag set after that cannot reopen the run. Then advance: `python3 {metodoloji-root}/hooks/scripts/workflow.py complete --slug S-<sira> --stage quality-review --project-root {project-root}`. The kernel re-checks the QR itself and the table it declares; a refusal names the gap. If the decision is REJECTED, do not advance — record the block: `python3 {metodoloji-root}/hooks/scripts/workflow.py block --slug S-<sira> --reason \"QR-<id> REJECTED — <gap>\" --project-root {project-root}` — and lift it with `python3 {metodoloji-root}/hooks/scripts/workflow.py resume --slug S-<sira> --project-root {project-root}` once the corrected QR is APPROVED.",
   "For each AC under verification, check its Experiment (E-XXX) reference in the story. ACs with Experiment=— or a PENDING/REJECTED experiment are [HYPOTHESIS] items: record them as unverified in the QR rather than PASS/FAIL, and direct the user to bmad-research-experiment to close the gap.",
 ]
 
